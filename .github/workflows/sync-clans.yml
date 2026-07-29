@@ -1,15 +1,61 @@
-# T2.7 — Clan and member sync
-# 
-# schedule: hourly    on.workflow_dispatch: yes (always, so you can trigger manually)
-# runs: npm run sync:clans
-# 
-# Repository secrets required:
-#   COC_API_TOKEN          the PRODUCTION key, bound to the RoyaleAPI proxy IP
-#   COC_API_BASE           https://cocproxy.royaleapi.dev/v1
-#   SUPABASE_URL
-#   SUPABASE_SERVICE_KEY
-# 
+# T2.7 — Clan and member sync.
+#
 # R2 — sync runs here, never on Vercel. Vercel's free function timeout kills a
 # long sync partway through and leaves half-written data.
-# 
-# Done when a manual run succeeds and sync_log shows a row.
+#
+# Repository secrets required (Settings -> Secrets and variables -> Actions):
+#   COC_API_TOKEN         the PRODUCTION key, registered against the RoyaleAPI proxy IP
+#   COC_API_BASE          https://cocproxy.royaleapi.dev/v1
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_KEY
+#
+# R6 — none of these may ever be set as a Vercel environment variable.
+#
+# Done when: a manual run succeeds and sync_log shows a row.
+
+name: sync-clans
+
+on:
+  schedule:
+    # Hourly. Members change slowly, and this cadence also keeps the Supabase
+    # free tier from suspending the project for inactivity.
+    - cron: "17 * * * *"
+  workflow_dispatch: # not optional — you will need manual runs while debugging
+
+# A slow run must never overlap the next tick and write the same rows twice.
+concurrency:
+  group: sync-clans
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          # Minute budget: the repo is private, so the allowance is 2,000
+          # minutes/month. Uncached `npm ci` is most of each run's wall time.
+          # At hourly this job is ~720 runs/month and comfortably inside budget.
+          #
+          # T6.2's 15-minute war sync is NOT: 2,880 runs would exceed the whole
+          # allowance on its own. Solve that when writing sync-war.yml — either
+          # widen the interval or have the job exit before install on notInWar.
+          cache: npm
+
+      - run: npm ci
+
+      - name: Sync clans and members
+        run: npm run sync:clans
+        env:
+          COC_API_TOKEN: ${{ secrets.COC_API_TOKEN }}
+          COC_API_BASE: ${{ secrets.COC_API_BASE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # Explicitly false. Defaulting to fixtures in CI would make this job
+          # report success every hour while writing nothing real.
+          USE_FIXTURES: "false"

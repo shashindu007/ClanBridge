@@ -117,6 +117,10 @@ async function seedFixtures(h: Harness) {
     insert into audit_log (user_id, clan_id, action, entity) values
       ('${USER_A}', '${CLAN_A}', 'create', 'cwl_bonuses'),
       ('${USER_B}', '${CLAN_B}', 'create', 'cwl_bonuses');
+
+    insert into member_snapshots (clan_id, player_id, donations, donations_received, trophies) values
+      ('${CLAN_A}', '${PLAYER_A}', 1200, 900, 5200),
+      ('${CLAN_B}', '${PLAYER_B}', 400, 1500, 4100);
   `);
 }
 
@@ -303,6 +307,7 @@ describe("T3.7 — a member of clan A cannot read clan B", () => {
     "base_layouts",
     "announcements",
     "sync_log",
+    "member_snapshots",
   ])("reads exactly one row from %s — its own", async (table) => {
     await h.asUser(USER_A);
     expect(await count(h, table)).toBe(1);
@@ -381,6 +386,81 @@ describe("R5 — idempotency rests on the unique constraint", () => {
     const before = await count(h, "cwl_attacks");
     await h.db.exec(attack);
     expect(await count(h, "cwl_attacks")).toBe(before + 1);
+  });
+});
+
+// T2.9 vs R5. The spec says "one row per player per run"; R5 says a re-run must
+// change nothing. The generated captured_hour column is what reconciles them, so
+// it is asserted directly rather than assumed.
+describe("T2.9 — member_snapshots are idempotent within the hour", () => {
+  let h: Harness;
+
+  beforeAll(async () => {
+    h = await createHarness();
+    await seedFixtures(h);
+    await h.asSuperuser();
+  });
+  afterAll(async () => {
+    await h?.close();
+  });
+
+  const snapshot = `
+    insert into member_snapshots (clan_id, player_id, donations, trophies)
+    values ('${CLAN_A}', '${PLAYER_A}', 1300, 5300)
+    on conflict do nothing
+  `;
+
+  it("re-running the hourly sync writes nothing new", async () => {
+    const before = await count(h, "member_snapshots");
+    await h.db.exec(snapshot);
+    await h.db.exec(snapshot);
+    await h.db.exec(snapshot);
+    expect(await count(h, "member_snapshots")).toBe(before);
+  });
+
+  it("derives captured_hour by truncating captured_at in UTC", async () => {
+    const res = await h.db.query<{ same: boolean }>(
+      `select captured_hour = date_trunc('hour', captured_at at time zone 'UTC') as same
+       from member_snapshots limit 1`,
+    );
+    expect(res.rows[0]!.same).toBe(true);
+  });
+
+  // The bucket must not move when the connection's timezone does, or an hourly
+  // job would write a second row simply because the runner is in another zone.
+  it("is stable across session timezones", async () => {
+    const read = async (tz: string) => {
+      await h.db.exec(`set time zone '${tz}'`);
+      const res = await h.db.query<{ h: string }>(
+        `select captured_hour::text as h from member_snapshots order by captured_at limit 1`,
+      );
+      return res.rows[0]!.h;
+    };
+
+    const utc = await read("UTC");
+    const colombo = await read("Asia/Colombo");
+    await h.db.exec(`set time zone 'UTC'`);
+    expect(colombo).toBe(utc);
+  });
+
+  it("allows a new row in the next hour", async () => {
+    const before = await count(h, "member_snapshots");
+    await h.db.exec(`
+      insert into member_snapshots (clan_id, player_id, captured_at, donations)
+      values ('${CLAN_A}', '${PLAYER_A}', now() + interval '1 hour', 1400)
+    `);
+    expect(await count(h, "member_snapshots")).toBe(before + 1);
+  });
+
+  it("keeps snapshots for different players in the same hour", async () => {
+    const before = await count(h, "member_snapshots");
+    await h.db.exec(`
+      insert into member_snapshots (clan_id, player_id, donations)
+      values ('${CLAN_B}', '${PLAYER_B}', 500)
+      on conflict do nothing
+    `);
+    // Player B already has a row this hour from the fixtures, so this is a no-op.
+    expect(await count(h, "member_snapshots")).toBe(before);
   });
 });
 

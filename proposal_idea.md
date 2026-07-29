@@ -6,7 +6,7 @@
 
 | | |
 |---|---|
-| **Prepared by** | [YOUR NAME] |
+| **Prepared by** | Shashindu Kalshan |
 | **Prepared for** | [FRIEND'S NAME], Clan Leader |
 | **Project type** | Solo development project |
 | **Document version** | 1.0 |
@@ -445,14 +445,16 @@ The project will be considered successful when the following are true after one 
 
 ## Appendix A — Information required to finalise this document
 
-| Item | Section |
-|---|---|
-| Your name | Cover |
-| Clan leader's name | Cover, section 2 |
-| Confirmed project name | Throughout, currently "ClanBridge" |
-| Names and tags of all three clans | Section 2 |
-| Approximate member count and league per clan | Section 2 |
-| Target adoption percentage | Section 16 |
+Record the answers in `scratch/clan-tags.md` (gitignored), then they get written in here.
+
+| Item | Section | Status |
+|---|---|---|
+| Your name | Cover | **done** — Shashindu Kalshan |
+| Clan leader's name | Cover, section 2 | outstanding |
+| Confirmed project name | Throughout, currently "ClanBridge" | outstanding |
+| Names and tags of all three clans | Section 2 | outstanding — needs T0.2 |
+| Approximate member count and league per clan | Section 2 | outstanding — needs T0.2 |
+| Target adoption percentage | Section 16 | outstanding |
 
 ## Appendix B — Actions required before development begins
 

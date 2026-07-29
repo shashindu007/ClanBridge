@@ -14,7 +14,13 @@ import { join } from "node:path";
 
 const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
 
-/** The six Phase 1 migrations, in the order the SQL editor must apply them. */
+/**
+ * Every migration written so far, in the order the SQL editor must apply them.
+ *
+ * 009 is intentionally absent: it held cwl_signups from the superseded T4.9,
+ * which Phase 4B replaced with polls and rosters. 010-012 are still stubs, so
+ * they are not listed here yet — they join this list as their tasks land.
+ */
 export const PHASE1_MIGRATIONS = [
   "001_core.sql",
   "002_cwl.sql",
@@ -22,6 +28,7 @@ export const PHASE1_MIGRATIONS = [
   "004_features.sql",
   "005_operational.sql",
   "006_rls.sql",
+  "007_member_snapshots.sql", // T2.9
 ] as const;
 
 export function readMigration(file: string): string {
@@ -146,6 +153,7 @@ export const PHASE1_TABLES = [
   "cwl_bonuses",
   "cwl_seasons",
   "cwl_wars",
+  "member_snapshots",
   "players",
   "push_subscriptions",
   "raid_participants",

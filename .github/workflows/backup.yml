@@ -1,13 +1,70 @@
-# T2.8 — Database backup. SET THIS UP NOW, NOT LATER.
-# 
-# schedule: weekly    on.workflow_dispatch: yes
-# runs: pg_dump against SUPABASE_DB_URL, uploaded as an artifact or committed to a
-#       separate private repository
-# 
-# A backup added in month six protects nothing lost in month three.
-# 
-# A daily run of any job also keeps the Supabase free tier from suspending the
-# project for inactivity.
-# 
-# T9.4 — restore one into a scratch project and confirm it works. An untested
-# backup is not a backup.
+# T2.8 — Database backup.
+#
+# SET THIS UP NOW, NOT LATER. A backup added in month six protects nothing that
+# was lost in month three, and deleted CWL history cannot be re-fetched from any
+# source on earth.
+#
+# Secret required:
+#   SUPABASE_DB_URL   the direct Postgres connection string
+#                     (Supabase dashboard -> Project Settings -> Database)
+#
+# T9.4 — restore one of these into a scratch Supabase project and confirm it
+# works. An untested backup is not a backup.
+
+name: backup
+
+on:
+  schedule:
+    - cron: "30 3 * * 0" # 03:30 UTC every Sunday
+  workflow_dispatch:
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install a matching pg_dump
+        # The runner ships an older client than Supabase runs. A version mismatch
+        # makes pg_dump refuse outright, which is a confusing way to discover
+        # your backups have not run for a month.
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Dump the database
+        run: |
+          set -euo pipefail
+          mkdir -p backups
+          STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+          pg_dump --no-owner --no-privileges --format=custom \
+            --file="backups/clanbridge-${STAMP}.dump" \
+            "$SUPABASE_DB_URL"
+          ls -lh backups/
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: clanbridge-backup
+          path: backups/
+          # Artifacts are capped at 90 days on the free tier. Once there is
+          # history worth keeping, download one periodically or push to a second
+          # private repository — an artifact that expires is not an archive.
+          retention-days: 90
+          if-no-files-found: error
+
+      # T5.8 — a backup that silently stops running is indistinguishable from one
+      # that runs. Failing loudly here is the minimum; the push alert comes later.
+      - name: Report failure
+        if: failure()
+        run: echo "::error::Weekly backup FAILED. Deleted CWL history cannot be recovered."

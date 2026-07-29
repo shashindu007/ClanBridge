@@ -160,40 +160,110 @@ Never overwrite a plan with the outcome.
 
 ## 5. Repository layout
 
+The real tree, annotated with the task that fills each file. Files not yet written are
+labelled with the task ID that creates them.
+
 ```
 clanbridge/
+├── IMPLEMENTATION.md  Architecture.md  proposal_idea.md  README.md
+├── package.json  tsconfig.json  next.config.ts  vitest.config.ts
+├── postcss.config.mjs  eslint.config.mjs  components.json
+├── .env.example  .gitignore  .gitattributes
+│
 ├── .github/workflows/
-│   ├── sync-clans.yml
-│   ├── sync-war.yml
-│   ├── sync-cwl.yml
-│   ├── sync-raids.yml
-│   └── backup.yml
-├── src/
-│   ├── app/
-│   │   ├── (auth)/login/
-│   │   ├── (app)/
-│   │   │   ├── [clanTag]/
-│   │   │   │   ├── page.tsx
-│   │   │   │   ├── cwl/
-│   │   │   │   ├── war/
-│   │   │   │   ├── raids/
-│   │   │   │   ├── layouts/
-│   │   │   │   └── notices/
-│   │   │   └── admin/
-│   │   └── api/
-│   ├── integration/
-│   │   ├── coc-client.ts
-│   │   ├── coc-schemas.ts
-│   │   └── mappers/
-│   ├── services/
-│   ├── repositories/
-│   ├── lib/
-│   └── types/
+│   ├── sync-clans.yml       T2.7  hourly
+│   ├── sync-cwl.yml         T4.2  every 2h
+│   ├── sync-war.yml         T6.2  every 15m
+│   ├── sync-raids.yml       T7.2  daily
+│   └── backup.yml           T2.8  weekly pg_dump
+│
+├── fixtures/                T2.1  captured API responses, for USE_FIXTURES
+│   └── clan · currentwar · cwlgroup · cwlwar · capitalraids · player .json
+│
+├── public/
+│   ├── manifest.json        T5.3
+│   ├── sw.js                T5.4
+│   └── icons/
+│
 ├── scripts/sync/
-├── supabase/migrations/
-├── fixtures/
-└── IMPLEMENTATION.md
+│   ├── shared.ts            T2.5  sync_log helpers (R9)
+│   ├── clans.ts             T2.6 + T2.9 + T3.9
+│   ├── cwl.ts               T4.1
+│   ├── war.ts               T6.1
+│   ├── raids.ts             T7.1
+│   └── clan-games.ts        T7.4
+│
+├── supabase/
+│   ├── seed.sql             T1.10  the three clans
+│   └── migrations/
+│       ├── 001_core.sql               T1.4   clans, users, players, clan_roles
+│       ├── 002_cwl.sql                T1.5
+│       ├── 003_war.sql                T1.6
+│       ├── 004_features.sql           T1.7
+│       ├── 005_operational.sql        T1.8   sync_log, audit_log
+│       ├── 006_rls.sql                T1.9   auth_clan_ids() + policies
+│       ├── 007_member_snapshots.sql   T2.9
+│       ├── 008_player_left_at.sql     T3.9
+│       ├── 010_polls.sql              T4B.1  (009 intentionally absent)
+│       ├── 011_cwl_rosters.sql        T4B.6
+│       └── 012_war_lineups.sql        T6.8
+│
+├── test/                    QA — runs the migrations against real Postgres (PGlite)
+│   ├── pg-harness.ts
+│   └── migrations.test.ts
+│
+└── src/
+    ├── middleware.ts        T3.2  must sit at src/ root
+    │
+    ├── app/
+    │   ├── layout.tsx  globals.css  page.tsx
+    │   ├── (auth)/          public — login T3.1, verify T3.4
+    │   ├── (app)/           requires a session
+    │   │   ├── pending/     T3.8      guide/     T5.7+T9.5
+    │   │   ├── search/      T3B.6     report/    T9.1
+    │   │   ├── roster/      T4B.7-9, T4B.14  — cross-clan, so outside [clanTag]
+    │   │   ├── [clanTag]/
+    │   │   │   ├── page.tsx           T3B.1  dashboard
+    │   │   │   ├── members/           T3B.2, T3B.3, T3B.5
+    │   │   │   ├── player/[tag]/      T3B.4  ★ objective O4
+    │   │   │   ├── polls/             T4B.2-4
+    │   │   │   ├── cwl/               T4.4, T4.5, T4.10, T4B.10-13
+    │   │   │   ├── war/               T6.3-6.6, T6.8-6.10
+    │   │   │   ├── raids/  games/     T7.3, T7.5
+    │   │   │   ├── layouts/           T8.2-8.4
+    │   │   │   └── notices/           T5.1
+    │   │   └── admin/                 T9.2, T9.6
+    │   └── api/
+    │       ├── verify/route.ts            T3.3
+    │       └── push/subscribe/route.ts    T5.5
+    │
+    ├── components/ui/       shadcn copies land here
+    │
+    ├── integration/         R7 — raw API shapes stop here
+    │   ├── coc-client.ts    T2.3
+    │   ├── coc-schemas.ts   T2.2  zod, one per endpoint
+    │   ├── errors.ts        named error classes
+    │   └── mappers/         T2.4
+    │
+    ├── lib/
+    │   ├── supabase/        T1.11  server, client, middleware, admin
+    │   ├── tags.ts          T1.12  (+ .test.ts)
+    │   ├── coc-time.ts      T1.13  (+ .test.ts)
+    │   ├── auth.ts          T3.5   requireRole()
+    │   ├── rate-limit.ts    T3.3, T9.7
+    │   ├── audit.ts         R4
+    │   └── utils.ts         cn() for shadcn
+    │
+    ├── repositories/        T4.3 onward — every query filters by clan (R3)
+    ├── services/            derived values: missed attacks, donation deltas
+    └── types/
+        ├── database.ts      generated from Supabase
+        └── domain.ts        internal types (R7)
 ```
+
+Each directory that is still a placeholder carries a `README.md` naming the rules that
+apply to it — `repositories/` states R3 and R4, `mappers/` states R7, `api/` maps each
+planned route to its task.
 
 ---
 
