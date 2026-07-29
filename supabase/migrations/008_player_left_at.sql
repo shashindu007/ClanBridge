@@ -1,0 +1,5 @@
+-- T3.9 — players.left_at timestamptz
+-- 
+-- A player who leaves all three clans keeps their row and their history; access is
+-- revoked by setting left_at. Never delete the player (R4) — their CWL record is
+-- part of the clan's history regardless of where they are now.

@@ -1,0 +1,13 @@
+# T2.8 — Database backup. SET THIS UP NOW, NOT LATER.
+# 
+# schedule: weekly    on.workflow_dispatch: yes
+# runs: pg_dump against SUPABASE_DB_URL, uploaded as an artifact or committed to a
+#       separate private repository
+# 
+# A backup added in month six protects nothing lost in month three.
+# 
+# A daily run of any job also keeps the Supabase free tier from suspending the
+# project for inactivity.
+# 
+# T9.4 — restore one into a scratch project and confirm it works. An untested
+# backup is not a backup.

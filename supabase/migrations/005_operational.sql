@@ -1,0 +1,7 @@
+-- T1.8 — Operational tables
+-- 
+-- sync_log   job type, clan, started_at, finished_at, status, error text (R9)
+-- audit_log  actor, entity, action, before/after, timestamp (R4)
+-- 
+-- sync_log drives the freshness indicator (T4.8) and the failure alert (T5.8).
+-- audit_log is read by the viewer at T9.6.

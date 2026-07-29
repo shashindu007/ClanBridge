@@ -1,0 +1,6 @@
+-- T1.7 — Remaining feature tables
+-- 
+-- raid_seasons, raid_participants, clan_games, clan_games_scores,
+-- base_layouts, announcements, push_subscriptions
+-- 
+-- All get id, created_at, deleted_at.

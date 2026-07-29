@@ -1,0 +1,11 @@
+# T4.2 — Clan War League sync. The one that matters most.
+# 
+# schedule: every 2 hours    on.workflow_dispatch: yes
+# runs: npm run sync:cwl
+# 
+# Do not assume punctual execution. GitHub delays scheduled runs by up to twenty
+# minutes under load, and skips them entirely if the repository has been inactive
+# for 60 days.
+# 
+# R10 — no CWL group is a clean exit. This job reports success for three weeks of
+# every month by design.

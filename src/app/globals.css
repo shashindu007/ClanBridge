@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+/* Tailwind v4 is CSS-first. There is no tailwind.config.ts in this project —
+   design tokens are declared here and shadcn/ui reads them as CSS variables. */
+
+@theme {
+  /* Colours, fonts and spacing overrides go here. */
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  @apply antialiased;
+}

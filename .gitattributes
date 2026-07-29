@@ -1,0 +1,12 @@
+# Normalise line endings. Development is on Windows; GitHub Actions runs Ubuntu,
+# so everything is stored LF in the repository regardless of the working copy.
+* text=auto eol=lf
+
+# Shell scripts must be LF or they fail on the runner with a bad interpreter error.
+*.sh text eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary

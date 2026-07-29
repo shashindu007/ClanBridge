@@ -1,0 +1,14 @@
+-- T1.4 — Core tables
+-- 
+-- clans, users, players, clan_roles
+-- 
+-- Conventions (section 4): snake_case, plural names,
+--   id uuid primary key default gen_random_uuid()
+--   created_at timestamptz default now()
+--   deleted_at timestamptz            -- on EVERY table (R4)
+-- 
+-- Unique constraint on players(tag). Tags stored uppercase with the hash: #2PP0JCCL
+-- 
+-- T1.10 seeds the three clan rows with real tags.
+-- 
+-- Never edit this file once it has been applied. Fix forward with a new migration.

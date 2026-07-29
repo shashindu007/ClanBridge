@@ -1,0 +1,10 @@
+-- T1.5 — Clan War League tables
+-- 
+-- cwl_seasons, cwl_wars, cwl_attacks, cwl_bonuses
+-- 
+-- CRITICAL: unique (war_id, player_id, attack_order) on cwl_attacks.
+-- This constraint is what makes the sync idempotent (R5). Without it,
+-- ON CONFLICT DO NOTHING matches nothing and every run duplicates every attack.
+-- 
+-- cwl_attacks needs a source column ('api' | 'manual') for the logbook import at T4.10.
+-- cwl_bonuses needs awarded_by, awarded_at and a note (T4.7).

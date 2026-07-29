@@ -1,0 +1,8 @@
+# T6.2 — Clan war sync
+# 
+# schedule: every 15 minutes    on.workflow_dispatch: yes
+# runs: npm run sync:war
+# 
+# The heaviest consumer of the 2,000 free minutes/month. At ~1 minute per run this
+# is ~2,880 minutes — over budget. Either widen the interval or make the job exit
+# immediately on notInWar before doing any setup work.

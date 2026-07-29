@@ -1,0 +1,12 @@
+-- T2.9 — member_snapshots
+-- 
+-- clan_id, player_id, captured_at, donations, donations_received,
+-- trophies, war_stars, th_level, role
+-- 
+-- One row per player per sync run. These are cumulative season totals that Supercell
+-- resets monthly; differencing across the season is the only way to get per-season
+-- figures and to detect inactivity (T3B.3, T3B.5).
+-- 
+-- Index (player_id, captured_at) — every profile query orders by it.
+-- 
+-- Watch the 500 MB free tier: ~150 players hourly is roughly 1.3 M rows a year.

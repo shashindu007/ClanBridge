@@ -1,0 +1,50 @@
+{
+  "name": "clanbridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Clash of Clans clan management platform for three clans. See IMPLEMENTATION.md.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "sync:clans": "tsx scripts/sync/clans.ts",
+    "sync:cwl": "tsx scripts/sync/cwl.ts",
+    "sync:war": "tsx scripts/sync/war.ts",
+    "sync:raids": "tsx scripts/sync/raids.ts",
+    "sync:games": "tsx scripts/sync/clan-games.ts",
+    "test": "echo \"No test runner chosen yet - decide at T1.12 (Vitest recommended).\" && exit 1"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.7.0",
+    "@supabase/supabase-js": "^2.58.0",
+    "@tanstack/react-query": "^5.90.2",
+    "@upstash/ratelimit": "^2.0.6",
+    "@upstash/redis": "^1.35.4",
+    "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
+    "next": "^15.5.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "web-push": "^3.6.7",
+    "zod": "^4.1.11"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@tailwindcss/postcss": "^4.1.13",
+    "@types/node": "^24.5.2",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "@types/web-push": "^3.6.4",
+    "eslint": "^9.36.0",
+    "eslint-config-next": "^15.5.4",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.13",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.2"
+  }
+}

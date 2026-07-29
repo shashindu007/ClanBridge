@@ -1,0 +1,9 @@
+-- T1.6 — Clan war tables
+-- 
+-- wars, war_targets, war_attacks
+-- 
+-- Unique constraint war_attacks(war_id, player_id, attack_order).
+-- 
+-- war_targets is the PLAN. war_attacks is WHAT HAPPENED.
+-- Keep them separate. Never merge them, and never write a result into war_targets —
+-- T6.5 exists to show the two side by side.

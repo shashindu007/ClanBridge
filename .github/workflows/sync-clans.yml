@@ -1,0 +1,15 @@
+# T2.7 — Clan and member sync
+# 
+# schedule: hourly    on.workflow_dispatch: yes (always, so you can trigger manually)
+# runs: npm run sync:clans
+# 
+# Repository secrets required:
+#   COC_API_TOKEN          the PRODUCTION key, bound to the RoyaleAPI proxy IP
+#   COC_API_BASE           https://cocproxy.royaleapi.dev/v1
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_KEY
+# 
+# R2 — sync runs here, never on Vercel. Vercel's free function timeout kills a
+# long sync partway through and leaves half-written data.
+# 
+# Done when a manual run succeeds and sync_log shows a row.

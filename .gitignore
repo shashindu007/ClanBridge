@@ -1,0 +1,50 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/plugins
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files — R6: COC_API_TOKEN and SUPABASE_SERVICE_KEY live here and in
+# GitHub Actions secrets only. They must never be committed and never reach Vercel.
+.env
+.env*.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+
+# scratch — T0.2 clan tags, captured tokens, working notes
+/scratch
+/.scratch
+
+# database backups produced by .github/workflows/backup.yml (T2.8)
+/backups
+*.dump
+*.sql.gz

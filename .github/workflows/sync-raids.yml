@@ -1,0 +1,4 @@
+# T7.2 — Capital raid sync
+# 
+# schedule: daily    on.workflow_dispatch: yes
+# runs: npm run sync:raids

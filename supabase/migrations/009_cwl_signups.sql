@@ -1,0 +1,9 @@
+-- T4.9 — cwl_signups
+-- 
+-- season, clan_id, player_id, status ('in' | 'out' | 'maybe'), responded_at
+-- 
+-- Unique (season, clan_id, player_id) — one answer per player per season.
+-- 
+-- This is the decision made BEFORE CWL starts, and currently the noisiest thread
+-- in WhatsApp. Compare the planned lineup to the actual roster once the API
+-- provides it.

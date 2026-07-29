@@ -1,0 +1,13 @@
+-- T1.9 — Row Level Security
+-- 
+-- create function auth_clan_ids() returns setof uuid
+-- language sql stable security definer as $$
+--   select clan_id from clan_roles where user_id = auth.uid()
+-- $$;
+-- 
+-- Enable RLS on every table holding clan data and write a select policy for each.
+-- 
+-- Done when: with the anon key and no session, every table returns zero rows.
+-- 
+-- This is the safety net for the clan filters that get missed in application code
+-- (R3). It is not a substitute for writing them.
