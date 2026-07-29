@@ -14,6 +14,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { encodeTag, normaliseTag } from "../src/lib/tags";
+import { FIXTURE_SCHEMAS } from "../src/integration/coc-schemas";
 import { createScrubber } from "./scrub-fixtures";
 
 // Identity is stripped before anything is written. fixtures/ is committed so CI
@@ -63,12 +64,41 @@ async function get(path: string): Promise<{ status: number; body: unknown }> {
   return { status: response.status, body };
 }
 
-async function save(file: string, body: unknown): Promise<void> {
+/**
+ * THE VALIDATION GATE.
+ *
+ * src/integration/coc-schemas.ts was written from Supercell's *documented*
+ * shapes, because no API key existed at the time. This is where those
+ * assumptions meet reality: every captured response is parsed against its schema
+ * and any disagreement is reported with the exact field path.
+ *
+ * A failure here is not a bug in the capture — it means the schema is wrong and
+ * needs correcting. That is the whole point, and it is far cheaper to learn it
+ * now than from a CWL sync that silently wrote nulls.
+ */
+function validate(file: string, body: unknown): string[] {
+  const schema = FIXTURE_SCHEMAS[file as keyof typeof FIXTURE_SCHEMAS];
+  if (!schema) return [];
+
+  const result = schema.safeParse(body);
+  if (result.success) return [];
+
+  return result.error.issues
+    .slice(0, 10)
+    .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`);
+}
+
+async function save(file: string, body: unknown): Promise<string[]> {
+  // Validate the RAW response, before scrubbing — scrubbing only rewrites string
+  // values, but validating the real thing removes any doubt about what was checked.
+  const issues = validate(file, body);
+
   await writeFile(
     join(FIXTURES_DIR, file),
     `${JSON.stringify(scrubber.scrub(body), null, 2)}\n`,
     "utf8",
   );
+  return issues;
 }
 
 function explain(status: number, path: string): string {
@@ -112,6 +142,7 @@ async function main(): Promise<void> {
   console.log(`Capturing fixtures for ${clanTag} from ${BASE}\n`);
 
   const captured: string[] = [];
+  const schemaIssues = new Map<string, string[]>();
   const skipped: string[] = [];
   let failed = false;
   let firstMemberTag: string | undefined;
@@ -122,9 +153,12 @@ async function main(): Promise<void> {
     const { status, body } = await get(path);
 
     if (status === 200) {
-      await save(target.file, body);
+      const issues = await save(target.file, body);
       captured.push(target.file);
-      console.log(`  ok       ${target.file}`);
+      if (issues.length) schemaIssues.set(target.file, issues);
+      console.log(
+        `  ${issues.length ? "SCHEMA?  " : "ok       "}${target.file}`,
+      );
 
       // Harvest the two tags that the remaining fixtures need.
       if (target.file === "clan.json") {
@@ -153,9 +187,12 @@ async function main(): Promise<void> {
   if (firstMemberTag) {
     const { status, body } = await get(`/players/${encodeTag(firstMemberTag)}`);
     if (status === 200) {
-      await save("player.json", body);
+      const issues = await save("player.json", body);
       captured.push("player.json");
-      console.log(`  ok       player.json (${firstMemberTag})`);
+      if (issues.length) schemaIssues.set("player.json", issues);
+      console.log(
+        `  ${issues.length ? "SCHEMA?  " : "ok       "}player.json (${firstMemberTag})`,
+      );
     } else {
       failed = true;
       console.error(`  FAILED   player.json — ${explain(status, "/players")}`);
@@ -166,9 +203,12 @@ async function main(): Promise<void> {
   if (firstWarTag) {
     const { status, body } = await get(`/clanwarleagues/wars/${encodeTag(firstWarTag)}`);
     if (status === 200) {
-      await save("cwlwar.json", body);
+      const issues = await save("cwlwar.json", body);
       captured.push("cwlwar.json");
-      console.log(`  ok       cwlwar.json (${firstWarTag})`);
+      if (issues.length) schemaIssues.set("cwlwar.json", issues);
+      console.log(
+        `  ${issues.length ? "SCHEMA?  " : "ok       "}cwlwar.json (${firstWarTag})`,
+      );
     } else {
       failed = true;
       console.error(`  FAILED   cwlwar.json — ${explain(status, "/clanwarleagues")}`);
@@ -203,7 +243,33 @@ async function main(): Promise<void> {
     );
   }
 
-  console.log("\nDone. Next: T2.2 (Zod schemas) and T2.4 (mappers), written against these.");
+  // ── The validation gate's verdict ────────────────────────────────────────
+  if (schemaIssues.size) {
+    console.error(
+      "\n" +
+        "=".repeat(72) +
+        "\nSCHEMA MISMATCH — reality disagrees with src/integration/coc-schemas.ts\n" +
+        "=".repeat(72),
+    );
+    for (const [file, issues] of schemaIssues) {
+      console.error(`\n  ${file}`);
+      for (const issue of issues) console.error(`    - ${issue}`);
+    }
+    console.error(
+      "\nThe schemas were written from Supercell's DOCUMENTED shapes, because no\n" +
+        "API key existed at the time. This is exactly the check that was supposed\n" +
+        "to catch that, and it has. The fixtures above are still saved and correct —\n" +
+        "it is the schema that needs fixing.\n\n" +
+        "Fix src/integration/coc-schemas.ts to match, then run `npm test`.\n",
+    );
+    process.exit(1);
+  }
+
+  console.log(
+    "\nAll captured fixtures match src/integration/coc-schemas.ts.\n" +
+      "Those shapes are now verified against the live API rather than assumed.",
+  );
+  console.log("\nDone. Next: `npm test`, then T2.6 runs against real data.");
 }
 
 main().catch((error) => {

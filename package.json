@@ -18,6 +18,7 @@
     "sync:raids": "tsx scripts/sync/raids.ts",
     "sync:clan-games": "tsx scripts/sync/clan-games.ts",
     "fixtures:capture": "tsx --env-file=.env.local scripts/capture-fixtures.ts",
+    "fixtures:seed": "tsx scripts/seed-fixtures.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

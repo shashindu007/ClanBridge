@@ -1,16 +1,228 @@
 // T2.6 — Clan and member sync. Hourly.
-// 
-// For each of the three clans: fetch members, upsert players, update roles.
-// 
-// T2.9 — also write one member_snapshots row per player per run. Donations are
-// cumulative totals Supercell resets monthly; snapshotting is the only way to
-// derive per-season figures later. Without this, phase 3B has nothing to show.
-// 
-// T3.9 — handle movement:
-//   player now in a different one of the three clans -> update players.clan_id,
-//     keep history attached to the player, not the clan
-//   player in none of the three -> set players.left_at, keep the row, revoke access
-// 
-// Done when running it twice produces no duplicate rows (R5).
+//
+// The simplest of the sync jobs, and therefore the one that proves the whole
+// pipeline: API client -> schema -> mapper -> database, with sync_log around it.
+//
+// Also covers:
+//   T2.9  one member_snapshots row per player per run. Donations and trophies
+//         are cumulative totals Supercell resets monthly, so a single reading
+//         means nothing — differencing snapshots is the only way to get
+//         per-season figures (T3B.3) or detect inactivity (T3B.5).
+//   T3.9  membership movement. Players move between the three clans and some
+//         leave entirely; neither may lose history.
+//
+// R11 — this job writes GAME FACTS only: clans, players, member_snapshots.
+// It must never touch clan_roles (that is a user's app role, not the in-game
+// one), nor any human-decision table.
+//
+// Done when: running it twice produces no duplicate rows (R5).
 
-export {};
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { clanEndpoint } from "@/integration/coc-client";
+import { request } from "@/integration/coc-client";
+import { clanSchema } from "@/integration/coc-schemas";
+import { mapClan, mapClanMembers, mapSnapshot } from "@/integration/mappers";
+import type { Player } from "@/types/domain";
+import { activeClans, main, type JobContext } from "./shared";
+
+interface ClanRow {
+  id: string;
+  tag: string;
+  name: string;
+}
+
+/**
+ * Upsert the clan's own row.
+ *
+ * Only fields the API owns. The clan's `tag` was seeded by hand (T1.10) and is
+ * the join key, so it is matched on rather than written.
+ */
+async function syncClanRecord(
+  supabase: SupabaseClient,
+  clan: ClanRow,
+  api: ReturnType<typeof mapClan>,
+): Promise<void> {
+  const { error } = await supabase
+    .from("clans")
+    .update({ name: api.name, badge_url: api.badgeUrl })
+    .eq("id", clan.id);
+
+  if (error) throw new Error(`clans update failed for ${clan.tag}: ${error.message}`);
+}
+
+/**
+ * Upsert every current member.
+ *
+ * `players.tag` is unique, which makes this idempotent (R5): a second run in the
+ * same hour finds the same rows and changes nothing meaningful.
+ *
+ * R3 — clan_id is written explicitly on every row. It is the column every later
+ * query filters by, and the one generated code forgets.
+ */
+async function syncMembers(
+  supabase: SupabaseClient,
+  clan: ClanRow,
+  members: Player[],
+): Promise<number> {
+  if (!members.length) return 0;
+
+  const rows = members.map((m) => ({
+    clan_id: clan.id,
+    tag: m.tag,
+    name: m.name,
+    th_level: m.thLevel ?? null,
+    clan_role: m.role ?? null,
+    // A returning member is un-departed here rather than re-created, so their
+    // whole history reattaches to the same row (T3.9).
+    left_at: null,
+  }));
+
+  const { error } = await supabase
+    .from("players")
+    .upsert(rows, { onConflict: "tag", ignoreDuplicates: false });
+
+  if (error) throw new Error(`players upsert failed for ${clan.tag}: ${error.message}`);
+  return rows.length;
+}
+
+/**
+ * T2.9 — one snapshot row per player per run.
+ *
+ * `on conflict do nothing` against (player_id, captured_hour) from migration
+ * 007. Re-running within the hour is free, which is what reconciles "one row per
+ * run" with R5's "a re-run changes nothing".
+ */
+async function writeSnapshots(
+  supabase: SupabaseClient,
+  clan: ClanRow,
+  members: Player[],
+  playerIds: Map<string, string>,
+): Promise<number> {
+  const rows = members
+    .map((m) => {
+      const playerId = playerIds.get(m.tag);
+      if (!playerId) return null;
+      const snapshot = mapSnapshot({
+        tag: m.tag,
+        name: m.name,
+        role: undefined,
+        townHallLevel: m.thLevel,
+        trophies: m.trophies,
+        donations: m.donations,
+        donationsReceived: m.donationsReceived,
+      });
+      return {
+        clan_id: clan.id,
+        player_id: playerId,
+        donations: snapshot.donations ?? null,
+        donations_received: snapshot.donationsReceived ?? null,
+        trophies: snapshot.trophies ?? null,
+        th_level: snapshot.thLevel ?? null,
+        role: m.role ?? null,
+      };
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null);
+
+  if (!rows.length) return 0;
+
+  const { error } = await supabase
+    .from("member_snapshots")
+    .upsert(rows, { onConflict: "player_id,captured_hour", ignoreDuplicates: true });
+
+  if (error) throw new Error(`member_snapshots failed for ${clan.tag}: ${error.message}`);
+  return rows.length;
+}
+
+/**
+ * T3.9 — mark players who are in none of the three clans as departed.
+ *
+ * Deliberately runs ONCE, after every clan has been fetched. Running it per clan
+ * would mark a player who moved from clan A to clan B as having left, purely
+ * because clan A was processed first — the single most likely bug in this file.
+ *
+ * R4 — nothing is deleted. left_at is set, the row and every attack, snapshot
+ * and bonus survive, and access is revoked by the flag.
+ */
+async function markDepartures(
+  supabase: SupabaseClient,
+  clanIds: string[],
+  presentTags: Set<string>,
+): Promise<number> {
+  const { data: existing, error } = await supabase
+    .from("players")
+    .select("id, tag")
+    .in("clan_id", clanIds)
+    .is("deleted_at", null)
+    .is("left_at", null);
+
+  if (error) throw new Error(`could not read players for departures: ${error.message}`);
+
+  const gone = (existing ?? []).filter((p) => !presentTags.has(p.tag as string));
+  if (!gone.length) return 0;
+
+  const { error: updateError } = await supabase
+    .from("players")
+    .update({ left_at: new Date().toISOString() })
+    .in(
+      "id",
+      gone.map((p) => p.id),
+    );
+
+  if (updateError) throw new Error(`could not mark departures: ${updateError.message}`);
+  return gone.length;
+}
+
+export async function syncClans(ctx: JobContext): Promise<void> {
+  const { supabase } = ctx;
+  const clans = await activeClans(supabase);
+
+  // Every tag seen across ALL three clans this run. Departure detection needs
+  // the complete picture, so it cannot happen inside the per-clan loop.
+  const presentTags = new Set<string>();
+
+  for (const clan of clans) {
+    const api = await request(clanEndpoint(clan.tag), clanSchema);
+    const mapped = mapClan(api);
+    const members = mapClanMembers(api);
+
+    await syncClanRecord(supabase, clan, mapped);
+    const written = await syncMembers(supabase, clan, members);
+    ctx.recorded(written);
+
+    for (const m of members) presentTags.add(m.tag);
+
+    // Read back the ids the upsert produced or matched. Needed because
+    // member_snapshots references player_id, not tag.
+    const { data: rows, error } = await supabase
+      .from("players")
+      .select("id, tag")
+      .eq("clan_id", clan.id)
+      .is("deleted_at", null);
+
+    if (error) throw new Error(`could not read players for ${clan.tag}: ${error.message}`);
+
+    const playerIds = new Map<string, string>(
+      (rows ?? []).map((r) => [r.tag as string, r.id as string]),
+    );
+
+    ctx.recorded(await writeSnapshots(supabase, clan, members, playerIds));
+
+    console.log(`  ${clan.tag} ${clan.name}: ${members.length} members`);
+  }
+
+  const departed = await markDepartures(
+    supabase,
+    clans.map((c) => c.id),
+    presentTags,
+  );
+  if (departed) {
+    ctx.recorded(departed);
+    console.log(`  ${departed} player(s) no longer in any of the three clans`);
+  }
+}
+
+// Run only when executed directly, so the test suite can import syncClans
+// without the job firing on import.
+if (process.argv[1]?.includes("clans")) {
+  void main("clans", syncClans);
+}

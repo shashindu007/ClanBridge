@@ -4,6 +4,8 @@
 // replace fetch with something that throws, so if any code path reaches the
 // network the test fails rather than quietly succeeding.
 
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import {
@@ -326,27 +328,33 @@ describe("USE_FIXTURES — the offline path (T2.3 done-when)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  // The fixtures are still `{}` placeholders until T2.1 is run. The client must
-  // say that in words, rather than surfacing a confusing schema error.
-  it("explains that a fixture is an unfilled placeholder", async () => {
-    const error = await request(clanEndpoint("#2PP0JCCL"), anySchema).catch((e) => e);
-    expect((error as Error).message).toMatch(/placeholder/i);
-    expect((error as Error).message).toMatch(/fixtures:capture/);
+  // T2.3's stated done-when: the whole client works offline. Every endpoint
+  // resolves from fixtures/ with no token and no network.
+  it.each([
+    ["clan", clanEndpoint("#2PP0JCCL")],
+    ["currentwar", currentWarEndpoint("#2PP0JCCL")],
+    ["cwl group", cwlGroupEndpoint("#2PP0JCCL")],
+    ["cwl war", cwlWarEndpoint("#8G9QRVJL")],
+    ["player", playerEndpoint("#PY0LQGRJ")],
+    ["capital raids", capitalRaidsEndpoint("#2PP0JCCL")],
+  ])("resolves %s from a fixture", async (_name, endpoint) => {
+    const body = await request(endpoint, anySchema);
+    expect(body).toBeTypeOf("object");
+    expect(Object.keys(body as object).length).toBeGreaterThan(0);
   });
 
-  it("maps each endpoint to a fixture file", async () => {
-    // A mapped-but-empty fixture reports "placeholder"; an unmapped endpoint
-    // reports "no fixture". Both are CocFixtureError, so the message separates them.
-    for (const endpoint of [
-      clanEndpoint("#2PP0JCCL"),
-      currentWarEndpoint("#2PP0JCCL"),
-      cwlGroupEndpoint("#2PP0JCCL"),
-      cwlWarEndpoint("#8G9QRVJL"),
-      playerEndpoint("#PY0LQGRJ"),
-      capitalRaidsEndpoint("#2PP0JCCL"),
-    ]) {
-      const error = await request(endpoint, anySchema).catch((e) => e);
-      expect((error as Error).message, endpoint).toMatch(/placeholder/i);
+  // An unfilled fixture must say so in words. Otherwise the Zod failure that
+  // follows reads like a schema bug rather than "you have not run T2.1".
+  it("explains that a fixture is an unfilled placeholder", async () => {
+    const path = join(process.cwd(), "fixtures", "clan.json");
+    const original = readFileSync(path, "utf8");
+    try {
+      writeFileSync(path, "{}\n", "utf8");
+      const error = await request(clanEndpoint("#2PP0JCCL"), anySchema).catch((e) => e);
+      expect((error as Error).message).toMatch(/placeholder/i);
+      expect((error as Error).message).toMatch(/fixtures:capture/);
+    } finally {
+      writeFileSync(path, original, "utf8");
     }
   });
 

@@ -1,1 +1,104 @@
-{}
+{
+  "_synthetic": "SYNTHETIC — generated from documented API shapes, not captured from Supercell. Replace with `npm run fixtures:capture` (T2.1).",
+  "state": "warEnded",
+  "teamSize": 5,
+  "attacksPerMember": 1,
+  "preparationStartTime": "20260701T060000.000Z",
+  "startTime": "20260702T060000.000Z",
+  "endTime": "20260703T060000.000Z",
+  "warTag": "#8G9QRVJL",
+  "clan": {
+    "tag": "#2PP0JCCL",
+    "name": "Synthetic Clan",
+    "clanLevel": 18,
+    "attacks": 4,
+    "stars": 11,
+    "destructionPercentage": 94.8,
+    "members": [
+      {
+        "tag": "#PY0LQGRJ",
+        "name": "Player 01",
+        "townhallLevel": 16,
+        "mapPosition": 1,
+        "opponentAttacks": 0,
+        "attacks": [
+          {
+            "attackerTag": "#PY0LQGRJ",
+            "defenderTag": "#C2V89UGL",
+            "stars": 3,
+            "destructionPercentage": 100,
+            "order": 1,
+            "duration": 90
+          }
+        ]
+      },
+      {
+        "tag": "#PY0LQGRC",
+        "name": "Player 02",
+        "townhallLevel": 15,
+        "mapPosition": 2,
+        "opponentAttacks": 0,
+        "attacks": [
+          {
+            "attackerTag": "#PY0LQGRC",
+            "defenderTag": "#C2V89UGJ",
+            "stars": 2,
+            "destructionPercentage": 93,
+            "order": 2,
+            "duration": 91
+          }
+        ]
+      },
+      {
+        "tag": "#PY0LQGRU",
+        "name": "Player 03",
+        "townhallLevel": 15,
+        "mapPosition": 3,
+        "opponentAttacks": 0,
+        "attacks": [
+          {
+            "attackerTag": "#PY0LQGRU",
+            "defenderTag": "#C2V89UGC",
+            "stars": 1,
+            "destructionPercentage": 86,
+            "order": 3,
+            "duration": 92
+          }
+        ]
+      },
+      {
+        "tag": "#PY0LQGRV",
+        "name": "Player 04",
+        "townhallLevel": 14,
+        "mapPosition": 4,
+        "opponentAttacks": 0,
+        "attacks": [
+          {
+            "attackerTag": "#PY0LQGRV",
+            "defenderTag": "#C2V89UGU",
+            "stars": 3,
+            "destructionPercentage": 79,
+            "order": 4,
+            "duration": 93
+          }
+        ]
+      },
+      {
+        "tag": "#PY0LQGR0",
+        "name": "Player 05",
+        "townhallLevel": 13,
+        "mapPosition": 5,
+        "opponentAttacks": 0
+      }
+    ]
+  },
+  "opponent": {
+    "tag": "#8QUCLJY0",
+    "name": "Synthetic Opponent",
+    "clanLevel": 17,
+    "attacks": 5,
+    "stars": 9,
+    "destructionPercentage": 88.1,
+    "members": []
+  }
+}

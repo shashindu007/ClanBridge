@@ -1,1 +1,54 @@
-{}
+{
+  "_synthetic": "SYNTHETIC — generated from documented API shapes, not captured from Supercell. Replace with `npm run fixtures:capture` (T2.1).",
+  "state": "inWar",
+  "season": "2026-07",
+  "clans": [
+    {
+      "tag": "#2PP0JCCL",
+      "name": "Synthetic Clan",
+      "clanLevel": 18,
+      "members": [
+        {
+          "tag": "#PY0LQGRJ",
+          "name": "Player 01"
+        },
+        {
+          "tag": "#PY0LQGRC",
+          "name": "Player 02"
+        },
+        {
+          "tag": "#PY0LQGRU",
+          "name": "Player 03"
+        },
+        {
+          "tag": "#PY0LQGRV",
+          "name": "Player 04"
+        },
+        {
+          "tag": "#PY0LQGR0",
+          "name": "Player 05"
+        }
+      ]
+    },
+    {
+      "tag": "#8QUCLJY0",
+      "name": "Synthetic Opponent",
+      "clanLevel": 16,
+      "members": []
+    }
+  ],
+  "rounds": [
+    {
+      "warTags": [
+        "#8G9QRVJL",
+        "#9CUVPYQ2"
+      ]
+    },
+    {
+      "warTags": [
+        "#0",
+        "#0"
+      ]
+    }
+  ]
+}

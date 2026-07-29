@@ -1,1 +1,58 @@
-{}
+{
+  "_synthetic": "SYNTHETIC — generated from documented API shapes, not captured from Supercell. Replace with `npm run fixtures:capture` (T2.1).",
+  "items": [
+    {
+      "state": "ended",
+      "startTime": "20260725T070000.000Z",
+      "endTime": "20260728T070000.000Z",
+      "capitalTotalLoot": 148000,
+      "raidsCompleted": 4,
+      "totalAttacks": 42,
+      "offensiveReward": 180,
+      "defensiveReward": 95,
+      "members": [
+        {
+          "tag": "#PY0LQGRJ",
+          "name": "Player 01",
+          "attacks": 6,
+          "attackLimit": 5,
+          "bonusAttackLimit": 1,
+          "capitalResourcesLooted": 24000
+        },
+        {
+          "tag": "#PY0LQGRC",
+          "name": "Player 02",
+          "attacks": 5,
+          "attackLimit": 5,
+          "bonusAttackLimit": 1,
+          "capitalResourcesLooted": 21000
+        },
+        {
+          "tag": "#PY0LQGRU",
+          "name": "Player 03",
+          "attacks": 4,
+          "attackLimit": 5,
+          "bonusAttackLimit": 1,
+          "capitalResourcesLooted": 18000
+        },
+        {
+          "tag": "#PY0LQGRV",
+          "name": "Player 04",
+          "attacks": 3,
+          "attackLimit": 5,
+          "bonusAttackLimit": 1,
+          "capitalResourcesLooted": 15000
+        },
+        {
+          "tag": "#PY0LQGR0",
+          "name": "Player 05",
+          "attacks": 2,
+          "attackLimit": 5,
+          "bonusAttackLimit": 1,
+          "capitalResourcesLooted": 12000
+        }
+      ]
+    }
+  ],
+  "paging": {}
+}

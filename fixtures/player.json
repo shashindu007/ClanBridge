@@ -1,1 +1,43 @@
-{}
+{
+  "_synthetic": "SYNTHETIC — generated from documented API shapes, not captured from Supercell. Replace with `npm run fixtures:capture` (T2.1).",
+  "tag": "#PY0LQGRJ",
+  "name": "Player 01",
+  "townHallLevel": 16,
+  "expLevel": 240,
+  "trophies": 5200,
+  "warStars": 1420,
+  "donations": 1200,
+  "donationsReceived": 800,
+  "role": "leader",
+  "clan": {
+    "tag": "#2PP0JCCL",
+    "name": "Synthetic Clan"
+  },
+  "league": {
+    "id": 29000022,
+    "name": "Legend League"
+  },
+  "achievements": [
+    {
+      "name": "Friend in Need",
+      "stars": 3,
+      "value": 45000,
+      "target": 25000,
+      "village": "home"
+    },
+    {
+      "name": "Games Champion",
+      "stars": 1,
+      "value": 21000,
+      "target": 25000,
+      "village": "home"
+    },
+    {
+      "name": "War Hero",
+      "stars": 3,
+      "value": 1420,
+      "target": 1000,
+      "village": "home"
+    }
+  ]
+}

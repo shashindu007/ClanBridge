@@ -1,22 +1,136 @@
 // Internal domain types — the vocabulary everything above src/integration/ uses.
-// 
+//
 // R7 — no raw API field names past this boundary. Nothing outside integration/
-// sees attackerTag, defenderTag, or a timestamp shaped 20260729T063000.000Z.
-// 
+// sees attackerTag, townhallLevel, opponentAttacks, or a timestamp shaped
+// 20260729T063000.000Z. Dates here are real Date objects, tags are normalised,
+// and roles use our four names rather than Supercell's.
+//
 // R11 — the two groups below are separate on purpose. Keep them separate here
 // too, and do not write a convenience type that merges a roster with the API
 // roster it is meant to be compared against.
-//
-//   Game facts (written by scripts/sync/ only):
-//     Clan, Player, MemberSnapshot,
-//     CwlSeason, CwlWar, CwlAttack,
-//     War, WarAttack,
-//     RaidSeason, RaidParticipant, ClanGamesScore
-//
-//   Human decisions (written by people through the app only):
-//     Poll, PollOption, PollResponse,
-//     CwlRoster, CwlRosterMember,
-//     WarLineup, WarLineupMember,
-//     WarTarget, CwlBonus, Announcement, BaseLayout
 
-export {};
+// ---------------------------------------------------------------------------
+// GAME FACTS — written by scripts/sync/ only
+// ---------------------------------------------------------------------------
+
+/** leader / co-leader / elder / member. Supercell calls Elder "admin" on the wire. */
+export type ClanRole = "leader" | "co-leader" | "elder" | "member";
+
+export type WarState = "preparation" | "inWar" | "warEnded";
+export type WarResult = "win" | "lose" | "tie";
+
+export interface Clan {
+  tag: string;
+  name: string;
+  level?: number;
+  badgeUrl?: string;
+  warLeague?: string;
+  memberCount?: number;
+}
+
+export interface Player {
+  tag: string;
+  name: string;
+  thLevel?: number;
+  role?: ClanRole;
+  trophies?: number;
+  donations?: number;
+  donationsReceived?: number;
+  warStars?: number;
+  expLevel?: number;
+  league?: string;
+  /** The clan the API currently reports them in, if any. */
+  clanTag?: string;
+}
+
+/** One point-in-time reading, differenced across a season to derive real figures (T2.9). */
+export interface MemberSnapshot {
+  playerTag: string;
+  donations?: number;
+  donationsReceived?: number;
+  trophies?: number;
+  warStars?: number;
+  thLevel?: number;
+  role?: ClanRole;
+}
+
+export interface WarAttack {
+  attackerTag: string;
+  defenderTag: string;
+  stars: number;
+  destruction: number;
+  order?: number;
+}
+
+export interface WarMember {
+  tag: string;
+  name: string;
+  thLevel?: number;
+  mapPosition?: number;
+  /**
+   * Empty when the player did not attack.
+   *
+   * The API omits the field entirely rather than sending an empty array, so this
+   * is normalised here. Missed attacks are still DERIVED from roster minus
+   * attacks (T4.3) — never stored as zero-star placeholder rows.
+   */
+  attacks: WarAttack[];
+}
+
+export interface War {
+  state: WarState | "notInWar";
+  teamSize?: number;
+  attacksPerMember?: number;
+  startTime?: Date;
+  endTime?: Date;
+  preparationStartTime?: Date;
+  /** CWL only — identifies which war within the league group this is. */
+  warTag?: string;
+  clan?: WarSide;
+  opponent?: WarSide;
+}
+
+export interface WarSide {
+  tag?: string;
+  name?: string;
+  stars?: number;
+  destruction?: number;
+  attackCount?: number;
+  members: WarMember[];
+}
+
+export interface CwlGroup {
+  /** 'YYYY-MM' */
+  season: string;
+  state?: string;
+  clanTags: string[];
+  /** Placeholder `#0` rounds are already filtered out — fetching one is a guaranteed 404. */
+  warTags: string[];
+}
+
+export interface RaidSeason {
+  startTime: Date;
+  endTime: Date;
+  totalLoot?: number;
+  participants: RaidParticipant[];
+}
+
+export interface RaidParticipant {
+  playerTag: string;
+  name: string;
+  attacksUsed?: number;
+  loot?: number;
+}
+
+export interface PlayerDetail extends Player {
+  /** T7.4 differences the "Games Champion" value between two snapshots. */
+  gamesChampionValue?: number;
+}
+
+// ---------------------------------------------------------------------------
+// HUMAN DECISIONS — written by people through the app only (R11)
+//
+// Typed as their tasks land: Poll, PollOption, PollResponse, CwlRoster,
+// CwlRosterMember, WarLineup, WarLineupMember, WarTarget, CwlBonus,
+// Announcement, BaseLayout.
+// ---------------------------------------------------------------------------

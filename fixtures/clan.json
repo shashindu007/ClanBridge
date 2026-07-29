@@ -1,1 +1,97 @@
-{}
+{
+  "_synthetic": "SYNTHETIC — generated from documented API shapes, not captured from Supercell. Replace with `npm run fixtures:capture` (T2.1).",
+  "tag": "#2PP0JCCL",
+  "name": "Synthetic Clan",
+  "clanLevel": 18,
+  "badgeUrls": {
+    "small": "https://api-assets.clashofclans.com/badges/70/x.png",
+    "medium": "https://api-assets.clashofclans.com/badges/200/x.png"
+  },
+  "warLeague": {
+    "id": 48000012,
+    "name": "Crystal League I"
+  },
+  "members": 5,
+  "memberList": [
+    {
+      "tag": "#PY0LQGRJ",
+      "name": "Player 01",
+      "role": "leader",
+      "townHallLevel": 16,
+      "expLevel": 180,
+      "league": {
+        "id": 29000022,
+        "name": "Legend League"
+      },
+      "trophies": 5200,
+      "clanRank": 1,
+      "previousClanRank": 1,
+      "donations": 1200,
+      "donationsReceived": 800
+    },
+    {
+      "tag": "#PY0LQGRC",
+      "name": "Player 02",
+      "role": "coLeader",
+      "townHallLevel": 15,
+      "expLevel": 181,
+      "league": {
+        "id": 29000022,
+        "name": "Legend League"
+      },
+      "trophies": 5160,
+      "clanRank": 2,
+      "previousClanRank": 2,
+      "donations": 1110,
+      "donationsReceived": 860
+    },
+    {
+      "tag": "#PY0LQGRU",
+      "name": "Player 03",
+      "role": "admin",
+      "townHallLevel": 15,
+      "expLevel": 182,
+      "league": {
+        "id": 29000022,
+        "name": "Legend League"
+      },
+      "trophies": 5120,
+      "clanRank": 3,
+      "previousClanRank": 3,
+      "donations": 1020,
+      "donationsReceived": 920
+    },
+    {
+      "tag": "#PY0LQGRV",
+      "name": "Player 04",
+      "role": "member",
+      "townHallLevel": 14,
+      "expLevel": 183,
+      "league": {
+        "id": 29000022,
+        "name": "Legend League"
+      },
+      "trophies": 5080,
+      "clanRank": 4,
+      "previousClanRank": 4,
+      "donations": 930,
+      "donationsReceived": 980
+    },
+    {
+      "tag": "#PY0LQGR0",
+      "name": "Player 05",
+      "role": "member",
+      "townHallLevel": 13,
+      "expLevel": 184,
+      "league": {
+        "id": 29000022,
+        "name": "Legend League"
+      },
+      "trophies": 5040,
+      "clanRank": 5,
+      "previousClanRank": 5,
+      "donations": 840,
+      "donationsReceived": 1040
+    }
+  ]
+}

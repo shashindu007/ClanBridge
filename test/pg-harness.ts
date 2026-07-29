@@ -29,6 +29,7 @@ export const PHASE1_MIGRATIONS = [
   "005_operational.sql",
   "006_rls.sql",
   "007_member_snapshots.sql", // T2.9
+  "008_player_left_at.sql", // T3.9
 ] as const;
 
 export function readMigration(file: string): string {
