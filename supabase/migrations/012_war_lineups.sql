@@ -1,0 +1,12 @@
+-- T6.8 — War lineup tables
+-- 
+-- war_lineups        id, war_id, clan_id, status, size,
+--                    created_by, published_at, created_at, deleted_at
+-- war_lineup_members id, lineup_id, player_id, position, added_by, added_at
+-- 
+-- Same shape as the CWL roster tables (011). Unique (lineup_id, player_id).
+-- 
+-- R11 — human decision data. The API reports who IS in a war, never who WILL be,
+-- so the intended lineup exists nowhere but here.
+-- 
+-- R12 — compared against the API roster at T6.10, never replaced by it.

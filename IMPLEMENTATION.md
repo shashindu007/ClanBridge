@@ -77,6 +77,26 @@ Start and finish, with status and error text. A job that fails silently during C
 
 `notInWar`, `warEnded`, `preparation`, and a missing CWL group are ordinary conditions for most of the month. Handle each explicitly. A job that reports failure three weeks out of four trains you to ignore alerts.
 
+### R11 — Game facts and human decisions never mix
+
+The system holds two kinds of data, and confusing them causes permanent damage.
+
+**Game facts** come from Supercell: attacks, stars, results, member lists. Read-only. Written only by sync jobs. No human ever edits them.
+
+**Human decisions** exist only in your system: poll answers, who the leader selected, clan assignments, target calls, bonus awards, notes. Written only by people through the application. No sync job may ever touch them.
+
+They live in separate tables. A sync job that writes to `cwl_rosters` or `poll_responses` is a bug. A form that writes to `cwl_attacks` is a bug.
+
+The reason: sync jobs re-run constantly and overwrite. If a leader's roster selection lives in a table a sync job touches, a routine 2 AM job will silently erase an hour of the leader's work.
+
+### R12 — The plan is compared to reality, never replaced by it
+
+`cwl_rosters` is who the leader chose. The API roster is who actually played. `war_targets` is who was told to attack. `war_attacks` is who did.
+
+Keep both. Showing the difference between them is the most useful thing this system does — it is how a leader sees who did not follow the plan.
+
+Never overwrite a plan with the outcome.
+
 ---
 
 ## 3. Technology stack
@@ -446,15 +466,99 @@ clanbridge/
   Every page shows "updated N minutes ago" from `sync_log`. Turns red past a threshold.
   This is how you find out a job died before it costs you a season.
 
-- [ ] **T4.9 — CWL roster planning**
-  Everything above records what already happened. This task covers the decision made *before* CWL starts, which is currently the noisiest thread in WhatsApp.
-  Migration 009: `cwl_signups` — `season`, `clan_id`, `player_id`, `status` (in / out / maybe), `responded_at`.
-  Members mark themselves in or out. Leadership sees the count against the 15 or 30 slots and picks the lineup. Compare the planned lineup against the actual roster once the API provides it.
+- [ ] **T4.9 — Moved**
+  CWL roster planning is now Phase 4B. It became a module, not a task.
 
 - [ ] **T4.10 — Import the handwritten logbooks**
   A leader-only form to enter past CWL seasons by hand from the photographs taken at T0.13: season, player, day, attacks used, stars, bonus received.
   Mark these rows `source = 'manual'` so they are visually distinguishable from API-captured data.
   This is objective O2 taken seriously. Without it the platform starts with an empty history and the logbook years are lost anyway.
+
+---
+
+# Phase 4B — Polls, rosters and selection
+
+*This is the leader's actual workload, and it was the weakest part of the first plan.*
+
+*Everything before this phase records what the game did. This phase supports what people decide. It is the reason the system needs a real backend and not just sync jobs.*
+
+**Assumption to confirm:** the leader selects players across all three clans together, deciding which clan each available player should play CWL in. The design below supports that. If instead each clan chooses separately, the same tables work — you simply never move a player between clans. Confirm before building T4B.6.
+
+## Polls
+
+- [ ] **T4B.1 — Migration 010: poll tables**
+  ```
+  polls           id, scope, clan_id, season, poll_type, title, question,
+                  opens_at, closes_at, status, created_by, created_at, deleted_at
+  poll_options    id, poll_id, label, sort_order
+  poll_responses  id, poll_id, player_id, option_id, note,
+                  responded_at, updated_at
+  ```
+  `scope` is `clan` or `family` — a family poll spans all three clans, which is what a CWL availability poll needs.
+  `poll_type` is `cwl_availability`, `war_availability`, or `general`.
+  Unique constraint on `poll_responses(poll_id, player_id)` — one answer per player, editable until the poll closes.
+  **These tables are written by people only. No sync job touches them (R11).**
+
+- [ ] **T4B.2 — Create a poll**
+  Leader and co-leader only. Title, question, options, open and close times, scope.
+  A "CWL availability" template pre-fills the options: In / Out / Maybe.
+
+- [ ] **T4B.3 — Answer a poll**
+  Members see open polls on the dashboard and answer in one tap.
+  Answers are editable until `closes_at`, then locked. Record `updated_at` so a leader can see late changes.
+
+- [ ] **T4B.4 — Poll results**
+  Live counts, and the full list of who answered what. Critically, also the list of **who has not answered** — that is the list the leader chases.
+  Members see counts; leadership sees names.
+
+- [ ] **T4B.5 — Poll reminders**
+  Push to non-responders before the poll closes. Reuses T5.6.
+
+## CWL roster selection
+
+- [ ] **T4B.6 — Migration 011: roster tables**
+  ```
+  cwl_rosters        id, season, clan_id, status, slot_count,
+                     created_by, published_at, created_at, deleted_at
+  cwl_roster_members id, roster_id, player_id, position, added_by, added_at
+  ```
+  `status` is `draft` or `published`. `slot_count` is 15 or 30.
+  Unique constraint `cwl_roster_members(roster_id, player_id)`.
+  Second constraint: a player may appear in only one roster per season across all three clans. Enforce it in the database, not only in the form — otherwise the leader will double-book someone and not find out until CWL starts.
+
+- [ ] **T4B.7 — Season availability pool**
+  One screen showing every player across all three clans for the season, with: their poll answer, current clan, Town Hall level, hero levels, last season's CWL performance, and their activity score from T3B.5.
+  Filter and sort by any of these. This is the screen the leader makes the decision on, so it must show everything needed to decide, in one place.
+
+- [ ] **T4B.8 — Roster builder**
+  Three roster panels, one per clan, each with its slot count. The leader assigns available players into clans.
+  Show live: slots filled, slots remaining, and a warning if a player is already placed in another clan's roster.
+  Saves continuously as `draft`. The leader will not finish this in one sitting.
+
+- [ ] **T4B.9 — Publish the roster**
+  Draft becomes published. Members can now see it. Push notification to selected and non-selected players.
+  Publishing is recorded in `audit_log`. Republishing after a change records a new entry — members will ask when they were dropped, and the answer should not depend on memory.
+
+- [ ] **T4B.10 — Roster view for members**
+  Read-only published lineup per clan. Everyone can see it. This replaces the WhatsApp message that gets buried.
+
+## After CWL
+
+- [ ] **T4B.11 — Plan versus reality**
+  Compare `cwl_roster_members` against the roster the API reported. Show three groups: selected and played, selected but did not appear, appeared but was not selected.
+  This is R12 in practice, and it is the report that ends arguments.
+
+- [ ] **T4B.12 — Contribution report**
+  Per selected player for the season: attacks used out of 7, stars earned, average destruction, missed days, and bonus medal received or not.
+  Sortable, exportable, and linked from the player profile (T3B.4).
+
+- [ ] **T4B.13 — Bonus medal suggestion**
+  Rank selected players by contribution and suggest an order for bonus allocation, using the rule confirmed at T0.11.
+  **Suggestion only.** The leader always decides, and the decision is recorded with a note (T4.7).
+
+- [ ] **T4B.14 — Roster history**
+  Every past season's roster, poll, and contribution report, browsable by season and clan. Permanent.
+  This is what the logbook was trying to be.
 
 ---
 
@@ -512,6 +616,23 @@ clanbridge/
   Show assigned target beside what actually happened.
 
 - [ ] **T6.6 — War history**
+
+- [ ] **T6.7 — War availability poll**
+  Reuses the poll tables from T4B.1 with `poll_type = war_availability`, scoped to one clan.
+  Leader opens it before declaring war. Members answer in one tap. The leader sees the count before choosing the war size.
+
+- [ ] **T6.8 — War lineup selection**
+  Migration 012: `war_lineups`, `war_lineup_members` — same shape as the CWL roster tables.
+  The leader picks the lineup from those available. Published to members before the war is declared in game.
+  The API cannot tell you who *will* be in a war, only who is. So this is entirely human-decision data (R11).
+
+- [ ] **T6.9 — War contribution report**
+  Per member per war: attacks used, stars, destruction, and whether they followed their assigned target.
+  Aggregate view across the last N wars, linked from the player profile.
+
+- [ ] **T6.10 — War plan versus reality**
+  Compare `war_lineup_members` against the roster the API reported, and `war_targets` against `war_attacks`.
+  Same principle as T4B.11 (R12).
 
 ---
 
@@ -601,16 +722,19 @@ Every requirement traced to the tasks that deliver it. Use this to confirm nothi
 | Identity, verification, roles | M1 | T3.1–T3.9 |
 | Clan directory, donations, activity | M2 | T2.9, T3B.1–T3B.6 |
 | CWL tracking and history | M3 | T4.1–T4.8 |
-| CWL roster planning | M3 | T4.9 |
-| Bonus medals with justification | M3 | T4.7, T9.6 |
+| **Polls before CWL and war** | **M10** | **T4B.1–T4B.5, T6.7** |
+| **Leader selects the roster per clan** | **M10** | **T4B.6–T4B.10, T6.8** |
+| **Contribution shown after CWL and war** | **M10** | **T4B.11–T4B.13, T6.9, T6.10** |
+| **Rosters and reports kept as history** | **M10** | **T4B.14** |
+| Bonus medals with justification | M3 | T4.7, T4B.13, T9.6 |
 | Logbook history preserved | M3 | T0.13, T4.10 |
-| Clan war planning and results | M4 | T6.1–T6.6 |
+| Clan war planning and results | M4 | T6.1–T6.10 |
 | Raid Weekend | M5 | T7.1–T7.3 |
 | Clan Games | M6 | T7.4–T7.5 |
 | Base layout library | M7 | T8.1–T8.5 |
 | Announcements | M8 | T5.1–T5.2 |
 | Notifications without a bot | — | T5.3–T5.9 |
-| Three clans in one platform | — | T1.9, T3.6, T3B.6, T9.1 |
+| Three clans in one platform | — | T1.9, T3.6, T3B.6, T4B.7, T9.1 |
 | Admin and sync health | M9 | T4.8, T5.8, T9.2, T9.6 |
 | Zero hosting cost | — | Stack in section 3 |
 | Security and access control | — | T1.9, T3.7, T3.8, T9.3, T9.7 |
@@ -676,6 +800,8 @@ You are building this with AI assistance. It is good at features and unreliable 
 - Puts sync logic in a Vercel route (R2)
 - Treats `notInWar` as an error (R10)
 - Suggests storing the player API token "for later" (R8)
+- Merges the leader's roster into the API roster table to "avoid duplication" (R11, R12)
+- Lets a sync job update a table holding human decisions (R11)
 
 **Practice:**
 

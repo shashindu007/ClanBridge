@@ -10,5 +10,12 @@
 // R5 — never UPDATE or DELETE a historical row because the API returned something
 // unexpected. This data is deleted from Supercell's side when the season ends and
 // cannot ever be recovered.
+//
+// R11/R12 — this job writes cwl_seasons, cwl_wars and cwl_attacks. It must NOT
+// touch cwl_rosters or cwl_roster_members: those are the leader's selection, and
+// the API roster is a separate fact. Writing the API roster into the leader's
+// table destroys the plan-vs-reality comparison (T4B.11) permanently.
+//
+// The API roster belongs on cwl_wars, alongside the war it came from.
 
 export {};

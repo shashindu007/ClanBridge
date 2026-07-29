@@ -1,0 +1,21 @@
+-- T4B.1 — Poll tables
+-- 
+-- NOTE: 009 is intentionally absent. It held cwl_signups from the superseded
+-- T4.9, which Phase 4B replaced with polls + rosters. Nothing was ever applied.
+-- 
+-- polls           id, scope, clan_id, season, poll_type, title, question,
+--                 opens_at, closes_at, status, created_by, created_at, deleted_at
+-- poll_options    id, poll_id, label, sort_order
+-- poll_responses  id, poll_id, player_id, option_id, note,
+--                 responded_at, updated_at
+-- 
+-- scope      'clan' | 'family'   family spans all three clans — what a CWL
+--                                availability poll needs
+-- poll_type  'cwl_availability' | 'war_availability' | 'general'
+-- 
+-- Unique (poll_id, player_id) on poll_responses — one answer per player,
+-- editable until the poll closes. Keep updated_at so late changes are visible.
+-- 
+-- R11 — HUMAN DECISION DATA. Written only by people through the application.
+-- No sync job may ever write to these tables. A 2 AM job that touches them
+-- silently erases the leader's work.

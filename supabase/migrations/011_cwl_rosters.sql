@@ -1,0 +1,18 @@
+-- T4B.6 — CWL roster tables
+-- 
+-- cwl_rosters        id, season, clan_id, status, slot_count,
+--                    created_by, published_at, created_at, deleted_at
+-- cwl_roster_members id, roster_id, player_id, position, added_by, added_at
+-- 
+-- status      'draft' | 'published'
+-- slot_count  15 or 30
+-- 
+-- Unique (roster_id, player_id) on cwl_roster_members.
+-- 
+-- SECOND CONSTRAINT, and the one that matters: a player may appear in only one
+-- roster per season ACROSS ALL THREE CLANS. Enforce it in the database, not only
+-- in the form — otherwise the leader double-books someone and does not find out
+-- until CWL has already started.
+-- 
+-- R11 — human decision data. R12 — this is the PLAN. The API roster is the
+-- OUTCOME. Never overwrite one with the other; T4B.11 exists to show the gap.
