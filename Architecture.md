@@ -395,13 +395,15 @@ Every table carrying clan data gets an equivalent policy. Sync jobs use the serv
 | `SUPABASE_URL` | GitHub Actions, local | Same value as the public URL; sync scripts do not use the `NEXT_PUBLIC_` name |
 | `SUPABASE_SERVICE_KEY` | GitHub Actions, local | Bypasses RLS. **Never** on Vercel or in browser code |
 | `SUPABASE_DB_URL` | GitHub Actions | `pg_dump` connection string for the backup job (T2.8) |
-| `COC_API_TOKEN` | GitHub Actions, local | Supercell key |
+| `COC_API_TOKEN` | GitHub Actions, local, **and Vercel** | Supercell key. On Vercel solely for `/api/verify` (T3.3) — see R6 |
 | `COC_API_BASE` | GitHub Actions, local | Direct API in dev, proxy in production |
 | `VAPID_PRIVATE_KEY` | GitHub Actions, local | Push is **sent from sync jobs** (T5.6), not from Vercel |
 | `VAPID_SUBJECT` | GitHub Actions, local | `mailto:` contact required by the Web Push spec |
 | `USE_FIXTURES` | Local only | Read saved responses instead of the live API |
 
-The service role key and the Clash of Clans token belong only in GitHub Actions secrets. If either ends up in a Vercel environment variable, something in the architecture has gone wrong — the web application has no reason to hold them.
+The service role key belongs only in GitHub Actions secrets and your local `.env.local`. If it ends up in a Vercel environment variable, something in the architecture has gone wrong — it bypasses RLS, so its leak makes every access rule in section 7 decoration.
+
+The Clash of Clans token is *also* set on Vercel, for one route only. `/api/verify` (T3.3) performs Supercell's `verifytoken` handshake on behalf of a member signing up, and that exchange is interactive — there is no way to do it from a scheduled job. The route is rate limited to 5 attempts per user per hour, and the API is read-only, so a leak means throttling rather than harm to anyone's account. Nothing else on Vercel may read it.
 
 Three names in this table are exact rather than descriptive, and getting them wrong fails in ways that are hard to read:
 

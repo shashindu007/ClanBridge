@@ -283,8 +283,14 @@ export function playerEndpoint(tag: string): string {
 /**
  * Verify a member's in-game API token (T3.3).
  *
- * R8 — the token is verified and discarded here. It is never stored, never
- * logged, and never placed in an error. This is the one POST the client makes.
+ * THE ONE EXCEPTION TO R1 AND R6. This is called from /api/verify on Vercel,
+ * not from a sync job, because the handshake is interactive — a member pastes a
+ * token and waits for an answer. It reads no game data, so R1's substance holds.
+ * R6 documents the carve-out: /api/verify may read COC_API_TOKEN on Vercel, and
+ * nothing else on Vercel may.
+ *
+ * R8 — the member's token is verified and discarded. It is never stored, never
+ * logged, and never placed in an error, a message, or a stack.
  */
 export async function verifyPlayerToken(
   playerTag: string,
@@ -296,11 +302,15 @@ export async function verifyPlayerToken(
     throw new CocAuthError("COC_API_TOKEN is not set.", endpoint);
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const response = await throttled(() =>
-      fetch(`${baseUrl()}${endpoint}`, {
+  // The AbortController is armed INSIDE the throttled callback, not outside it.
+  // Armed outside, the timer starts while the request is still queued, so a busy
+  // queue silently eats the 10s budget and a perfectly healthy verification
+  // times out. fetchOnce() avoids this the same way.
+  return throttled(async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const response = await fetch(`${baseUrl()}${endpoint}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiToken}`,
@@ -308,19 +318,31 @@ export async function verifyPlayerToken(
         },
         body: JSON.stringify({ token }),
         signal: controller.signal,
-      }),
-    );
+      });
 
-    if (!response.ok) {
-      // Note what is NOT here: the token, or the response body, which echoes it.
-      throw new CocServerError(`Verification failed (${response.status}).`, endpoint);
+      // A wrong token is a 403 and an ordinary outcome, not an error — the
+      // member simply mistyped it. Anything else is a real failure.
+      if (response.status === 403) return false;
+
+      if (!response.ok) {
+        // Note what is NOT here: the token, or the response body, which echoes it.
+        throw new CocServerError(
+          `Verification failed (${response.status}).`,
+          endpoint,
+        );
+      }
+
+      const result = (await response.json()) as { status?: string };
+      return result.status === "ok";
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new CocTimeoutError(endpoint, TIMEOUT_MS);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
     }
-
-    const result = (await response.json()) as { status?: string };
-    return result.status === "ok";
-  } finally {
-    clearTimeout(timer);
-  }
+  });
 }
 
 /** Exposed for tests; normalises exactly as the endpoint builders do. */

@@ -9,7 +9,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createHarness, type Harness } from "./pg-harness";
-import { activeClans, runSyncJob, skip, SyncSkipped } from "../scripts/sync/shared";
+import { activeClans, main, runSyncJob, skip, SyncSkipped } from "../scripts/sync/shared";
 
 // runSyncJob reports to the console on purpose — that output is what you read in
 // an Actions log. Several tests here fail jobs deliberately, so the reporting is
@@ -243,6 +243,33 @@ describe("T2.5 — runSyncJob and sync_log (R9)", () => {
       const result = await runSyncJob(job, async () => {}, { client });
       expect(result, job).toBe("success");
     }
+  });
+
+  // GitHub Actions decides a run's status from the exit code, and T5.8's alert
+  // hangs off that. A skip must NOT fail the run — R10 again: three weeks of
+  // every month the CWL job legitimately has nothing to do.
+  describe("main() sets the process exit code", () => {
+    const original = process.exitCode;
+    afterEach(() => {
+      process.exitCode = original;
+    });
+
+    it("exits 0 on success", async () => {
+      await main("clans", async () => {}, { client });
+      expect(process.exitCode).toBe(0);
+    });
+
+    it("exits 0 on skip, so a normal no-op does not look like a failure", async () => {
+      await main("cwl", async () => skip("noCwlGroup"), { client });
+      expect(process.exitCode).toBe(0);
+    });
+
+    it("exits 1 on failure, so the workflow goes red", async () => {
+      await main("war", async () => {
+        throw new Error("boom");
+      }, { client });
+      expect(process.exitCode).toBe(1);
+    });
   });
 });
 

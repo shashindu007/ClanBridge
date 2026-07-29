@@ -14,6 +14,11 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { encodeTag, normaliseTag } from "../src/lib/tags";
+import { createScrubber } from "./scrub-fixtures";
+
+// Identity is stripped before anything is written. fixtures/ is committed so CI
+// can run offline, so no real member data may enter it. See scrub-fixtures.ts.
+const scrubber = createScrubber();
 
 const FIXTURES_DIR = join(process.cwd(), "fixtures");
 const BASE = process.env.COC_API_BASE ?? "https://api.clashofclans.com/v1";
@@ -61,7 +66,7 @@ async function get(path: string): Promise<{ status: number; body: unknown }> {
 async function save(file: string, body: unknown): Promise<void> {
   await writeFile(
     join(FIXTURES_DIR, file),
-    `${JSON.stringify(body, null, 2)}\n`,
+    `${JSON.stringify(scrubber.scrub(body), null, 2)}\n`,
     "utf8",
   );
 }
@@ -189,8 +194,16 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  console.log("\nDone. These files are gitignored? No — they are committed on purpose,");
-  console.log("so the sync jobs run offline in CI. Check them for anything private first.");
+  if (scrubber.tags || scrubber.names) {
+    console.log(
+      `\nScrubbed ${scrubber.names} member name(s) and ${scrubber.tags} tag(s).\n` +
+        "  These files are committed so CI can run the offline suite, so no real\n" +
+        "  member identity goes into them. Every number, field and array length is\n" +
+        "  untouched — only names and player tags were replaced.",
+    );
+  }
+
+  console.log("\nDone. Next: T2.2 (Zod schemas) and T2.4 (mappers), written against these.");
 }
 
 main().catch((error) => {

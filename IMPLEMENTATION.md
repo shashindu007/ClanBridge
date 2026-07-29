@@ -55,11 +55,21 @@ Sync jobs `INSERT ... ON CONFLICT DO NOTHING` against a unique constraint on nat
 
 Never `UPDATE` or `DELETE` historical rows because the API returned something unexpected.
 
-### R6 — Secrets never reach Vercel
+### R6 — The service key never reaches Vercel
 
-`COC_API_TOKEN` and `SUPABASE_SERVICE_KEY` live only in GitHub Actions secrets and your local `.env.local`.
+**`SUPABASE_SERVICE_KEY` lives only in GitHub Actions secrets and your local `.env.local`.** It bypasses RLS entirely, so it is the one credential whose leak turns every access-control rule in the system into decoration. If it appears in a Vercel environment variable, the architecture has drifted.
 
-If either appears in a Vercel environment variable, the architecture has drifted. The web app has no reason to hold them.
+**`COC_API_TOKEN` is the same, with one documented exception: `/api/verify` (T3.3).**
+
+That route has to call Supercell's `verifytoken` endpoint on behalf of a member signing up, and there is no way to perform that handshake from a sync job — it is interactive by nature. So the production token is also set in Vercel, and that route alone may read it. Requests go through the RoyaleAPI proxy exactly as the sync jobs do, because Vercel has no fixed egress IP either.
+
+The carve-out is narrow on purpose:
+
+- **Only `/api/verify` reads it.** No page, no other route, no server component. R1 still holds — the website never *reads game data* from the API.
+- **It is rate limited** to 5 attempts per user per hour (T3.3), so the route cannot be used as an open proxy.
+- **The blast radius is small and known.** The Clash of Clans API is read-only: no endpoint can alter a village, remove a member, or spend currency. A leaked key means throttling or revocation, not damage to anyone's account. `proposal_idea.md` §12.1 says exactly this.
+
+The service key has no such exception, and never will.
 
 ### R7 — Raw API shapes stay in `src/integration/`
 

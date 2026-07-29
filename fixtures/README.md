@@ -39,7 +39,28 @@ shape you guess is the shape your parser will be wrong about.
 `notInWar`, `preparation`, `inWar`, `warEnded`. R10 says each is an ordinary
 condition, and you cannot test that with a single fixture.
 
+## These files are committed, and scrubbed
+
+They are **not** gitignored: CI runs the offline suite from them, which is most of what
+`USE_FIXTURES` exists for.
+
+That means real clan-mates' data would otherwise sit in git history permanently, so
+`capture-fixtures.ts` replaces identity before writing:
+
+| Replaced | Kept exactly |
+|---|---|
+| Player names → `Player 01`, `Player 02`, … | Every number: donations, trophies, stars, destruction |
+| Player tags → valid random tags from Supercell's alphabet | Every field name, type, array length and nesting |
+| | Clan names, league names, badge URLs — not personal data |
+
+The mapping is deterministic and shared across files, so a member who appears in both
+`clan.json` and `player.json` gets the same replacement tag in each. Replacement tags are
+built from `0289PYLQGRJCUV`, so they still satisfy `lib/tags.ts` and the database check
+constraints.
+
+Shapes are what the schemas and mappers are written against, and shapes are untouched.
+
 ## Editing them
 
-Don't, beyond redaction. A hand-tweaked fixture makes the parser pass locally and
-fail against the live API. If you need a variant, save it as a separate file.
+Don't, beyond what the scrubber already does. A hand-tweaked fixture makes the parser pass
+locally and fail against the live API. If you need a variant, save it as a separate file.

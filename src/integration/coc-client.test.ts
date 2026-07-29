@@ -24,6 +24,7 @@ import {
   cwlWarEndpoint,
   playerEndpoint,
   request,
+  verifyPlayerToken,
 } from "./coc-client";
 
 const anySchema = z.looseObject({});
@@ -239,6 +240,74 @@ describe("timeout", () => {
     const error = await request(clanEndpoint("#2PP0JCCL"), anySchema).catch((e) => e);
     expect(error).toBeInstanceOf(CocTimeoutError);
     expect((error as Error).message).toMatch(/10000ms/);
+  });
+});
+
+// T3.3 — the one function that handles a member's secret, and the one exception
+// to R1/R6. R8 says the token is verified and discarded: never stored, never
+// logged, never in an error.
+describe("verifyPlayerToken (T3.3, R8)", () => {
+  const MEMBER_TOKEN = "abc123-secret-member-token";
+
+  it("returns true when Supercell says ok", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: "ok" }));
+    await expect(verifyPlayerToken("#PY0LQGRJ", MEMBER_TOKEN)).resolves.toBe(true);
+  });
+
+  it("returns false when Supercell rejects the token", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: "invalid" }));
+    await expect(verifyPlayerToken("#PY0LQGRJ", MEMBER_TOKEN)).resolves.toBe(false);
+  });
+
+  // A mistyped token is an ordinary outcome, not an incident. Throwing here
+  // would surface a 403 to the member as though something had broken.
+  it("treats a 403 as a wrong token, not a failure", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ reason: "accessDenied" }, 403));
+    await expect(verifyPlayerToken("#PY0LQGRJ", MEMBER_TOKEN)).resolves.toBe(false);
+  });
+
+  it("POSTs the token to the verifytoken endpoint with an encoded tag", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: "ok" }));
+    await verifyPlayerToken("#PY0LQGRJ", MEMBER_TOKEN);
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toContain("/players/%23PY0LQGRJ/verifytoken");
+    expect(url).not.toContain("#");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ token: MEMBER_TOKEN });
+  });
+
+  // R8, asserted rather than asserted-in-a-comment. If a future refactor puts
+  // the response body or the request into an error, this fails.
+  it("never puts the member's token into an error", async () => {
+    for (const status of [400, 500, 503]) {
+      fetchMock.mockResolvedValue(
+        // A body that echoes the token back, which is the realistic trap.
+        jsonResponse({ reason: "bad", token: MEMBER_TOKEN }, status),
+      );
+      const error = await verifyPlayerToken("#PY0LQGRJ", MEMBER_TOKEN).catch((e) => e);
+      const serialised = `${(error as Error).message} ${(error as Error).stack ?? ""}`;
+      expect(serialised, `status ${status}`).not.toContain(MEMBER_TOKEN);
+    }
+  });
+
+  it("never puts the member's token into a timeout error", async () => {
+    fetchMock.mockImplementation(() => {
+      const error = new Error("aborted");
+      error.name = "AbortError";
+      return Promise.reject(error);
+    });
+    const error = await verifyPlayerToken("#PY0LQGRJ", MEMBER_TOKEN).catch((e) => e);
+    expect(error).toBeInstanceOf(CocTimeoutError);
+    expect((error as Error).message).not.toContain(MEMBER_TOKEN);
+  });
+
+  it("refuses to run without the API key rather than calling out", async () => {
+    delete process.env.COC_API_TOKEN;
+    await expect(verifyPlayerToken("#PY0LQGRJ", MEMBER_TOKEN)).rejects.toBeInstanceOf(
+      CocAuthError,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
