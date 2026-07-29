@@ -168,3 +168,11 @@ create trigger push_subscriptions_set_updated_at
 
 create index push_subscriptions_user_id_idx on push_subscriptions (user_id)
   where deleted_at is null;
+
+
+-- QA: unindexed foreign keys. All of these are read per player or per author by
+-- the profile page (T3B.4) and the layout library (T8.4).
+create index raid_participants_player_id_idx on raid_participants (player_id) where deleted_at is null;
+create index clan_games_scores_player_id_idx on clan_games_scores (player_id) where deleted_at is null;
+create index announcements_author_id_idx on announcements (author_id) where deleted_at is null;
+create index base_layouts_uploaded_by_idx on base_layouts (uploaded_by) where deleted_at is null;

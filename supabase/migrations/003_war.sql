@@ -92,3 +92,7 @@ create table war_attacks (
 
 create index war_attacks_war_id_idx on war_attacks (war_id) where deleted_at is null;
 create index war_attacks_player_id_idx on war_attacks (player_id) where deleted_at is null;
+
+
+-- QA: unindexed foreign key. The player profile (T3B.4) reads targets by player.
+create index war_targets_player_id_idx on war_targets (player_id) where deleted_at is null;

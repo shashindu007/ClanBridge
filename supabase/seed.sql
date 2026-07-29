@@ -3,13 +3,20 @@
 -- Run this ONCE, in the Supabase SQL editor, after 001–006 have been applied.
 --
 -- ==========================================================================
--- FILL IN THE REAL VALUES BELOW BEFORE RUNNING (T0.2).
+-- THIS FILE FAILS ON PURPOSE UNTIL YOU REPLACE THE PLACEHOLDERS (T0.2).
 --
--- Tags must be UPPERCASE and keep the leading hash: '#2PP0JCCL'.
--- The check constraint in 001_core.sql rejects anything else, so a lowercase
--- tag fails here rather than silently 404-ing against the API three weeks later.
+-- '#REPLACE1' is not a possible Clash of Clans tag, so the clans_tag_format
+-- check constraint in 001_core.sql rejects it and the insert aborts. That is
+-- deliberate: the alternative is three fake clans sitting in the database
+-- looking real, which you would discover when the first sync 404s against them.
 --
+-- Expect: ERROR: new row for relation "clans" violates check constraint
+--         "clans_tag_format"
+-- That means the guard works. Put the real tags in and run it again.
+--
+-- Tags must be UPPERCASE with the leading hash: '#2PP0JCCL'.
 -- Clash of Clans tags never contain the letter O — if you see one, it is a zero.
+-- The full alphabet is: 0 2 8 9 P Y L Q G R J C U V
 -- ==========================================================================
 
 insert into clans (tag, name) values

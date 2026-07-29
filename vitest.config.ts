@@ -9,7 +9,11 @@ export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "scripts/**/*.test.ts", "test/**/*.test.ts"],
+    // Booting Postgres in WASM and applying six migrations takes longer than the
+    // 5s default, especially on the first run while the wasm is compiled.
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
     // T9.9 — timestamps are stored UTC and converted for display only. Pinning the
     // suite to UTC keeps results identical on a Sri Lanka laptop and a CI runner;
     // the Asia/Colombo conversions are asserted explicitly inside the tests.

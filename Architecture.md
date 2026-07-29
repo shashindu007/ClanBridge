@@ -388,16 +388,26 @@ Every table carrying clan data gets an equivalent policy. Sync jobs use the serv
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Vercel, local | Public, safe in browser |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel, local | Public, protected by RLS |
-| `SUPABASE_SERVICE_KEY` | GitHub Actions only | Bypasses RLS. **Never** on Vercel or in browser code |
-| `COC_API_TOKEN` | GitHub Actions only | Supercell key |
+| `NEXT_PUBLIC_SITE_URL` | Vercel, local | Magic-link redirects, push deep links |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Vercel, local | Push. Must be `NEXT_PUBLIC_` — the browser reads it when subscribing |
+| `UPSTASH_REDIS_REST_URL` | Vercel | Rate limiting |
+| `UPSTASH_REDIS_REST_TOKEN` | Vercel | Rate limiting |
+| `SUPABASE_URL` | GitHub Actions, local | Same value as the public URL; sync scripts do not use the `NEXT_PUBLIC_` name |
+| `SUPABASE_SERVICE_KEY` | GitHub Actions, local | Bypasses RLS. **Never** on Vercel or in browser code |
+| `SUPABASE_DB_URL` | GitHub Actions | `pg_dump` connection string for the backup job (T2.8) |
+| `COC_API_TOKEN` | GitHub Actions, local | Supercell key |
 | `COC_API_BASE` | GitHub Actions, local | Direct API in dev, proxy in production |
-| `UPSTASH_REDIS_URL` | Vercel | Rate limiting |
-| `UPSTASH_REDIS_TOKEN` | Vercel | Rate limiting |
-| `VAPID_PUBLIC_KEY` | Vercel | Push notifications |
-| `VAPID_PRIVATE_KEY` | Vercel | Push notifications |
+| `VAPID_PRIVATE_KEY` | GitHub Actions, local | Push is **sent from sync jobs** (T5.6), not from Vercel |
+| `VAPID_SUBJECT` | GitHub Actions, local | `mailto:` contact required by the Web Push spec |
 | `USE_FIXTURES` | Local only | Read saved responses instead of the live API |
 
 The service role key and the Clash of Clans token belong only in GitHub Actions secrets. If either ends up in a Vercel environment variable, something in the architecture has gone wrong — the web application has no reason to hold them.
+
+Three names in this table are exact rather than descriptive, and getting them wrong fails in ways that are hard to read:
+
+- **`UPSTASH_REDIS_REST_URL` / `_REST_TOKEN`** — this is what `Redis.fromEnv()` looks for. Shortened names are simply not found, and the client fails at first use rather than at startup.
+- **`NEXT_PUBLIC_VAPID_PUBLIC_KEY`** — without the prefix Next.js does not expose it to the browser, and `pushManager.subscribe()` has nothing to send.
+- **`VAPID_PRIVATE_KEY` lives with the sync jobs, not on Vercel.** Push notifications are triggered from `scripts/sync/`, so the signing key belongs where those run.
 
 ---
 

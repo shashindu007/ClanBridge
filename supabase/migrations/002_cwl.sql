@@ -121,3 +121,9 @@ create table cwl_bonuses (
 create trigger cwl_bonuses_set_updated_at
   before update on cwl_bonuses
   for each row execute function set_updated_at();
+
+
+-- QA: foreign keys are not indexed automatically by PostgreSQL. Every one of
+-- these columns is joined on by the CWL pages and the player profile (T3B.4).
+create index cwl_bonuses_season_id_idx on cwl_bonuses (season_id) where deleted_at is null;
+create index cwl_bonuses_player_id_idx on cwl_bonuses (player_id) where deleted_at is null;

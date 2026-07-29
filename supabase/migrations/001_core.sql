@@ -35,7 +35,12 @@ create table clans (
 
   -- Section 4: tags are stored with the hash and uppercased on write.
   -- Enforced here so a bad write fails loudly instead of producing a 404 later.
-  constraint clans_tag_format check (tag = upper(tag) and tag like '#%')
+  --
+  -- The pattern is Supercell's actual tag alphabet. Note the characters that are
+  -- absent: I, O, S and most digits. Checking only case and the leading hash
+  -- would accept '#REPLACE1', which lib/tags.ts rejects — the database and the
+  -- parser must agree, or a placeholder survives into production.
+  constraint clans_tag_format check (tag ~ '^#[0289PYLQGRJCUV]{3,12}$')
 );
 
 create trigger clans_set_updated_at
@@ -79,12 +84,18 @@ create table players (
   name          text not null,
   th_level      smallint,
   verified      boolean not null default false,
-  current_role  text check (current_role in ('leader', 'co-leader', 'elder', 'member')),
+  -- NOT named current_role: that is a reserved keyword in PostgreSQL and the
+  -- create table fails outright with a syntax error. proposal_idea.md section
+  -- 10.1 sketches it as current_role; this is the corrected name.
+  clan_role     text check (clan_role in ('leader', 'co-leader', 'elder', 'member')),
   created_at    timestamptz not null default now(),
   updated_at    timestamptz,
   deleted_at    timestamptz,
 
-  constraint players_tag_format check (tag = upper(tag) and tag like '#%')
+  -- Supercell's tag alphabet, not merely "uppercase with a hash". This rejects
+  -- a tag containing the letter O, which is the most common transcription error
+  -- and would otherwise sit in the database producing 404s against the API.
+  constraint players_tag_format check (tag ~ '^#[0289PYLQGRJCUV]{3,12}$')
 );
 
 create trigger players_set_updated_at

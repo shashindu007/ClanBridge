@@ -250,6 +250,26 @@ create policy "leaders read own clan audit log" on audit_log
 
 
 -- ---------------------------------------------------------------------------
+-- Explicit grants.
+--
+-- Supabase normally handles this through ALTER DEFAULT PRIVILEGES at project
+-- creation, so these would usually be redundant. They are stated anyway because
+-- the failure mode when they are absent is confusing: RLS policies never even
+-- get evaluated, and every query fails with "permission denied for table"
+-- rather than returning the empty result you would expect from a policy.
+--
+-- A grant is not access. RLS still decides which rows come back; this only
+-- decides who may ask.
+-- ---------------------------------------------------------------------------
+grant usage on schema public to anon, authenticated;
+
+grant select on all tables in schema public to anon, authenticated;
+
+grant execute on function auth_clan_ids() to anon, authenticated;
+grant execute on function auth_leader_clan_ids() to anon, authenticated;
+
+
+-- ---------------------------------------------------------------------------
 -- No insert, update or delete policies exist, on purpose.
 --
 -- Every write today comes from scripts/sync/, which uses the service role key
