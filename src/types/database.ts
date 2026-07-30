@@ -1,7 +1,854 @@
-// Generated Supabase types. Do not edit by hand.
-// 
-//   npx supabase gen types typescript --project-id <ref> > src/types/database.ts
-// 
-// Regenerate after every migration.
+// Generated from the live Supabase schema by `npm run types:db`.
+// DO NOT EDIT. Regenerate after every migration — a stale file type-checks
+// against a schema that no longer exists, which is worse than having none.
+//
+// 21 tables, generated 2026-07-30.
 
-export {};
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
+
+export interface Database {
+  public: {
+    Tables: {
+      announcements: {
+        Row: {
+          id: string;
+          clan_id: string;
+          author_id: string;
+          title: string;
+          body: string;
+          pinned: boolean;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          clan_id: string;
+          author_id: string;
+          title: string;
+          body: string;
+          pinned?: boolean;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          clan_id?: string;
+          author_id?: string;
+          title?: string;
+          body?: string;
+          pinned?: boolean;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      audit_log: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          clan_id: string | null;
+          action: string;
+          entity: string;
+          entity_id: string | null;
+          before: Json | null;
+          after: Json | null;
+          created_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          clan_id?: string | null;
+          action: string;
+          entity: string;
+          entity_id?: string | null;
+          before?: Json | null;
+          after?: Json | null;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string | null;
+          clan_id?: string | null;
+          action?: string;
+          entity?: string;
+          entity_id?: string | null;
+          before?: Json | null;
+          after?: Json | null;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+      };
+      base_layouts: {
+        Row: {
+          id: string;
+          clan_id: string;
+          uploaded_by: string;
+          th_level: number;
+          layout_type: string;
+          copy_link: string;
+          image_url: string | null;
+          description: string | null;
+          votes: number;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          clan_id: string;
+          uploaded_by: string;
+          th_level: number;
+          layout_type: string;
+          copy_link: string;
+          image_url?: string | null;
+          description?: string | null;
+          votes?: number;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          clan_id?: string;
+          uploaded_by?: string;
+          th_level?: number;
+          layout_type?: string;
+          copy_link?: string;
+          image_url?: string | null;
+          description?: string | null;
+          votes?: number;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      clan_games: {
+        Row: {
+          id: string;
+          clan_id: string;
+          season: string;
+          start_time: string | null;
+          end_time: string | null;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          clan_id: string;
+          season: string;
+          start_time?: string | null;
+          end_time?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          clan_id?: string;
+          season?: string;
+          start_time?: string | null;
+          end_time?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      clan_games_scores: {
+        Row: {
+          id: string;
+          clan_games_id: string;
+          player_id: string;
+          points: number | null;
+          start_value: number | null;
+          end_value: number | null;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          clan_games_id: string;
+          player_id: string;
+          points?: number | null;
+          start_value?: number | null;
+          end_value?: number | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          clan_games_id?: string;
+          player_id?: string;
+          points?: number | null;
+          start_value?: number | null;
+          end_value?: number | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      clan_roles: {
+        Row: {
+          id: string;
+          user_id: string;
+          clan_id: string;
+          role: string;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          clan_id: string;
+          role: string;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          clan_id?: string;
+          role?: string;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      clans: {
+        Row: {
+          id: string;
+          tag: string;
+          name: string;
+          badge_url: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          tag: string;
+          name: string;
+          badge_url?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          tag?: string;
+          name?: string;
+          badge_url?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      cwl_attacks: {
+        Row: {
+          id: string;
+          war_id: string;
+          player_id: string;
+          attack_order: number;
+          stars: number;
+          destruction: number;
+          defender_tag: string | null;
+          defender_position: number | null;
+          attacked_at: string | null;
+          created_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          war_id: string;
+          player_id: string;
+          attack_order?: number;
+          stars: number;
+          destruction: number;
+          defender_tag?: string | null;
+          defender_position?: number | null;
+          attacked_at?: string | null;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          war_id?: string;
+          player_id?: string;
+          attack_order?: number;
+          stars?: number;
+          destruction?: number;
+          defender_tag?: string | null;
+          defender_position?: number | null;
+          attacked_at?: string | null;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+      };
+      cwl_bonuses: {
+        Row: {
+          id: string;
+          season_id: string;
+          player_id: string;
+          awarded_by: string;
+          awarded_at: string;
+          note: string | null;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          season_id: string;
+          player_id: string;
+          awarded_by: string;
+          awarded_at?: string;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          season_id?: string;
+          player_id?: string;
+          awarded_by?: string;
+          awarded_at?: string;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      cwl_seasons: {
+        Row: {
+          id: string;
+          clan_id: string;
+          season: string;
+          league: string | null;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          clan_id: string;
+          season: string;
+          league?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          clan_id?: string;
+          season?: string;
+          league?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      cwl_wars: {
+        Row: {
+          id: string;
+          season_id: string;
+          war_tag: string;
+          day_number: number | null;
+          opponent_tag: string | null;
+          opponent_name: string | null;
+          team_size: number | null;
+          state: string | null;
+          our_stars: number | null;
+          their_stars: number | null;
+          our_destruction: number | null;
+          their_destruction: number | null;
+          result: string | null;
+          start_time: string | null;
+          end_time: string | null;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          season_id: string;
+          war_tag: string;
+          day_number?: number | null;
+          opponent_tag?: string | null;
+          opponent_name?: string | null;
+          team_size?: number | null;
+          state?: string | null;
+          our_stars?: number | null;
+          their_stars?: number | null;
+          our_destruction?: number | null;
+          their_destruction?: number | null;
+          result?: string | null;
+          start_time?: string | null;
+          end_time?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          season_id?: string;
+          war_tag?: string;
+          day_number?: number | null;
+          opponent_tag?: string | null;
+          opponent_name?: string | null;
+          team_size?: number | null;
+          state?: string | null;
+          our_stars?: number | null;
+          their_stars?: number | null;
+          our_destruction?: number | null;
+          their_destruction?: number | null;
+          result?: string | null;
+          start_time?: string | null;
+          end_time?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      member_snapshots: {
+        Row: {
+          id: string;
+          clan_id: string;
+          player_id: string;
+          captured_at: string;
+          donations: number | null;
+          donations_received: number | null;
+          trophies: number | null;
+          war_stars: number | null;
+          th_level: number | null;
+          role: string | null;
+          created_at: string;
+          deleted_at: string | null;
+          captured_hour: string | null;
+        };
+        Insert: {
+          id?: string;
+          clan_id: string;
+          player_id: string;
+          captured_at?: string;
+          donations?: number | null;
+          donations_received?: number | null;
+          trophies?: number | null;
+          war_stars?: number | null;
+          th_level?: number | null;
+          role?: string | null;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          clan_id?: string;
+          player_id?: string;
+          captured_at?: string;
+          donations?: number | null;
+          donations_received?: number | null;
+          trophies?: number | null;
+          war_stars?: number | null;
+          th_level?: number | null;
+          role?: string | null;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+      };
+      players: {
+        Row: {
+          id: string;
+          clan_id: string | null;
+          user_id: string | null;
+          tag: string;
+          name: string;
+          th_level: number | null;
+          verified: boolean;
+          clan_role: string | null;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+          left_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          clan_id?: string | null;
+          user_id?: string | null;
+          tag: string;
+          name: string;
+          th_level?: number | null;
+          verified?: boolean;
+          clan_role?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+          left_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          clan_id?: string | null;
+          user_id?: string | null;
+          tag?: string;
+          name?: string;
+          th_level?: number | null;
+          verified?: boolean;
+          clan_role?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+          left_at?: string | null;
+        };
+      };
+      push_subscriptions: {
+        Row: {
+          id: string;
+          user_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          endpoint?: string;
+          p256dh?: string;
+          auth?: string;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      raid_participants: {
+        Row: {
+          id: string;
+          raid_season_id: string;
+          player_id: string;
+          attacks_used: number | null;
+          loot: number | null;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          raid_season_id: string;
+          player_id: string;
+          attacks_used?: number | null;
+          loot?: number | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          raid_season_id?: string;
+          player_id?: string;
+          attacks_used?: number | null;
+          loot?: number | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      raid_seasons: {
+        Row: {
+          id: string;
+          clan_id: string;
+          start_time: string;
+          end_time: string | null;
+          total_loot: number | null;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          clan_id: string;
+          start_time: string;
+          end_time?: string | null;
+          total_loot?: number | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          clan_id?: string;
+          start_time?: string;
+          end_time?: string | null;
+          total_loot?: number | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      sync_log: {
+        Row: {
+          id: string;
+          job_type: string;
+          clan_id: string | null;
+          started_at: string;
+          finished_at: string | null;
+          status: string;
+          skip_reason: string | null;
+          error: string | null;
+          records_written: number | null;
+          created_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          job_type: string;
+          clan_id?: string | null;
+          started_at?: string;
+          finished_at?: string | null;
+          status: string;
+          skip_reason?: string | null;
+          error?: string | null;
+          records_written?: number | null;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          job_type?: string;
+          clan_id?: string | null;
+          started_at?: string;
+          finished_at?: string | null;
+          status?: string;
+          skip_reason?: string | null;
+          error?: string | null;
+          records_written?: number | null;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+      };
+      users: {
+        Row: {
+          id: string;
+          email: string;
+          display_name: string | null;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+          status: string;
+          requested_clan_id: string | null;
+          approved_by: string | null;
+          approved_at: string | null;
+        };
+        Insert: {
+          id: string;
+          email: string;
+          display_name?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+          status?: string;
+          requested_clan_id?: string | null;
+          approved_by?: string | null;
+          approved_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          email?: string;
+          display_name?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+          status?: string;
+          requested_clan_id?: string | null;
+          approved_by?: string | null;
+          approved_at?: string | null;
+        };
+      };
+      war_attacks: {
+        Row: {
+          id: string;
+          war_id: string;
+          player_id: string;
+          attack_order: number;
+          stars: number;
+          destruction: number;
+          defender_tag: string | null;
+          defender_position: number | null;
+          attacked_at: string | null;
+          created_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          war_id: string;
+          player_id: string;
+          attack_order: number;
+          stars: number;
+          destruction: number;
+          defender_tag?: string | null;
+          defender_position?: number | null;
+          attacked_at?: string | null;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          war_id?: string;
+          player_id?: string;
+          attack_order?: number;
+          stars?: number;
+          destruction?: number;
+          defender_tag?: string | null;
+          defender_position?: number | null;
+          attacked_at?: string | null;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+      };
+      war_targets: {
+        Row: {
+          id: string;
+          war_id: string;
+          player_id: string;
+          target_position: number;
+          note: string | null;
+          assigned_by: string | null;
+          assigned_at: string;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          war_id: string;
+          player_id: string;
+          target_position: number;
+          note?: string | null;
+          assigned_by?: string | null;
+          assigned_at?: string;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          war_id?: string;
+          player_id?: string;
+          target_position?: number;
+          note?: string | null;
+          assigned_by?: string | null;
+          assigned_at?: string;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      wars: {
+        Row: {
+          id: string;
+          clan_id: string;
+          opponent_tag: string | null;
+          opponent_name: string | null;
+          team_size: number | null;
+          state: string | null;
+          our_stars: number | null;
+          their_stars: number | null;
+          our_destruction: number | null;
+          their_destruction: number | null;
+          result: string | null;
+          start_time: string;
+          end_time: string | null;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          clan_id: string;
+          opponent_tag?: string | null;
+          opponent_name?: string | null;
+          team_size?: number | null;
+          state?: string | null;
+          our_stars?: number | null;
+          their_stars?: number | null;
+          our_destruction?: number | null;
+          their_destruction?: number | null;
+          result?: string | null;
+          start_time: string;
+          end_time?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          clan_id?: string;
+          opponent_tag?: string | null;
+          opponent_name?: string | null;
+          team_size?: number | null;
+          state?: string | null;
+          our_stars?: number | null;
+          their_stars?: number | null;
+          our_destruction?: number | null;
+          their_destruction?: number | null;
+          result?: string | null;
+          start_time?: string;
+          end_time?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+    };
+  };
+}
+
+// Row aliases.
+export type AnnouncementsRow = Database["public"]["Tables"]["announcements"]["Row"];
+export type AuditLogRow = Database["public"]["Tables"]["audit_log"]["Row"];
+export type BaseLayoutsRow = Database["public"]["Tables"]["base_layouts"]["Row"];
+export type ClanGamesRow = Database["public"]["Tables"]["clan_games"]["Row"];
+export type ClanGamesScoresRow = Database["public"]["Tables"]["clan_games_scores"]["Row"];
+export type ClanRolesRow = Database["public"]["Tables"]["clan_roles"]["Row"];
+export type ClansRow = Database["public"]["Tables"]["clans"]["Row"];
+export type CwlAttacksRow = Database["public"]["Tables"]["cwl_attacks"]["Row"];
+export type CwlBonusesRow = Database["public"]["Tables"]["cwl_bonuses"]["Row"];
+export type CwlSeasonsRow = Database["public"]["Tables"]["cwl_seasons"]["Row"];
+export type CwlWarsRow = Database["public"]["Tables"]["cwl_wars"]["Row"];
+export type MemberSnapshotsRow = Database["public"]["Tables"]["member_snapshots"]["Row"];
+export type PlayersRow = Database["public"]["Tables"]["players"]["Row"];
+export type PushSubscriptionsRow = Database["public"]["Tables"]["push_subscriptions"]["Row"];
+export type RaidParticipantsRow = Database["public"]["Tables"]["raid_participants"]["Row"];
+export type RaidSeasonsRow = Database["public"]["Tables"]["raid_seasons"]["Row"];
+export type SyncLogRow = Database["public"]["Tables"]["sync_log"]["Row"];
+export type UsersRow = Database["public"]["Tables"]["users"]["Row"];
+export type WarAttacksRow = Database["public"]["Tables"]["war_attacks"]["Row"];
+export type WarTargetsRow = Database["public"]["Tables"]["war_targets"]["Row"];
+export type WarsRow = Database["public"]["Tables"]["wars"]["Row"];

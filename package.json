@@ -23,7 +23,8 @@
     "test:watch": "vitest",
     "supabase:check": "tsx --env-file=.env.local scripts/check-supabase.ts",
     "migrations:bundle": "tsx scripts/build-migration-bundle.ts",
-    "migrations:apply": "tsx --env-file=.env.local scripts/apply-migrations.ts"
+    "migrations:apply": "tsx --env-file=.env.local scripts/apply-migrations.ts",
+    "types:db": "tsx --env-file=.env.local scripts/gen-db-types.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",

@@ -17,13 +17,28 @@ import { PHASE1_MIGRATIONS } from "../test/pg-harness";
 
 const DIR = join(process.cwd(), "supabase", "migrations");
 
-/** Records which migrations have run. Section 4: never edit an applied file. */
+/**
+ * Records which migrations have run. Section 4: never edit an applied file.
+ *
+ * RLS on with no policy = default deny, so this is invisible to anon and
+ * authenticated no matter what the grants say. Today it happens to be denied
+ * anyway, because it was created before 014's ALTER DEFAULT PRIVILEGES took
+ * effect — but relying on that ordering is luck, and a recreated ledger would
+ * silently inherit anon read access. Schema history is not much of a secret, but
+ * default-deny is the rule everywhere else in this database and tooling should
+ * not be the exception.
+ *
+ * service_role bypasses RLS, so this script keeps working.
+ */
 const LEDGER = `
 create table if not exists schema_migrations (
   filename    text primary key,
   applied_at  timestamptz not null default now(),
   checksum    text
 );
+
+alter table schema_migrations enable row level security;
+revoke all on schema_migrations from anon, authenticated;
 `;
 
 /** Cheap change-detection, so an edited-after-applying file is caught (section 4). */
