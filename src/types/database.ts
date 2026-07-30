@@ -665,6 +665,7 @@ export interface Database {
           requested_clan_id: string | null;
           approved_by: string | null;
           approved_at: string | null;
+          is_platform_admin: boolean;
         };
         Insert: {
           id: string;
@@ -677,6 +678,7 @@ export interface Database {
           requested_clan_id?: string | null;
           approved_by?: string | null;
           approved_at?: string | null;
+          is_platform_admin?: boolean;
         };
         Update: {
           id?: string;
@@ -689,6 +691,7 @@ export interface Database {
           requested_clan_id?: string | null;
           approved_by?: string | null;
           approved_at?: string | null;
+          is_platform_admin?: boolean;
         };
       };
       war_attacks: {

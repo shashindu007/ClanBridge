@@ -32,6 +32,7 @@ export const PHASE1_MIGRATIONS = [
   "008_player_left_at.sql", // T3.9
   "013_user_status.sql", // T3.8 (009 absent; 010-012 are Phase 4B/6 stubs)
   "014_service_role_grants.sql", // fixes a missing grant in 006
+  "015_platform_admin.sql", // leader-managed clans, superseding T1.10's seed
 ] as const;
 
 export function readMigration(file: string): string {
@@ -64,8 +65,13 @@ async function installSupabaseScaffolding(db: PGlite): Promise<void> {
     language sql
     stable
     as $$
+      -- The inner nullif is load-bearing. Casting '' to json raises
+      -- "invalid input syntax for type json", so the empty setting must be
+      -- turned into NULL BEFORE the cast, not after. An earlier version had the
+      -- nullif on the outside and blew up the moment anything called auth.uid()
+      -- while no session was set — which a trigger does.
       select nullif(
-        current_setting('request.jwt.claims', true)::json ->> 'sub',
+        nullif(current_setting('request.jwt.claims', true), '')::json ->> 'sub',
         ''
       )::uuid
     $$;

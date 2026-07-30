@@ -183,11 +183,36 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
     expect(res.rows.map((r) => r.tablename)).toEqual([]);
   });
 
-  it("defines no insert, update or delete policies yet (writes go through the service key)", async () => {
-    const res = await h.db.query<{ cmd: string }>(
-      `select distinct cmd from pg_policies where schemaname = 'public'`,
+  // 006 shipped select-only; 015 added the first writes, for leader-managed
+  // clans. What must never appear is a DELETE policy — R4 says nothing is ever
+  // deleted, so granting one would make that rule unenforceable at the database.
+  it("defines no delete policy anywhere (R4)", async () => {
+    const res = await h.db.query<{ tablename: string; policyname: string }>(
+      `select tablename, policyname from pg_policies
+       where schemaname = 'public' and cmd = 'DELETE'`,
     );
-    expect(res.rows.map((r) => r.cmd)).toEqual(["SELECT"]);
+    expect(res.rows).toEqual([]);
+  });
+
+  it("grants no DELETE privilege to any end-user role (R4)", async () => {
+    const res = await h.db.query<{ table_name: string; grantee: string }>(
+      `select table_name, grantee from information_schema.role_table_grants
+       where table_schema = 'public'
+         and privilege_type = 'DELETE'
+         and grantee in ('anon', 'authenticated')`,
+    );
+    expect(res.rows).toEqual([]);
+  });
+
+  it("restricts write policies to the tables that need them", async () => {
+    const res = await h.db.query<{ tablename: string }>(
+      `select distinct tablename from pg_policies
+       where schemaname = 'public' and cmd in ('INSERT', 'UPDATE')
+       order by tablename`,
+    );
+    // Only the three tables leader-managed clans require. Every later feature
+    // adds its own rather than inheriting a blanket permission.
+    expect(res.rows.map((r) => r.tablename)).toEqual(["clan_roles", "clans", "users"]);
   });
 });
 
