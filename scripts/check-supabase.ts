@@ -48,10 +48,40 @@ interface Probe {
   detail?: string;
 }
 
+/**
+ * fetch with patient retries.
+ *
+ * This connection drops requests in bursts lasting several seconds — the same
+ * flakiness that killed an `npm install` mid-run earlier. Measured: `curl`
+ * succeeded while Node's fetch failed four times in a row, then both worked
+ * moments later, so it is not an IPv6/NAT64 ordering problem, just loss.
+ *
+ * Hence 6 attempts backing off to ~16s rather than a token 3. A diagnostic that
+ * reports "UNREACHABLE" during a blip is worse than useless: it sends you
+ * checking a project URL that was never wrong.
+ */
+async function fetchRetry(
+  url: string,
+  init: RequestInit = {},
+  attempts = 6,
+): Promise<Response> {
+  let lastError: unknown;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fetch(url, { ...init, signal: AbortSignal.timeout(30_000) });
+    } catch (error) {
+      lastError = error;
+      if (i < attempts) {
+        await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** (i - 1), 16_000)));
+      }
+    }
+  }
+  throw lastError;
+}
+
 async function probe(table: string): Promise<Probe> {
-  const response = await fetch(`${URL_}/rest/v1/${table}?select=*&limit=5`, {
+  const response = await fetchRetry(`${URL_}/rest/v1/${table}?select=*&limit=5`, {
     headers: { apikey: ANON!, Authorization: `Bearer ${ANON}` },
-    signal: AbortSignal.timeout(15_000),
   });
 
   const text = await response.text();
@@ -83,10 +113,7 @@ async function main(): Promise<void> {
   // Reachability first: a wrong URL or a paused project should not look like 21
   // separate table failures.
   try {
-    const root = await fetch(`${URL_}/rest/v1/`, {
-      headers: { apikey: ANON },
-      signal: AbortSignal.timeout(15_000),
-    });
+    const root = await fetchRetry(`${URL_}/rest/v1/`, { headers: { apikey: ANON } });
     console.log(`  REST endpoint reachable (HTTP ${root.status})\n`);
   } catch (error) {
     console.error(
@@ -173,10 +200,118 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    "\nT1.9 PASSES against the real platform: with the anon key and no session, " +
-      "every\ntable returns zero rows. That assertion was previously only proven " +
-      "against PGlite.",
+    `\n  ${empty.length}/${TABLES.length} tables exist, are readable without error, ` +
+      "and return nothing to anon.",
   );
+
+  // ── The part that makes the above meaningful ──────────────────────────────
+  //
+  // While every table is empty, "zero rows" cannot distinguish "RLS denied you"
+  // from "there is nothing here". The only way to tell them apart is to put a row
+  // in and confirm anon still cannot see it.
+  await probeRls();
+}
+
+/**
+ * Insert one row with the service key, confirm anon cannot see it, soft delete it.
+ *
+ * Soft delete, not hard: migration 014 deliberately withholds DELETE from
+ * service_role so R4 is enforced by privilege rather than by remembering. This
+ * probe is therefore subject to the same rule as everything else, which is the
+ * right outcome — the diagnostic should not need an exemption from the project's
+ * own most important constraint.
+ *
+ * The row is left with deleted_at set. `activeClans()` filters it out, so it is
+ * inert, and it re-uses the same tag on every run rather than accumulating.
+ */
+async function probeRls(): Promise<void> {
+  const service = process.env.SUPABASE_SERVICE_KEY;
+  if (!service) {
+    console.warn(
+      "\n  INCONCLUSIVE — every table is empty, so an empty result proves only that\n" +
+        "  the query succeeded, not that RLS denied anything. Set SUPABASE_SERVICE_KEY\n" +
+        "  to let this script insert a probe row and prove it properly.",
+    );
+    return;
+  }
+
+  const svc = {
+    apikey: service,
+    Authorization: `Bearer ${service}`,
+    "Content-Type": "application/json",
+    Prefer: "return=representation",
+  };
+  const PROBE_TAG = "#20000000"; // valid alphabet, obviously not a real clan
+
+  console.log("\n  Proving RLS actually denies, rather than the table being empty:");
+
+  // Re-uses the same tag each run. `on_conflict` makes that idempotent (R5)
+  // rather than failing the second time on the unique constraint.
+  const created = await fetchRetry(
+    `${URL_}/rest/v1/clans?on_conflict=tag`,
+    {
+      method: "POST",
+      headers: { ...svc, Prefer: "resolution=merge-duplicates,return=representation" },
+      body: JSON.stringify({ tag: PROBE_TAG, name: "RLS probe", deleted_at: null }),
+    },
+  );
+
+  if (!created.ok) {
+    const detail = (await created.text()).slice(0, 300);
+    console.error(`    service key could not insert (HTTP ${created.status}): ${detail}`);
+    if (created.status === 403) {
+      console.error(
+        "\n    This is the missing-grant defect. Apply migration\n" +
+          "    supabase/migrations/014_service_role_grants.sql in the SQL editor.",
+      );
+    }
+    process.exit(1);
+  }
+  console.log("    service key inserted a probe clan (bypasses RLS, as designed)");
+
+  try {
+    const asService = await fetchRetry(`${URL_}/rest/v1/clans?select=tag`, {
+      headers: { apikey: service, Authorization: `Bearer ${service}` },
+    });
+    const serviceRows = (await asService.json()) as unknown[];
+
+    const asAnon = await fetchRetry(`${URL_}/rest/v1/clans?select=tag`, {
+      headers: { apikey: ANON!, Authorization: `Bearer ${ANON}` },
+    });
+    const anonRows = (await asAnon.json()) as unknown[];
+
+    console.log(`    service key sees ${serviceRows.length} row(s)`);
+    console.log(`    anon key    sees ${anonRows.length} row(s)`);
+
+    if (serviceRows.length === 0) {
+      console.error("\n    Probe row vanished. Cannot conclude anything.");
+      process.exit(1);
+    }
+
+    if (anonRows.length > 0) {
+      console.error(
+        "\n" + "=".repeat(70) +
+          "\nT1.9 FAILED — anon can read a row that exists." +
+          "\n" + "=".repeat(70) +
+          "\n\nRLS is not denying. Re-apply 006_rls.sql and confirm no errors.",
+      );
+      process.exit(1);
+    }
+
+    console.log(
+      "\n  T1.9 PROVEN against the real platform: a row exists, the service key\n" +
+        "  sees it, and the anon key with no session sees nothing. RLS is denying,\n" +
+        "  not merely returning an empty table.",
+    );
+  } finally {
+    // Soft delete (R4). 014 withholds DELETE from service_role on purpose.
+    await fetchRetry(`${URL_}/rest/v1/clans?tag=eq.${encodeURIComponent(PROBE_TAG)}`, {
+      method: "PATCH",
+      headers: svc,
+      body: JSON.stringify({ deleted_at: new Date().toISOString() }),
+    });
+    console.log("  probe row soft-deleted (R4 — activeClans() filters it out)");
+  }
 }
 
 main().catch((error) => {

@@ -31,6 +31,7 @@ export const PHASE1_MIGRATIONS = [
   "007_member_snapshots.sql", // T2.9
   "008_player_left_at.sql", // T3.9
   "013_user_status.sql", // T3.8 (009 absent; 010-012 are Phase 4B/6 stubs)
+  "014_service_role_grants.sql", // fixes a missing grant in 006
 ] as const;
 
 export function readMigration(file: string): string {
@@ -69,13 +70,20 @@ async function installSupabaseScaffolding(db: PGlite): Promise<void> {
       )::uuid
     $$;
 
-    -- Supabase ships these two roles. anon is an unauthenticated visitor holding
-    -- only the public key; authenticated is a signed-in user.
+    -- The three roles Supabase ships. anon is an unauthenticated visitor holding
+    -- only the public key; authenticated is a signed-in user; service_role is
+    -- what the sync jobs use and it bypasses RLS.
+    --
+    -- service_role was missing here originally, and that omission is exactly why
+    -- the missing grant in 006_rls.sql survived every test and only surfaced on
+    -- first contact with real Supabase. A role the harness never assumes is a
+    -- role whose privileges are never checked.
     create role anon nologin;
     create role authenticated nologin;
+    create role service_role nologin bypassrls;
 
-    grant usage on schema public to anon, authenticated;
-    grant usage on schema auth   to anon, authenticated;
+    grant usage on schema public to anon, authenticated, service_role;
+    grant usage on schema auth   to anon, authenticated, service_role;
   `);
 }
 
@@ -89,6 +97,8 @@ export interface Harness {
   asUser(userId: string): Promise<void>;
   /** Act as an unauthenticated visitor. RLS applies, auth.uid() is null. */
   asAnon(): Promise<void>;
+  /** Act as a sync job. Bypasses RLS, but table privileges still apply. */
+  asServiceRole(): Promise<void>;
   /** Drop back to superuser for fixture setup. RLS is bypassed. */
   asSuperuser(): Promise<void>;
   close(): Promise<void>;
@@ -129,6 +139,12 @@ export async function createHarness(
       await db.exec(`reset role;`);
       await db.exec(`select set_config('request.jwt.claims', '', false);`);
       await db.exec(`set role anon;`);
+    },
+
+    async asServiceRole() {
+      await db.exec(`reset role;`);
+      await db.exec(`select set_config('request.jwt.claims', '', false);`);
+      await db.exec(`set role service_role;`);
     },
 
     async asSuperuser() {

@@ -666,6 +666,69 @@ describe("supabase/apply-all.sql — the bundle that gets pasted", () => {
   });
 });
 
+// The bug this suite missed the first time round.
+//
+// 006_rls.sql granted anon and authenticated but not service_role, so every sync
+// job failed with "42501 permission denied" on first contact with real Supabase.
+// It survived because the harness only ever acted as superuser, anon or
+// authenticated — never as the role the sync jobs actually use.
+describe("service_role privileges (fixed by 014)", () => {
+  let h: Harness;
+
+  beforeAll(async () => {
+    h = await createHarness();
+    await seedFixtures(h);
+  });
+  afterAll(async () => {
+    await h?.close();
+  });
+
+  it("can read every table", async () => {
+    await h.asServiceRole();
+    for (const table of PHASE1_TABLES) {
+      expect(await count(h, table), table).toBeGreaterThan(0);
+    }
+  });
+
+  it("bypasses RLS, as sync jobs require", async () => {
+    await h.asServiceRole();
+    // Both clans, not just one — a sync job acts for no user and must see all.
+    expect(await count(h, "clans")).toBe(2);
+  });
+
+  it("can insert — this is what was broken", async () => {
+    await h.asServiceRole();
+    await expect(
+      h.db.exec(`insert into clans (tag, name) values ('#20000000', 'probe')`),
+    ).resolves.toBeDefined();
+  });
+
+  it("can update, so soft delete works", async () => {
+    await h.asServiceRole();
+    await expect(
+      h.db.exec(`update clans set deleted_at = now() where tag = '#20000000'`),
+    ).resolves.toBeDefined();
+  });
+
+  // R4 enforced by privilege rather than by convention. A sync job that tries a
+  // hard delete now fails loudly instead of destroying history no one can refetch.
+  it("CANNOT delete — R4 enforced by the database, not by discipline", async () => {
+    await h.asServiceRole();
+    await expect(
+      h.db.exec(`delete from cwl_attacks`),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
+  it("cannot delete from any table", async () => {
+    await h.asServiceRole();
+    for (const table of ["clans", "players", "cwl_attacks", "war_attacks", "audit_log"]) {
+      await expect(h.db.exec(`delete from ${table}`), table).rejects.toThrow(
+        /permission denied/i,
+      );
+    }
+  });
+});
+
 describe("the migration files themselves", () => {
   it("contains no DELETE statements (R4)", () => {
     for (const file of PHASE1_MIGRATIONS) {
