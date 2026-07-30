@@ -208,6 +208,21 @@ export async function syncClans(ctx: JobContext): Promise<void> {
     ctx.recorded(await writeSnapshots(supabase, clan, members, playerIds));
 
     console.log(`  ${clan.tag} ${clan.name}: ${members.length} members`);
+
+    // T0.1, checked automatically rather than trusted once.
+    //
+    // The spec treats "war log is public" as a manual in-game check, but the API
+    // reports it, so a clan switched to private mid-season is caught on the next
+    // hourly run instead of surfacing later as an unexplained 403 in the war
+    // module. Warned rather than failed: the clan sync itself works fine, and
+    // failing here would stop members and snapshots being recorded too.
+    if (mapped.isWarLogPublic === false) {
+      console.warn(
+        `  WARNING  ${clan.tag} ${clan.name} has a PRIVATE war log. ` +
+          `No war or CWL data can be collected for this clan until it is set to ` +
+          `Public in game (Clan Settings -> War Log). See T0.1.`,
+      );
+    }
   }
 
   const departed = await markDepartures(

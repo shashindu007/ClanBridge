@@ -7,6 +7,8 @@
 // The headline assertion is the spec's: running it twice produces no duplicate
 // rows (R5).
 
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createHarness, type Harness } from "./pg-harness";
@@ -216,6 +218,40 @@ describe("T2.6 — sync:clans against real Postgres, offline", () => {
       );
       expect(after.rows[0]!.left_at).toBeNull();
       expect(after.rows[0]!.id).toBe(id); // history stays attached
+    });
+  });
+
+  // T0.1 — the spec makes this a manual in-game check, but the API reports it.
+  describe("T0.1 — a private war log is detected automatically", () => {
+    it("warns, naming the clan, when the war log is private", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const path = join(process.cwd(), "fixtures", "clan.json");
+      const original = readFileSync(path, "utf8");
+
+      try {
+        const fixture = JSON.parse(original);
+        fixture.isWarLogPublic = false;
+        writeFileSync(path, JSON.stringify(fixture, null, 2), "utf8");
+
+        const result = await runSyncJob("clans", syncClans, { client });
+
+        // Warned, not failed: the clan sync itself works fine, and failing here
+        // would stop members and snapshots being recorded too.
+        expect(result).toBe("success");
+        const message = warn.mock.calls.map((c) => String(c[0])).join("\n");
+        expect(message).toMatch(/PRIVATE war log/i);
+        expect(message).toContain("#2PP0JCCL");
+      } finally {
+        writeFileSync(path, original, "utf8");
+      }
+    });
+
+    it("says nothing when the war log is public", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      await runSyncJob("clans", syncClans, { client });
+      expect(warn.mock.calls.map((c) => String(c[0])).join("")).not.toMatch(
+        /PRIVATE/i,
+      );
     });
   });
 

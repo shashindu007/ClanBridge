@@ -84,6 +84,12 @@ const FIXTURES: Record<string, unknown> = {
       medium: "https://api-assets.clashofclans.com/badges/200/x.png",
     },
     warLeague: { id: 48000012, name: "Crystal League I" },
+    // T0.1 — the API reports this, so sync:clans can verify it rather than
+    // relying on a one-off manual check.
+    isWarLogPublic: true,
+    type: "inviteOnly",
+    warWins: 142,
+    warWinStreak: 3,
     members: members.length,
     memberList: members,
   },

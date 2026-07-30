@@ -112,6 +112,21 @@ describe("mapClan", () => {
     expect(keys).not.toContain("memberList");
     expect(keys).not.toContain("badgeUrls");
   });
+
+  // T0.1 is machine-checkable: the API reports the war log setting, so a clan
+  // switched to private mid-season is caught rather than surfacing later as an
+  // unexplained 403 in the war module.
+  it("carries isWarLogPublic through, so T0.1 can be verified automatically", () => {
+    expect(clan.isWarLogPublic).toBe(true);
+
+    const priv = mapClan(clanSchema.parse({ ...api, isWarLogPublic: false }));
+    expect(priv.isWarLogPublic).toBe(false);
+  });
+
+  it("leaves isWarLogPublic undefined when the API omits it", () => {
+    const bare = mapClan(clanSchema.parse({ tag: "#2PP0JCCL", name: "x" }));
+    expect(bare.isWarLogPublic).toBeUndefined();
+  });
 });
 
 describe("mapClanMembers", () => {

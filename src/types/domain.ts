@@ -26,6 +26,11 @@ export interface Clan {
   badgeUrl?: string;
   warLeague?: string;
   memberCount?: number;
+  /**
+   * T0.1 — false means the war module cannot collect anything for this clan.
+   * The API reports it, so it is checked on every sync rather than trusted once.
+   */
+  isWarLogPublic?: boolean;
 }
 
 export interface Player {

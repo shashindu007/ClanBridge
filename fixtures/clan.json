@@ -11,6 +11,10 @@
     "id": 48000012,
     "name": "Crystal League I"
   },
+  "isWarLogPublic": true,
+  "type": "inviteOnly",
+  "warWins": 142,
+  "warWinStreak": 3,
   "members": 5,
   "memberList": [
     {

@@ -82,6 +82,21 @@ export const clanSchema = z.looseObject({
   warLeague: league,
   members: z.number().optional(),
   memberList: z.array(clanMemberSchema).default([]),
+
+  /**
+   * T0.1 IS MACHINE-CHECKABLE AFTER ALL.
+   *
+   * The spec treats "confirm war logs are public" as a manual in-game check, but
+   * the clan endpoint reports it directly. sync:clans reads it and warns, so a
+   * clan switched to private mid-season is caught on the next hourly run rather
+   * than discovered as an unexplained 403 in the war module weeks later.
+   */
+  isWarLogPublic: z.boolean().optional(),
+
+  /** 'open' | 'inviteOnly' | 'closed'. Relevant to T0.11's invite-only question. */
+  type: z.string().optional(),
+  warWins: z.number().optional(),
+  warWinStreak: z.number().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -221,6 +236,16 @@ export const playerSchema = z.looseObject({
   donations: z.number().optional(),
   donationsReceived: z.number().optional(),
   role: apiRole.optional(),
+  /**
+   * 'in' | 'out' — the member's own in-game war preference.
+   *
+   * Worth capturing: T4B.7's availability pool can show it beside the poll
+   * answer, which catches the case where someone answers "in" on a poll but has
+   * war preference set to out in game and will never be picked by matchmaking.
+   */
+  warPreference: z.string().optional(),
+  townHallWeaponLevel: z.number().optional(),
+  clanCapitalContributions: z.number().optional(),
   clan: z
     .looseObject({ tag, name: z.string().optional(), badgeUrls })
     .optional(),

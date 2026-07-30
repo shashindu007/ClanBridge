@@ -66,6 +66,7 @@ export function mapClan(api: ApiClan): Clan {
     badgeUrl: api.badgeUrls?.medium ?? api.badgeUrls?.small,
     warLeague: api.warLeague?.name,
     memberCount: api.members ?? api.memberList.length,
+    isWarLogPublic: api.isWarLogPublic,
   };
 }
 
