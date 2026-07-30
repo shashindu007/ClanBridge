@@ -7,6 +7,8 @@
 // filter the most common bug in this project, and these policies are the net
 // that catches it.
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   PHASE1_MIGRATIONS,
@@ -613,6 +615,54 @@ describe("the isolation tests have teeth", () => {
     await h.asAnon();
     expect(await count(h, "clans")).toBe(0);
     expect(await count(h, "cwl_attacks")).toBe(0);
+  });
+});
+
+// supabase/apply-all.sql is what actually gets pasted into the SQL editor, so it
+// is the artefact that must work — not just the individual files. Applying nine
+// files by hand invites a wrong order, and 002 references 001 while 006
+// references everything, so a half-applied schema is worse than none.
+describe("supabase/apply-all.sql — the bundle that gets pasted", () => {
+  let h: Harness;
+
+  beforeAll(async () => {
+    const bundle = readFileSync(join(process.cwd(), "supabase", "apply-all.sql"), "utf8");
+    // One exec, exactly as the SQL editor receives it — begin/commit included.
+    h = await createHarness({ sql: [bundle] });
+  });
+  afterAll(async () => {
+    await h?.close();
+  });
+
+  it("creates every table in a single transaction", async () => {
+    const res = await h.db.query<{ tablename: string }>(
+      `select tablename from pg_tables where schemaname = 'public' order by tablename`,
+    );
+    expect(res.rows.map((r) => r.tablename)).toEqual([...PHASE1_TABLES]);
+  });
+
+  it("leaves RLS enabled on every table", async () => {
+    const res = await h.db.query<{ tablename: string }>(
+      `select tablename from pg_tables
+       where schemaname = 'public' and rowsecurity = false`,
+    );
+    expect(res.rows.map((r) => r.tablename)).toEqual([]);
+  });
+
+  it("is regenerated from the same migration list the harness uses", () => {
+    const bundle = readFileSync(join(process.cwd(), "supabase", "apply-all.sql"), "utf8");
+    // Catches a stale bundle: add a migration, forget `npm run migrations:bundle`,
+    // and this fails rather than the schema silently lagging behind.
+    for (const file of PHASE1_MIGRATIONS) {
+      expect(bundle, `${file} missing from the bundle`).toContain(`-- ${file}`);
+    }
+  });
+
+  it("excludes the Phase 4B and T6.8 stubs", () => {
+    const bundle = readFileSync(join(process.cwd(), "supabase", "apply-all.sql"), "utf8");
+    for (const stub of ["010_polls.sql", "011_cwl_rosters.sql", "012_war_lineups.sql"]) {
+      expect(bundle).not.toContain(`-- ${stub}\n`);
+    }
   });
 });
 
