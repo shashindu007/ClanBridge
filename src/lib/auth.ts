@@ -130,6 +130,29 @@ export async function accountStatus(
 }
 
 /**
+ * The one platform-level capability (015). May add clans and approve accounts
+ * that belong to no clan yet.
+ *
+ * Deliberately separate from ClanRole and never mixed into it: every other
+ * permission in this system is per clan, and a helper that returned "leader OR
+ * platform admin" would erase that distinction at the first call site that found
+ * it convenient.
+ */
+export async function isPlatformAdmin(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("users")
+    .select("is_platform_admin")
+    .eq("id", userId)
+    .is("deleted_at", null);
+
+  if (error || !data?.length) return false;
+  return (data[0] as { is_platform_admin: boolean }).is_platform_admin === true;
+}
+
+/**
  * The guard every route handler and Server Action calls before acting.
  *
  * Throws rather than returning a boolean, deliberately: the failure mode of a
