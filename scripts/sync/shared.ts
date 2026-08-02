@@ -181,7 +181,14 @@ export async function main(
   process.exitCode = result === "failed" ? 1 : 0;
 }
 
-/** The three clans, read from the database rather than hardcoded (R3). */
+/**
+ * The clans to sync, read from the database rather than hardcoded (R3).
+ *
+ * There is no fixed list of three anywhere. Migration 015 made clans data the
+ * leader owns, added through /admin after signing in — the tag is the one part
+ * of a clan a human supplies (R11), and everything else about it is filled in
+ * by these jobs on the first run.
+ */
 export async function activeClans(
   supabase: SupabaseClient,
 ): Promise<Array<{ id: string; tag: string; name: string }>> {
@@ -194,7 +201,10 @@ export async function activeClans(
 
   if (error) throw new Error(`Could not load clans: ${error.message}`);
   if (!data?.length) {
-    skip("noClansSeeded", "run supabase/seed.sql with the real tags (T1.10)");
+    // NOT "run seed.sql". That file was superseded by migration 015 and now only
+    // exists because a test still reads it; pointing an operator at it sends
+    // them to paste SQL for something the admin page does properly.
+    skip("noClansSeeded", "no clans added yet — sign in and add them at /admin");
   }
   return data;
 }
