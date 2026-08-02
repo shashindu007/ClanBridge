@@ -99,6 +99,42 @@
     "attacks": 5,
     "stars": 9,
     "destructionPercentage": 88.1,
-    "members": []
+    "members": [
+      {
+        "tag": "#C2V89UGL",
+        "name": "Opponent 01",
+        "townhallLevel": 16,
+        "mapPosition": 5,
+        "opponentAttacks": 1
+      },
+      {
+        "tag": "#C2V89UGJ",
+        "name": "Opponent 02",
+        "townhallLevel": 15,
+        "mapPosition": 4,
+        "opponentAttacks": 1
+      },
+      {
+        "tag": "#C2V89UGC",
+        "name": "Opponent 03",
+        "townhallLevel": 14,
+        "mapPosition": 3,
+        "opponentAttacks": 1
+      },
+      {
+        "tag": "#C2V89UGU",
+        "name": "Opponent 04",
+        "townhallLevel": 16,
+        "mapPosition": 2,
+        "opponentAttacks": 1
+      },
+      {
+        "tag": "#C2V89UGV",
+        "name": "Opponent 05",
+        "townhallLevel": 15,
+        "mapPosition": 1,
+        "opponentAttacks": 1
+      }
+    ]
   }
 }

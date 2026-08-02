@@ -49,6 +49,13 @@ const members = [
   member(4, "member", 13),
 ];
 
+/** The tag our member `n` attacks. Kept as a function so the opponent roster below
+ *  can be generated from the same expression — otherwise defender_position is
+ *  unresolvable and T4.1 cannot be tested offline. */
+function defenderTagFor(n: number): string {
+  return `#C2V89UG${"LJCUV028"[n % 8]}`;
+}
+
 function warMember(n: number, attacked: boolean) {
   const base = {
     tag: members[n]!.tag,
@@ -63,13 +70,35 @@ function warMember(n: number, attacked: boolean) {
     attacks: [
       {
         attackerTag: members[n]!.tag,
-        defenderTag: `#C2V89UG${"LJCUV028"[n % 8]}`,
+        defenderTag: defenderTagFor(n),
         stars: 3 - (n % 3),
         destructionPercentage: 100 - n * 7,
         order: n + 1,
         duration: 90 + n,
       },
     ],
+  };
+}
+
+/**
+ * The other side's roster.
+ *
+ * Real war responses carry both sides in full. The synthetic fixtures used to
+ * send `opponent.members: []`, which made `cwl_attacks.defender_position`
+ * impossible to derive offline — the only source for it is looking the
+ * defenderTag up in this list, so with an empty list every attack recorded a
+ * null position and the lookup was never exercised by a test.
+ *
+ * Positions are deliberately NOT in the same order as the attackers, so a job
+ * that accidentally uses the attacker's own index still fails the assertion.
+ */
+function opponentWarMember(n: number) {
+  return {
+    tag: defenderTagFor(n),
+    name: `Opponent ${String(n + 1).padStart(2, "0")}`,
+    townhallLevel: 16 - (n % 3),
+    mapPosition: 5 - n,
+    opponentAttacks: 1,
   };
 }
 
@@ -165,7 +194,8 @@ const FIXTURES: Record<string, unknown> = {
       attacks: 5,
       stars: 9,
       destructionPercentage: 88.1,
-      members: [],
+      // Full roster, so defender_position can be resolved by tag (T4.1).
+      members: [0, 1, 2, 3, 4].map(opponentWarMember),
     },
   },
 
