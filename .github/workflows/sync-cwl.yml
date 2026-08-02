@@ -1,11 +1,74 @@
 # T4.2 — Clan War League sync. The one that matters most.
-# 
-# schedule: every 2 hours    on.workflow_dispatch: yes
-# runs: npm run sync:cwl
-# 
-# Do not assume punctual execution. GitHub delays scheduled runs by up to twenty
-# minutes under load, and skips them entirely if the repository has been inactive
-# for 60 days.
-# 
-# R10 — no CWL group is a clean exit. This job reports success for three weeks of
-# every month by design.
+#
+# CWL data is deleted from Supercell's API when the season ends and cannot ever
+# be recovered from anywhere. Every other workflow here can miss a run and
+# backfill on the next one. This one cannot: downtime during CWL week is a
+# season gone permanently.
+#
+# R2 — sync runs here, never on Vercel. Vercel's free function timeout would kill
+# a CWL sync partway through and leave half-written data.
+#
+# Repository secrets required (Settings -> Secrets and variables -> Actions):
+#   COC_API_TOKEN         the PRODUCTION key, registered against the RoyaleAPI proxy IP
+#   COC_API_BASE          https://cocproxy.royaleapi.dev/v1
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_KEY
+#
+# R6 — none of these may ever be set as a Vercel environment variable.
+#
+# R10 — no CWL group is a clean exit. This job reports "skipped" for three weeks
+# of every month by design, and that is a success, not something to investigate.
+
+name: sync-cwl
+
+on:
+  schedule:
+    # Every two hours, offset from sync-clans' :17 so the two never contend for
+    # the same rate-limited API key.
+    #
+    # Do not assume punctual execution: GitHub delays scheduled runs by up to
+    # twenty minutes under load, and skips them entirely if the repository has
+    # been inactive for 60 days. Two-hourly gives a CWL day roughly twelve
+    # chances to be captured, so several missed ticks still lose nothing.
+    - cron: "23 */2 * * *"
+  workflow_dispatch: # not optional — you will need manual runs during CWL week
+
+# A slow run must never overlap the next tick. Overlap is survivable (every write
+# is ON CONFLICT DO NOTHING) but it doubles the API calls for no benefit.
+concurrency:
+  group: sync-cwl
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    # Generous on purpose. The first run of a CWL week fetches the group plus up
+    # to 28 war tags per clan, throttled to one call every 200 ms, across three
+    # clans. Later runs are far cheaper because settled wars are skipped — but
+    # the timeout has to survive the expensive first one.
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          # Minute budget: private repo, 2,000 minutes/month. Two-hourly is ~360
+          # runs/month, comfortably inside the allowance alongside sync-clans.
+          cache: npm
+
+      - run: npm ci
+
+      - name: Sync Clan War League
+        run: npm run sync:cwl
+        env:
+          COC_API_TOKEN: ${{ secrets.COC_API_TOKEN }}
+          COC_API_BASE: ${{ secrets.COC_API_BASE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # Explicitly false. Defaulting to fixtures in CI would make this job
+          # report success every two hours right through CWL week while writing
+          # nothing real — the exact failure this workflow exists to prevent,
+          # dressed up as a green tick.
+          USE_FIXTURES: "false"
