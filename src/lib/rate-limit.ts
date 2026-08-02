@@ -135,6 +135,42 @@ export async function getRateLimiter(config: RateLimitConfig): Promise<RateLimit
   return createMemoryRateLimiter(config);
 }
 
+/**
+ * The process-wide limiter for a config. Use this from routes, not
+ * getRateLimiter().
+ *
+ * createMemoryRateLimiter() closes over a fresh Map, so calling getRateLimiter()
+ * inside a handler hands every request its own empty counter and the limit never
+ * trips. Upstash would still work, because its state lives in Redis — which is
+ * the dangerous version of the bug: local and test behaviour silently differs
+ * from production, and the limiter looks fine right up until it is the only
+ * thing standing between this platform and a throttled API key.
+ *
+ * Keyed by the config's shape so VERIFY_LIMIT and WRITE_LIMIT cannot share a
+ * counter. Held as promises so a slow Upstash import is awaited once, not raced.
+ */
+const shared = new Map<string, Promise<RateLimiter>>();
+
+export function sharedRateLimiter(config: RateLimitConfig): Promise<RateLimiter> {
+  const key = `${config.max}:${config.windowMs}`;
+  let limiter = shared.get(key);
+  if (!limiter) {
+    limiter = getRateLimiter(config).catch((error) => {
+      // Never cache a rejected promise: a transient failure would otherwise
+      // disable rate limiting for the lifetime of the process.
+      shared.delete(key);
+      throw error;
+    });
+    shared.set(key, limiter);
+  }
+  return limiter;
+}
+
+/** Test seam — drop every memoised limiter so a case starts from a clean count. */
+export function resetSharedRateLimiters(): void {
+  shared.clear();
+}
+
 /** Standard headers, so a client can back off instead of hammering. */
 export function rateLimitHeaders(result: RateLimitResult): Record<string, string> {
   return {
