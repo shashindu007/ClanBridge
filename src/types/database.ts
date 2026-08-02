@@ -2,7 +2,7 @@
 // DO NOT EDIT. Regenerate after every migration — a stale file type-checks
 // against a schema that no longer exists, which is worse than having none.
 //
-// 21 tables, generated 2026-07-30.
+// 21 tables, generated 2026-08-01.
 
 export type Json =
   | string

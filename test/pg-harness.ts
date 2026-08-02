@@ -33,6 +33,9 @@ export const PHASE1_MIGRATIONS = [
   "013_user_status.sql", // T3.8 (009 absent; 010-012 are Phase 4B/6 stubs)
   "014_service_role_grants.sql", // fixes a missing grant in 006
   "015_platform_admin.sql", // leader-managed clans, superseding T1.10's seed
+  "016_player_verification.sql", // T3.3 link_verified_player() + requested_clan_id guard
+  "017_approval_grants_membership.sql", // T3.8 approval also grants clan_roles
+  "018_admin_may_approve_clanless.sql", // restores 015's platform-admin capability
 ] as const;
 
 export function readMigration(file: string): string {

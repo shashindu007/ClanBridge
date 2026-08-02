@@ -7,7 +7,7 @@
 -- BEGIN/COMMIT means a failure anywhere rolls the entire thing back, so you
 -- cannot end up with a half-applied schema.
 --
--- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql
+-- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql
 --
 -- Deliberately EXCLUDED: 010_polls, 011_cwl_rosters, 012_war_lineups. Those
 -- are still comment-only stubs for Phase 4B and T6.8. 009 does not exist.
@@ -1564,6 +1564,470 @@ $$;
 create trigger users_guard_privilege_columns
   before update on users
   for each row execute function guard_user_privilege_columns();
+
+-- ========================================================================
+-- 016_player_verification.sql
+-- ========================================================================
+
+-- T3.3 — Player verification: link a verified Clash of Clans account to a user.
+--
+-- WHY THIS IS A FUNCTION AND NOT A POLICY
+--
+-- `players` has exactly one policy — "read own clan players" (006) — and exactly
+-- one grant: select. 015 handed `insert, update` to authenticated on clans,
+-- clan_roles and users, and deliberately not on players. That is correct and
+-- stays correct: players is a GAME FACT table (R11), owned by scripts/sync/, and
+-- a session must never be able to write a player's name, clan or town hall.
+--
+-- But verification has to write two columns of it. So the write happens here, in
+-- a security definer function that is the ONLY path, rather than by opening the
+-- table up with an update policy and trusting a WITH CHECK expression to keep a
+-- session away from the other columns.
+--
+-- This is the same reasoning 015 records at lines 199-207 for approve_account(),
+-- and the same shape: authority check, then the write, then audit_log, all in one
+-- indivisible act that cannot be half-performed.
+--
+-- R8 — the member's in-game API token never reaches this file. It is verified
+-- against Supercell in /api/verify and discarded there. Nothing about it is a
+-- parameter here; by the time this runs, ownership is already proven.
+
+
+-- ---------------------------------------------------------------------------
+-- link_verified_player(p_tag)
+--
+-- Called by /api/verify AFTER Supercell's verifytoken endpoint returned ok.
+--
+-- Returns jsonb rather than boolean because the caller needs to tell three
+-- different outcomes apart in the UI, and a bare false cannot:
+--
+--   {"ok": true,  "player_id": …, "clan_id": …}
+--   {"ok": false, "reason": "no_session"}
+--   {"ok": false, "reason": "not_a_member"}
+--
+-- A tag that belongs to no clan on this platform is refused and NO player row is
+-- invented for it. Two reasons:
+--
+--   1. R11 — players is written by sync jobs. A row created here would have no
+--      clan, would never be updated by any job, and would sit in the table
+--      looking like a member forever.
+--   2. It is what makes T3.8's done-when true by construction: "an account
+--      created with a random email and a stranger's verified tag can see no clan
+--      data". Such a tag never links, so requested_clan_id stays null, so no
+--      leader ever sees them in a queue, so they stay pending forever.
+--
+-- Manual leader approval is the confirmed policy for this deployment: verifying
+-- a tag NEVER approves an account. It proves ownership and routes the applicant
+-- to the right leader. Approval remains approve_account() (015), by a human.
+-- ---------------------------------------------------------------------------
+create or replace function link_verified_player(p_tag text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_player_id uuid;
+  v_clan_id   uuid;
+  v_owner     uuid;
+begin
+  if auth.uid() is null then
+    return jsonb_build_object('ok', false, 'reason', 'no_session');
+  end if;
+
+  if p_tag is null then
+    return jsonb_build_object('ok', false, 'reason', 'not_a_member');
+  end if;
+
+  -- clan_id is not null, so a player kept for history after leaving all three
+  -- clans (T3.9 sets left_at) cannot be used to gain access. left_at is checked
+  -- too: a departed member must be re-approved rather than walking back in.
+  select id, clan_id, user_id
+    into v_player_id, v_clan_id, v_owner
+  from public.players
+  where tag = p_tag
+    and deleted_at is null
+    and left_at is null
+    and clan_id is not null;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'not_a_member');
+  end if;
+
+  -- Tag theft. The token proved the CALLER owns this game account, so a row
+  -- already pointing at somebody else means either an account changed hands or
+  -- an attempt to take over a teammate's profile. Neither is resolvable here —
+  -- it raises so /api/verify can surface it and a leader can look into it.
+  if v_owner is not null and v_owner <> auth.uid() then
+    raise exception 'player already linked to another account';
+  end if;
+
+  perform set_config('clanbridge.bootstrap', 'on', true);
+
+  update public.players
+  set verified = true,
+      user_id  = auth.uid()
+  where id = v_player_id;
+
+  -- THIS is what puts the applicant in front of the right leader. 013's
+  -- "leaders read pending applicants to their clans" policy filters on
+  -- requested_clan_id, and the guard trigger below now refuses a direct write to
+  -- it — so this function is the only way it can ever be set, and a member
+  -- cannot nominate themselves into a clan they have no account in.
+  update public.users
+  set requested_clan_id = v_clan_id
+  where id = auth.uid()
+    and deleted_at is null;
+
+  insert into public.audit_log (user_id, clan_id, action, entity, entity_id, after)
+  values (auth.uid(), v_clan_id, 'verify', 'players', v_player_id,
+          jsonb_build_object('verified', true, 'tag', p_tag));
+
+  return jsonb_build_object(
+    'ok', true,
+    'player_id', v_player_id,
+    'clan_id', v_clan_id);
+end;
+$$;
+
+revoke execute on function link_verified_player(text) from public;
+grant execute on function link_verified_player(text) to authenticated;
+
+comment on function link_verified_player(text) is
+  'T3.3 - links a verified player tag to auth.uid() and routes the account to '
+  'that clan''s leader for approval. The only write path to players from a '
+  'session; players is otherwise select-only for authenticated (R11).';
+
+
+-- ---------------------------------------------------------------------------
+-- Close the requested_clan_id escalation.
+--
+-- 015 added "own profile update" so a member could set their own display name,
+-- and guarded the two columns that were obviously dangerous: is_platform_admin
+-- and status. requested_clan_id was not guarded, and it should have been.
+--
+-- Without this, any signed-in user can run
+--
+--     update users set requested_clan_id = '<any clan uuid>' where id = auth.uid()
+--
+-- and appear in that clan leader's pending-applicant list, having verified
+-- nothing. It is not a data leak — 013's policy only exposes the applicant's own
+-- row to the leader, and approval is still a deliberate human act — but it lets
+-- a stranger put themselves in front of a leader who may click approve out of
+-- habit. The whole point of the pending queue is that everything in it arrived
+-- by proving something.
+--
+-- Now the only writer is link_verified_player() above, which sets it to the clan
+-- the verified tag actually plays in.
+--
+-- This is a `create or replace` of 015's function; the trigger it backs
+-- (users_guard_privilege_columns) is unchanged and stays attached.
+-- ---------------------------------------------------------------------------
+create or replace function guard_user_privilege_columns()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  -- Constrain END-USER SESSIONS only.
+  --
+  -- Deliberately an allow-list of the two untrusted roles rather than a
+  -- deny-list of trusted ones. Everything else — service_role for sync jobs,
+  -- postgres for migrations and admin tooling — is already privileged by other
+  -- means, and an earlier version that tested `role = 'service_role'` blocked
+  -- the migration runner itself.
+  if current_user not in ('authenticated', 'anon') then
+    return new;
+  end if;
+
+  -- The definer functions set this transaction-locally before their update.
+  -- Nothing else sets it, and each one checks the caller's authority first.
+  if current_setting('clanbridge.bootstrap', true) = 'on' then
+    return new;
+  end if;
+
+  if new.is_platform_admin is distinct from old.is_platform_admin then
+    raise exception 'is_platform_admin cannot be set directly';
+  end if;
+
+  -- status is only ever changed by approve_account() / reject_account(), which
+  -- set the bootstrap GUC above. A direct session write is always refused,
+  -- including a member trying to approve themselves.
+  if new.status is distinct from old.status then
+    raise exception 'status is set by approve_account()/reject_account(), not directly';
+  end if;
+
+  -- New in 016. See the block comment above.
+  if new.requested_clan_id is distinct from old.requested_clan_id then
+    raise exception 'requested_clan_id is set by link_verified_player(), not directly';
+  end if;
+
+  return new;
+end;
+$$;
+
+
+-- ---------------------------------------------------------------------------
+-- Verify:
+--
+--   select proname, prosecdef from pg_proc where proname = 'link_verified_player';
+--     -- expect one row, prosecdef = true
+--
+--   select has_table_privilege('authenticated', 'players', 'update');
+--     -- expect FALSE. If this is ever true, the function above has been made
+--     -- redundant by a grant and players is writable from a session.
+-- ---------------------------------------------------------------------------
+
+-- ========================================================================
+-- 017_approval_grants_membership.sql
+-- ========================================================================
+
+-- T3.8 — Approving an account must also grant membership of the clan.
+--
+-- THE DEFECT
+--
+-- 015's approve_account() sets users.status = 'approved' and stops. But status is
+-- only half of the gate. The other half is clan_roles: auth_clan_ids() reads it,
+-- every clan-scoped policy in 006 filters on it, and visibleClans() builds the
+-- switcher from it.
+--
+-- So an approved account with no clan_roles row is approved and still sees
+-- nothing — past the /pending redirect, into an application with no clans in it.
+-- The leader has clicked Approve, the applicant has been told they are in, and
+-- the screen is empty. Nothing reports an error, because nothing failed.
+--
+-- 006 (lines 272-283) describes the empty-clan_roles state as the thing that
+-- protects a stranger from seeing data, which is right. It is not a state an
+-- APPROVED member should ever be left in.
+--
+-- WHY THIS REPLACES THE FUNCTION RATHER THAN ADDING A SECOND STEP
+--
+-- The alternative is for the admin page to call approve_account() and then insert
+-- clan_roles itself — two round trips, no transaction. A failure between them
+-- leaves exactly the half-approved state described above, and the leader has no
+-- way to tell it happened.
+--
+-- 015 argued this same point when it made approval a function instead of a
+-- policy: one indivisible act, always audited, authority checked in one readable
+-- place. Granting the role is part of that act.
+--
+-- Section 4 — 015 is applied and is not edited. This fixes forward by replacing
+-- the function; every check in the original is preserved verbatim below.
+
+
+create or replace function approve_account(target uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target_clan   uuid;
+  target_status text;
+  allowed       boolean;
+begin
+  if auth.uid() is null or target is null then
+    return false;
+  end if;
+
+  select requested_clan_id, status into target_clan, target_status
+  from public.users
+  where id = target and deleted_at is null;
+
+  if not found or target_status <> 'pending' then
+    return false;
+  end if;
+
+  -- Nobody approves themselves, regardless of rank.
+  if target = auth.uid() then
+    raise exception 'accounts cannot approve themselves';
+  end if;
+
+  allowed := public.auth_is_platform_admin()
+    or (target_clan is not null
+        and target_clan in (select public.auth_leader_clan_ids()));
+
+  if not allowed then
+    return false;
+  end if;
+
+  -- New in 017. An account with no clan to be approved INTO cannot be approved:
+  -- there is no membership to grant, and letting it through produces the empty
+  -- application described above. The applicant must verify a player tag first,
+  -- which is what sets requested_clan_id (016).
+  if target_clan is null then
+    return false;
+  end if;
+
+  perform set_config('clanbridge.bootstrap', 'on', true);
+
+  update public.users
+  set status      = 'approved',
+      approved_by = auth.uid(),
+      approved_at = now()
+  where id = target;
+
+  -- The membership itself.
+  --
+  -- 'member' always, never the player's in-game rank. R11 — clan_roles is an
+  -- application permission, and the in-game role is a game fact that sync owns.
+  -- Copying one into the other would mean a promotion in game silently granted
+  -- someone the ability to publish rosters and award bonuses here.
+  --
+  -- on conflict do nothing because unique (user_id, clan_id) already exists and a
+  -- re-approval must not fail — and must not silently DOWNGRADE a leader back to
+  -- member either, which an upsert would.
+  insert into public.clan_roles (user_id, clan_id, role)
+  values (target, target_clan, 'member')
+  on conflict (user_id, clan_id) do nothing;
+
+  insert into public.audit_log (user_id, clan_id, action, entity, entity_id, after)
+  values (auth.uid(), target_clan, 'approve', 'users', target,
+          jsonb_build_object('status', 'approved', 'role', 'member'));
+
+  return true;
+end;
+$$;
+
+revoke execute on function approve_account(uuid) from public;
+grant execute on function approve_account(uuid) to authenticated;
+
+comment on function approve_account(uuid) is
+  'T3.8 - lifts the pending gate AND grants member of the requested clan, in one '
+  'transaction. Approving without the clan_roles row leaves the account past the '
+  '/pending redirect with no clans visible (017).';
+
+
+-- ---------------------------------------------------------------------------
+-- Verify:
+--
+--   -- after approving, the applicant must have BOTH
+--   select status from users where id = '<applicant>';          -- 'approved'
+--   select role from clan_roles where user_id = '<applicant>';  -- 'member'
+--
+-- If the second is empty, this migration did not take effect and the member is
+-- looking at an empty application right now.
+-- ---------------------------------------------------------------------------
+
+-- ========================================================================
+-- 018_admin_may_approve_clanless.sql
+-- ========================================================================
+
+-- 017 was too strict, and broke a capability 015 deliberately created.
+--
+-- 015 documents is_platform_admin as: "May add clans and approve accounts that
+-- belong to no clan yet. Exists only to break the bootstrap cycle."
+--
+-- 017 then refused every approval where requested_clan_id is null, to stop a
+-- member being approved into an application with no clans in it. That reasoning
+-- is right for a LEADER — a leader approving someone with no clan has nothing to
+-- approve them into, and no way to give them a role afterwards.
+--
+-- It is wrong for the platform admin, who has both. Refusing them removes the
+-- exact escape hatch that exists for when the normal path is unavailable: a
+-- member whose tag has not synced yet, or an account that must be let in before
+-- the clan it belongs to has been added.
+--
+-- So the rule becomes conditional on who is asking:
+--
+--   leader, no requested clan  -> refused. Nothing to approve into.
+--   leader, requested clan     -> approved + granted member of that clan.
+--   platform admin, no clan    -> approved, no role granted. Deliberate act by
+--                                 the one person who can then grant one.
+--   platform admin, with clan  -> approved + granted member of that clan.
+--
+-- The guarantee 017 was protecting survives where it matters: nobody reaches the
+-- approved state with no clan role by accident. It now takes the platform admin
+-- choosing to do it.
+--
+-- Section 4 — 017 is applied and is not edited. Fixed forward.
+
+create or replace function approve_account(target uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target_clan   uuid;
+  target_status text;
+  is_admin      boolean;
+  allowed       boolean;
+begin
+  if auth.uid() is null or target is null then
+    return false;
+  end if;
+
+  select requested_clan_id, status into target_clan, target_status
+  from public.users
+  where id = target and deleted_at is null;
+
+  if not found or target_status <> 'pending' then
+    return false;
+  end if;
+
+  -- Nobody approves themselves, regardless of rank.
+  if target = auth.uid() then
+    raise exception 'accounts cannot approve themselves';
+  end if;
+
+  is_admin := public.auth_is_platform_admin();
+
+  allowed := is_admin
+    or (target_clan is not null
+        and target_clan in (select public.auth_leader_clan_ids()));
+
+  if not allowed then
+    return false;
+  end if;
+
+  -- 017's guarantee, narrowed to the case it was actually about. A leader
+  -- approving a clanless account would leave them past the /pending redirect
+  -- with nothing to see and no role the leader could grant.
+  if target_clan is null and not is_admin then
+    return false;
+  end if;
+
+  perform set_config('clanbridge.bootstrap', 'on', true);
+
+  update public.users
+  set status      = 'approved',
+      approved_by = auth.uid(),
+      approved_at = now()
+  where id = target;
+
+  -- 'member' always, never the player's in-game rank. R11 — clan_roles is an
+  -- application permission and the in-game role is a game fact that sync owns.
+  -- Copying one into the other would mean a promotion in game silently granted
+  -- someone the ability to publish rosters and award bonuses here.
+  --
+  -- on conflict do nothing because unique (user_id, clan_id) already exists: a
+  -- re-approval must not fail, and must not DOWNGRADE an existing leader back to
+  -- member either, which an upsert would.
+  if target_clan is not null then
+    insert into public.clan_roles (user_id, clan_id, role)
+    values (target, target_clan, 'member')
+    on conflict (user_id, clan_id) do nothing;
+  end if;
+
+  insert into public.audit_log (user_id, clan_id, action, entity, entity_id, after)
+  values (auth.uid(), target_clan, 'approve', 'users', target,
+          jsonb_build_object(
+            'status', 'approved',
+            'role', case when target_clan is null then null else 'member' end));
+
+  return true;
+end;
+$$;
+
+revoke execute on function approve_account(uuid) from public;
+grant execute on function approve_account(uuid) to authenticated;
+
+comment on function approve_account(uuid) is
+  'T3.8 - lifts the pending gate, and grants member of the requested clan when '
+  'there is one. A leader cannot approve a clanless account (nothing to approve '
+  'into); the platform admin can, as 015 intends (017, 018).';
 
 commit;
 
