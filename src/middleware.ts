@@ -4,12 +4,17 @@
 // unauthenticated users to /login. Delegates to lib/supabase/middleware.ts (T1.11).
 //
 // This file must live at src/middleware.ts — Next.js will not pick it up anywhere else.
+//
+// This is authentication, not authorisation. It proves there is a session; it
+// says nothing about whether the account is approved (T3.8, enforced in
+// (app)/layout.tsx) or which clans it may see (R3, enforced by RLS and by every
+// service-layer query). A session is the floor, not the ceiling.
 
-import { type NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { updateSession } from "@/lib/supabase/middleware";
 
-export async function middleware(_request: NextRequest) {
-  // TODO T3.2: return await updateSession(request)
-  return NextResponse.next();
+export async function middleware(request: NextRequest) {
+  return await updateSession(request);
 }
 
 export const config = {
