@@ -1,0 +1,86 @@
+// T4.8 — "updated N minutes ago", and the threshold past which it turns red.
+//
+// This is the cheap half of noticing a dead sync job. It only works if somebody
+// happens to look at a page; T5.8 is the half that pushes a notification without
+// being asked. Both exist because a CWL sync that dies quietly on a Tuesday
+// costs a season nobody can re-fetch.
+//
+// Pure functions over a SyncRun. No database and no clock reading beyond the
+// `now` passed in, so the thresholds are testable without waiting.
+
+import type { SyncRun } from "@/repositories/sync-log";
+
+/** How long each job may go between successful runs before its data is suspect. */
+export const STALE_AFTER_MS: Record<string, number> = {
+  // Runs every 2 hours. Three hours allows a missed tick plus GitHub's habit of
+  // delaying scheduled runs by up to twenty minutes.
+  cwl: 3 * 60 * 60 * 1000,
+  // Hourly.
+  clans: 2 * 60 * 60 * 1000,
+  // Every 15 minutes.
+  war: 45 * 60 * 1000,
+  raids: 36 * 60 * 60 * 1000,
+};
+
+const DEFAULT_STALE_AFTER_MS = 3 * 60 * 60 * 1000;
+
+export type FreshnessLevel = "fresh" | "stale" | "failed" | "never";
+
+export interface Freshness {
+  level: FreshnessLevel;
+  /** Whole minutes since the run finished; null when it has never run. */
+  minutesAgo: number | null;
+  label: string;
+  /** The skip reason, when the last run was a legitimate no-op (R10). */
+  skipReason: string | null;
+}
+
+/**
+ * Turn the last run of a job into something a page can render.
+ *
+ * A `skipped` run is FRESH, not stale. R10: for three weeks of every month "no
+ * CWL group" is the correct outcome, and colouring it red would mean the
+ * indicator is red most of the year — which trains you to ignore it, and then it
+ * is worth nothing on the one week it matters.
+ */
+export function freshness(
+  run: SyncRun | null,
+  now: Date = new Date(),
+): Freshness {
+  if (!run || !run.finishedAt) {
+    return {
+      level: "never",
+      minutesAgo: null,
+      label: "never run",
+      skipReason: null,
+    };
+  }
+
+  const finished = new Date(run.finishedAt).getTime();
+  const elapsed = now.getTime() - finished;
+  const minutesAgo = Math.max(0, Math.floor(elapsed / 60_000));
+  const skipReason = run.skipReason;
+
+  if (run.status === "failed") {
+    return { level: "failed", minutesAgo, label: `failed ${ago(minutesAgo)}`, skipReason };
+  }
+
+  const limit = STALE_AFTER_MS[run.jobType] ?? DEFAULT_STALE_AFTER_MS;
+  const level: FreshnessLevel = elapsed > limit ? "stale" : "fresh";
+
+  return { level, minutesAgo, label: `updated ${ago(minutesAgo)}`, skipReason };
+}
+
+/** Human phrasing. Deliberately coarse — nobody needs "updated 97 minutes ago". */
+export function ago(minutes: number): string {
+  if (minutes < 1) return "just now";
+  if (minutes === 1) return "1 minute ago";
+  if (minutes < 60) return `${minutes} minutes ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours === 1) return "1 hour ago";
+  if (hours < 24) return `${hours} hours ago`;
+
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "1 day ago" : `${days} days ago`;
+}

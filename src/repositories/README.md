@@ -16,10 +16,30 @@ takes is always the same:
 ```ts
 // WRONG — war_id alone does not prove the caller may see this war
 .from("cwl_attacks").select("*").eq("war_id", warId)
-
-// RIGHT
-.from("cwl_attacks").select("*").eq("war_id", warId).eq("clan_id", clanId)
 ```
+
+### Not every table has a `clan_id` to filter on
+
+An earlier version of this file finished that example with
+`.eq("clan_id", clanId)`. **That column does not exist on `cwl_attacks`** — nor on
+`cwl_wars` or `cwl_war_members`. Copying it produces a query that fails outright,
+and the natural next move is to drop the clan check entirely, which is how the
+advice ends up causing the bug it warns about.
+
+Where the column exists (`players`, `cwl_seasons`, `wars`, `announcements`,
+`member_snapshots`), filter on it directly. Where it does not, resolve the parent
+under an explicit clan filter first and then read children by that id:
+
+```ts
+// RIGHT — the season is proven to be this clan's, so its wars and their
+// attacks are too. Mirrors the RLS policy's own join (006_rls.sql:172-181).
+const season = await seasonByName(supabase, clanId, "2026-08"); // .eq("clan_id", clanId)
+const wars   = await warsInSeason(supabase, season.id);
+const attacks = await attacksForWar(supabase, wars[0].id);
+```
+
+The chain is `cwl_attacks → cwl_wars → cwl_seasons.clan_id`. See
+[`cwl.ts`](./cwl.ts) for the worked implementation.
 
 RLS (T1.9) is the safety net for the ones that slip through. It is not a substitute
 for reading the query.

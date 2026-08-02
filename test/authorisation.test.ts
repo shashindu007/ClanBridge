@@ -28,6 +28,11 @@ const PENDING = "44444444-0000-4000-8000-0000000000c1";
 const CLAN_A = "aaaaaaaa-0000-4000-8000-0000000000aa";
 const CLAN_B = "bbbbbbbb-0000-4000-8000-0000000000bb";
 
+const SEASON_A = "dddddddd-0000-4000-8000-0000000000a1";
+const SEASON_B = "dddddddd-0000-4000-8000-0000000000b1";
+const WAR_A = "eeeeeeee-0000-4000-8000-0000000000a1";
+const WAR_B = "eeeeeeee-0000-4000-8000-0000000000b1";
+
 /** Every table holding clan-scoped data, with the column that scopes it. */
 const CLAN_SCOPED = [
   "players",
@@ -58,7 +63,8 @@ describe("T3.7 — cross-clan authorisation", () => {
     await h.asSuperuser();
     await h.db.exec(`
       truncate member_snapshots, clan_roles, players, announcements, base_layouts,
-               cwl_seasons, wars, sync_log, audit_log, users, clans cascade;
+               cwl_attacks, cwl_war_members, cwl_wars, cwl_seasons,
+               wars, sync_log, audit_log, users, clans cascade;
       delete from auth.users;
 
       insert into auth.users (id, email) values
@@ -88,8 +94,24 @@ describe("T3.7 — cross-clan authorisation", () => {
         ('cccccccc-0000-4000-8000-0000000000a1', '${CLAN_A}', '#2PP0JCCU', 'Player A'),
         ('cccccccc-0000-4000-8000-0000000000b1', '${CLAN_B}', '#2PP0JCCV', 'Player B');
 
-      insert into cwl_seasons (clan_id, season) values
-        ('${CLAN_A}', '2026-08'), ('${CLAN_B}', '2026-08');
+      insert into cwl_seasons (id, clan_id, season) values
+        ('${SEASON_A}', '${CLAN_A}', '2026-08'),
+        ('${SEASON_B}', '${CLAN_B}', '2026-08');
+
+      -- cwl_wars, cwl_war_members and cwl_attacks have NO clan_id. They are
+      -- reached through cwl_seasons, which is why they need their own cases
+      -- below rather than joining the CLAN_SCOPED sweep.
+      insert into cwl_wars (id, season_id, war_tag, day_number, state) values
+        ('${WAR_A}', '${SEASON_A}', '#8G9QRVJL', 1, 'warEnded'),
+        ('${WAR_B}', '${SEASON_B}', '#9CUVPYQ2', 1, 'warEnded');
+
+      insert into cwl_war_members (war_id, player_id, map_position) values
+        ('${WAR_A}', 'cccccccc-0000-4000-8000-0000000000a1', 1),
+        ('${WAR_B}', 'cccccccc-0000-4000-8000-0000000000b1', 1);
+
+      insert into cwl_attacks (war_id, player_id, attack_order, stars, destruction) values
+        ('${WAR_A}', 'cccccccc-0000-4000-8000-0000000000a1', 1, 3, 100.00),
+        ('${WAR_B}', 'cccccccc-0000-4000-8000-0000000000b1', 1, 3, 100.00);
 
       insert into wars (clan_id, start_time) values
         ('${CLAN_A}', now()), ('${CLAN_B}', now());
@@ -142,6 +164,37 @@ describe("T3.7 — cross-clan authorisation", () => {
         );
         expect(leaked, `${table} leaked rows outside clan A`).toBe(0);
       }
+    });
+
+    // The CWL tables carry no clan_id at all, so their policies are joins:
+    // cwl_wars -> cwl_seasons, and cwl_attacks/cwl_war_members -> cwl_wars ->
+    // cwl_seasons. migrations.test.ts calls the two-level version "the policy
+    // most likely to be written wrongly", and a join policy fails in a way a
+    // column filter cannot — it can silently match every row.
+    it.each([
+      ["cwl_wars", WAR_A, WAR_B],
+      ["cwl_war_members", WAR_A, WAR_B],
+      ["cwl_attacks", WAR_A, WAR_B],
+    ] as const)("sees nothing from clan B in %s, through the season join", async (table, ours, theirs) => {
+      const column = table === "cwl_wars" ? "id" : "war_id";
+      expect(await rows(h, `select id from ${table} where ${column} = '${theirs}'`)).toBe(0);
+      expect(await rows(h, `select id from ${table} where ${column} = '${ours}'`)).toBe(1);
+      // And with no filter at all, which is how a broken join policy shows up.
+      expect(await rows(h, `select id from ${table}`)).toBe(1);
+    });
+
+    it("cannot reach clan B's CWL data by joining up from the attack", async () => {
+      // The shape a report query would take. If any link in the chain leaks,
+      // this returns clan B's row.
+      expect(
+        await rows(
+          h,
+          `select a.id from cwl_attacks a
+             join cwl_wars w on w.id = a.war_id
+             join cwl_seasons s on s.id = w.season_id
+            where s.clan_id = '${CLAN_B}'`,
+        ),
+      ).toBe(0);
     });
 
     it("cannot read another member's profile", async () => {
