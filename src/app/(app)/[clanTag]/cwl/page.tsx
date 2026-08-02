@@ -1,11 +1,123 @@
-// T4.4 — CWL season overview
-// R10: there is no CWL for three weeks of every month. That is the normal state (T9.10).
+// T4.4 — CWL season overview.
+//
+// R1 — reads PostgreSQL only. Nothing on this page talks to Supercell; the data
+// arrives via scripts/sync/cwl.ts (T4.1).
+//
+// R10/T9.10 — there is no CWL for three weeks of every month, so the empty state
+// is the NORMAL view, not an edge case. It says "not in CWL" rather than "no
+// data", because those mean very different things to a leader wondering whether
+// the sync is broken.
 
-export default function CwlSeasonListPage() {
+import Link from "next/link";
+import { DataFreshness } from "@/components/data-freshness";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { requireClanByTag } from "@/lib/clans";
+import { createClient } from "@/lib/supabase/server";
+import { seasonsForClan, warsInSeason } from "@/repositories/cwl";
+import { latestRun } from "@/repositories/sync-log";
+import { seasonTotals } from "@/services/cwl";
+import { freshness } from "@/services/freshness";
+
+export const dynamic = "force-dynamic";
+
+export default async function CwlSeasonListPage({
+  params,
+}: {
+  params: Promise<{ clanTag: string }>;
+}) {
+  const { clanTag } = await params;
+  const supabase = await createClient();
+
+  // Resolves the segment AND proves the caller may see this clan. A tag they do
+  // not belong to is a 404 here, before any query runs (R3, T3.7).
+  const clan = await requireClanByTag(supabase, clanTag);
+
+  const seasons = await seasonsForClan(supabase, clan.id);
+  const runs = freshness(await latestRun(supabase, "cwl", clan.id));
+
+  // Season totals need each season's wars. There are at most a handful of
+  // seasons and seven wars each, so this stays small; if it ever does not, it
+  // becomes one grouped query rather than a cache.
+  const rows = await Promise.all(
+    seasons.map(async (season) => ({
+      season,
+      totals: seasonTotals(await warsInSeason(supabase, season.id)),
+    })),
+  );
+
   return (
-    <main className="p-8">
-      <h1 className="text-xl font-semibold">T4.4 — CWL season overview</h1>
-      <p className="mt-2 text-sm opacity-60">Placeholder — see IMPLEMENTATION.md.</p>
+    <main className="mx-auto max-w-3xl space-y-6 p-8">
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Clan War League</h1>
+          <DataFreshness freshness={runs} />
+        </div>
+        <p className="text-muted-foreground text-sm">
+          {clan.name} — every season captured, oldest kept forever.
+        </p>
+      </div>
+
+      {rows.length === 0 ? (
+        <section className="space-y-3 rounded-lg border p-6">
+          <h2 className="font-medium">No CWL seasons recorded yet</h2>
+          <p className="text-muted-foreground text-sm">
+            CWL runs for about a week at the start of each month. For the rest of
+            the month there is nothing to show, and that is normal — this page
+            fills in on its own once the season starts and the sync job runs.
+          </p>
+          <p className="text-muted-foreground text-sm">
+            If a CWL season has been and gone and this is still empty, the sync
+            job is not running. That is worth fixing today: Supercell deletes CWL
+            data when the season ends and it cannot be recovered afterwards.
+          </p>
+        </section>
+      ) : (
+        <section className="rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Season</TableHead>
+                <TableHead className="text-right">W</TableHead>
+                <TableHead className="text-right">L</TableHead>
+                <TableHead className="text-right">T</TableHead>
+                <TableHead className="text-right">Stars</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map(({ season, totals }) => (
+                <TableRow key={season.id}>
+                  <TableCell className="font-medium">{season.season}</TableCell>
+                  <TableCell className="text-right">{totals.wins}</TableCell>
+                  <TableCell className="text-right">{totals.losses}</TableCell>
+                  <TableCell className="text-right">{totals.ties}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {totals.stars}
+                    <span className="text-muted-foreground"> / {totals.starsAgainst}</span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button asChild variant="outline" size="sm">
+                      <Link
+                        href={`/${encodeURIComponent(clan.tag)}/cwl/${season.season}`}
+                      >
+                        Days
+                      </Link>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </section>
+      )}
     </main>
   );
 }
