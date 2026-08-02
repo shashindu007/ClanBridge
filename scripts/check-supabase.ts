@@ -16,7 +16,13 @@
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-/** Every table migrations 001-008 and 013 create. */
+/**
+ * Every table the applied migrations create.
+ *
+ * Hardcoded rather than discovered, so adding a table is a deliberate act here
+ * too — a new table missing from this list is one the live RLS check silently
+ * never probes, which is exactly how the coverage rots.
+ */
 const TABLES = [
   "clans",
   "users",
@@ -24,6 +30,7 @@ const TABLES = [
   "clan_roles",
   "cwl_seasons",
   "cwl_wars",
+  "cwl_war_members", // 019
   "cwl_attacks",
   "cwl_bonuses",
   "wars",

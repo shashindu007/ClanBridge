@@ -36,6 +36,7 @@ export const PHASE1_MIGRATIONS = [
   "016_player_verification.sql", // T3.3 link_verified_player() + requested_clan_id guard
   "017_approval_grants_membership.sql", // T3.8 approval also grants clan_roles
   "018_admin_may_approve_clanless.sql", // restores 015's platform-admin capability
+  "019_cwl_war_members.sql", // T4.1 the API-reported CWL roster; missed attacks derive from it
 ] as const;
 
 export function readMigration(file: string): string {
@@ -179,6 +180,7 @@ export const PHASE1_TABLES = [
   "cwl_attacks",
   "cwl_bonuses",
   "cwl_seasons",
+  "cwl_war_members",
   "cwl_wars",
   "member_snapshots",
   "players",

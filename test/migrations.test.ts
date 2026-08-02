@@ -64,6 +64,11 @@ async function seedFixtures(h: Harness) {
       ('11111111-0000-4000-8000-000000000002', '11111111-0000-4000-8000-000000000001', '#8G9QRVJL', 1, 'Foe A'),
       ('22222222-0000-4000-8000-000000000002', '22222222-0000-4000-8000-000000000001', '#9CUVPYQ2', 1, 'Foe B');
 
+    -- 019. The roster missed attacks are derived from: roster minus attacks.
+    insert into cwl_war_members (war_id, player_id, map_position, th_level) values
+      ('11111111-0000-4000-8000-000000000002', '${PLAYER_A}', 1, 16),
+      ('22222222-0000-4000-8000-000000000002', '${PLAYER_B}', 1, 15);
+
     insert into cwl_attacks (war_id, player_id, attack_order, stars, destruction) values
       ('11111111-0000-4000-8000-000000000002', '${PLAYER_A}', 1, 3, 100.00),
       ('22222222-0000-4000-8000-000000000002', '${PLAYER_B}', 1, 2, 75.50);

@@ -2,7 +2,7 @@
 // DO NOT EDIT. Regenerate after every migration — a stale file type-checks
 // against a schema that no longer exists, which is worse than having none.
 //
-// 21 tables, generated 2026-08-01.
+// 22 tables, generated 2026-08-02.
 
 export type Json =
   | string
@@ -362,6 +362,35 @@ export interface Database {
           league?: string | null;
           created_at?: string;
           updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      cwl_war_members: {
+        Row: {
+          id: string;
+          war_id: string;
+          player_id: string;
+          map_position: number | null;
+          th_level: number | null;
+          created_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          war_id: string;
+          player_id: string;
+          map_position?: number | null;
+          th_level?: number | null;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          war_id?: string;
+          player_id?: string;
+          map_position?: number | null;
+          th_level?: number | null;
+          created_at?: string;
           deleted_at?: string | null;
         };
       };
@@ -844,6 +873,7 @@ export type ClansRow = Database["public"]["Tables"]["clans"]["Row"];
 export type CwlAttacksRow = Database["public"]["Tables"]["cwl_attacks"]["Row"];
 export type CwlBonusesRow = Database["public"]["Tables"]["cwl_bonuses"]["Row"];
 export type CwlSeasonsRow = Database["public"]["Tables"]["cwl_seasons"]["Row"];
+export type CwlWarMembersRow = Database["public"]["Tables"]["cwl_war_members"]["Row"];
 export type CwlWarsRow = Database["public"]["Tables"]["cwl_wars"]["Row"];
 export type MemberSnapshotsRow = Database["public"]["Tables"]["member_snapshots"]["Row"];
 export type PlayersRow = Database["public"]["Tables"]["players"]["Row"];
