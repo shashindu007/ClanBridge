@@ -11,15 +11,35 @@ API when the season ends and cannot ever be recovered. Everything else is second
 
 ## Status
 
-Skeleton only. Every file below the root configs is a labelled placeholder — no logic
-has been written yet, and Phase 0 (accounts and API keys) has not started.
-Begin at **T0.1**.
+Phases 1, 2 and 3 are complete. Phase 4 (CWL) is complete except bonus recording
+(T4.7) and the logbook import (T4.10). Everything from Phase 3B onward is still a
+labelled placeholder — each stub names the task ID that fills it.
+
+`IMPLEMENTATION.md` carries the per-task ledger. Three things are worth knowing
+before you touch anything:
+
+- **The fixtures in `fixtures/` are synthetic, not captured.** The suite passes
+  against shapes written by hand to match the schemas, which means the schemas are
+  documented rather than verified. Capturing real ones is T2.1 and it can only be
+  done for `cwlgroup`/`cwlwar` during CWL week — the first week of the month.
+- **Upstash is not configured** (T0.9), so `/api/verify` throws in production by
+  design rather than rate limiting with a per-instance counter that limits nothing.
+- **No sync job has been run against the live API yet.** The workflows are written;
+  none has had a green run.
 
 ## Running it
 
 ```bash
 npm install
 npm run dev
+```
+
+Checks, all of which CI also runs:
+
+```bash
+npm run typecheck
+npm run lint
+npm test          # vitest; migrations run against real Postgres via PGlite
 ```
 
 Sync jobs run from the command line, never from the web app (R1, R2):
@@ -47,6 +67,9 @@ everything above works offline and without an API key.
 | `supabase/migrations/` | Numbered SQL. Never edit one after it has been applied |
 | `fixtures/` | Captured API responses for offline development |
 
+| `test/` | Vitest. Migrations against PGlite, plus the authorisation suite (T3.7) |
+| `scripts/` | Migration, fixture and schema tooling outside `sync/` |
+
 Each placeholder file names the task ID from IMPLEMENTATION.md that fills it.
 
 ## Before you commit anything
@@ -61,7 +84,9 @@ every database query filters by clan, and nothing is ever hard-deleted.
 - **shadcn/ui components are copied in**, not installed. `components.json` points the
   CLI at `src/components/ui/`. The first `npx shadcn@latest add …` will also pull in
   `clsx`, `tailwind-merge`, `class-variance-authority` and `lucide-react`.
-- **No test runner is configured yet.** Decide at T1.12; Vitest is the recommended fit.
+- **Vitest is the test runner.** `test/pg-harness.ts` boots PGlite so migrations are
+  executed rather than eyeballed, and `test/pglite-supabase.ts` is a supabase-js
+  stand-in over it — which is why repository code avoids PostgREST embedded selects.
 
 ---
 

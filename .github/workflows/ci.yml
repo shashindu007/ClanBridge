@@ -1,0 +1,52 @@
+# Continuous integration — typecheck, lint, and the full offline suite.
+#
+# This runs on every push and pull request. Nothing here touches Supabase or
+# Supercell: test/migrations.test.ts runs the migrations against PGlite (an
+# in-process Postgres), and every sync test reads fixtures/. So this workflow
+# needs NO secrets at all, which is the point — a CI job holding
+# SUPABASE_SERVICE_KEY would be a second place for it to leak from (R6).
+#
+# USE_FIXTURES is deliberately NOT set here. The tests that need it set it
+# themselves; leaving it unset means a test that quietly depends on the network
+# fails loudly in CI instead of passing on the developer's machine only.
+
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+# A new push supersedes the previous run on the same branch. Unlike the sync
+# workflows, cancelling here loses nothing.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # Last, because it is by far the slowest step (~2 minutes, most of it
+      # PGlite booting Postgres once per migration test). A type error should
+      # not cost you the wait.
+      - name: Test
+        run: npm test
