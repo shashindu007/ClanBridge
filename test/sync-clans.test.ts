@@ -84,6 +84,30 @@ describe("T2.6 — sync:clans against real Postgres, offline", () => {
     expect(res.rows[0]!.badge_url).toContain("api-assets.clashofclans.com");
   });
 
+  // T3B.0 — these four were parsed and mapped on every run and then dropped,
+  // because migration 020 did not exist. The dashboard is the first thing that
+  // reads them, so this is the test that would have caught the omission.
+  it("stores the clan detail columns the dashboard needs (T3B.0)", async () => {
+    await runSyncJob("clans", syncClans, { client });
+    const res = await h.db.query<{
+      level: number;
+      war_league: string;
+      member_count: number;
+      is_war_log_public: boolean;
+    }>(
+      `select level, war_league, member_count, is_war_log_public
+         from clans where id = '${CLAN_A}'`,
+    );
+
+    const clan = res.rows[0]!;
+    expect(clan.level).toBe(18);
+    // The NAME, not warLeague.id — 48000012 means nothing to a member.
+    expect(clan.war_league).toBe("Crystal League I");
+    expect(clan.member_count).toBe(5);
+    // T0.1. False here would mean phase 6 can collect nothing for this clan.
+    expect(clan.is_war_log_public).toBe(true);
+  });
+
   it("translates roles, including admin to elder", async () => {
     await runSyncJob("clans", syncClans, { client });
     const res = await h.db.query<{ clan_role: string }>(

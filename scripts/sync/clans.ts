@@ -34,8 +34,14 @@ interface ClanRow {
 /**
  * Upsert the clan's own row.
  *
- * Only fields the API owns. The clan's `tag` was seeded by hand (T1.10) and is
- * the join key, so it is matched on rather than written.
+ * Only fields the API owns. The clan's `tag` is the join key — set when a leader
+ * added the clan at /admin (migration 015) — so it is matched on, never written.
+ *
+ * T3B.0 — the last four columns feed the dashboard. mapClan() has returned all
+ * of them since T2.4; until migration 020 there was nowhere to put them, so an
+ * hourly fetch was being discarded. `?? null` rather than omitting the key:
+ * a field the API stops sending should clear the stored value, not silently
+ * leave last month's number on the page.
  */
 async function syncClanRecord(
   supabase: SupabaseClient,
@@ -44,7 +50,14 @@ async function syncClanRecord(
 ): Promise<void> {
   const { error } = await supabase
     .from("clans")
-    .update({ name: api.name, badge_url: api.badgeUrl })
+    .update({
+      name: api.name,
+      badge_url: api.badgeUrl,
+      level: api.level ?? null,
+      war_league: api.warLeague ?? null,
+      member_count: api.memberCount ?? null,
+      is_war_log_public: api.isWarLogPublic ?? null,
+    })
     .eq("id", clan.id);
 
   if (error) throw new Error(`clans update failed for ${clan.tag}: ${error.message}`);

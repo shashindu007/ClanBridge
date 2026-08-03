@@ -2,7 +2,7 @@
 // DO NOT EDIT. Regenerate after every migration — a stale file type-checks
 // against a schema that no longer exists, which is worse than having none.
 //
-// 22 tables, generated 2026-08-02.
+// 22 tables, generated 2026-08-03.
 
 export type Json =
   | string
@@ -238,6 +238,10 @@ export interface Database {
           created_at: string;
           updated_at: string | null;
           deleted_at: string | null;
+          level: number | null;
+          war_league: string | null;
+          member_count: number | null;
+          is_war_log_public: boolean | null;
         };
         Insert: {
           id?: string;
@@ -248,6 +252,10 @@ export interface Database {
           created_at?: string;
           updated_at?: string | null;
           deleted_at?: string | null;
+          level?: number | null;
+          war_league?: string | null;
+          member_count?: number | null;
+          is_war_log_public?: boolean | null;
         };
         Update: {
           id?: string;
@@ -258,6 +266,10 @@ export interface Database {
           created_at?: string;
           updated_at?: string | null;
           deleted_at?: string | null;
+          level?: number | null;
+          war_league?: string | null;
+          member_count?: number | null;
+          is_war_log_public?: boolean | null;
         };
       };
       cwl_attacks: {

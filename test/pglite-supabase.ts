@@ -10,7 +10,8 @@
 // genuinely idempotent when re-run. The real proof is running against Supabase
 // once T0.7 exists.
 //
-// Every method here exists because a sync job calls it. Nothing is speculative.
+// Every method here exists because a sync job or a repository calls it. Nothing
+// is speculative — if you add one without a caller, delete it again.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PGlite } from "@electric-sql/pglite";
@@ -29,6 +30,7 @@ export function createPgliteSupabase(db: PGlite): SupabaseClient {
     select(columns = "*") {
       const filters: string[] = [];
       let orderBy = "";
+      let limitTo = "";
 
       const builder = {
         eq(column: string, value: unknown) {
@@ -47,9 +49,42 @@ export function createPgliteSupabase(db: PGlite): SupabaseClient {
           filters.push(`${column} in (${values.map(literal).join(", ")})`);
           return builder;
         },
-        order(column: string) {
-          orderBy = ` order by ${column}`;
+        // T3B.3/T3B.4 — a donation trend is a window over member_snapshots.
+        // Without a range filter the alternative is reading every snapshot ever
+        // taken and slicing in TypeScript: ~650k rows at 150 players over six
+        // months, which is not a query, it is a download.
+        gte(column: string, value: unknown) {
+          filters.push(`${column} >= ${literal(value)}`);
+          return builder;
+        },
+        lte(column: string, value: unknown) {
+          filters.push(`${column} <= ${literal(value)}`);
+          return builder;
+        },
+        /**
+         * NOT chainable, matching the original: `.order()` runs the query.
+         *
+         * supabase-js returns a builder here and lets you keep chaining. The
+         * stand-in ran it instead, and every existing caller relies on that —
+         * repositories/cwl.ts and sync-log.ts both end their chains on
+         * `.order()`. Changing it now would be a silent behaviour change in
+         * tested code, so `.limit()` goes BEFORE `.order()` instead, which is
+         * legal in supabase-js too.
+         *
+         * Descending is new. `latestRun()` (sync-log.ts:65) works around its
+         * absence by taking the last element of an ascending array, and says so.
+         * That is fine for one row; it is not fine for "the 200 most recent
+         * snapshots", where ascending + limit returns the OLDEST 200 — the exact
+         * opposite of what the caller wants, with no error to notice.
+         */
+        order(column: string, options?: { ascending?: boolean }) {
+          const direction = options?.ascending === false ? " desc" : "";
+          orderBy = ` order by ${column}${direction}`;
           return builder.run();
+        },
+        limit(count: number) {
+          limitTo = ` limit ${Number(count)}`;
+          return builder;
         },
         single() {
           return builder.run().then(({ data, error }) => ({
@@ -61,7 +96,7 @@ export function createPgliteSupabase(db: PGlite): SupabaseClient {
           const where = filters.length ? ` where ${filters.join(" and ")}` : "";
           try {
             const res = await db.query<Row>(
-              `select ${columns} from ${table}${where}${orderBy}`,
+              `select ${columns} from ${table}${where}${orderBy}${limitTo}`,
             );
             return { data: res.rows, error: null };
           } catch (error) {
