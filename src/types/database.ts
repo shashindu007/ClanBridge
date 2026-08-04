@@ -2,7 +2,7 @@
 // DO NOT EDIT. Regenerate after every migration — a stale file type-checks
 // against a schema that no longer exists, which is worse than having none.
 //
-// 22 tables, generated 2026-08-03.
+// 27 tables, generated 2026-08-04.
 
 export type Json =
   | string
@@ -324,6 +324,7 @@ export interface Database {
           created_at: string;
           updated_at: string | null;
           deleted_at: string | null;
+          award_order: number | null;
         };
         Insert: {
           id?: string;
@@ -335,6 +336,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string | null;
           deleted_at?: string | null;
+          award_order?: number | null;
         };
         Update: {
           id?: string;
@@ -343,6 +345,77 @@ export interface Database {
           awarded_by?: string;
           awarded_at?: string;
           note?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+          award_order?: number | null;
+        };
+      };
+      cwl_roster_members: {
+        Row: {
+          id: string;
+          roster_id: string;
+          player_id: string;
+          position: number | null;
+          added_by: string;
+          added_at: string;
+          created_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          roster_id: string;
+          player_id: string;
+          position?: number | null;
+          added_by: string;
+          added_at?: string;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          roster_id?: string;
+          player_id?: string;
+          position?: number | null;
+          added_by?: string;
+          added_at?: string;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+      };
+      cwl_rosters: {
+        Row: {
+          id: string;
+          season: string;
+          clan_id: string;
+          status: string;
+          slot_count: number;
+          created_by: string;
+          published_at: string | null;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          season: string;
+          clan_id: string;
+          status?: string;
+          slot_count?: number;
+          created_by: string;
+          published_at?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          season?: string;
+          clan_id?: string;
+          status?: string;
+          slot_count?: number;
+          created_by?: string;
+          published_at?: string | null;
           created_at?: string;
           updated_at?: string | null;
           deleted_at?: string | null;
@@ -555,6 +628,117 @@ export interface Database {
           updated_at?: string | null;
           deleted_at?: string | null;
           left_at?: string | null;
+        };
+      };
+      poll_options: {
+        Row: {
+          id: string;
+          poll_id: string;
+          label: string;
+          sort_order: number;
+          created_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          poll_id: string;
+          label: string;
+          sort_order?: number;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          poll_id?: string;
+          label?: string;
+          sort_order?: number;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+      };
+      poll_responses: {
+        Row: {
+          id: string;
+          poll_id: string;
+          player_id: string;
+          option_id: string;
+          note: string | null;
+          responded_at: string;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          poll_id: string;
+          player_id: string;
+          option_id: string;
+          note?: string | null;
+          responded_at?: string;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          poll_id?: string;
+          player_id?: string;
+          option_id?: string;
+          note?: string | null;
+          responded_at?: string;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      polls: {
+        Row: {
+          id: string;
+          scope: string;
+          clan_id: string | null;
+          season: string | null;
+          poll_type: string;
+          title: string;
+          question: string | null;
+          opens_at: string | null;
+          closes_at: string | null;
+          status: string;
+          created_by: string;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          scope: string;
+          clan_id?: string | null;
+          season?: string | null;
+          poll_type: string;
+          title: string;
+          question?: string | null;
+          opens_at?: string | null;
+          closes_at?: string | null;
+          status?: string;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          scope?: string;
+          clan_id?: string | null;
+          season?: string | null;
+          poll_type?: string;
+          title?: string;
+          question?: string | null;
+          opens_at?: string | null;
+          closes_at?: string | null;
+          status?: string;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
         };
       };
       push_subscriptions: {
@@ -884,11 +1068,16 @@ export type ClanRolesRow = Database["public"]["Tables"]["clan_roles"]["Row"];
 export type ClansRow = Database["public"]["Tables"]["clans"]["Row"];
 export type CwlAttacksRow = Database["public"]["Tables"]["cwl_attacks"]["Row"];
 export type CwlBonusesRow = Database["public"]["Tables"]["cwl_bonuses"]["Row"];
+export type CwlRosterMembersRow = Database["public"]["Tables"]["cwl_roster_members"]["Row"];
+export type CwlRostersRow = Database["public"]["Tables"]["cwl_rosters"]["Row"];
 export type CwlSeasonsRow = Database["public"]["Tables"]["cwl_seasons"]["Row"];
 export type CwlWarMembersRow = Database["public"]["Tables"]["cwl_war_members"]["Row"];
 export type CwlWarsRow = Database["public"]["Tables"]["cwl_wars"]["Row"];
 export type MemberSnapshotsRow = Database["public"]["Tables"]["member_snapshots"]["Row"];
 export type PlayersRow = Database["public"]["Tables"]["players"]["Row"];
+export type PollOptionsRow = Database["public"]["Tables"]["poll_options"]["Row"];
+export type PollResponsesRow = Database["public"]["Tables"]["poll_responses"]["Row"];
+export type PollsRow = Database["public"]["Tables"]["polls"]["Row"];
 export type PushSubscriptionsRow = Database["public"]["Tables"]["push_subscriptions"]["Row"];
 export type RaidParticipantsRow = Database["public"]["Tables"]["raid_participants"]["Row"];
 export type RaidSeasonsRow = Database["public"]["Tables"]["raid_seasons"]["Row"];

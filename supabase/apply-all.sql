@@ -7,7 +7,7 @@
 -- BEGIN/COMMIT means a failure anywhere rolls the entire thing back, so you
 -- cannot end up with a half-applied schema.
 --
--- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql
+-- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql
 --
 -- Deliberately EXCLUDED: 010_polls, 011_cwl_rosters, 012_war_lineups. Those
 -- are still comment-only stubs for Phase 4B and T6.8. 009 does not exist.
@@ -1057,6 +1057,510 @@ create index players_active_idx
 create index players_left_idx
   on players (left_at desc)
   where left_at is not null;
+
+-- ========================================================================
+-- 010_polls.sql
+-- ========================================================================
+
+-- T4B.1 — Poll tables
+--
+-- NOTE: 009 is intentionally absent. It held cwl_signups from the superseded
+-- T4.9, which Phase 4B replaced with polls + rosters. Nothing was ever applied.
+--
+-- R11 — HUMAN DECISION DATA. Written only by people through the application.
+-- No sync job may ever write to these tables. A 2 AM job that touches them
+-- silently erases an hour of the leader's work, and R4 means there is no deleted
+-- row to recover.
+--
+-- scripts/sync/shared.ts lists all three tables in its "MUST NEVER WRITE" block.
+
+
+-- ---------------------------------------------------------------------------
+-- Leadership, as a set of clan ids.
+--
+-- 006 gave us auth_clan_ids() (any role) and auth_leader_clan_ids() (leader
+-- only). Polls need the band between them: a co-leader may open a poll and read
+-- who answered, an elder may not. Adding it here rather than widening
+-- auth_leader_clan_ids(), because that function guards audit_log and quietly
+-- letting co-leaders read the audit trail would be a different decision made by
+-- accident.
+-- ---------------------------------------------------------------------------
+create or replace function auth_leadership_clan_ids()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select clan_id
+  from public.clan_roles
+  where user_id = auth.uid()
+    and role in ('leader', 'co-leader')
+    and deleted_at is null
+$$;
+
+grant execute on function auth_leadership_clan_ids() to anon, authenticated;
+
+comment on function auth_leadership_clan_ids() is
+  'Clans where the caller is leader or co-leader. Distinct from '
+  'auth_leader_clan_ids(), which guards audit_log and stays leader-only.';
+
+
+-- ---------------------------------------------------------------------------
+-- polls
+--
+-- `scope` is the whole reason this table is not just clan_id.
+--
+--   'clan'    one clan answers. War availability, a question for one roster.
+--   'family'  every clan answers at once, and clan_id is NULL.
+--
+-- A CWL availability poll is 'family': the leader is choosing across all clans
+-- together (T4B.7), so asking each clan separately would produce three lists
+-- that have to be merged by hand — which is the spreadsheet this project exists
+-- to delete.
+-- ---------------------------------------------------------------------------
+create table polls (
+  id          uuid primary key default gen_random_uuid(),
+  scope       text not null check (scope in ('clan', 'family')),
+  clan_id     uuid references clans (id) on delete restrict,
+  season      text,
+  poll_type   text not null
+              check (poll_type in ('cwl_availability', 'war_availability', 'general')),
+  title       text not null,
+  question    text,
+  opens_at    timestamptz,
+  closes_at   timestamptz,
+  status      text not null default 'open'
+              check (status in ('draft', 'open', 'closed')),
+  created_by  uuid not null references users (id) on delete restrict,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz,
+  deleted_at  timestamptz,
+
+  -- The pairing that makes `scope` mean something. A 'clan' poll with no clan is
+  -- unanswerable; a 'family' poll with one is a lie about who it is for, and
+  -- both would slip past a policy that only reads clan_id.
+  constraint polls_scope_clan check (
+    (scope = 'clan'   and clan_id is not null) or
+    (scope = 'family' and clan_id is null)
+  )
+);
+
+create index polls_clan_id_idx on polls (clan_id, created_at desc) where deleted_at is null;
+create index polls_open_idx on polls (status, closes_at) where deleted_at is null;
+
+create trigger polls_set_updated_at
+  before update on polls
+  for each row execute function set_updated_at();
+
+
+create table poll_options (
+  id          uuid primary key default gen_random_uuid(),
+  poll_id     uuid not null references polls (id) on delete restrict,
+  label       text not null,
+  sort_order  smallint not null default 0,
+  created_at  timestamptz not null default now(),
+  deleted_at  timestamptz,
+
+  -- Two options reading "Maybe" on one poll is a data-entry slip that makes the
+  -- result meaningless and cannot be spotted in a bar chart.
+  unique (poll_id, label)
+);
+
+create index poll_options_poll_id_idx on poll_options (poll_id, sort_order)
+  where deleted_at is null;
+
+
+-- ---------------------------------------------------------------------------
+-- poll_responses
+--
+-- Answers belong to a PLAYER, not a user. A member may own more than one Clash
+-- account (Architecture.md 7.1), and CWL availability is a question about a
+-- village — "can this account play" — not about a person.
+--
+-- updated_at is kept deliberately: a leader building a roster needs to see that
+-- someone flipped from In to Out an hour before the deadline, which is invisible
+-- if the edit overwrites silently (T4B.3).
+-- ---------------------------------------------------------------------------
+create table poll_responses (
+  id            uuid primary key default gen_random_uuid(),
+  poll_id       uuid not null references polls (id) on delete restrict,
+  player_id     uuid not null references players (id) on delete restrict,
+  option_id     uuid not null references poll_options (id) on delete restrict,
+  note          text,
+  responded_at  timestamptz not null default now(),
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz,
+  deleted_at    timestamptz,
+
+  -- One answer per player, editable until the poll closes.
+  unique (poll_id, player_id)
+);
+
+create index poll_responses_poll_id_idx on poll_responses (poll_id)
+  where deleted_at is null;
+create index poll_responses_player_id_idx on poll_responses (player_id)
+  where deleted_at is null;
+
+create trigger poll_responses_set_updated_at
+  before update on poll_responses
+  for each row execute function set_updated_at();
+
+
+-- ---------------------------------------------------------------------------
+-- RLS
+-- ---------------------------------------------------------------------------
+alter table polls          enable row level security;
+alter table poll_options   enable row level security;
+alter table poll_responses enable row level security;
+
+-- A family poll is visible to anyone in any clan; a clan poll only to that clan.
+create policy "read visible polls" on polls
+  for select to authenticated
+  using (
+    (scope = 'family' and exists (select 1 from auth_clan_ids()))
+    or clan_id in (select auth_clan_ids())
+  );
+
+create policy "leadership creates polls" on polls
+  for insert to authenticated
+  with check (
+    created_by = auth.uid()
+    and (
+      (scope = 'clan' and clan_id in (select auth_leadership_clan_ids()))
+      -- A family poll spans every clan, so leadership anywhere may open one.
+      or (scope = 'family' and exists (select 1 from auth_leadership_clan_ids()))
+    )
+  );
+
+create policy "leadership updates polls" on polls
+  for update to authenticated
+  using (
+    (scope = 'clan' and clan_id in (select auth_leadership_clan_ids()))
+    or (scope = 'family' and exists (select 1 from auth_leadership_clan_ids()))
+  );
+
+create policy "read options of visible polls" on poll_options
+  for select to authenticated
+  using (exists (select 1 from polls p where p.id = poll_options.poll_id));
+
+create policy "leadership writes options" on poll_options
+  for insert to authenticated
+  with check (
+    exists (
+      select 1 from polls p
+      where p.id = poll_options.poll_id
+        and ((p.scope = 'clan' and p.clan_id in (select auth_leadership_clan_ids()))
+             or (p.scope = 'family' and exists (select 1 from auth_leadership_clan_ids())))
+    )
+  );
+
+-- ── The rule T4B.4 states: "Members see counts; leadership sees names." ──
+--
+-- Enforced here rather than by hiding a column in the UI, because a member with
+-- the anon key and a REST client is not looking at the UI. A member reads their
+-- OWN answers; leadership of the poll's clan reads everyone's. Counts for
+-- everybody else come from poll_option_counts() below, which aggregates inside a
+-- definer function and so never exposes a row.
+create policy "read own or led responses" on poll_responses
+  for select to authenticated
+  using (
+    player_id in (select id from players where user_id = auth.uid())
+    or exists (
+      select 1 from polls p
+      where p.id = poll_responses.poll_id
+        and ((p.scope = 'clan' and p.clan_id in (select auth_leadership_clan_ids()))
+             or (p.scope = 'family' and exists (select 1 from auth_leadership_clan_ids())))
+    )
+  );
+
+-- You answer for a player you have verified as yours, and only while the poll is
+-- open. The closes_at check lives in the policy, not the form: a closed poll that
+-- can still be edited by a crafted request is a poll whose result is not final.
+create policy "answer for your own player" on poll_responses
+  for insert to authenticated
+  with check (
+    player_id in (select id from players where user_id = auth.uid() and deleted_at is null)
+    and exists (
+      select 1 from polls p
+      where p.id = poll_responses.poll_id
+        and p.status = 'open'
+        and (p.closes_at is null or p.closes_at > now())
+    )
+  );
+
+create policy "change your own answer" on poll_responses
+  for update to authenticated
+  using (
+    player_id in (select id from players where user_id = auth.uid() and deleted_at is null)
+    and exists (
+      select 1 from polls p
+      where p.id = poll_responses.poll_id
+        and p.status = 'open'
+        and (p.closes_at is null or p.closes_at > now())
+    )
+  )
+  with check (
+    player_id in (select id from players where user_id = auth.uid() and deleted_at is null)
+  );
+
+
+-- ---------------------------------------------------------------------------
+-- poll_option_counts — the aggregate a member is allowed to see.
+--
+-- Definer, so it reads past the row-level policy above and returns only totals.
+-- The caller still has to be able to see the poll itself, checked explicitly:
+-- without that this would happily count a poll belonging to a clan they are not
+-- in, which is the shape of leak R3 exists to prevent.
+-- ---------------------------------------------------------------------------
+create or replace function poll_option_counts(p_poll uuid)
+returns table (option_id uuid, label text, sort_order smallint, votes bigint)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not exists (
+    select 1 from public.polls p
+    where p.id = p_poll
+      and p.deleted_at is null
+      and ((p.scope = 'family' and exists (select 1 from public.auth_clan_ids()))
+           or p.clan_id in (select public.auth_clan_ids()))
+  ) then
+    return;
+  end if;
+
+  return query
+    select o.id, o.label, o.sort_order, count(r.id)
+    from public.poll_options o
+    left join public.poll_responses r
+      on r.option_id = o.id and r.deleted_at is null
+    where o.poll_id = p_poll
+      and o.deleted_at is null
+    group by o.id, o.label, o.sort_order
+    order by o.sort_order, o.label;
+end;
+$$;
+
+revoke execute on function poll_option_counts(uuid) from public;
+grant execute on function poll_option_counts(uuid) to authenticated;
+
+
+grant select on polls, poll_options, poll_responses to anon, authenticated;
+grant insert, update on polls, poll_options, poll_responses to authenticated;
+grant select, insert, update on polls, poll_options, poll_responses to service_role;
+
+-- No delete grant, for anybody. R4.
+
+-- ========================================================================
+-- 011_cwl_rosters.sql
+-- ========================================================================
+
+-- T4B.6 — CWL roster tables. THE PLAN.
+--
+-- R12 — this is who the LEADER CHOSE. cwl_war_members (019) is who the API said
+-- actually played. Both are kept, and the difference between them is T4B.11:
+-- selected and played / selected but absent / played but never selected.
+--
+-- Never overwrite one with the other. The tempting "cleanup" — reconciling the
+-- roster against what the API reported so there is one list instead of two —
+-- deletes the only record of who was picked and did not show up, and R4 means
+-- there is no deleted row to recover.
+--
+-- R11 — HUMAN DECISION DATA. scripts/sync/shared.ts lists both tables in its
+-- "MUST NEVER WRITE" block. A sync job that touches these erases the leader's
+-- work at 2 AM.
+
+
+-- ---------------------------------------------------------------------------
+-- cwl_rosters — one per clan per season.
+--
+-- Saved continuously as 'draft'. The leader will not finish this in one sitting:
+-- they are cross-referencing poll answers, hero levels and last season's
+-- performance for thirty-odd players, and an unsaved form that loses that to a
+-- closed tab is a form nobody uses twice.
+-- ---------------------------------------------------------------------------
+create table cwl_rosters (
+  id            uuid primary key default gen_random_uuid(),
+  season        text not null,
+  clan_id       uuid not null references clans (id) on delete restrict,
+  status        text not null default 'draft' check (status in ('draft', 'published')),
+  slot_count    smallint not null default 15 check (slot_count in (15, 30)),
+  created_by    uuid not null references users (id) on delete restrict,
+  published_at  timestamptz,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz,
+  deleted_at    timestamptz,
+
+  unique (clan_id, season)
+);
+
+create index cwl_rosters_season_idx on cwl_rosters (season) where deleted_at is null;
+
+create trigger cwl_rosters_set_updated_at
+  before update on cwl_rosters
+  for each row execute function set_updated_at();
+
+
+create table cwl_roster_members (
+  id         uuid primary key default gen_random_uuid(),
+  roster_id  uuid not null references cwl_rosters (id) on delete restrict,
+  player_id  uuid not null references players (id) on delete restrict,
+  position   smallint,
+  added_by   uuid not null references users (id) on delete restrict,
+  added_at   timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  deleted_at timestamptz,
+
+  unique (roster_id, player_id)
+);
+
+create index cwl_roster_members_roster_id_idx on cwl_roster_members (roster_id)
+  where deleted_at is null;
+create index cwl_roster_members_player_id_idx on cwl_roster_members (player_id)
+  where deleted_at is null;
+
+
+-- ---------------------------------------------------------------------------
+-- THE CONSTRAINT THAT MATTERS: no player in two clans' rosters in one season.
+--
+-- The spec is explicit that this belongs in the database and not only in the
+-- form: "otherwise the leader double-books someone and does not find out until
+-- CWL has already started." By then the roster is locked in game and one of the
+-- two clans is a player short for the whole week.
+--
+-- A unique constraint cannot express it, because the season lives on the parent
+-- table — so it is a trigger. Deliberately NOT a unique index on a denormalised
+-- season column copied onto the child: that column would then need keeping in
+-- step with the parent forever, and the first UPDATE that forgot would silently
+-- switch the guard off.
+--
+-- Soft-deleted rows are ignored, so removing a player from clan A's roster and
+-- adding them to clan B's works exactly as the leader expects.
+-- ---------------------------------------------------------------------------
+create or replace function guard_one_roster_per_season()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_season   text;
+  v_clash    text;
+begin
+  if new.deleted_at is not null then
+    return new;
+  end if;
+
+  select season into v_season
+  from public.cwl_rosters
+  where id = new.roster_id;
+
+  select c.name into v_clash
+  from public.cwl_roster_members m
+  join public.cwl_rosters r on r.id = m.roster_id
+  join public.clans c on c.id = r.clan_id
+  where m.player_id = new.player_id
+    and m.deleted_at is null
+    and r.deleted_at is null
+    and r.season = v_season
+    and m.roster_id <> new.roster_id
+  limit 1;
+
+  if v_clash is not null then
+    raise exception
+      'player is already in the % roster for season %', v_clash, v_season
+      using errcode = 'unique_violation';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger cwl_roster_members_one_per_season
+  before insert or update on cwl_roster_members
+  for each row execute function guard_one_roster_per_season();
+
+
+-- ---------------------------------------------------------------------------
+-- RLS
+--
+-- Members may read a PUBLISHED roster (T4B.10) and nothing else. A draft is the
+-- leader thinking out loud — half-built, with people on it who will be cut — and
+-- showing that to the clan causes exactly the arguments publishing exists to
+-- prevent.
+-- ---------------------------------------------------------------------------
+alter table cwl_rosters        enable row level security;
+alter table cwl_roster_members enable row level security;
+
+create policy "read published rosters, or drafts if leadership" on cwl_rosters
+  for select to authenticated
+  using (
+    (status = 'published' and clan_id in (select auth_clan_ids()))
+    or clan_id in (select auth_leadership_clan_ids())
+  );
+
+-- Cross-clan by design (T4B.7): the leader assigns players across all three
+-- clans in one sitting, so leadership of ANY clan may build a roster for a clan
+-- they lead. A leader of clan A cannot build clan B's roster unless they also
+-- lead clan B.
+create policy "leadership creates rosters" on cwl_rosters
+  for insert to authenticated
+  with check (
+    created_by = auth.uid()
+    and clan_id in (select auth_leadership_clan_ids())
+  );
+
+create policy "leadership updates rosters" on cwl_rosters
+  for update to authenticated
+  using (clan_id in (select auth_leadership_clan_ids()))
+  with check (clan_id in (select auth_leadership_clan_ids()));
+
+create policy "read members of visible rosters" on cwl_roster_members
+  for select to authenticated
+  using (exists (select 1 from cwl_rosters r where r.id = cwl_roster_members.roster_id));
+
+create policy "leadership adds roster members" on cwl_roster_members
+  for insert to authenticated
+  with check (
+    added_by = auth.uid()
+    and exists (
+      select 1 from cwl_rosters r
+      where r.id = cwl_roster_members.roster_id
+        and r.clan_id in (select auth_leadership_clan_ids())
+    )
+  );
+
+-- Update rather than delete: dropping someone sets deleted_at (R4), so the fact
+-- that they were once selected survives. Members ask when they were dropped, and
+-- the answer should not depend on anyone's memory.
+create policy "leadership changes roster members" on cwl_roster_members
+  for update to authenticated
+  using (
+    exists (
+      select 1 from cwl_rosters r
+      where r.id = cwl_roster_members.roster_id
+        and r.clan_id in (select auth_leadership_clan_ids())
+    )
+  );
+
+
+grant select on cwl_rosters, cwl_roster_members to anon, authenticated;
+grant insert, update on cwl_rosters, cwl_roster_members to authenticated;
+grant select, insert, update on cwl_rosters, cwl_roster_members to service_role;
+
+-- No delete grant, for anybody. R4.
+
+
+-- ---------------------------------------------------------------------------
+-- Verify:
+--
+--   -- the double-booking guard, which is the point of this file
+--   insert into cwl_roster_members (roster_id, player_id, added_by)
+--   values ('<clan B roster, same season>', '<player already in clan A>', '<you>');
+--     -- expect: ERROR  player is already in the <Clan A> roster for season 2026-08
+-- ---------------------------------------------------------------------------
 
 -- ========================================================================
 -- 013_user_status.sql
@@ -2449,6 +2953,172 @@ grant execute on function remove_announcement(uuid) to authenticated;
 --
 --   -- and nothing may write audit_log directly:
 --   insert into audit_log (action, entity) values ('x', 'y');  -- permission denied
+-- ---------------------------------------------------------------------------
+
+-- ========================================================================
+-- 022_cwl_bonus_awards.sql
+-- ========================================================================
+
+-- T4.7 / T4B.13 — recording who gets a bonus medal, in the leader's own order.
+--
+-- cwl_bonuses has existed since 002 and has never been writable: 006 created no
+-- insert policy for it and granted only select. So the table that exists
+-- specifically to record a justified human decision could not record anything.
+--
+-- WHY AN ORDER COLUMN
+--
+-- The rule for allocating bonuses is the LEADER'S FINAL DECISION ORDER, not a
+-- formula. The system's job is to lay the evidence out — stars, attacks used,
+-- missed days, average destruction (T4B.12) — and then record what the leader
+-- decided, in the sequence they decided it.
+--
+-- That is why `award_order` is stored rather than derived. A ranking computed
+-- from contribution can always be recomputed; a leader's judgement cannot. If
+-- only the contribution numbers were kept, next season's "why did they get one
+-- and I did not" would be answered by re-running a sort, which is precisely the
+-- answer that starts the argument.
+--
+-- R11 — human decision data. No sync job may ever write here; the API does not
+-- report bonus allocation at all, which is why this exists nowhere but here.
+
+
+alter table cwl_bonuses
+  add column award_order smallint;
+
+comment on column cwl_bonuses.award_order is
+  'The leader''s explicit allocation order (1 = first medal). Stored, not '
+  'derived: a computed ranking can be recomputed, a judgement cannot (T4B.13).';
+
+-- One position per season. Two players holding "second" is not an order.
+create unique index cwl_bonuses_season_order_idx
+  on cwl_bonuses (season_id, award_order)
+  where deleted_at is null and award_order is not null;
+
+
+-- ---------------------------------------------------------------------------
+-- award_cwl_bonus(season, player, order, note)
+--
+-- A definer function rather than an insert policy, for the reason 015 records at
+-- lines 199-207: awarding a bonus must also write audit_log (R4), and expressing
+-- it as "which rows may this role write" splits one indivisible act into a
+-- permission check and a separate, forgettable audit insert.
+--
+-- Idempotent on (season_id, player_id), which 002 already made unique — awarding
+-- twice updates the order and the note rather than failing, because a leader
+-- reordering their list is the normal case, not an error.
+-- ---------------------------------------------------------------------------
+create or replace function award_cwl_bonus(
+  p_season uuid,
+  p_player uuid,
+  p_order  smallint default null,
+  p_note   text default null
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_clan   uuid;
+  v_before jsonb;
+begin
+  if auth.uid() is null or p_season is null or p_player is null then
+    return false;
+  end if;
+
+  select clan_id into v_clan
+  from public.cwl_seasons
+  where id = p_season and deleted_at is null;
+
+  if not found then
+    return false;
+  end if;
+
+  -- Leadership of the clan whose season this is. Checked here, in one readable
+  -- place, rather than in a WITH CHECK expression spread across two policies.
+  if v_clan not in (select public.auth_leadership_clan_ids()) then
+    return false;
+  end if;
+
+  select to_jsonb(b) into v_before
+  from public.cwl_bonuses b
+  where b.season_id = p_season and b.player_id = p_player;
+
+  insert into public.cwl_bonuses (season_id, player_id, awarded_by, award_order, note)
+  values (p_season, p_player, auth.uid(), p_order, p_note)
+  on conflict (season_id, player_id) do update
+    set award_order = excluded.award_order,
+        note        = excluded.note,
+        awarded_by  = excluded.awarded_by,
+        awarded_at  = now(),
+        deleted_at  = null;
+
+  insert into public.audit_log (user_id, clan_id, action, entity, entity_id, before, after)
+  values (auth.uid(), v_clan, 'award-bonus', 'cwl_bonuses', p_player, v_before,
+          jsonb_build_object('award_order', p_order, 'note', p_note));
+
+  return true;
+end;
+$$;
+
+revoke execute on function award_cwl_bonus(uuid, uuid, smallint, text) from public;
+grant execute on function award_cwl_bonus(uuid, uuid, smallint, text) to authenticated;
+
+
+-- The mirror, so withdrawing a medal is recorded rather than vanishing. Soft
+-- delete (R4): the row stays, and the audit trail keeps both states.
+create or replace function withdraw_cwl_bonus(p_season uuid, p_player uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_clan uuid;
+begin
+  if auth.uid() is null or p_season is null or p_player is null then
+    return false;
+  end if;
+
+  select clan_id into v_clan
+  from public.cwl_seasons
+  where id = p_season and deleted_at is null;
+
+  if not found or v_clan not in (select public.auth_leadership_clan_ids()) then
+    return false;
+  end if;
+
+  update public.cwl_bonuses
+  set deleted_at = now(), award_order = null
+  where season_id = p_season and player_id = p_player and deleted_at is null;
+
+  if not found then
+    return false;
+  end if;
+
+  insert into public.audit_log (user_id, clan_id, action, entity, entity_id, after)
+  values (auth.uid(), v_clan, 'withdraw-bonus', 'cwl_bonuses', p_player,
+          jsonb_build_object('withdrawn', true));
+
+  return true;
+end;
+$$;
+
+revoke execute on function withdraw_cwl_bonus(uuid, uuid) from public;
+grant execute on function withdraw_cwl_bonus(uuid, uuid) to authenticated;
+
+
+-- Read stays as 006 left it: "read own clan cwl bonuses", via the season join.
+-- No insert or update policy is added, deliberately — the functions above are
+-- the only write path, so every award is audited by construction.
+grant select on cwl_bonuses to anon, authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- Verify:
+--
+--   select has_table_privilege('authenticated', 'cwl_bonuses', 'insert');
+--     -- expect FALSE. If true, an unaudited award is possible.
 -- ---------------------------------------------------------------------------
 
 commit;

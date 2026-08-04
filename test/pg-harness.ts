@@ -18,8 +18,11 @@ const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
  * Every migration written so far, in the order the SQL editor must apply them.
  *
  * 009 is intentionally absent: it held cwl_signups from the superseded T4.9,
- * which Phase 4B replaced with polls and rosters. 010-012 are still stubs, so
- * they are not listed here yet — they join this list as their tasks land.
+ * which Phase 4B replaced with polls and rosters. 012 (war lineups, T6.8) is
+ * still a stub and joins this list when its task lands.
+ *
+ * 010 must precede 011 and 022: it defines auth_leadership_clan_ids(), which
+ * both of their policies depend on.
  */
 export const PHASE1_MIGRATIONS = [
   "001_core.sql",
@@ -30,7 +33,9 @@ export const PHASE1_MIGRATIONS = [
   "006_rls.sql",
   "007_member_snapshots.sql", // T2.9
   "008_player_left_at.sql", // T3.9
-  "013_user_status.sql", // T3.8 (009 absent; 010-012 are Phase 4B/6 stubs)
+  "010_polls.sql", // T4B.1 polls, options, responses (009 absent; 012 still a stub)
+  "011_cwl_rosters.sql", // T4B.6 the leader's CWL selection + double-booking guard
+  "013_user_status.sql", // T3.8
   "014_service_role_grants.sql", // fixes a missing grant in 006
   "015_platform_admin.sql", // leader-managed clans, superseding T1.10's seed
   "016_player_verification.sql", // T3.3 link_verified_player() + requested_clan_id guard
@@ -39,6 +44,7 @@ export const PHASE1_MIGRATIONS = [
   "019_cwl_war_members.sql", // T4.1 the API-reported CWL roster; missed attacks derive from it
   "020_clan_details.sql", // T3B.0 level, war league, member count, war-log visibility
   "021_announcements.sql", // T5.1 post/edit/remove as audited definer functions
+  "022_cwl_bonus_awards.sql", // T4.7/T4B.13 bonus awards in the leader's order
 ] as const;
 
 export function readMigration(file: string): string {
@@ -181,11 +187,16 @@ export const PHASE1_TABLES = [
   "clans",
   "cwl_attacks",
   "cwl_bonuses",
+  "cwl_roster_members",
+  "cwl_rosters",
   "cwl_seasons",
   "cwl_war_members",
   "cwl_wars",
   "member_snapshots",
   "players",
+  "poll_options",
+  "poll_responses",
+  "polls",
   "push_subscriptions",
   "raid_participants",
   "raid_seasons",

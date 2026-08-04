@@ -77,6 +77,31 @@ async function seedFixtures(h: Harness) {
       ('11111111-0000-4000-8000-000000000001', '${PLAYER_A}', '${USER_A}', 'top stars'),
       ('22222222-0000-4000-8000-000000000001', '${PLAYER_B}', '${USER_B}', 'top stars');
 
+    -- 010. One poll per clan, identically shaped, so a cross-clan leak in the
+    -- policy shows up as a visible row rather than as an absence.
+    insert into polls (id, scope, clan_id, poll_type, title, created_by) values
+      ('33333333-0000-4000-8000-00000000000a', 'clan', '${CLAN_A}',
+       'cwl_availability', 'CWL August — Clan A', '${USER_A}'),
+      ('33333333-0000-4000-8000-00000000000b', 'clan', '${CLAN_B}',
+       'cwl_availability', 'CWL August — Clan B', '${USER_B}');
+
+    insert into poll_options (id, poll_id, label, sort_order) values
+      ('44444444-0000-4000-8000-00000000000a', '33333333-0000-4000-8000-00000000000a', 'In', 1),
+      ('44444444-0000-4000-8000-00000000000b', '33333333-0000-4000-8000-00000000000b', 'In', 1);
+
+    insert into poll_responses (poll_id, player_id, option_id) values
+      ('33333333-0000-4000-8000-00000000000a', '${PLAYER_A}', '44444444-0000-4000-8000-00000000000a'),
+      ('33333333-0000-4000-8000-00000000000b', '${PLAYER_B}', '44444444-0000-4000-8000-00000000000b');
+
+    -- 011. The PLAN (R12) — distinct from cwl_war_members, which is the outcome.
+    insert into cwl_rosters (id, season, clan_id, created_by) values
+      ('55555555-0000-4000-8000-00000000000a', '2026-07', '${CLAN_A}', '${USER_A}'),
+      ('55555555-0000-4000-8000-00000000000b', '2026-07', '${CLAN_B}', '${USER_B}');
+
+    insert into cwl_roster_members (roster_id, player_id, position, added_by) values
+      ('55555555-0000-4000-8000-00000000000a', '${PLAYER_A}', 1, '${USER_A}'),
+      ('55555555-0000-4000-8000-00000000000b', '${PLAYER_B}', 1, '${USER_B}');
+
     insert into wars (id, clan_id, opponent_name, start_time) values
       ('11111111-0000-4000-8000-000000000003', '${CLAN_A}', 'Foe A', now()),
       ('22222222-0000-4000-8000-000000000003', '${CLAN_B}', 'Foe B', now());
@@ -215,9 +240,29 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
        where schemaname = 'public' and cmd in ('INSERT', 'UPDATE')
        order by tablename`,
     );
-    // Only the three tables leader-managed clans require. Every later feature
-    // adds its own rather than inheriting a blanket permission.
-    expect(res.rows.map((r) => r.tablename)).toEqual(["clan_roles", "clans", "users"]);
+    // Write policies are added per feature, never as a blanket permission — so
+    // this list is a deliberate inventory of everything a SESSION may write, and
+    // it should be read as such when it changes.
+    //
+    //   clans, clan_roles, users     015, leader-managed clans
+    //   polls, poll_options          010, leadership opens a poll (T4B.2)
+    //   poll_responses               010, a member answers for their own player
+    //   cwl_rosters, ..._members     011, leadership builds the CWL plan (T4B.8)
+    //
+    // Notably ABSENT and meant to stay absent: players and every cwl_* game-fact
+    // table (R11 — written only by sync jobs), plus announcements and
+    // cwl_bonuses, whose writes go through audited definer functions in 021/022
+    // so that the write and its audit row cannot come apart.
+    expect(res.rows.map((r) => r.tablename)).toEqual([
+      "clan_roles",
+      "clans",
+      "cwl_roster_members",
+      "cwl_rosters",
+      "poll_options",
+      "poll_responses",
+      "polls",
+      "users",
+    ]);
   });
 });
 
@@ -688,11 +733,13 @@ describe("supabase/apply-all.sql — the bundle that gets pasted", () => {
     }
   });
 
-  it("excludes the Phase 4B and T6.8 stubs", () => {
+  // 010 and 011 were stubs and are now real (T4B.1, T4B.6), so they belong in
+  // the bundle and the loop above already requires them. 012 (war lineups,
+  // T6.8) is still comment-only: bundling a file that creates nothing would
+  // record it as applied and quietly skip the real one when it is written.
+  it("excludes the T6.8 stub that is still comment-only", () => {
     const bundle = readFileSync(join(process.cwd(), "supabase", "apply-all.sql"), "utf8");
-    for (const stub of ["010_polls.sql", "011_cwl_rosters.sql", "012_war_lineups.sql"]) {
-      expect(bundle).not.toContain(`-- ${stub}\n`);
-    }
+    expect(bundle).not.toContain(`-- 012_war_lineups.sql\n`);
   });
 });
 
