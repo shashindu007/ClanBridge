@@ -207,6 +207,43 @@ describe("T5.1 — announcements", () => {
     });
   });
 
+  // T9.6 — the viewer tells a co-leader they cannot read this and explains why.
+  // That claim is only worth making if the database actually enforces it.
+  describe("T9.6 — who may read the audit log", () => {
+    beforeEach(async () => {
+      await h.asUser(LEADER);
+      await post(h, CLAN_A);
+    });
+
+    it("lets the leader read their own clan's entries", async () => {
+      await h.asUser(LEADER);
+      const res = await h.db.query<{ n: number }>(
+        `select count(*)::int as n from audit_log`,
+      );
+      expect(res.rows[0]!.n).toBe(1);
+    });
+
+    it("shows a CO-LEADER nothing, even for their own clan", async () => {
+      // Deliberate: the log holds entries about co-leaders, so they are subjects
+      // of it rather than readers. 006 gates it on auth_leader_clan_ids(), which
+      // is leader-only — this is why 021 added a separate leadership helper for
+      // posting rather than widening that one.
+      await h.asUser(CO_LEADER);
+      const res = await h.db.query<{ n: number }>(
+        `select count(*)::int as n from audit_log`,
+      );
+      expect(res.rows[0]!.n).toBe(0);
+    });
+
+    it("shows an ordinary member nothing", async () => {
+      await h.asUser(MEMBER);
+      const res = await h.db.query<{ n: number }>(
+        `select count(*)::int as n from audit_log`,
+      );
+      expect(res.rows[0]!.n).toBe(0);
+    });
+  });
+
   describe("R3 — reading", () => {
     it("shows a member their own clan's announcements", async () => {
       await h.asUser(LEADER);

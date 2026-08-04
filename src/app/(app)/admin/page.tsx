@@ -290,6 +290,21 @@ export default async function AdminPage({
           <Link href="/admin/members">Pending accounts</Link>
         </Button>
       </section>
+
+      {/* T9.6 — R4 records every write, and this is what makes that record
+          visible. Shown to everyone who reaches /admin; the page itself explains
+          that only a clan's leader can read entries, because the log holds
+          entries about co-leaders too. */}
+      <section className="space-y-2 rounded-lg border p-6">
+        <h2 className="font-medium">Audit log</h2>
+        <p className="text-muted-foreground text-sm">
+          Who changed what, and when. Leaders only — nothing in it can be edited
+          or removed.
+        </p>
+        <Button asChild variant="outline">
+          <Link href="/admin/audit">View audit log</Link>
+        </Button>
+      </section>
     </main>
   );
 }
