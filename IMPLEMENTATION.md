@@ -478,8 +478,16 @@ planned route to its task.
   **Not done. The six files currently in `fixtures/` are synthetic** — written by
   hand against the schemas, which is why every schema test passes and none of them
   proves anything. `mappers.test.ts` prints `6/6 fixtures are SYNTHETIC` on every
-  run and will stop once real ones land. Use `npm run fixtures:capture -- '#TAG'`;
-  it fetches and scrubs in one step, so nothing identifying reaches git.
+  run and will stop once real ones land. Run `npm run fixtures:capture` — it
+  reads the clan tags from the database (they are added by a leader at `/admin`,
+  not seeded), fetches, and scrubs in one step, so nothing identifying reaches
+  git. Pass a tag to override: `npm run fixtures:capture -- '#TAG'`.
+
+  For the two CWL fixtures it tries **every** active clan, because a league group
+  exists only for a clan currently in CWL and that may be the third one. Trying
+  only the first would report "not CWL week" while a season nobody can re-fetch
+  was running elsewhere.
+
   Expect tests to **fail** afterwards. That failure is the value.
 
 - [x] **T2.2 — Zod schemas**

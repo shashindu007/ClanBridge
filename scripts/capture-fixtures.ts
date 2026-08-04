@@ -1,11 +1,23 @@
 // T2.1 — Capture real API responses into fixtures/.
 //
-//   npm run fixtures:capture -- '#YOURCLANTAG'
+//   npm run fixtures:capture              every active clan, read from the database
+//   npm run fixtures:capture -- '#TAG'    one specific clan, overriding that
 //
 // Everything downstream is written against these shapes: the Zod schemas (T2.2),
 // the mappers (T2.4), and every sync job. IMPLEMENTATION.md is explicit that a
 // guessed shape is the shape your parser will be wrong about, which is why this
 // script exists rather than hand-written fixtures.
+//
+// THE TAG COMES FROM THE DATABASE, not from an argument and not from a list
+// written down somewhere. Migration 015 made clans data the leader owns, added
+// through /admin after signing in — so `clans` is the one source of truth for
+// which clans exist, and every sync job already reads it through activeClans().
+// This script asking a human to retype a tag it could look up was the last place
+// that assumption did not hold.
+//
+// The argument survives as an override for the case the database cannot serve:
+// capturing from a clan nobody has added yet, or reproducing a shape from
+// someone else's clan.
 //
 // Deliberately does NOT use src/integration/coc-client.ts. The client validates
 // against schemas that do not exist yet, and it reads fixtures when
@@ -13,6 +25,7 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { createAdminClient } from "../src/lib/supabase/admin";
 import { encodeTag, normaliseTag } from "../src/lib/tags";
 import { FIXTURE_SCHEMAS } from "../src/integration/coc-schemas";
 import { createScrubber } from "./scrub-fixtures";
@@ -116,30 +129,86 @@ function explain(status: number, path: string): string {
   }
 }
 
-async function main(): Promise<void> {
-  const raw = process.argv[2];
-  if (!raw) {
-    console.error("Usage: npm run fixtures:capture -- '#YOURCLANTAG'");
-    process.exit(1);
+/**
+ * A stop with an explanation already written for the operator.
+ *
+ * Thrown rather than exiting on the spot, because process.exit() while the
+ * Supabase client still holds an open socket trips a libuv assertion on Windows
+ * — the script prints the right thing and then appears to crash, which is a poor
+ * way to deliver instructions. Every exit path below sets process.exitCode and
+ * lets Node drain instead.
+ */
+class Aborted extends Error {}
+
+/**
+ * Which clans to capture from — the database, unless told otherwise.
+ *
+ * Not activeClans() from scripts/sync/shared.ts, though the query is the same
+ * one: that helper calls skip(), which throws a SyncSkipped that only means
+ * anything inside runSyncJob(). Here an empty list is a plain instruction to the
+ * operator, not a job outcome to log.
+ *
+ * Returns several because the CWL endpoints only exist for a clan currently IN
+ * a league group. With three clans that may be one of them, and which one is not
+ * knowable in advance — see the cwlOnly handling in main().
+ */
+async function resolveClanTags(override?: string): Promise<string[]> {
+  if (override) return [normaliseTag(override)];
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("clans")
+    .select("tag, name")
+    .is("deleted_at", null)
+    .eq("is_active", true)
+    .order("tag");
+
+  if (error) throw new Error(`Could not read clans: ${error.message}`);
+
+  const rows = (data ?? []) as Array<{ tag: string; name: string }>;
+  if (!rows.length) {
+    throw new Aborted(
+      "No clans in the database, so there is nothing to capture from.\n\n" +
+        "  Clans are added by a leader, not seeded (migration 015):\n" +
+        "    1. set OWNER_EMAIL in .env.local to the address you will sign in with\n" +
+        "    2. npm run dev, then sign in at /login\n" +
+        "    3. /admin -> claim ownership -> add the clans\n\n" +
+        "  Or pass a tag directly to capture without adding one:\n" +
+        "    npm run fixtures:capture -- '#YOURCLANTAG'",
+    );
   }
+
+  console.log(
+    `Read ${rows.length} clan${rows.length === 1 ? "" : "s"} from the database: ` +
+      rows.map((r) => `${r.name} ${r.tag}`).join(", "),
+  );
+  return rows.map((r) => normaliseTag(r.tag));
+}
+
+async function main(): Promise<void> {
   if (!TOKEN) {
-    console.error(
+    throw new Aborted(
       "COC_API_TOKEN is not set. Put it in .env.local first (T0.4), then re-run.",
     );
-    process.exit(1);
   }
 
-  let clanTag: string;
+  let clanTags: string[];
   try {
-    clanTag = normaliseTag(raw);
+    clanTags = await resolveClanTags(process.argv[2]);
   } catch (error) {
-    console.error(`${error instanceof Error ? error.message : error}`);
-    console.error("Remember: a tag never contains the letter O — that is a zero.");
-    process.exit(1);
+    if (error instanceof Aborted) throw error;
+    // A malformed tag, from the argument or from a row that should not exist.
+    throw new Aborted(
+      `${error instanceof Error ? error.message : error}\n` +
+        "  Remember: a tag never contains the letter O — that is a zero.",
+    );
   }
+
+  // The non-CWL fixtures only need one clan; their shapes do not vary by clan.
+  const clanTag = clanTags[0]!;
 
   await mkdir(FIXTURES_DIR, { recursive: true });
-  console.log(`Capturing fixtures for ${clanTag} from ${BASE}\n`);
+  console.log(`\nCapturing fixtures for ${clanTag} from ${BASE}\n`);
 
   const captured: string[] = [];
   const schemaIssues = new Map<string, string[]>();
@@ -149,38 +218,58 @@ async function main(): Promise<void> {
   let firstWarTag: string | undefined;
 
   for (const target of TARGETS) {
-    const path = target.path(clanTag);
-    const { status, body } = await get(path);
+    // A CWL-only endpoint exists for a clan currently in a league group, and
+    // with several clans that may be none of them, or only the third. Trying
+    // just the first would report "not CWL week" while a season we cannot
+    // re-fetch was running in another clan — the one failure this whole script
+    // exists to prevent. Non-CWL shapes do not vary by clan, so they use one.
+    const candidates = target.cwlOnly ? clanTags : [clanTag];
+    let done = false;
 
-    if (status === 200) {
-      const issues = await save(target.file, body);
-      captured.push(target.file);
-      if (issues.length) schemaIssues.set(target.file, issues);
-      console.log(
-        `  ${issues.length ? "SCHEMA?  " : "ok       "}${target.file}`,
-      );
+    for (const tag of candidates) {
+      const path = target.path(tag);
+      const { status, body } = await get(path);
+      await new Promise((r) => setTimeout(r, 250)); // be polite to the API
 
-      // Harvest the two tags that the remaining fixtures need.
-      if (target.file === "clan.json") {
-        const members = (body as { memberList?: Array<{ tag?: string }> }).memberList;
-        firstMemberTag = members?.[0]?.tag;
+      if (status === 200) {
+        const issues = await save(target.file, body);
+        captured.push(target.file);
+        if (issues.length) schemaIssues.set(target.file, issues);
+        console.log(
+          `  ${issues.length ? "SCHEMA?  " : "ok       "}${target.file}` +
+            (target.cwlOnly && clanTags.length > 1 ? ` (${tag})` : ""),
+        );
+
+        // Harvest the two tags that the remaining fixtures need.
+        if (target.file === "clan.json") {
+          const members = (body as { memberList?: Array<{ tag?: string }> }).memberList;
+          firstMemberTag = members?.[0]?.tag;
+        }
+        if (target.file === "cwlgroup.json") {
+          const rounds = (body as { rounds?: Array<{ warTags?: string[] }> }).rounds;
+          firstWarTag = rounds
+            ?.flatMap((r) => r.warTags ?? [])
+            .find((t) => t && t !== "#0");
+        }
+        done = true;
+        break;
       }
-      if (target.file === "cwlgroup.json") {
-        const rounds = (body as { rounds?: Array<{ warTags?: string[] }> }).rounds;
-        firstWarTag = rounds
-          ?.flatMap((r) => r.warTags ?? [])
-          .find((t) => t && t !== "#0");
-      }
-    } else if (status === 404 && target.cwlOnly) {
-      // R10 — this is the ordinary state for three weeks of every month.
-      skipped.push(target.file);
-      console.log(`  skipped  ${target.file} — not CWL week (normal)`);
-    } else {
+
+      if (status === 404 && target.cwlOnly) continue; // try the next clan
       failed = true;
       console.error(`  FAILED   ${target.file} — ${explain(status, path)}`);
+      done = true;
+      break;
     }
 
-    await new Promise((r) => setTimeout(r, 250)); // be polite to the API
+    if (!done && target.cwlOnly) {
+      // R10 — the ordinary state for three weeks of every month, now known for
+      // every clan rather than assumed from one.
+      skipped.push(target.file);
+      console.log(
+        `  skipped  ${target.file} — no clan is in CWL right now (normal)`,
+      );
+    }
   }
 
   // player.json — any member will do; the shape is what matters.
@@ -231,7 +320,7 @@ async function main(): Promise<void> {
 
   if (failed) {
     console.error("\nSome fixtures failed. See the messages above.");
-    process.exit(1);
+    process.exitCode = 1;
   }
 
   if (scrubber.tags || scrubber.names) {
@@ -262,8 +351,11 @@ async function main(): Promise<void> {
         "it is the schema that needs fixing.\n\n" +
         "Fix src/integration/coc-schemas.ts to match, then run `npm test`.\n",
     );
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
+
+  if (failed) return;
 
   console.log(
     "\nAll captured fixtures match src/integration/coc-schemas.ts.\n" +
@@ -274,5 +366,7 @@ async function main(): Promise<void> {
 
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
+  // exitCode rather than exit(): see Aborted. An abrupt exit here races the
+  // Supabase client's open socket and turns a clear message into a crash dump.
+  process.exitCode = 1;
 });
