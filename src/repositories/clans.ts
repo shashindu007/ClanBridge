@@ -29,6 +29,7 @@ export interface Announcement {
   body: string;
   pinned: boolean;
   createdAt: string;
+  authorId: string | null;
 }
 
 /**
@@ -96,28 +97,45 @@ export async function latestAnnouncement(
   supabase: SupabaseClient,
   clanId: string,
 ): Promise<Announcement | null> {
+  // Pinned wins over recent, which announcementsForClan() already applies.
+  return (await announcementsForClan(supabase, clanId))[0] ?? null;
+}
+
+/**
+ * T5.1 — every live announcement for one clan, pinned first then newest.
+ *
+ * Soft-deleted rows are filtered rather than absent (R4): a removed notice is
+ * still in the table, and T9.6 can still say who removed it and when.
+ *
+ * The two-key ordering is done here rather than in the query. PostgREST can
+ * express it, but the PGlite stand-in orders on one column, and this list is a
+ * handful of rows — paying a round trip to avoid four lines of TypeScript would
+ * be the wrong trade.
+ */
+export async function announcementsForClan(
+  supabase: SupabaseClient,
+  clanId: string,
+): Promise<Announcement[]> {
   const { data, error } = await supabase
     .from("announcements")
-    .select("id, title, body, pinned, created_at")
+    .select("id, title, body, pinned, created_at, author_id")
     .eq("clan_id", clanId) // R3
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
-  if (error || !data) return null;
+  if (error || !data) return [];
 
-  const rows = data as Array<Record<string, unknown>>;
-  if (!rows.length) return null;
-
-  // Pinned wins over recent. Sorting here rather than in the query because
-  // ordering by two columns with different directions is awkward through
-  // PostgREST and this list is short.
-  const row = rows.find((r) => r.pinned === true) ?? rows[0]!;
-
-  return {
+  const rows = (data as Array<Record<string, unknown>>).map((row) => ({
     id: row.id as string,
     title: row.title as string,
     body: row.body as string,
     pinned: row.pinned === true,
     createdAt: row.created_at as string,
-  };
+    authorId: (row.author_id as string | null) ?? null,
+  }));
+
+  return rows.sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    return b.createdAt.localeCompare(a.createdAt);
+  });
 }

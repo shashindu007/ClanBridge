@@ -71,6 +71,18 @@ picked and did not show up. There is no way to recover it (R4).
 No `DELETE` statements. Set `deleted_at` and filter `.is("deleted_at", null)` on read.
 Deleted CWL history cannot be re-fetched from anywhere.
 
-## Writes go through lib/audit.ts
+## Audited writes go through SQL functions, not through this layer
 
-Every mutation records who did it and when.
+Every mutation records who did it and when — but **not** by having the
+application append an `audit_log` row after the fact. That needs two statements
+with no transaction between them, and an INSERT policy on `audit_log` that would
+let any signed-in member forge entries attributing actions to anyone.
+
+So an audited write is a `security definer` function that writes the row and its
+audit entry, or neither: `approve_account()` / `reject_account()` (015, 017),
+`link_verified_player()` (016), `post_announcement()` / `edit_announcement()` /
+`remove_announcement()` (021). `audit_log` has no insert policy and must not get
+one.
+
+`lib/audit.ts` is the READ side — the shared vocabulary plus the queries T9.6's
+viewer needs. Its header explains the reasoning in full.

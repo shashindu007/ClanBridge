@@ -1,11 +1,244 @@
-// T5.1, T5.2 — Announcements
-// Plain text or restricted markdown. Never render raw HTML.
+// T5.1 / T5.2 — announcements. Leadership posts, everyone reads.
+//
+// This is the page that replaces the WhatsApp message that gets buried.
+//
+// T5.2 — SAFE RENDERING. The body is rendered as TEXT, by React, as a string
+// child. No dangerouslySetInnerHTML, no markdown parser, no sanitiser to keep
+// up to date. React escapes string children, so a body containing <script> is
+// displayed rather than executed, and that property holds without anything
+// having to be configured correctly.
+//
+// `whitespace-pre-line` gives paragraphs from the newlines a leader actually
+// typed. That is the whole formatting feature, on purpose: the alternative is a
+// markdown dependency whose escape hatches are the thing this rule exists to
+// avoid. If richer formatting is ever wanted, it needs its own task and a
+// deliberate look at what the parser permits.
+//
+// Writes go through the definer functions in migration 021 (post/edit/remove),
+// never through a direct insert — see the header of lib/audit.ts for why.
 
-export default function NoticesPage() {
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { requireClanByTag } from "@/lib/clans";
+import { createClient } from "@/lib/supabase/server";
+import { announcementsForClan } from "@/repositories/clans";
+
+export const dynamic = "force-dynamic";
+
+/** Leader and co-leader, matching auth_leadership_clan_ids() in migration 021. */
+function isLeadership(role: string): boolean {
+  return role === "leader" || role === "co-leader";
+}
+
+function when(iso: string): string {
+  return new Date(iso).toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export default async function NoticesPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ clanTag: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { clanTag } = await params;
+  const { error } = await searchParams;
+  const supabase = await createClient();
+
+  const clan = await requireClanByTag(supabase, clanTag);
+  const notices = await announcementsForClan(supabase, clan.id);
+  const mayPost = isLeadership(clan.role);
+  const base = `/${encodeURIComponent(clan.tag)}/notices`;
+
+  // The server actions below decide what to RENDER and nothing more. Every one
+  // of them calls a function that re-checks authority in the database, so a
+  // member who reaches the action directly is refused there (R3, 021).
+  async function createNotice(formData: FormData) {
+    "use server";
+
+    const supabase = await createClient();
+    const clan = await requireClanByTag(supabase, clanTag);
+
+    const { error } = await supabase.rpc("post_announcement", {
+      p_clan: clan.id,
+      p_title: String(formData.get("title") ?? ""),
+      p_body: String(formData.get("body") ?? ""),
+      p_pinned: formData.get("pinned") === "on",
+    });
+
+    if (error) {
+      redirect(`${base}?error=${encodeURIComponent(error.message)}`);
+    }
+
+    revalidatePath(base);
+    revalidatePath(`/${encodeURIComponent(clan.tag)}`); // the dashboard shows the latest
+    redirect(base);
+  }
+
+  async function removeNotice(formData: FormData) {
+    "use server";
+
+    const supabase = await createClient();
+    const clan = await requireClanByTag(supabase, clanTag);
+
+    const { error } = await supabase.rpc("remove_announcement", {
+      p_id: String(formData.get("id") ?? ""),
+    });
+
+    if (error) {
+      redirect(`${base}?error=${encodeURIComponent(error.message)}`);
+    }
+
+    revalidatePath(base);
+    revalidatePath(`/${encodeURIComponent(clan.tag)}`);
+    redirect(base);
+  }
+
+  async function togglePin(formData: FormData) {
+    "use server";
+
+    const supabase = await createClient();
+    const clan = await requireClanByTag(supabase, clanTag);
+
+    const { error } = await supabase.rpc("edit_announcement", {
+      p_id: String(formData.get("id") ?? ""),
+      p_title: String(formData.get("title") ?? ""),
+      p_body: String(formData.get("body") ?? ""),
+      p_pinned: formData.get("pinned") === "1",
+    });
+
+    if (error) {
+      redirect(`${base}?error=${encodeURIComponent(error.message)}`);
+    }
+
+    revalidatePath(base);
+    revalidatePath(`/${encodeURIComponent(clan.tag)}`);
+    redirect(base);
+  }
+
   return (
-    <main className="p-8">
-      <h1 className="text-xl font-semibold">T5.1, T5.2 — Announcements</h1>
-      <p className="mt-2 text-sm opacity-60">Placeholder — see IMPLEMENTATION.md.</p>
+    <main className="mx-auto max-w-3xl space-y-6 p-8">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Announcements</h1>
+        <p className="text-muted-foreground text-sm">
+          {clan.name} —{" "}
+          {mayPost
+            ? "you can post here; everyone in the clan can read."
+            : "posted by your leader and co-leaders."}
+        </p>
+      </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {mayPost && (
+        <form action={createNotice} className="space-y-3 rounded-lg border p-6">
+          <h2 className="font-medium">Post an announcement</h2>
+
+          <div className="space-y-1">
+            <Label htmlFor="title">Title</Label>
+            <Input id="title" name="title" maxLength={200} required />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="body">Message</Label>
+            <textarea
+              id="body"
+              name="body"
+              required
+              maxLength={5000}
+              rows={4}
+              className="border-input bg-background focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-1 focus-visible:outline-none"
+            />
+            <p className="text-muted-foreground text-xs">
+              Plain text. Line breaks are kept; nothing else is formatted, and no
+              HTML is ever rendered (T5.2).
+            </p>
+          </div>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="pinned" className="h-4 w-4" />
+            Pin to the top
+          </label>
+
+          <Button type="submit">Post</Button>
+        </form>
+      )}
+
+      {notices.length === 0 ? (
+        <section className="space-y-2 rounded-lg border p-6">
+          <h2 className="font-medium">Nothing posted yet</h2>
+          <p className="text-muted-foreground text-sm">
+            {mayPost
+              ? "Post the first one above. It appears on the clan dashboard too."
+              : "Your leadership has not posted anything here yet."}
+          </p>
+        </section>
+      ) : (
+        <ul className="space-y-4">
+          {notices.map((notice) => (
+            <li key={notice.id} className="space-y-2 rounded-lg border p-6">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="font-medium">{notice.title}</h2>
+                {notice.pinned && <Badge variant="secondary">pinned</Badge>}
+              </div>
+
+              {/* T5.2 — a string child. React escapes it; nothing is parsed. */}
+              <p className="text-sm whitespace-pre-line">{notice.body}</p>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-muted-foreground text-xs">{when(notice.createdAt)}</p>
+
+                {mayPost && (
+                  <>
+                    <form action={togglePin}>
+                      <input type="hidden" name="id" value={notice.id} />
+                      <input type="hidden" name="title" value={notice.title} />
+                      <input type="hidden" name="body" value={notice.body} />
+                      <input
+                        type="hidden"
+                        name="pinned"
+                        value={notice.pinned ? "0" : "1"}
+                      />
+                      <Button type="submit" variant="outline" size="sm">
+                        {notice.pinned ? "Unpin" : "Pin"}
+                      </Button>
+                    </form>
+
+                    <form action={removeNotice}>
+                      <input type="hidden" name="id" value={notice.id} />
+                      <Button type="submit" variant="outline" size="sm">
+                        Remove
+                      </Button>
+                    </form>
+                  </>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {mayPost && (
+        <p className="text-muted-foreground text-xs">
+          Removing hides an announcement; it is never deleted (R4), and who
+          removed it is recorded in the audit log.
+        </p>
+      )}
     </main>
   );
 }

@@ -38,6 +38,7 @@ export const PHASE1_MIGRATIONS = [
   "018_admin_may_approve_clanless.sql", // restores 015's platform-admin capability
   "019_cwl_war_members.sql", // T4.1 the API-reported CWL roster; missed attacks derive from it
   "020_clan_details.sql", // T3B.0 level, war league, member count, war-log visibility
+  "021_announcements.sql", // T5.1 post/edit/remove as audited definer functions
 ] as const;
 
 export function readMigration(file: string): string {
