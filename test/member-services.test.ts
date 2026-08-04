@@ -19,6 +19,9 @@ import {
   lastActivityAt,
   LOW_RATIO_THRESHOLD,
   memberActivity,
+  needsAttention,
+  QUIET_DAYS,
+  type AttentionInput,
 } from "@/services/members";
 
 /** Snapshots are hourly, so an index is an hour. */
@@ -212,5 +215,112 @@ describe("memberActivity", () => {
     expect(activity.donations).toBeNull();
     expect(activity.ratio).toBeNull();
     expect(activity.lastActivityAt).toBeNull();
+  });
+});
+
+describe("needsAttention — advisory, and it must show its working", () => {
+  const NOW = new Date("2026-07-20T00:00:00.000Z");
+
+  function input(overrides: Partial<AttentionInput> = {}): AttentionInput {
+    return {
+      playerId: "p1",
+      name: "Player 1",
+      activity: memberActivity("p1", point(0, 800, 400), [point(0, 800, 400)]),
+      warsRostered: 0,
+      attacksUsed: 0,
+      ...overrides,
+    };
+  }
+
+  it("says nothing about an active member with a healthy ratio", () => {
+    expect(needsAttention([input()], NOW)).toEqual([]);
+  });
+
+  it("flags a long silence, and names the number of days", () => {
+    // Last activity is 1 July 01:00; NOW is 20 July 00:00. That is 18 days and
+    // 23 hours, and the count floors rather than rounds — a member is not "19
+    // days quiet" until the 19th day has actually elapsed.
+    const quiet = [point(0, 100, 50), point(1, 200, 60)];
+    const flags = needsAttention(
+      [input({ activity: memberActivity("p1", point(1, 200, 60), quiet) })],
+      NOW,
+    );
+
+    expect(flags).toHaveLength(1);
+    expect(flags[0]!.reasons[0]).toContain("18 days");
+  });
+
+  it("stays silent just inside the threshold", () => {
+    const recent = [
+      point(0, 100, 50),
+      // Activity QUIET_DAYS - 1 ago, so it must not trip.
+      {
+        ...point(1, 200, 60),
+        capturedAt: new Date(
+          NOW.getTime() - (QUIET_DAYS - 1) * 86_400_000,
+        ).toISOString(),
+      },
+    ];
+    const flags = needsAttention(
+      [input({ activity: memberActivity("p1", recent[1]!, recent) })],
+      NOW,
+    );
+    expect(flags).toEqual([]);
+  });
+
+  it("does NOT flag a member with no snapshot at all", () => {
+    // Unknown is not inactive. Flagging it would put the whole clan on the list
+    // on day one, before the sync has reached anybody.
+    const flags = needsAttention(
+      [input({ activity: memberActivity("p1", undefined, []) })],
+      NOW,
+    );
+    expect(flags).toEqual([]);
+  });
+
+  it("flags a low ratio and quotes the raw numbers behind it", () => {
+    const flags = needsAttention(
+      [input({ activity: memberActivity("p1", point(0, 50, 900), [point(0, 50, 900)]) })],
+      NOW,
+    );
+    expect(flags[0]!.reasons.join(" ")).toContain("0.06");
+    expect(flags[0]!.reasons.join(" ")).toContain("900");
+  });
+
+  it("flags a player who was rostered for CWL and attacked in none", () => {
+    const flags = needsAttention([input({ warsRostered: 5, attacksUsed: 0 })], NOW);
+    expect(flags[0]!.reasons[0]).toContain("5 CWL wars");
+  });
+
+  it("does not treat zero-of-zero as a missed war", () => {
+    // The clan did not play CWL, or this member was not picked. Neither is
+    // something the member did.
+    expect(needsAttention([input({ warsRostered: 0, attacksUsed: 0 })], NOW)).toEqual([]);
+  });
+
+  it("does not flag a member who used every attack they were given", () => {
+    expect(needsAttention([input({ warsRostered: 7, attacksUsed: 7 })], NOW)).toEqual([]);
+  });
+
+  it("ranks by how many reasons there are, then by name for stability", () => {
+    const quiet = [point(0, 10, 900), point(1, 12, 900)];
+    const flags = needsAttention(
+      [
+        input({ playerId: "p2", name: "Beta", warsRostered: 4, attacksUsed: 0 }),
+        input({
+          playerId: "p1",
+          name: "Alpha",
+          warsRostered: 4,
+          attacksUsed: 0,
+          activity: memberActivity("p1", point(1, 12, 900), quiet),
+        }),
+      ],
+      NOW,
+    );
+
+    // Alpha has three reasons (quiet, low ratio, no attacks); Beta has one.
+    expect(flags[0]!.name).toBe("Alpha");
+    expect(flags[0]!.score).toBe(3);
+    expect(flags[1]!.score).toBe(1);
   });
 });

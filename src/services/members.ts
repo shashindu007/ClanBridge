@@ -209,3 +209,102 @@ export function memberActivity(
     lowRatio: ratio !== null && ratio < LOW_RATIO_THRESHOLD,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T3B.5 — inactivity.
+//
+// ADVISORY ONLY. Nothing in this system acts on the output, and nothing should.
+// The spec says never automate a kick decision, and the reason is in the inputs:
+// every one of them is a proxy. lastActivityAt is a floor derived from two
+// counters, not a login time. CWL participation is zero for everyone in a month
+// the clan did not play. A member on holiday and a member who has quit look
+// identical from here.
+//
+// So this returns REASONS, not just a number. A leader who cannot see why
+// someone was flagged cannot defend the decision to them, and a score with no
+// visible working is one that gets trusted exactly as far as its first mistake.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Days without observed activity before a member is worth a look. */
+export const QUIET_DAYS = 14;
+
+export interface AttentionInput {
+  playerId: string;
+  name: string;
+  activity: MemberActivity;
+  /** CWL wars this player was rostered for in the window, and attacks they used. */
+  warsRostered: number;
+  attacksUsed: number;
+}
+
+export interface AttentionFlag {
+  playerId: string;
+  name: string;
+  /** Plain sentences, shown verbatim. The score is never presented alone. */
+  reasons: string[];
+  /** Count of reasons. Ordering only — it is not a percentage of anything. */
+  score: number;
+}
+
+/**
+ * Members worth a second look, with the reason for each.
+ *
+ * `now` is injected so this is testable without waiting, matching the shape
+ * services/freshness.ts already uses.
+ *
+ * A member with no snapshot at all is NOT flagged. Unknown is not inactive, and
+ * flagging it would fill the list with everyone the sync has not reached yet —
+ * which on day one is the entire clan.
+ */
+export function needsAttention(
+  members: AttentionInput[],
+  now: Date = new Date(),
+): AttentionFlag[] {
+  const flags: AttentionFlag[] = [];
+
+  for (const member of members) {
+    const reasons: string[] = [];
+    const { activity } = member;
+
+    if (activity.lastActivityAt) {
+      const days = Math.floor(
+        (now.getTime() - new Date(activity.lastActivityAt).getTime()) / 86_400_000,
+      );
+      if (days >= QUIET_DAYS) {
+        reasons.push(`No donations or trophy movement seen for ${days} days`);
+      }
+    }
+
+    if (activity.lowRatio && activity.ratio !== null) {
+      reasons.push(
+        `Donation ratio ${activity.ratio.toFixed(2)} — received ` +
+          `${activity.donationsReceived} and gave ${activity.donations} this season`,
+      );
+    }
+
+    // Only meaningful if they were actually picked. Zero of zero is not a miss,
+    // it is a month the clan did not play CWL, or one they were not rostered in.
+    if (member.warsRostered > 0 && member.attacksUsed === 0) {
+      reasons.push(
+        `Rostered for ${member.warsRostered} CWL war` +
+          `${member.warsRostered === 1 ? "" : "s"} and attacked in none`,
+      );
+    } else if (member.warsRostered >= 3 && member.attacksUsed < member.warsRostered / 2) {
+      reasons.push(
+        `Used ${member.attacksUsed} of ${member.warsRostered} CWL attacks`,
+      );
+    }
+
+    if (reasons.length) {
+      flags.push({
+        playerId: member.playerId,
+        name: member.name,
+        reasons,
+        score: reasons.length,
+      });
+    }
+  }
+
+  // Most reasons first, then alphabetically so the order is stable between loads.
+  return flags.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+}

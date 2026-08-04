@@ -21,10 +21,16 @@ import {
 } from "@/components/ui/table";
 import { requireClanByTag } from "@/lib/clans";
 import { createClient } from "@/lib/supabase/server";
+import { playerSeasonHistory } from "@/repositories/cwl";
 import { latestSnapshots, membersForClan, recentSnapshots } from "@/repositories/members";
 import { latestRun } from "@/repositories/sync-log";
 import { freshness } from "@/services/freshness";
-import { LOW_RATIO_THRESHOLD, memberActivity } from "@/services/members";
+import {
+  LOW_RATIO_THRESHOLD,
+  memberActivity,
+  needsAttention,
+  QUIET_DAYS,
+} from "@/services/members";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +92,29 @@ export default async function MemberDirectoryPage({
       recent.byPlayer.get(member.playerId) ?? [],
     ),
   }));
+
+  // T3B.5. CWL participation is per player, so this is one pass over the roster
+  // rather than a single query — acceptable at ≤50 members and no worse than the
+  // profile page already does. Departed members are excluded from the list even
+  // when the toggle shows them in the table: "needs attention" means someone a
+  // leader might act on, and someone who has already left is not that.
+  const attention = needsAttention(
+    await Promise.all(
+      rows
+        .filter(({ member }) => !member.leftAt)
+        .map(async ({ member, activity }) => {
+          const seasons = await playerSeasonHistory(supabase, clan.id, member.playerId);
+          return {
+            playerId: member.playerId,
+            name: member.name,
+            activity,
+            warsRostered: seasons.reduce((n, s) => n + s.warsRostered, 0),
+            attacksUsed: seasons.reduce((n, s) => n + s.attacksUsed, 0),
+          };
+        }),
+    ),
+    now,
+  );
 
   // Nulls sort last in every column regardless of direction — an unknown value
   // is not "the lowest", and letting it win a "worst ratio" sort would put every
@@ -160,6 +189,41 @@ export default async function MemberDirectoryPage({
           {includeDeparted ? "Hide former members" : "Include former members"}
         </Link>
       </div>
+
+      {/* T3B.5 — advisory, and it shows its working. Placed above the table
+          because it is the reason a leader opened this page, but deliberately
+          worded as a prompt to look rather than a verdict. */}
+      {attention.length > 0 && (
+        <section className="space-y-3 rounded-lg border p-6">
+          <h2 className="font-medium">Worth a look — {attention.length}</h2>
+          <ul className="space-y-3">
+            {attention.map((flag) => {
+              const member = rows.find((r) => r.member.playerId === flag.playerId)!.member;
+              return (
+                <li key={flag.playerId} className="text-sm">
+                  <Link
+                    className="font-medium underline-offset-2 hover:underline"
+                    href={`/${encodeURIComponent(clan.tag)}/player/${encodeURIComponent(member.tag)}`}
+                  >
+                    {flag.name}
+                  </Link>
+                  <ul className="text-muted-foreground list-inside list-disc">
+                    {flag.reasons.map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="text-muted-foreground text-xs">
+            Every line above is a proxy, not a fact. &ldquo;Quiet&rdquo; means two
+            counters did not move — a member on holiday and a member who has quit
+            look identical from here. Ask before acting; nothing in this system
+            acts on its own.
+          </p>
+        </section>
+      )}
 
       {rows.length === 0 ? (
         <section className="space-y-3 rounded-lg border p-6">
@@ -264,7 +328,8 @@ export default async function MemberDirectoryPage({
           rather than a login time: someone who plays daily without donating or
           moving trophies looks idle. It reaches back{" "}
           {coveredDays > 0 ? `${coveredDays} days` : "as far as the snapshots go"};
-          older activity shows as a bound, not a date. Advisory only — never a
+          older activity shows as a bound, not a date. A member is listed above as
+          worth a look after {QUIET_DAYS} quiet days. Advisory only — never a
           reason on its own to remove anyone (T3B.5).
         </p>
       </section>
