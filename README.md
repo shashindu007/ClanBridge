@@ -11,9 +11,9 @@ API when the season ends and cannot ever be recovered. Everything else is second
 
 ## Status
 
-Phases 1, 2 and 3 are complete. Phase 4 (CWL) is complete except bonus recording
-(T4.7) and the logbook import (T4.10). Everything from Phase 3B onward is still a
-labelled placeholder — each stub names the task ID that fills it.
+Phases 1, 2, 3 and 3B are complete. Phase 4 (CWL) is complete except bonus
+recording (T4.7) and the logbook import (T4.10). Everything from Phase 4B onward
+is still a labelled placeholder — each stub names the task ID that fills it.
 
 `IMPLEMENTATION.md` carries the per-task ledger. Three things are worth knowing
 before you touch anything:

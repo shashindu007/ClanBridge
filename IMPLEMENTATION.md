@@ -19,8 +19,8 @@ The checkboxes below are the ledger. A ticked box means the code exists, the tes
 pass, and `npm run typecheck` and `npm run lint` are clean — not that it has been
 run against the live game.
 
-**Done:** Phase 1 entire · Phase 2 except T2.1 · Phase 3 entire · T4.1–T4.6 and T4.8.
-Phase 3B onward is placeholders that name their own task ID.
+**Done:** Phase 1 entire · Phase 2 except T2.1 · Phase 3 entire · **Phase 3B entire** ·
+T4.1–T4.6 and T4.8. Phase 4B onward is placeholders that name their own task ID.
 
 **Three unticked boxes matter more than the rest:**
 
@@ -39,12 +39,19 @@ Phase 3B onward is placeholders that name their own task ID.
 
 **Where the build deviated from this document, deliberately:**
 
-- **19 migrations, not 12.** 013–019 fix holes this plan did not anticipate.
+- **20 migrations, not 12.** 013–020 fix holes this plan did not anticipate.
   014 restored missing `service_role` grants that would have failed every sync
   job. 015 breaks the clan↔role↔leader bootstrap cycle that made a first sign-in
   impossible, which is also why T1.10's hardcoded seed was replaced by
   leader-managed clans at `/admin`. 019 adds `cwl_war_members`, the API roster
-  that missed attacks are derived from — Phase 4 had nowhere to put it.
+  that missed attacks are derived from — Phase 4 had nowhere to put it. 020 adds
+  the clan detail the sync had been fetching and discarding hourly since T2.4.
+- **A season total is the last cumulative reading, not a sum of deltas.** The
+  original plan for T3B.3 said to difference across the season. That undercounts:
+  `donations` is cumulative since the monthly reset, so the newest reading in a
+  month already *is* that month's total, and summing observed deltas measures
+  only the growth the sync happened to witness. See the header of
+  `src/services/members.ts` and the test named for the case.
 - **T3.7 is automated**, as `test/authorisation.test.ts`, rather than being a
   manual URL-editing checklist repeated each phase.
 - **Migrations are applied over the wire** (`npm run migrations:apply`) and
@@ -562,26 +569,26 @@ planned route to its task.
 
 *This is the module every other page links into. It was the largest gap in the first draft of this plan.*
 
-- [ ] **T3B.1 — Clan dashboard**
+- [x] **T3B.1 — Clan dashboard**
   `/[clanTag]/page.tsx` — clan name, badge, level, member count, war league, current war state, next CWL date, latest announcement, data freshness. The landing page after login.
 
-- [ ] **T3B.2 — Member directory**
+- [x] **T3B.2 — Member directory**
   Sortable table: name, tag, role, Town Hall, trophies, donations given and received, ratio, war stars, last seen active.
   Sort and filter by each column. This replaces "scroll WhatsApp and guess".
 
-- [ ] **T3B.3 — Donation ratio and season totals**
+- [x] **T3B.3 — Donation ratio and season totals**
   Derive per-season donations from `member_snapshots` (T2.9) by differencing across the season, handling the monthly reset.
   Flag members below a configurable ratio threshold.
 
-- [ ] **T3B.4 — Player profile page**
+- [x] **T3B.4 — Player profile page**
   `/[clanTag]/player/[tag]` — one member, everything: CWL history, war attacks, raid participation, Clan Games points, donation trend, clan movement history.
   **This page is objective O4.** The leader must be able to answer "how active has this member been for six months" in under thirty seconds. Nothing else in the plan delivers that.
 
-- [ ] **T3B.5 — Inactivity detection**
+- [x] **T3B.5 — Inactivity detection**
   Compute a simple activity score from war participation, CWL attacks, raid attacks, donations, and last seen.
   Show a "needs attention" list per clan. Advisory only — never automate kick decisions.
 
-- [ ] **T3B.6 — Cross-clan member search**
+- [x] **T3B.6 — Cross-clan member search**
   Search by name or tag across all three clans at once. Useful when a leader remembers a name but not which clan.
 
 ---
