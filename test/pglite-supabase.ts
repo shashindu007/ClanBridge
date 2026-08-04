@@ -61,6 +61,13 @@ export function createPgliteSupabase(db: PGlite): SupabaseClient {
           filters.push(`${column} <= ${literal(value)}`);
           return builder;
         },
+        // T3B.6. Postgres ilike takes its escape character from an explicit
+        // ESCAPE clause; PostgREST defaults to backslash, so this spells it out
+        // to match rather than relying on the two agreeing by default.
+        ilike(column: string, pattern: string) {
+          filters.push(`${column} ilike ${literal(pattern)} escape '\\'`);
+          return builder;
+        },
         /**
          * NOT chainable, matching the original: `.order()` runs the query.
          *

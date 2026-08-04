@@ -130,6 +130,70 @@ export async function latestSnapshots(
   return latest;
 }
 
+export interface SearchHit extends MemberRow {
+  clanId: string;
+}
+
+/**
+ * T3B.6 — find players by name or tag across the clans the caller may see.
+ *
+ * ONE QUERY PER CLAN, deliberately, and this is the part to not "optimise".
+ * The obvious version is a single `players` query with an ilike and no clan
+ * filter, relying on RLS to scope it. That works right up until someone runs it
+ * with the service key, or adds a join that widens the policy, and then a leader
+ * of clan A is searching all three. R3 says the query is the mechanism and the
+ * policy is the net; a search with no clan in it has no mechanism at all.
+ *
+ * `clanIds` must come from visibleClans() — never from a list of tags written
+ * down somewhere, which is precisely what T3.7 exists to catch.
+ *
+ * Tags are matched exactly rather than by prefix. A tag is not a name and a
+ * partial one is not a meaningful query; matching loosely would also turn this
+ * into a way to enumerate tags a page at a time.
+ */
+export async function searchPlayers(
+  supabase: SupabaseClient,
+  clanIds: string[],
+  term: string,
+): Promise<SearchHit[]> {
+  const trimmed = term.trim();
+  if (!trimmed || !clanIds.length) return [];
+
+  // PostgREST treats these as pattern metacharacters; a member searching for a
+  // name containing one should get a literal match, not a wildcard.
+  const escaped = trimmed.replace(/[%_\\]/g, (ch) => `\\${ch}`);
+  const isTag = trimmed.startsWith("#");
+
+  const perClan = await Promise.all(
+    clanIds.map(async (clanId) => {
+      const query = supabase
+        .from("players")
+        .select("id, tag, name, th_level, clan_role, verified, left_at")
+        .eq("clan_id", clanId) // R3 — the mechanism, not the net
+        .is("deleted_at", null);
+
+      if (isTag) query.eq("tag", trimmed.toUpperCase());
+      else query.ilike("name", `%${escaped}%`);
+
+      const { data, error } = await query.order("name");
+      if (error || !data) return [];
+
+      return (data as Array<Record<string, unknown>>).map((r) => ({
+        clanId,
+        playerId: r.id as string,
+        tag: r.tag as string,
+        name: r.name as string,
+        thLevel: (r.th_level as number | null) ?? null,
+        clanRole: (r.clan_role as ClanRole | null) ?? null,
+        verified: r.verified === true,
+        leftAt: (r.left_at as string | null) ?? null,
+      }));
+    }),
+  );
+
+  return perClan.flat();
+}
+
 export interface RecentSnapshots {
   /** playerId -> their points in this window, ASCENDING. */
   byPlayer: Map<string, SnapshotPoint[]>;

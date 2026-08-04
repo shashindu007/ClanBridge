@@ -197,6 +197,29 @@ describe("T3.7 — cross-clan authorisation", () => {
       ).toBe(0);
     });
 
+    // T3B.6 — cross-clan search is the first feature that queries players
+    // WITHOUT a clan in the where clause, which is exactly the shape that leaks.
+    // The page filters per clan itself; this asserts the net underneath holds
+    // even when it does not.
+    it("searching every player by name returns only its own clan", async () => {
+      // Both fixtures are named "Player …", so a naive search matches both and
+      // a leak is unmistakable.
+      const n = await rows(h, `select 1 from players where name ilike '%Player%'`);
+      expect(n).toBe(1);
+
+      const names = await h.db.query<{ name: string }>(
+        `select name from players where name ilike '%Player%'`,
+      );
+      expect(names.rows.map((r) => r.name)).toEqual(["Player A"]);
+    });
+
+    it("searching by tag cannot confirm another clan's player exists", async () => {
+      // Guessing an exact tag must not be a way to test whether it is real —
+      // an empty result is the same answer as "no such player".
+      const n = await rows(h, `select 1 from players where tag = '#2PP0JCCV'`);
+      expect(n).toBe(0);
+    });
+
     it("cannot read another member's profile", async () => {
       expect(await rows(h, `select id from users where id = '${MEMBER_B}'`)).toBe(0);
       expect(await rows(h, `select id from users where id = '${MEMBER_A}'`)).toBe(1);
