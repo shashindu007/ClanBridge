@@ -20,17 +20,12 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { accountStatus, currentUserId, isPlatformAdmin } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
+import { isGateExempt } from "@/lib/gate";
 import { PATHNAME_HEADER } from "@/lib/supabase/middleware";
 
-/**
- * Reachable while unapproved. Everything else redirects to /pending.
- *
- * /pending must be here or the redirect targets itself forever — it lives inside
- * (app) and so renders through this same layout. /verify must be here because
- * verifying is the one useful thing an unapproved member can do, and /guide
- * because being told how to get in is not clan data.
- */
-const GATE_EXEMPT = ["/pending", "/verify", "/guide"];
+// The exempt list and its reasoning live in lib/gate.ts, so they can be tested
+// without rendering this layout. Its absence of "/admin" was a bootstrap
+// deadlock that no test caught.
 
 export default async function AppLayout({
   children,
@@ -46,9 +41,7 @@ export default async function AppLayout({
   if (!userId) redirect("/login");
 
   const pathname = (await headers()).get(PATHNAME_HEADER) ?? "";
-  const exempt = GATE_EXEMPT.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`),
-  );
+  const exempt = isGateExempt(pathname);
 
   const status = await accountStatus(supabase, userId);
   const approved = status === "approved";
