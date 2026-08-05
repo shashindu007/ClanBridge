@@ -1,0 +1,58 @@
+# T5.8 — sync watchdog.
+#
+# Reads sync_log and pushes a notification when a job has gone quiet. It calls no
+# game API, so it needs no COC_API_TOKEN — the shortest secret list of any
+# workflow here, which is deliberate: this is the one job that has to keep
+# working when the others do not.
+#
+# WHY A SEPARATE WORKFLOW. A crashing job alerts from its own failure path. A job
+# whose schedule stopped firing produces nothing at all, and nothing can report
+# its own absence. If this workflow is the one that breaks, the failure is
+# visible in the Actions run list — which is the one place a broken watchdog is
+# still detectable.
+#
+# Repository secrets required:
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_KEY
+#   VAPID_PRIVATE_KEY            } T0.10. Without these the job runs and reports
+#   VAPID_SUBJECT                } health to the log, but sends nothing.
+#   NEXT_PUBLIC_VAPID_PUBLIC_KEY }
+#
+# R6 — none of these may ever be set as a Vercel environment variable.
+
+name: sync-health
+
+on:
+  schedule:
+    # Hourly, offset from sync-clans (:17) so it is not reading sync_log during
+    # the write it is about to judge.
+    - cron: "47 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: sync-health
+  cancel-in-progress: false
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check for silent sync jobs
+        run: npx tsx scripts/sync/health.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}

@@ -164,6 +164,16 @@ export async function runSyncJob(
       recordsWritten: written,
     });
     console.error(`[${jobType}] FAILED: ${message}`);
+
+    // T5.8 — the log row is written; now tell someone without waiting for them
+    // to look. Imported lazily so that a job which never fails never loads the
+    // push stack, and awaited so the process cannot exit before it sends.
+    //
+    // alertSyncFailure never throws: an alerting failure must not replace the
+    // sync failure, which is the news.
+    const { alertSyncFailure } = await import("./alerts");
+    await alertSyncFailure(supabase, jobType, options.clanId ?? null, message);
+
     return "failed";
   }
 }
