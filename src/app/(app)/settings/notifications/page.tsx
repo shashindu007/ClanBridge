@@ -1,0 +1,171 @@
+// T5.5 + T5.9 — notification settings.
+//
+// Two separate things on one page, and the distinction matters:
+//
+//   DEVICE   whether this browser has a push subscription at all (T5.5). Per
+//            device, held by the browser, and the member may have three.
+//   KINDS    which notifications this member wants, on every device (T5.9).
+//            One row in notification_preferences, or none at all.
+//
+// A member who cannot work out why they get nothing is usually looking at a
+// device that was never subscribed while their kinds are all enabled, so the
+// page says which is which rather than presenting one merged switch.
+//
+// Not under [clanTag]: preferences are per member, not per clan. A member of
+// three clans has one set of these.
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { currentUserId } from "@/lib/auth";
+import { PushToggle } from "@/components/push-toggle";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+
+export const dynamic = "force-dynamic";
+
+const PATH = "/settings/notifications";
+
+/**
+ * The switchable kinds, in the order they are shown.
+ *
+ * `column` matches notification_preferences in migration 023 and the
+ * NotificationKind union in lib/push.ts. All three have to agree; there is no
+ * type that spans SQL and TypeScript, so they are listed here once and the page
+ * is built from the list rather than from three hand-written checkboxes.
+ */
+const KINDS = [
+  {
+    column: "announcements",
+    label: "Announcements",
+    hint: "A leader posts a notice.",
+  },
+  {
+    column: "cwl_reminders",
+    label: "CWL reminders",
+    hint: "A war day is ending and you still have an attack.",
+  },
+  {
+    column: "war_reminders",
+    label: "War reminders",
+    hint: "A clan war is ending and you still have an attack.",
+  },
+  {
+    column: "raid_reminders",
+    label: "Raid weekend reminders",
+    hint: "Raid weekend is closing and you have attacks left.",
+  },
+  {
+    column: "poll_reminders",
+    label: "Poll reminders",
+    hint: "A poll closes soon and you have not answered.",
+  },
+] as const;
+
+type PrefRow = Record<string, boolean> & { id?: string };
+
+export default async function NotificationSettingsPage() {
+  const supabase = await createClient();
+
+  const userId = await currentUserId(supabase);
+  if (!userId) redirect("/login");
+
+  const { data } = await supabase
+    .from("notification_preferences")
+    .select("*")
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  const prefs = (data ?? null) as PrefRow | null;
+
+  // Absent row means everything is enabled — the same rule push_targets() applies
+  // with coalesce(..., true). If these two ever disagree, the page shows one
+  // thing and the send path does another, which is the hardest kind of bug to
+  // be told about.
+  const enabled = (column: string): boolean => prefs?.[column] !== false;
+
+  async function save(formData: FormData) {
+    "use server";
+
+    const supabase = await createClient();
+    const userId = await currentUserId(supabase);
+    if (!userId) redirect("/login");
+
+    // An unchecked checkbox sends nothing at all, so every column has to be
+    // written explicitly from the known list. Reading only what arrived would
+    // make "turn everything off" indistinguishable from "submitted nothing".
+    const row: Record<string, unknown> = { user_id: userId };
+    for (const kind of KINDS) {
+      row[kind.column] = formData.get(kind.column) === "on";
+    }
+
+    // upsert on user_id, which 023 made unique among live rows. A member who has
+    // never opened this page has no row; one who has, updates it.
+    const { error } = await supabase
+      .from("notification_preferences")
+      .upsert(row, { onConflict: "user_id" });
+
+    if (error) {
+      redirect(`${PATH}?error=${encodeURIComponent(error.message)}`);
+    }
+
+    revalidatePath(PATH);
+    redirect(`${PATH}?saved=1`);
+  }
+
+  return (
+    <main className="mx-auto max-w-2xl space-y-8 p-8">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Notifications</h1>
+        <p className="text-muted-foreground text-sm">
+          Push notifications replace the WhatsApp messages nobody scrolls back
+          through.
+        </p>
+      </div>
+
+      <section className="space-y-4 rounded-lg border p-6">
+        <div className="space-y-1">
+          <h2 className="font-medium">This device</h2>
+          <p className="text-muted-foreground text-sm">
+            Turn notifications on for the browser or phone you are using now.
+          </p>
+        </div>
+
+        <PushToggle vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""} />
+      </section>
+
+      <section className="space-y-4 rounded-lg border p-6">
+        <div className="space-y-1">
+          <h2 className="font-medium">What to send</h2>
+          <p className="text-muted-foreground text-sm">
+            Applies to every device you have turned on. Everything is on until
+            you change it.
+          </p>
+        </div>
+
+        <form action={save} className="space-y-4">
+          {KINDS.map((kind) => (
+            <div key={kind.column} className="flex items-start gap-3">
+              <input
+                id={kind.column}
+                name={kind.column}
+                type="checkbox"
+                defaultChecked={enabled(kind.column)}
+                className="mt-1 size-4"
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor={kind.column} className="font-normal">
+                  {kind.label}
+                </Label>
+                <p className="text-muted-foreground text-xs">{kind.hint}</p>
+              </div>
+            </div>
+          ))}
+
+          <Button type="submit">Save</Button>
+        </form>
+      </section>
+    </main>
+  );
+}
