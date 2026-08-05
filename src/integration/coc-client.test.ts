@@ -261,10 +261,49 @@ describe("verifyPlayerToken (T3.3, R8)", () => {
     await expect(verifyPlayerToken("#PY0LQGRJ", MEMBER_TOKEN)).resolves.toBe(false);
   });
 
-  // A mistyped token is an ordinary outcome, not an incident. Throwing here
-  // would surface a 403 to the member as though something had broken.
-  it("treats a 403 as a wrong token, not a failure", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ reason: "accessDenied" }, 403));
+  // ── What a 403 actually means here ──────────────────────────────────────
+  //
+  // This was originally one test asserting that any 403 meant a mistyped token.
+  // That was a guess, and it was backwards. Observed against the live API:
+  //
+  //   wrong member token   200 with { status: "invalid" }   (the case above)
+  //   our key refused      403 with reason accessDenied.*
+  //
+  // So a 403 is almost always OUR problem, not the member's. Collapsing them
+  // told a member "that token was not accepted" when the real fault was a home
+  // IP that had changed overnight — they fetched a fresh token, failed again,
+  // and had nothing to go on. The reason field is what separates them.
+  it("throws when the 403 is our key being refused, not the member's token", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        {
+          reason: "accessDenied.invalidIp",
+          message: "Invalid authorization: API key does not allow access from IP 1.2.3.4",
+        },
+        403,
+      ),
+    );
+
+    await expect(verifyPlayerToken("#PY0LQGRJ", MEMBER_TOKEN)).rejects.toBeInstanceOf(
+      CocAuthError,
+    );
+  });
+
+  // The route maps CocAuthError to a 503 and logs it, so an operator sees the
+  // cause. The member must never be told to go and fetch another token when
+  // another token cannot possibly help.
+  it("names the IP problem in the error, so the fix is obvious", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ reason: "accessDenied.invalidIp" }, 403));
+
+    const error = await verifyPlayerToken("#PY0LQGRJ", MEMBER_TOKEN).catch((e) => e);
+    expect((error as Error).message).toMatch(/developer\.clashofclans\.com/);
+    expect((error as Error).message).toMatch(/invalidIp/);
+  });
+
+  // A 403 that is NOT an access denial stays an ordinary outcome. Unknown
+  // failure modes should not become incidents on the member's screen.
+  it("still treats a non-accessDenied 403 as a wrong token", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ reason: "notFound" }, 403));
     await expect(verifyPlayerToken("#PY0LQGRJ", MEMBER_TOKEN)).resolves.toBe(false);
   });
 

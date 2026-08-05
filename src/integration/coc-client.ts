@@ -320,9 +320,35 @@ export async function verifyPlayerToken(
         signal: controller.signal,
       });
 
-      // A wrong token is a 403 and an ordinary outcome, not an error — the
-      // member simply mistyped it. Anything else is a real failure.
-      if (response.status === 403) return false;
+      // A 403 here means one of two completely different things, and treating
+      // them as one is a bug that costs an evening.
+      //
+      //   accessDenied.invalidIp   OUR key is refused — its registered IP no
+      //                            longer matches. Nothing the member did.
+      //   anything else            the member's in-game token is wrong or has
+      //                            expired, which is ordinary and common.
+      //
+      // Returning false for both told a member "that token was not accepted"
+      // when the real fault was a home IP that changed overnight — so they
+      // fetched a fresh token, failed again, and had no way to learn why. The
+      // reason field is what separates them.
+      if (response.status === 403) {
+        // Body read before branching. It carries `reason` and `message`, never
+        // the member's token — R8 holds, and none of it is put into an error.
+        const denial = (await response
+          .json()
+          .catch(() => ({}))) as { reason?: string };
+
+        if (denial.reason?.startsWith("accessDenied")) {
+          throw new CocAuthError(
+            `Game API key rejected (${denial.reason}). Check the IP the key is ` +
+              `registered against at developer.clashofclans.com.`,
+            endpoint,
+          );
+        }
+
+        return false;
+      }
 
       if (!response.ok) {
         // Note what is NOT here: the token, or the response body, which echoes it.
