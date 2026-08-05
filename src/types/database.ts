@@ -2,7 +2,7 @@
 // DO NOT EDIT. Regenerate after every migration — a stale file type-checks
 // against a schema that no longer exists, which is worse than having none.
 //
-// 27 tables, generated 2026-08-04.
+// 28 tables, generated 2026-08-05.
 
 export type Json =
   | string
@@ -586,6 +586,44 @@ export interface Database {
           deleted_at?: string | null;
         };
       };
+      notification_preferences: {
+        Row: {
+          id: string;
+          user_id: string;
+          announcements: boolean;
+          cwl_reminders: boolean;
+          war_reminders: boolean;
+          raid_reminders: boolean;
+          poll_reminders: boolean;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          announcements?: boolean;
+          cwl_reminders?: boolean;
+          war_reminders?: boolean;
+          raid_reminders?: boolean;
+          poll_reminders?: boolean;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          announcements?: boolean;
+          cwl_reminders?: boolean;
+          war_reminders?: boolean;
+          raid_reminders?: boolean;
+          poll_reminders?: boolean;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
       players: {
         Row: {
           id: string;
@@ -1074,6 +1112,7 @@ export type CwlSeasonsRow = Database["public"]["Tables"]["cwl_seasons"]["Row"];
 export type CwlWarMembersRow = Database["public"]["Tables"]["cwl_war_members"]["Row"];
 export type CwlWarsRow = Database["public"]["Tables"]["cwl_wars"]["Row"];
 export type MemberSnapshotsRow = Database["public"]["Tables"]["member_snapshots"]["Row"];
+export type NotificationPreferencesRow = Database["public"]["Tables"]["notification_preferences"]["Row"];
 export type PlayersRow = Database["public"]["Tables"]["players"]["Row"];
 export type PollOptionsRow = Database["public"]["Tables"]["poll_options"]["Row"];
 export type PollResponsesRow = Database["public"]["Tables"]["poll_responses"]["Row"];

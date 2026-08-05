@@ -142,6 +142,11 @@ async function seedFixtures(h: Harness) {
       ('${USER_A}', 'https://push.example/a', 'k', 'k'),
       ('${USER_B}', 'https://push.example/b', 'k', 'k');
 
+    -- Only USER_A has a preference row. USER_B deliberately has none, so the
+    -- "absent row means every kind is enabled" rule in 023 is exercised by
+    -- push_targets() rather than merely asserted in a comment.
+    insert into notification_preferences (user_id) values ('${USER_A}');
+
     insert into sync_log (job_type, clan_id, status) values
       ('clans', '${CLAN_A}', 'success'),
       ('clans', '${CLAN_B}', 'success');
@@ -248,6 +253,13 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
     //   polls, poll_options          010, leadership opens a poll (T4B.2)
     //   poll_responses               010, a member answers for their own player
     //   cwl_rosters, ..._members     011, leadership builds the CWL plan (T4B.8)
+    //   push_subscriptions           023, a member registers their own device (T5.5)
+    //   notification_preferences     023, a member sets their own toggles (T5.9)
+    //
+    // The two from 023 are the only entries here whose subject and actor are the
+    // same person, which is why they are plain policies rather than the audited
+    // definer functions 021 and 022 argued for: neither row affects anyone else,
+    // and neither has a clan_id to record an audit entry against.
     //
     // Notably ABSENT and meant to stay absent: players and every cwl_* game-fact
     // table (R11 — written only by sync jobs), plus announcements and
@@ -258,9 +270,11 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
       "clans",
       "cwl_roster_members",
       "cwl_rosters",
+      "notification_preferences",
       "poll_options",
       "poll_responses",
       "polls",
+      "push_subscriptions",
       "users",
     ]);
   });

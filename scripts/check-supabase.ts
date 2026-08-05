@@ -48,6 +48,7 @@ const TABLES = [
   "base_layouts",
   "announcements",
   "push_subscriptions",
+  "notification_preferences", // 023
   "sync_log",
   "audit_log",
   "member_snapshots",
