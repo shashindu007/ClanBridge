@@ -78,6 +78,13 @@ export default async function AppLayout({
           )}
 
           <div className="ml-auto flex items-center gap-3 text-sm">
+            {/* Cross-clan, so it lives here rather than under a clan tag: a CWL
+                season is picked across every clan a leader runs (T4B.7). */}
+            {clans.some((c) => c.role === "leader" || c.role === "co-leader") && (
+              <Link href="/roster" className="hover:underline">
+                Rosters
+              </Link>
+            )}
             {showAdminLink && (
               <Link href="/admin" className="hover:underline">
                 Admin

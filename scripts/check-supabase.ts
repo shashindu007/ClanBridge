@@ -33,6 +33,11 @@ const TABLES = [
   "cwl_war_members", // 019
   "cwl_attacks",
   "cwl_bonuses",
+  "cwl_rosters", // 011
+  "cwl_roster_members", // 011
+  "polls", // 010
+  "poll_options", // 010
+  "poll_responses", // 010
   "wars",
   "war_targets",
   "war_attacks",

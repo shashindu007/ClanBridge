@@ -164,6 +164,15 @@ export default async function ClanDashboardPage({
               <Link href={`${href}/cwl`}>Clan War League</Link>
             </Button>
             <Button asChild variant="outline" size="sm">
+              <Link href={`${href}/polls`}>Polls</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`${href}/cwl/roster`}>CWL lineup</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`${href}/notices`}>Announcements</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
               <Link href="/search">Search all clans</Link>
             </Button>
           </div>
