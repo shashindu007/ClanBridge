@@ -53,6 +53,44 @@ function toPoint(row: Record<string, unknown>): SnapshotPoint {
 }
 
 /**
+ * The accounts behind a set of players, for notifying them (T4B.5, T5.6).
+ *
+ * A player is a village; a user is a login. They are not the same thing and the
+ * mapping is neither total nor unique: an unverified player has no user_id at
+ * all, and one member with two villages appears twice and must be notified once.
+ * Hence a Set, and hence the silent skip for nulls — a member who has not
+ * verified simply cannot be reached, which is not an error.
+ *
+ * R3 — filtered by clan as well as by id. Without it a caller holding a player
+ * id from another clan would resolve an account it has no business addressing.
+ */
+export async function userIdsForPlayers(
+  supabase: SupabaseClient,
+  clanId: string,
+  playerIds: readonly string[],
+): Promise<string[]> {
+  if (playerIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("players")
+    .select("user_id")
+    .eq("clan_id", clanId) // R3
+    .in("id", [...playerIds])
+    .is("deleted_at", null)
+    .not("user_id", "is", null);
+
+  if (error || !data) return [];
+
+  return [
+    ...new Set(
+      (data as Array<{ user_id: string | null }>)
+        .map((r) => r.user_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+}
+
+/**
  * The clan's players.
  *
  * `includeDeparted` is the directory's toggle. Default false: T0.11's fourth

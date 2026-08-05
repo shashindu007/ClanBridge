@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { requireClanByTag } from "@/lib/clans";
+import { notifyClan } from "@/lib/push";
 import { createClient } from "@/lib/supabase/server";
 import { announcementsForClan } from "@/repositories/clans";
 
@@ -70,9 +71,11 @@ export default async function NoticesPage({
     const supabase = await createClient();
     const clan = await requireClanByTag(supabase, clanTag);
 
+    const title = String(formData.get("title") ?? "");
+
     const { error } = await supabase.rpc("post_announcement", {
       p_clan: clan.id,
-      p_title: String(formData.get("title") ?? ""),
+      p_title: title,
       p_body: String(formData.get("body") ?? ""),
       p_pinned: formData.get("pinned") === "on",
     });
@@ -80,6 +83,29 @@ export default async function NoticesPage({
     if (error) {
       redirect(`${base}?error=${encodeURIComponent(error.message)}`);
     }
+
+    // T5.6 — the notice is posted; now tell people it exists.
+    //
+    // AFTER the write and never before it: the announcement is the thing that
+    // matters and it is already durable at this point. Sending first would risk
+    // notifying the clan about a post that then failed to save.
+    //
+    // Awaited rather than fired and forgotten. A Server Action's process may be
+    // frozen the moment it returns, so a dangling promise here is a notification
+    // that sometimes sends and sometimes does not, depending on how quickly the
+    // response is flushed — the worst of both.
+    //
+    // The BODY IS NOT IN THE PAYLOAD. A push notification is decrypted on a
+    // device this system does not control and lands on a lock screen; it names
+    // what happened and links to where to read it.
+    await notifyClan(supabase, clan.id, "announcements", {
+      title: `${clan.name} — new notice`,
+      body: title,
+      url: base,
+      // One collapse key per clan: two notices posted in a row leave one
+      // notification, and it is the newer one.
+      tag: `notice:${clan.id}`,
+    });
 
     revalidatePath(base);
     revalidatePath(`/${encodeURIComponent(clan.tag)}`); // the dashboard shows the latest
