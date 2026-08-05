@@ -626,7 +626,7 @@ planned route to its task.
 - [x] **T4.6 — Member CWL history**
   One player across seasons: attacks used, stars, missed days.
 
-- [ ] **T4.7 — Bonus medal recording**
+- [x] **T4.7 — Bonus medal recording**
   Leader and co-leader assign bonuses. Store `awarded_by`, `awarded_at`, and a note. Write to `audit_log`.
 
 - [x] **T4.8 — Data freshness indicator**
@@ -653,7 +653,7 @@ planned route to its task.
 
 ## Polls
 
-- [ ] **T4B.1 — Migration 010: poll tables**
+- [x] **T4B.1 — Migration 010: poll tables**
   ```
   polls           id, scope, clan_id, season, poll_type, title, question,
                   opens_at, closes_at, status, created_by, created_at, deleted_at
@@ -666,15 +666,15 @@ planned route to its task.
   Unique constraint on `poll_responses(poll_id, player_id)` — one answer per player, editable until the poll closes.
   **These tables are written by people only. No sync job touches them (R11).**
 
-- [ ] **T4B.2 — Create a poll**
+- [x] **T4B.2 — Create a poll**
   Leader and co-leader only. Title, question, options, open and close times, scope.
   A "CWL availability" template pre-fills the options: In / Out / Maybe.
 
-- [ ] **T4B.3 — Answer a poll**
+- [x] **T4B.3 — Answer a poll**
   Members see open polls on the dashboard and answer in one tap.
   Answers are editable until `closes_at`, then locked. Record `updated_at` so a leader can see late changes.
 
-- [ ] **T4B.4 — Poll results**
+- [x] **T4B.4 — Poll results**
   Live counts, and the full list of who answered what. Critically, also the list of **who has not answered** — that is the list the leader chases.
   Members see counts; leadership sees names.
 
@@ -683,7 +683,7 @@ planned route to its task.
 
 ## CWL roster selection
 
-- [ ] **T4B.6 — Migration 011: roster tables**
+- [x] **T4B.6 — Migration 011: roster tables**
   ```
   cwl_rosters        id, season, clan_id, status, slot_count,
                      created_by, published_at, created_at, deleted_at
@@ -693,37 +693,37 @@ planned route to its task.
   Unique constraint `cwl_roster_members(roster_id, player_id)`.
   Second constraint: a player may appear in only one roster per season across all three clans. Enforce it in the database, not only in the form — otherwise the leader will double-book someone and not find out until CWL starts.
 
-- [ ] **T4B.7 — Season availability pool**
+- [x] **T4B.7 — Season availability pool**
   One screen showing every player across all three clans for the season, with: their poll answer, current clan, Town Hall level, hero levels, last season's CWL performance, and their activity score from T3B.5.
   Filter and sort by any of these. This is the screen the leader makes the decision on, so it must show everything needed to decide, in one place.
 
-- [ ] **T4B.8 — Roster builder**
+- [x] **T4B.8 — Roster builder**
   Three roster panels, one per clan, each with its slot count. The leader assigns available players into clans.
   Show live: slots filled, slots remaining, and a warning if a player is already placed in another clan's roster.
   Saves continuously as `draft`. The leader will not finish this in one sitting.
 
-- [ ] **T4B.9 — Publish the roster**
+- [x] **T4B.9 — Publish the roster**
   Draft becomes published. Members can now see it. Push notification to selected and non-selected players.
   Publishing is recorded in `audit_log`. Republishing after a change records a new entry — members will ask when they were dropped, and the answer should not depend on memory.
 
-- [ ] **T4B.10 — Roster view for members**
+- [x] **T4B.10 — Roster view for members**
   Read-only published lineup per clan. Everyone can see it. This replaces the WhatsApp message that gets buried.
 
 ## After CWL
 
-- [ ] **T4B.11 — Plan versus reality**
+- [x] **T4B.11 — Plan versus reality**
   Compare `cwl_roster_members` against the roster the API reported. Show three groups: selected and played, selected but did not appear, appeared but was not selected.
   This is R12 in practice, and it is the report that ends arguments.
 
-- [ ] **T4B.12 — Contribution report**
+- [x] **T4B.12 — Contribution report**
   Per selected player for the season: attacks used out of 7, stars earned, average destruction, missed days, and bonus medal received or not.
   Sortable, exportable, and linked from the player profile (T3B.4).
 
-- [ ] **T4B.13 — Bonus medal suggestion**
+- [x] **T4B.13 — Bonus medal suggestion**
   Rank selected players by contribution and suggest an order for bonus allocation, using the rule confirmed at T0.11.
   **Suggestion only.** The leader always decides, and the decision is recorded with a note (T4.7).
 
-- [ ] **T4B.14 — Roster history**
+- [x] **T4B.14 — Roster history**
   Every past season's roster, poll, and contribution report, browsable by season and clan. Permanent.
   This is what the logbook was trying to be.
 
@@ -731,10 +731,10 @@ planned route to its task.
 
 # Phase 5 — Announcements and notifications
 
-- [ ] **T5.1 — Announcements table UI**
+- [x] **T5.1 — Announcements table UI**
   Post, pin, edit, soft delete. Leadership posts, everyone reads.
 
-- [ ] **T5.2 — Safe rendering**
+- [x] **T5.2 — Safe rendering**
   Plain text or restricted markdown. Never render raw HTML.
 
 - [ ] **T5.3 — PWA manifest and icons**
@@ -859,7 +859,7 @@ planned route to its task.
 - [ ] **T9.5 — Member guide**
   One page: how to sign up, verify, and install the app.
 
-- [ ] **T9.6 — Audit log viewer**
+- [x] **T9.6 — Audit log viewer**
   Leader-only page reading `audit_log`: who changed what and when, filterable by user and by entity.
   R4 says every write is recorded. Without a viewer that record is invisible, and the protection against a departing member is theoretical.
 
