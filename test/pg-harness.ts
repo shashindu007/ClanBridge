@@ -46,6 +46,7 @@ export const PHASE1_MIGRATIONS = [
   "021_announcements.sql", // T5.1 post/edit/remove as audited definer functions
   "022_cwl_bonus_awards.sql", // T4.7/T4B.13 bonus awards in the leader's order
   "023_notifications.sql", // T5.5/T5.9/T5.6 push write policies, preferences, push_targets()
+  "024_war.sql", // Phase 6 war_members, war lineups, and war_targets' write path
 ] as const;
 
 export function readMigration(file: string): string {
@@ -205,6 +206,9 @@ export const PHASE1_TABLES = [
   "sync_log",
   "users",
   "war_attacks",
+  "war_lineup_members",
+  "war_lineups",
+  "war_members",
   "war_targets",
   "wars",
 ] as const;

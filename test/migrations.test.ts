@@ -114,6 +114,21 @@ async function seedFixtures(h: Harness) {
       ('11111111-0000-4000-8000-000000000003', '${PLAYER_A}', 1, 3, 100.00),
       ('22222222-0000-4000-8000-000000000003', '${PLAYER_B}', 1, 1, 42.00);
 
+    -- 024 — the API's war roster. war_attacks above is what happened; this is
+    -- who could have. The missed-attack list is the difference (R12).
+    insert into war_members (war_id, player_id, map_position, th_level) values
+      ('11111111-0000-4000-8000-000000000003', '${PLAYER_A}', 1, 15),
+      ('22222222-0000-4000-8000-000000000003', '${PLAYER_B}', 1, 14);
+
+    -- 024 — and the leader's intended lineup, which no sync job may write.
+    insert into war_lineups (id, clan_id, size, status, created_by) values
+      ('11111111-0000-4000-8000-000000000009', '${CLAN_A}', 15, 'published', '${USER_A}'),
+      ('22222222-0000-4000-8000-000000000009', '${CLAN_B}', 15, 'published', '${USER_B}');
+
+    insert into war_lineup_members (lineup_id, player_id, position, added_by) values
+      ('11111111-0000-4000-8000-000000000009', '${PLAYER_A}', 1, '${USER_A}'),
+      ('22222222-0000-4000-8000-000000000009', '${PLAYER_B}', 1, '${USER_B}');
+
     insert into raid_seasons (id, clan_id, start_time) values
       ('11111111-0000-4000-8000-000000000004', '${CLAN_A}', now()),
       ('22222222-0000-4000-8000-000000000004', '${CLAN_B}', now());
@@ -255,16 +270,22 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
     //   cwl_rosters, ..._members     011, leadership builds the CWL plan (T4B.8)
     //   push_subscriptions           023, a member registers their own device (T5.5)
     //   notification_preferences     023, a member sets their own toggles (T5.9)
+    //   war_lineups, ..._members     024, leadership plans a war lineup (T6.8)
     //
     // The two from 023 are the only entries here whose subject and actor are the
     // same person, which is why they are plain policies rather than the audited
     // definer functions 021 and 022 argued for: neither row affects anyone else,
     // and neither has a clan_id to record an audit entry against.
     //
-    // Notably ABSENT and meant to stay absent: players and every cwl_* game-fact
-    // table (R11 — written only by sync jobs), plus announcements and
-    // cwl_bonuses, whose writes go through audited definer functions in 021/022
-    // so that the write and its audit row cannot come apart.
+    // Notably ABSENT and meant to stay absent: players and every cwl_* and war_*
+    // GAME-FACT table (R11 — written only by sync jobs), including war_members,
+    // plus announcements, cwl_bonuses and war_targets, whose writes go through
+    // audited definer functions in 021/022/024 so that the write and its audit
+    // row cannot come apart.
+    //
+    // war_targets is the one worth pausing on: it is a human decision, so it
+    // could have had a policy — but assigning a target must be audited (R4), and
+    // 024 makes it a definer function for the reason 021 states.
     expect(res.rows.map((r) => r.tablename)).toEqual([
       "clan_roles",
       "clans",
@@ -276,6 +297,8 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
       "polls",
       "push_subscriptions",
       "users",
+      "war_lineup_members",
+      "war_lineups",
     ]);
   });
 });
