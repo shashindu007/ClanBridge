@@ -1,4 +1,6 @@
 # T2.7 — Clan and member sync.
+# T6.2 — and the clan war sync, as a second step. See the note at that step for
+#        why it is not the separate 15-minute workflow the plan asked for.
 #
 # R2 — sync runs here, never on Vercel. Vercel's free function timeout kills a
 # long sync partway through and leaves half-written data.
@@ -40,11 +42,8 @@ jobs:
           node-version: "22"
           # Minute budget: the repo is private, so the allowance is 2,000
           # minutes/month. Uncached `npm ci` is most of each run's wall time.
-          # At hourly this job is ~720 runs/month and comfortably inside budget.
-          #
-          # T6.2's 15-minute war sync is NOT: 2,880 runs would exceed the whole
-          # allowance on its own. Solve that when writing sync-war.yml — either
-          # widen the interval or have the job exit before install on notInWar.
+          # At hourly this job is ~720 runs/month and comfortably inside budget,
+          # and the war step below rides along for the cost of one API call.
           cache: npm
 
       - run: npm ci
@@ -58,4 +57,40 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           # Explicitly false. Defaulting to fixtures in CI would make this job
           # report success every hour while writing nothing real.
+          USE_FIXTURES: "false"
+
+      # ───────────────────────────────────────────────────────────────────────
+      # T6.2 — the war sync, hourly, HERE RATHER THAN IN ITS OWN WORKFLOW.
+      #
+      # IMPLEMENTATION.md asks for every 15 minutes. That is ~2,880 runs/month,
+      # and GitHub bills each run rounded up to the minute — more than the whole
+      # 2,000-minute private-repo allowance on its own, before sync-clans (~720),
+      # sync-cwl (~360) and sync-health (~720) are counted. The plan is compared
+      # to reality, not replaced by it (R12), so the deviation is recorded here
+      # and in IMPLEMENTATION.md §0 rather than the task text being edited.
+      #
+      # Hourly loses no data. Unlike CWL — where a missed tick during league week
+      # is a season gone permanently — `/clans/{tag}/currentwar` reports the FULL
+      # CUMULATIVE state of the war on every call, so a skipped tick costs
+      # freshness on the board and nothing else. A war lasts 24h of preparation
+      # plus 24h of battle; hourly gives it roughly 48 chances to be captured.
+      #
+      # As a step rather than a workflow because ~90% of a run's wall time is
+      # checkout, setup-node and `npm ci`. Those are already paid for by the time
+      # this line runs, so the marginal cost is one throttled API call per clan.
+      #
+      # `if: always()` — the two jobs are independent. A clan sync that fails
+      # must not also cost you the war that is running right now, and a war sync
+      # that fails must not hide a clan sync that worked. Each writes its own
+      # sync_log row (R9) and fires its own T5.8 alert, so neither disappears;
+      # the step's exit code still fails the run either way.
+      # ───────────────────────────────────────────────────────────────────────
+      - name: Sync the current clan war
+        if: always()
+        run: npm run sync:war
+        env:
+          COC_API_TOKEN: ${{ secrets.COC_API_TOKEN }}
+          COC_API_BASE: ${{ secrets.COC_API_BASE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           USE_FIXTURES: "false"

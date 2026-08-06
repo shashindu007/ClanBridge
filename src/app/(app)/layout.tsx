@@ -90,6 +90,9 @@ export default async function AppLayout({
                 Admin
               </Link>
             )}
+            <Link href="/settings/notifications" className="hover:underline">
+              Notifications
+            </Link>
             <Link href="/guide" className="hover:underline">
               Help
             </Link>

@@ -114,6 +114,28 @@ async function seedFixtures(h: Harness) {
       ('11111111-0000-4000-8000-000000000003', '${PLAYER_A}', 1, 3, 100.00),
       ('22222222-0000-4000-8000-000000000003', '${PLAYER_B}', 1, 1, 42.00);
 
+    -- 024 — the API's war roster. war_attacks above is what happened; this is
+    -- who could have. The missed-attack list is the difference (R12).
+    insert into war_members (war_id, player_id, map_position, th_level) values
+      ('11111111-0000-4000-8000-000000000003', '${PLAYER_A}', 1, 15),
+      ('22222222-0000-4000-8000-000000000003', '${PLAYER_B}', 1, 14);
+
+    -- 026 — the other side. No players row and no FK to one: they are not
+    -- members of any of the three clans, and putting them in the players table
+    -- would place strangers in the member directory permanently (R4).
+    insert into war_opponent_members (war_id, tag, name, map_position, th_level) values
+      ('11111111-0000-4000-8000-000000000003', '#C2V89UGL', 'Opponent A', 1, 15),
+      ('22222222-0000-4000-8000-000000000003', '#C2V89UGJ', 'Opponent B', 1, 14);
+
+    -- 024 — and the leader's intended lineup, which no sync job may write.
+    insert into war_lineups (id, clan_id, size, status, created_by) values
+      ('11111111-0000-4000-8000-000000000009', '${CLAN_A}', 15, 'published', '${USER_A}'),
+      ('22222222-0000-4000-8000-000000000009', '${CLAN_B}', 15, 'published', '${USER_B}');
+
+    insert into war_lineup_members (lineup_id, player_id, position, added_by) values
+      ('11111111-0000-4000-8000-000000000009', '${PLAYER_A}', 1, '${USER_A}'),
+      ('22222222-0000-4000-8000-000000000009', '${PLAYER_B}', 1, '${USER_B}');
+
     insert into raid_seasons (id, clan_id, start_time) values
       ('11111111-0000-4000-8000-000000000004', '${CLAN_A}', now()),
       ('22222222-0000-4000-8000-000000000004', '${CLAN_B}', now());
@@ -141,6 +163,11 @@ async function seedFixtures(h: Harness) {
     insert into push_subscriptions (user_id, endpoint, p256dh, auth) values
       ('${USER_A}', 'https://push.example/a', 'k', 'k'),
       ('${USER_B}', 'https://push.example/b', 'k', 'k');
+
+    -- Only USER_A has a preference row. USER_B deliberately has none, so the
+    -- "absent row means every kind is enabled" rule in 023 is exercised by
+    -- push_targets() rather than merely asserted in a comment.
+    insert into notification_preferences (user_id) values ('${USER_A}');
 
     insert into sync_log (job_type, clan_id, status) values
       ('clans', '${CLAN_A}', 'success'),
@@ -248,20 +275,37 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
     //   polls, poll_options          010, leadership opens a poll (T4B.2)
     //   poll_responses               010, a member answers for their own player
     //   cwl_rosters, ..._members     011, leadership builds the CWL plan (T4B.8)
+    //   push_subscriptions           023, a member registers their own device (T5.5)
+    //   notification_preferences     023, a member sets their own toggles (T5.9)
+    //   war_lineups, ..._members     024, leadership plans a war lineup (T6.8)
     //
-    // Notably ABSENT and meant to stay absent: players and every cwl_* game-fact
-    // table (R11 — written only by sync jobs), plus announcements and
-    // cwl_bonuses, whose writes go through audited definer functions in 021/022
-    // so that the write and its audit row cannot come apart.
+    // The two from 023 are the only entries here whose subject and actor are the
+    // same person, which is why they are plain policies rather than the audited
+    // definer functions 021 and 022 argued for: neither row affects anyone else,
+    // and neither has a clan_id to record an audit entry against.
+    //
+    // Notably ABSENT and meant to stay absent: players and every cwl_* and war_*
+    // GAME-FACT table (R11 — written only by sync jobs), including war_members,
+    // plus announcements, cwl_bonuses and war_targets, whose writes go through
+    // audited definer functions in 021/022/024 so that the write and its audit
+    // row cannot come apart.
+    //
+    // war_targets is the one worth pausing on: it is a human decision, so it
+    // could have had a policy — but assigning a target must be audited (R4), and
+    // 024 makes it a definer function for the reason 021 states.
     expect(res.rows.map((r) => r.tablename)).toEqual([
       "clan_roles",
       "clans",
       "cwl_roster_members",
       "cwl_rosters",
+      "notification_preferences",
       "poll_options",
       "poll_responses",
       "polls",
+      "push_subscriptions",
       "users",
+      "war_lineup_members",
+      "war_lineups",
     ]);
   });
 });
@@ -377,6 +421,11 @@ describe("T3.7 — a member of clan A cannot read clan B", () => {
     "wars",
     "war_targets",
     "war_attacks",
+    // Both reach clan_id through a one-level join to `wars` (024, 026). Absent
+    // from this list until now, which is how the coverage rots: a table arrives
+    // with a policy nobody ever asserts.
+    "war_members",
+    "war_opponent_members",
     "raid_seasons",
     "raid_participants",
     "clan_games",

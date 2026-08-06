@@ -39,6 +39,10 @@ const CLAN_SCOPED = [
   "clan_roles",
   "cwl_seasons",
   "wars",
+  // 024. Holds the leader's intended war lineup, and a draft on it is invisible
+  // even to the members of its own clan — so a leak across clans would be a leak
+  // of something nobody outside leadership was ever meant to see.
+  "war_lineups",
   "announcements",
   "base_layouts",
   "member_snapshots",
@@ -115,6 +119,16 @@ describe("T3.7 — cross-clan authorisation", () => {
 
       insert into wars (clan_id, start_time) values
         ('${CLAN_A}', now()), ('${CLAN_B}', now());
+
+      -- PUBLISHED on both sides, deliberately. The CLAN_SCOPED sweep asserts a
+      -- member sees their OWN clan's rows and none of clan B's, and a draft is
+      -- invisible to members of its own clan too (024) — which would satisfy
+      -- "sees nothing from clan B" for the wrong reason and stop testing the
+      -- clan boundary at all. Draft invisibility has its own case in
+      -- test/war-schema.test.ts.
+      insert into war_lineups (clan_id, size, status, created_by) values
+        ('${CLAN_A}', 15, 'published', '${LEADER_A}'),
+        ('${CLAN_B}', 15, 'published', '${MEMBER_B}');
 
       insert into announcements (clan_id, author_id, title, body) values
         ('${CLAN_A}', '${LEADER_A}', 'A notice', 'body'),

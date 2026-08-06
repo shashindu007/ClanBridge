@@ -20,9 +20,28 @@ pass, and `npm run typecheck` and `npm run lint` are clean — not that it has b
 run against the live game.
 
 **Done:** Phase 1 entire · Phase 2 except T2.1 · Phase 3 entire · **Phase 3B entire** ·
-T4.1–T4.6 and T4.8. Phase 4B onward is placeholders that name their own task ID.
+T4.1–T4.8 · **Phase 4B entire** · **Phase 5 except the CWL half of T5.6** ·
+**Phase 6 entire** · T9.6.
+Phases 7 and 8 are placeholders that name their own task ID.
 
-**Three unticked boxes matter more than the rest:**
+**Nothing in the application has ever run against real data.** Every phase above
+was proven against synthetic fixtures and PGlite. The live database has 023 and
+everything before it applied and RLS verified against real Supabase — and 0 rows
+in every table, including `users`. Nobody has signed in yet, which is why T0.2
+below is where the whole chain starts.
+
+**024, 025 and 026 have not been applied to the live database.** They exist, they
+pass against PGlite, and `npm run migrations:apply` has not been run since Phase 6
+landed. Nothing reads them yet because nothing reads anything yet, but the war
+module is broken against live Supabase until it is.
+
+**Four unticked boxes matter more than the rest:**
+
+- **T0.2 — no clan exists in the database.** Clans are added at `/admin` by the
+  platform admin after signing in (migration 015), and `clans` is the one source
+  of truth every sync job and `fixtures:capture` reads through `activeClans()`.
+  It is blocked only by the first sign-in never having happened. Order: sign in,
+  claim ownership, add clans, "Make me leader".
 
 - **T2.1 — the fixtures are synthetic.** They were written by hand to match the
   schemas, so the schemas cannot fail them. The suite prints `6/6 fixtures are
@@ -35,17 +54,64 @@ T4.1–T4.6 and T4.8. Phase 4B onward is placeholders that name their own task I
   means signup is blocked until T0.9 is done.
 - **T0.5 — `COC_API_BASE` still points at the direct API**, not the RoyaleAPI
   proxy, so no key registered against the proxy IP exists yet. No sync workflow
-  has had a green run.
+  has had a green run. **This does not block T2.1**: `fixtures:capture` runs
+  locally against the dev key and your home IP. T0.5 blocks the scheduled runs in
+  GitHub Actions, which has no fixed egress IP — nothing else.
 
 **Where the build deviated from this document, deliberately:**
 
-- **20 migrations, not 12.** 013–020 fix holes this plan did not anticipate.
+- **26 migrations, not 12.** 013–026 fix holes this plan did not anticipate.
   014 restored missing `service_role` grants that would have failed every sync
   job. 015 breaks the clan↔role↔leader bootstrap cycle that made a first sign-in
   impossible, which is also why T1.10's hardcoded seed was replaced by
   leader-managed clans at `/admin`. 019 adds `cwl_war_members`, the API roster
   that missed attacks are derived from — Phase 4 had nowhere to put it. 020 adds
   the clan detail the sync had been fetching and discarding hourly since T2.4.
+  **024 supersedes 012**, whose number is retired rather than reused so that
+  apply order stays equal to numeric order, as 009's was.
+- **The same discard bug, three times, on three endpoints.** 019 found the CWL
+  roster being fetched and dropped; 020 found the clan detail; **026 found the
+  opposing war lineup**. Each time the API had already sent the data and the sync
+  had nowhere to put it, and each time the feature that needed it — missed
+  attacks, the clan dashboard, and now T6.3's "both rosters" — could not be
+  built until a table existed. Worth suspecting on every remaining endpoint:
+  the raid and Clan Games responses in Phase 7 carry more than their tables hold.
+- **`war_opponent_members` is deliberately not `players` (026).** The obvious
+  shortcut is to create player rows for the opposition and reuse every existing
+  join. That would put fifty strangers per war into the member directory, the
+  donation report, the inactivity list, the cross-clan search and the roster
+  pool — permanently, because R4 means the correction is a `deleted_at` and never
+  a delete.
+- **T6.4's member claim needed its own migration (025).** 024 made target
+  assignment leadership-only, which is right, and left "members may claim an
+  unassigned target" with no write path at all. A claim is not an assignment with
+  a weaker role check: you claim only for yourself, only a base nobody else
+  holds, never over what leadership assigned you, and it audits under a distinct
+  action so "did the leader put me on base 7, or did I?" stays answerable.
+- **The war sync runs hourly inside `sync-clans`, not every 15 minutes in its
+  own workflow (T6.2).** Every-15-minutes is ~2,880 runs/month against a
+  2,000-minute private-repo allowance, before `sync-clans` (~720), `sync-cwl`
+  (~360) and `sync-health` (~720) are counted; the stub for `sync-war.yml` had
+  already worked that out and left it unresolved. As a step it costs the marginal
+  API call rather than another checkout and `npm ci`. Nothing is lost: unlike
+  CWL, `/currentwar` reports the full cumulative state of the war, so a missed
+  tick costs freshness on the board and never history. `sync-war.yml` remains as
+  `workflow_dispatch` for the manual mid-war refresh.
+- **006 shipped select policies only, and every write since has paid for it.**
+  021 (announcements), 022 (`cwl_bonuses` had existed since 002 and had never
+  been writable) and 023 (`push_subscriptions`, identical hole) each had to add
+  the write path for a table that already existed. 023 also restates what 014
+  learned: **a policy is not a grant.** Postgres checks the table privilege
+  first, so a missing `grant insert` fails with "permission denied for table"
+  and the policy is never evaluated at all — an error that reads like a bug in
+  the route rather than a missing line in a migration.
+- **Rows a member owns, with no clan, use plain policies — not definer
+  functions.** 021 and 022 argued for definer functions so a write and its
+  `audit_log` row cannot come apart. 023 deliberately does not, because
+  `audit_log`'s read policy is `clan_id in (select auth_leader_clan_ids())` and
+  `null in (...)` is never true: an audit row for a push subscription would be
+  invisible to every reader forever. Writing rows nobody can read is worse than
+  not writing them.
 - **A season total is the last cumulative reading, not a sum of deltas.** The
   original plan for T3B.3 said to difference across the season. That undercounts:
   `donations` is cumulative since the monthly reset, so the newest reading in a
@@ -234,6 +300,7 @@ clanbridge/
 │   ├── ci.yml               typecheck · lint · vitest, every push. No secrets
 │   ├── sync-clans.yml       T2.7  hourly
 │   ├── sync-cwl.yml         T4.2  every 2h
+│   ├── sync-health.yml      T5.8  hourly watchdog — needs no game API key
 │   ├── sync-war.yml         T6.2  every 15m
 │   ├── sync-raids.yml       T7.2  daily
 │   └── backup.yml           T2.8  weekly pg_dump
@@ -243,8 +310,8 @@ clanbridge/
 │
 ├── public/
 │   ├── manifest.json        T5.3
-│   ├── sw.js                T5.4
-│   └── icons/
+│   ├── sw.js                T5.4  push + notificationclick. Never cache-first
+│   └── icons/               T5.3  generated by scripts/make-icons.ts
 │
 ├── scripts/                 tooling, not in the original plan
 │   ├── apply-migrations.ts  applies supabase/migrations/ over the wire
@@ -252,10 +319,13 @@ clanbridge/
 │   ├── check-supabase.ts    connectivity and schema audit
 │   ├── gen-db-types.ts      → src/types/database.ts, from the live schema
 │   ├── capture-fixtures.ts  T2.1  fetch + scrub, in one step
-│   └── scrub-fixtures.ts    replaces names and tags, keeps every shape
+│   ├── scrub-fixtures.ts    replaces names and tags, keeps every shape
+│   └── make-icons.ts        T5.3  writes public/icons/ — no image dependency
 │
 ├── scripts/sync/
-│   ├── shared.ts            T2.5  sync_log helpers (R9)
+│   ├── shared.ts            T2.5  sync_log helpers (R9) + T5.8 failure alert
+│   ├── alerts.ts            T5.8  who is told, and what counts as stale
+│   ├── health.ts            T5.8  the watchdog. Nothing reports its own absence
 │   ├── clans.ts             T2.6 + T2.9 + T3.9
 │   ├── cwl.ts               T4.1
 │   ├── war.ts               T6.1
@@ -284,15 +354,23 @@ clanbridge/
 │       ├── 016_player_verification.sql T3.3  link_verified_player()
 │       ├── 017_approval_grants_membership.sql  approve + audit, atomically
 │       ├── 018_admin_may_approve_clanless.sql
-│       └── 019_cwl_war_members.sql    T4.1   API roster; misses derive from it
+│       ├── 019_cwl_war_members.sql    T4.1   API roster; misses derive from it
+│       ├── 020_clan_details.sql       T3B.0  level, league, war-log visibility
+│       ├── 021_announcements.sql      T5.1   audited definer functions
+│       ├── 022_cwl_bonus_awards.sql   T4.7   the leader's own award order
+│       └── 023_notifications.sql      T5.5/T5.9/T5.6  push writes, prefs,
+│                                             push_targets(). A policy is not a grant
 │
 ├── test/                    QA — runs the migrations against real Postgres (PGlite)
 │   ├── pg-harness.ts        boots PGlite
 │   ├── pglite-supabase.ts   supabase-js stand-in over it — no embedded selects
 │   ├── migrations.test.ts
 │   ├── authorisation.test.ts   T3.7, automated
+│   ├── notifications.test.ts   023 — policies, prefs, push_targets authority
+│   ├── push.test.ts            T5.6/T5.8 — web-push mocked; 410 vs 500, staleness
 │   └── auth · verification · verify-route · platform-admin · sync-clans ·
-│       sync-cwl · sync-shared · cwl-services · scrub-fixtures  .test.ts
+│       sync-cwl · sync-shared · cwl-services · member-search · member-services ·
+│       announcements · polls-rosters · phase4b-services · scrub-fixtures  .test.ts
 │
 └── src/
     ├── middleware.ts        T3.2  must sit at src/ root
@@ -314,12 +392,16 @@ clanbridge/
     │   │   │   ├── raids/  games/     T7.3, T7.5
     │   │   │   ├── layouts/           T8.2-8.4
     │   │   │   └── notices/           T5.1
+    │   │   ├── settings/notifications/  T5.5 + T5.9  device on/off, and kinds
     │   │   └── admin/                 T9.2, T9.6
     │   └── api/
     │       ├── verify/route.ts            T3.3
     │       └── push/subscribe/route.ts    T5.5
     │
-    ├── components/ui/       shadcn copies land here
+    ├── components/
+    │   ├── push-toggle.tsx  T5.5  asks permission on a click, never on load
+    │   ├── data-freshness.tsx  T4.8
+    │   └── ui/              shadcn copies land here
     │
     ├── integration/         R7 — raw API shapes stop here
     │   ├── coc-client.ts    T2.3
@@ -333,6 +415,7 @@ clanbridge/
     │   ├── coc-time.ts      T1.13  (+ .test.ts)
     │   ├── auth.ts          T3.5   requireRole()
     │   ├── rate-limit.ts    T3.3, T9.7
+    │   ├── push.ts          T5.6   notifyClan / notifyUsers, 410 → soft delete
     │   ├── audit.ts         R4
     │   └── utils.ts         cn() for shadcn
     │
@@ -678,8 +761,17 @@ planned route to its task.
   Live counts, and the full list of who answered what. Critically, also the list of **who has not answered** — that is the list the leader chases.
   Members see counts; leadership sees names.
 
-- [ ] **T4B.5 — Poll reminders**
+- [x] **T4B.5 — Poll reminders**
   Push to non-responders before the poll closes. Reuses T5.6.
+  A "Remind these N" button on the results page, shown only while the poll is
+  open. The chase list is recomputed in the action rather than posted from the
+  page: a hidden field would let a caller name anyone, and it would be stale the
+  moment somebody answers while the leader is reading. Only the non-responders
+  are notified — reminding everyone teaches the people who answered on time that
+  answering does not stop the reminders, and they stop answering.
+  The result is reported back, **including when it is zero**, because "reminded
+  0" and "reminded 30" look identical otherwise and the difference is whether
+  anybody has notifications turned on at all.
 
 ## CWL roster selection
 
@@ -737,28 +829,76 @@ planned route to its task.
 - [x] **T5.2 — Safe rendering**
   Plain text or restricted markdown. Never render raw HTML.
 
-- [ ] **T5.3 — PWA manifest and icons**
+- [x] **T5.3 — PWA manifest and icons**
   `manifest.json`, icons at 192 and 512 px, `display: standalone`.
+  The icons are generated by `npm run icons`, not committed as opaque binaries:
+  section 3 rejects `sharp`, and pulling in an image library for three files that
+  change once a year would be worse. `scripts/make-icons.ts` writes valid PNGs
+  with nothing but Node's `zlib`. **It is a competent placeholder, not a brand** —
+  replace it when there is a real design; nothing depends on its appearance.
 
-- [ ] **T5.4 — Service worker**
+- [x] **T5.4 — Service worker**
   Handle push events and notification clicks.
+  A malformed or empty payload still shows a notification: finishing the handler
+  without one makes Chrome display its own "site updated in the background",
+  which looks broken and cannot be acted on. `notificationclick` focuses an
+  existing window before opening a new one, so three taps do not leave three
+  copies of the app. `pushsubscriptionchange` re-subscribes and reports the new
+  endpoint — the push service can revoke one without telling us.
 
-- [ ] **T5.5 — Push subscription flow**
+- [x] **T5.5 — Push subscription flow**
   Ask permission after login, store in `push_subscriptions`.
+  **The prompt is behind a click, never on load.** An unprompted prompt is denied
+  in about a second, and a denial is close to permanent — browsers remember it
+  and the way back is through settings most members will never find.
+  Needed migration 023 first: the table had existed since 004 with a select
+  policy and nothing else.
 
-- [ ] **T5.6 — Push sending**
+- [~] **T5.6 — Push sending**
   Triggered from sync jobs: new announcement, CWL day ending with unused attacks.
+  `lib/push.ts` is done and wired to **announcements** (T5.1) and **poll
+  reminders** (T4B.5). **The CWL day-ending reminder is NOT built** — it is the
+  one part of this task still outstanding, and it is the most valuable
+  notification in the system, because it is the only one that changes an outcome
+  instead of reporting one. It needs: wars in `state = 'inWar'` whose `end_time`
+  is a few hours out, `cwl_war_members` minus `cwl_attacks` for each, those
+  players mapped to accounts, then `notifyUsers(..., 'cwl_reminders', ...)`.
+  Read the API roster (019), never the leader's plan (011) — R12.
+  Sent from the application rather than only from a job, where a person triggered
+  it: routing "the roster is published" through a two-hourly job means the
+  notification arrives after the member has already heard it in WhatsApp.
 
-- [ ] **T5.7 — Install instructions page**
+- [x] **T5.7 — Install instructions page**
   Android: Chrome menu → Add to Home Screen.
   iPhone: Safari share → Add to Home Screen. Push only works after installing.
+  The iPhone section is the point of this task: iOS exposes the push APIs *only*
+  to a site installed from Safari, so before installation there is nothing to
+  detect and nothing to explain at the moment it matters. It has to be written
+  down and linked to, which is what `/guide` is for.
 
-- [ ] **T5.8 — Sync failure alert**
+- [x] **T5.8 — Sync failure alert**
   When a sync job fails, or when the last successful run for a job type is older than its threshold, push a notification to the leader and to you.
   T4.8 tells you something is wrong if you happen to look at a page. This tells you without looking, which is the version that actually saves a CWL season.
+  Two halves, and **the second is the one that matters**: a job that crashes
+  alerts from its own failure path, but a job whose schedule stopped firing
+  produces no signal of any kind. Nothing can report its own absence, so
+  `sync-health.yml` watches from outside. It needs no game API key, which is
+  deliberate — it must keep working when the others do not.
+  Not preference-filtered (T5.9): an operational alert to the two people who can
+  fix it is not something to opt out of. A job that has *never* succeeded is not
+  flagged, or a fresh install would alert on day one and be disbelieved on day
+  ninety.
 
-- [ ] **T5.9 — Notification preferences**
+- [x] **T5.9 — Notification preferences**
   Per-member toggles: war reminders, CWL reminders, raid reminders, announcements. Without these, a member who finds the notifications annoying will disable them entirely and stop receiving the important ones.
+  **Every default is true, and an absent row means the same thing.** The send path
+  left-joins and coalesces to true, so a member who never opens the settings page
+  still gets the CWL reminder. The opposite default is the version where the
+  feature silently reaches nobody while reporting success, which is
+  indistinguishable from broken.
+  Device on/off and kinds are shown as separate things on `/settings/notifications`,
+  because a member seeing nothing is usually looking at a device that was never
+  subscribed while all their kinds are enabled.
 
 ---
 
@@ -766,40 +906,66 @@ planned route to its task.
 
 *Reuses phase 4 almost entirely.*
 
-- [ ] **T6.1 — `scripts/sync/war.ts`**
+- [x] **T6.1 — `scripts/sync/war.ts`**
   Handle `notInWar`, `preparation`, `inWar`, `warEnded` explicitly (R10).
+  Reuses `chooseSides`, `warResult`, `storedState` and `resolvePlayers` from
+  `scripts/sync/cwl.ts` rather than copying them — a second copy of "which side
+  is us" is a second place for it to drift, and drift there records every result
+  backwards with nothing to notice.
+  One guard has no CWL equivalent: **`/currentwar` can return a league war during
+  CWL week.** It carries a `warTag`, and writing it into `wars` double-counts the
+  same war against `cwl_wars` in both war history and the contribution report.
 
-- [ ] **T6.2 — `sync-war.yml`**
-  Every 15 minutes.
+- [x] **T6.2 — `sync-war.yml`**
+  ~~Every 15 minutes.~~ **Hourly, as a second step of `sync-clans.yml`.** See the
+  deviation note in §0 for the Actions-minutes arithmetic. `sync-war.yml` is
+  `workflow_dispatch` only, for the manual mid-war refresh.
 
-- [ ] **T6.3 — War board page**
+- [x] **T6.3 — War board page**
   Both rosters, attack status per base, live from the database.
+  **Needed migration 026.** Only our own roster was stored; the opposing lineup
+  arrived on the same response and was discarded, which made "both rosters"
+  impossible and left target assignment as a bare list of numbers.
 
-- [ ] **T6.4 — Target assignment**
+- [x] **T6.4 — Target assignment**
   Leadership assigns targets, writes to `war_targets`. Members may claim an unassigned target.
   Keep plan and outcome separate — never write results into `war_targets`.
+  024 delivered the leadership half; **the member claim needed 025**, which 024
+  had left with no write path at all.
 
-- [ ] **T6.5 — Plan versus outcome view**
+- [x] **T6.5 — Plan versus outcome view**
   Show assigned target beside what actually happened.
+  Adjacent columns on the war board's roster table. Never one reconciled column.
 
-- [ ] **T6.6 — War history**
+- [x] **T6.6 — War history**
 
-- [ ] **T6.7 — War availability poll**
+- [x] **T6.7 — War availability poll**
   Reuses the poll tables from T4B.1 with `poll_type = war_availability`, scoped to one clan.
   Leader opens it before declaring war. Members answer in one tap. The leader sees the count before choosing the war size.
+  Phase 4B had already built all of this except the last clause, and the last
+  clause is the feature: the count is rendered **on the lineup page beside the
+  size selector**, because a count on one screen and a size box on another is a
+  memory test the leader will fail by guessing.
 
-- [ ] **T6.8 — War lineup selection**
-  Migration 012: `war_lineups`, `war_lineup_members` — same shape as the CWL roster tables.
+- [x] **T6.8 — War lineup selection**
+  ~~Migration 012~~ **migration 024**: `war_lineups`, `war_lineup_members` — same shape as the CWL roster tables.
   The leader picks the lineup from those available. Published to members before the war is declared in game.
   The API cannot tell you who *will* be in a war, only who is. So this is entirely human-decision data (R11).
 
-- [ ] **T6.9 — War contribution report**
+- [x] **T6.9 — War contribution report**
   Per member per war: attacks used, stars, destruction, and whether they followed their assigned target.
   Aggregate view across the last N wars, linked from the player profile.
+  **A war gives two attacks, so CWL's boolean `missed` is wrong here.** Fifteen
+  members each leaving one attack unused is a whole roster's worth of attacks,
+  and a boolean reports every one of them as fine. The unit is the attack.
 
-- [ ] **T6.10 — War plan versus reality**
+- [x] **T6.10 — War plan versus reality**
   Compare `war_lineup_members` against the roster the API reported, and `war_targets` against `war_attacks`.
   Same principle as T4B.11 (R12).
+  "Ignored their target" is **not** the complement of "followed it" — the gap is
+  "cannot tell yet", which is the common case mid-war. It is counted and shown
+  separately, because a report saying six people disobeyed when five had simply
+  not attacked is worse than no report.
 
 ---
 

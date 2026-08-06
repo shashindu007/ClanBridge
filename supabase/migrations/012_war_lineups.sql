@@ -1,12 +1,23 @@
--- T6.8 — War lineup tables
--- 
--- war_lineups        id, war_id, clan_id, status, size,
---                    created_by, published_at, created_at, deleted_at
--- war_lineup_members id, lineup_id, player_id, position, added_by, added_at
--- 
--- Same shape as the CWL roster tables (011). Unique (lineup_id, player_id).
--- 
--- R11 — human decision data. The API reports who IS in a war, never who WILL be,
--- so the intended lineup exists nowhere but here.
--- 
--- R12 — compared against the API roster at T6.10, never replaced by it.
+-- T6.8 — War lineup tables.
+--
+-- SUPERSEDED BY 024_war.sql. This file creates nothing and never did.
+--
+-- It was reserved for the war lineup tables and stayed comment-only until Phase
+-- 6 landed. By then the task needed two things this number could not carry:
+--
+--   * war_members, the API's roster, which 003 never created and without which
+--     the missed-attack list has no source (the same gap 019 filled for CWL)
+--   * a write path for war_targets, which 006 left select-only
+--
+-- Splitting those across 012 and a later number would have meant applying 012
+-- BEFORE 023 on a fresh database and AFTER it on this one, because 023 is
+-- already applied. Numeric order and apply order would then disagree, which is
+-- the one property that makes "never edit an applied migration" checkable.
+--
+-- So the whole of Phase 6's schema is in 024, and this number is retired the way
+-- 009's was — see the note in test/pg-harness.ts.
+--
+-- Kept rather than deleted so the history reads honestly: a number that appears
+-- in the tree in section 5 of IMPLEMENTATION.md, and in migrations.test.ts's
+-- assertion that the bundle excludes comment-only stubs, should not simply
+-- vanish. Nothing applies it and nothing should.

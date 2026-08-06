@@ -24,8 +24,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requireClanByTag } from "@/lib/clans";
 import { currentUserId } from "@/lib/auth";
+import { notifyUsers } from "@/lib/push";
 import { createClient } from "@/lib/supabase/server";
-import { membersForClan } from "@/repositories/members";
+import { membersForClan, userIdsForPlayers } from "@/repositories/members";
 import {
   answerPoll,
   closePoll,
@@ -35,7 +36,13 @@ import {
   pollById,
   responsesForPoll,
 } from "@/repositories/polls";
-import { isOpen, optionShare, pollBreakdown, type EligibleMember } from "@/services/polls";
+import {
+  isOpen,
+  nonResponders,
+  optionShare,
+  pollBreakdown,
+  type EligibleMember,
+} from "@/services/polls";
 
 export const dynamic = "force-dynamic";
 
@@ -84,15 +91,72 @@ async function submitClose(formData: FormData) {
   redirect(here);
 }
 
+/**
+ * T4B.5 — push a reminder to the members who have not answered.
+ *
+ * The non-responder list is recomputed here rather than being posted from the
+ * page. A hidden field carrying the list would let a caller name anyone, and it
+ * would also be stale: somebody answers while the leader is reading the page,
+ * and the button then reminds a person who already did the thing.
+ *
+ * Authority comes from push_targets() (023), which returns nothing at all unless
+ * the caller is leadership of the clan. requireClanByTag establishes the clan;
+ * the database decides whether this caller may address it.
+ */
+async function remindNonResponders(formData: FormData) {
+  "use server";
+
+  const supabase = await createClient();
+  const clanTag = String(formData.get("clanTag") ?? "");
+  const pollId = String(formData.get("pollId") ?? "");
+  const clan = await requireClanByTag(supabase, clanTag);
+  const here = `/${encodeURIComponent(clan.tag)}/polls/${pollId}`;
+
+  const poll = await pollById(supabase, pollId);
+  if (!poll) redirect(here);
+
+  // Reminding people about a poll they can no longer answer is worse than not
+  // reminding them: the notification is an instruction that cannot be followed.
+  if (!isOpen(poll)) redirect(`${here}?error=closed`);
+
+  const [responses, members] = await Promise.all([
+    responsesForPoll(supabase, poll.id),
+    membersForClan(supabase, clan.id),
+  ]);
+
+  const eligible = members
+    .filter((m) => m.leftAt === null)
+    .map((m) => ({ playerId: m.playerId, tag: m.tag, name: m.name }));
+
+  const chase = nonResponders(eligible, responses);
+  const userIds = await userIdsForPlayers(
+    supabase,
+    clan.id,
+    chase.map((m) => m.playerId),
+  );
+
+  const result = await notifyUsers(supabase, clan.id, "poll_reminders", userIds, {
+    title: `${clan.name} — ${poll.title}`,
+    body: "You have not answered this poll yet.",
+    url: here,
+    // One key per poll, so chasing twice replaces the first reminder rather
+    // than stacking a second identical one on the lock screen.
+    tag: `poll:${poll.id}`,
+  });
+
+  revalidatePath(here);
+  redirect(`${here}?reminded=${result.sent}`);
+}
+
 export default async function PollDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ clanTag: string; pollId: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; reminded?: string }>;
 }) {
   const { clanTag, pollId } = await params;
-  const { error } = await searchParams;
+  const { error, reminded } = await searchParams;
   const supabase = await createClient();
 
   const clan = await requireClanByTag(supabase, clanTag);
@@ -153,7 +217,28 @@ export default async function PollDetailPage({
         <Alert variant="destructive">
           <AlertTitle>That did not work</AlertTitle>
           <AlertDescription>
-            {error === "incomplete" ? "Pick an account and an option." : error}
+            {error === "incomplete"
+              ? "Pick an account and an option."
+              : error === "closed"
+                ? "This poll has closed, so there is nothing to remind anyone about."
+                : error}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Said plainly, including when it is zero. A reminder button that reports
+          nothing leaves the leader believing thirty people were chased when the
+          real answer is that none of them have notifications turned on — and
+          they find out a week later, when nobody has answered. */}
+      {reminded !== undefined && (
+        <Alert>
+          <AlertTitle>
+            {reminded === "0" ? "Nobody could be reached" : `Reminded ${reminded}`}
+          </AlertTitle>
+          <AlertDescription>
+            {reminded === "0"
+              ? "None of the members who have not answered have notifications turned on for a device. You will have to chase them another way."
+              : "Only members with notifications turned on receive these, so the number is usually smaller than the list."}
           </AlertDescription>
         </Alert>
       )}
@@ -291,12 +376,26 @@ export default async function PollDetailPage({
                     </li>
                   ))}
                 </ul>
-                {/* T4B.5 hooks in here once push exists (Phase 5). Until then the
-                    list is the tool — it is chased by hand, which is still an
-                    improvement on scrolling WhatsApp and guessing. */}
-                <p className="text-muted-foreground text-xs">
-                  Reminders are sent by hand for now — push notifications arrive with T4B.5.
-                </p>
+                {/* T4B.5 — chase them, rather than listing them and hoping.
+                    Only the people on this list are notified; reminding everyone
+                    teaches the members who answered on time that answering does
+                    not stop the reminders, and they stop answering. */}
+                {open ? (
+                  <form action={remindNonResponders} className="flex items-center gap-3">
+                    <input type="hidden" name="clanTag" value={clanTag} />
+                    <input type="hidden" name="pollId" value={pollId} />
+                    <Button type="submit" variant="outline" size="sm">
+                      Remind these {breakdown.notAnswered.length}
+                    </Button>
+                    <span className="text-muted-foreground text-xs">
+                      Only members who have turned notifications on can be reached.
+                    </span>
+                  </form>
+                ) : (
+                  <p className="text-muted-foreground text-xs">
+                    This poll is closed — there is nothing left to chase.
+                  </p>
+                )}
               </>
             )}
           </section>

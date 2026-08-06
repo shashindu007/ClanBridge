@@ -265,11 +265,17 @@ describe("T3.3 / T9.7 — rate limiting", () => {
     expect((await limiter.limit("a")).success).toBe(false);
   });
 
+  // The window has to be long enough that it cannot expire BETWEEN the first two
+  // calls. At 20 ms it could: this file runs alongside twenty PGlite-backed
+  // suites, and under that load the two awaits are easily 20 ms apart, so the
+  // second call started a fresh window and was allowed. The test then failed for
+  // the one reason it is not testing. 500 ms is longer than any scheduling gap
+  // here and still costs only 600 ms to prove the reset.
   it("resets after the window", async () => {
-    const limiter = createMemoryRateLimiter({ max: 1, windowMs: 20 });
+    const limiter = createMemoryRateLimiter({ max: 1, windowMs: 500 });
     expect((await limiter.limit("k")).success).toBe(true);
     expect((await limiter.limit("k")).success).toBe(false);
-    await new Promise((r) => setTimeout(r, 30));
+    await new Promise((r) => setTimeout(r, 600));
     expect((await limiter.limit("k")).success).toBe(true);
   });
 

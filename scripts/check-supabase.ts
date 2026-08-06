@@ -39,8 +39,12 @@ const TABLES = [
   "poll_options", // 010
   "poll_responses", // 010
   "wars",
+  "war_members", // 024
+  "war_opponent_members", // 026
   "war_targets",
   "war_attacks",
+  "war_lineups", // 024
+  "war_lineup_members", // 024
   "raid_seasons",
   "raid_participants",
   "clan_games",
@@ -48,6 +52,7 @@ const TABLES = [
   "base_layouts",
   "announcements",
   "push_subscriptions",
+  "notification_preferences", // 023
   "sync_log",
   "audit_log",
   "member_snapshots",
@@ -166,8 +171,14 @@ async function main(): Promise<void> {
 
   if (missing.length === TABLES.length) {
     console.error(
-      "\nNo tables exist yet. Apply the migrations in the SQL editor, in order:\n" +
-        "  001 002 003 004 005 006 007 008 013   (skip 010-012, still stubs)",
+      "\nNo tables exist yet. Apply every migration in supabase/migrations/, in\n" +
+        "numeric order:\n\n" +
+        "  npm run migrations:apply\n\n" +
+        "009 and 012 are absent by design — 012 was superseded by 024_war.sql and\n" +
+        "its number retired rather than reused, so apply order stays equal to\n" +
+        "numeric order. If the connection will not cooperate, `npm run\n" +
+        "migrations:bundle` writes supabase/apply-all.sql for one paste into the\n" +
+        "SQL editor.",
     );
     process.exit(1);
   }

@@ -215,5 +215,62 @@ export function createPgliteSupabase(db: PGlite): SupabaseClient {
     },
   });
 
-  return { from } as unknown as SupabaseClient;
+  /**
+   * `.rpc(fn, args)` — calling a definer function, the way every audited write
+   * in this project happens.
+   *
+   * Added for repositories/war.ts, which reaches assign_war_target,
+   * clear_war_target, claim_war_target and release_war_target this way (024,
+   * 025). Before it, those functions could only be exercised as hand-written
+   * SQL in a schema test — which proves the FUNCTION and not the repository,
+   * and the repository is what a page actually calls. rosters.ts's awardBonus
+   * has been in that position since T4.7 and can now be tested too.
+   *
+   * NAMED NOTATION WITH AN EXPLICIT CAST PER ARGUMENT, and both halves matter:
+   *
+   *   named, because these functions have defaults (p_note) and a positional
+   *   call would have to supply every one in order;
+   *
+   *   cast, because Postgres resolves overloads using IMPLICIT casts only, and
+   *   integer -> smallint is an ASSIGNMENT cast. `claim_war_target(uuid, 4,
+   *   null)` therefore fails with "function does not exist" — a message that
+   *   reads like the migration never ran. The declared types are read from
+   *   pg_proc rather than guessed, so a signature change cannot silently
+   *   reintroduce that.
+   */
+  const rpc = async (fn: string, args: Record<string, unknown> = {}) => {
+    try {
+      const meta = await db.query<{ name: string; type: string }>(
+        `select a.name, format_type(a.oid, null) as type
+           from pg_proc p,
+                lateral unnest(p.proargnames, p.proargtypes::oid[]) as a(name, oid)
+          where p.proname = $1`,
+        [fn],
+      );
+
+      const types = new Map(meta.rows.map((r) => [r.name, r.type]));
+      if (!types.size) {
+        return { data: null, error: { message: `function ${fn} does not exist` } };
+      }
+
+      // Only the arguments actually supplied. Anything omitted keeps its
+      // declared default, which is the behaviour PostgREST gives too.
+      const named = Object.entries(args)
+        .filter(([name]) => types.has(name))
+        .map(([name, value]) => {
+          const type = types.get(name)!;
+          return value === null || value === undefined
+            ? `${name} => null::${type}`
+            : `${name} => ${literal(value)}::${type}`;
+        })
+        .join(", ");
+
+      const res = await db.query<Row>(`select ${fn}(${named}) as result`);
+      return { data: res.rows[0]?.result ?? null, error: null };
+    } catch (error) {
+      return { data: null, error: { message: String(error) } };
+    }
+  };
+
+  return { from, rpc } as unknown as SupabaseClient;
 }

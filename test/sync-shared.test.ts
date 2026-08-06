@@ -9,7 +9,14 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createHarness, type Harness } from "./pg-harness";
-import { activeClans, main, runSyncJob, skip, SyncSkipped } from "../scripts/sync/shared";
+import {
+  activeClans,
+  assertNotFixtureSync,
+  main,
+  runSyncJob,
+  skip,
+  SyncSkipped,
+} from "../scripts/sync/shared";
 
 // runSyncJob reports to the console on purpose — that output is what you read in
 // an Actions log. Several tests here fail jobs deliberately, so the reporting is
@@ -270,6 +277,90 @@ describe("T2.5 — runSyncJob and sync_log (R9)", () => {
       }, { client });
       expect(process.exitCode).toBe(1);
     });
+  });
+});
+
+// A sync job reading fixtures/ and writing to a real database produces invented
+// members that R4 forbids ever removing. `.env.local` ships with
+// USE_FIXTURES=true, so this is the default state of a fresh checkout — the one
+// mistake in this project that is both easy to make and impossible to undo.
+describe("the fixture-sync guard — invented members must not reach a real database", () => {
+  const original = {
+    use: process.env.USE_FIXTURES,
+    allow: process.env.ALLOW_FIXTURE_SYNC,
+  };
+
+  afterEach(() => {
+    // delete rather than assign undefined: process.env coerces to the string
+    // "undefined", which would read as a set variable to every check here.
+    if (original.use === undefined) delete process.env.USE_FIXTURES;
+    else process.env.USE_FIXTURES = original.use;
+    if (original.allow === undefined) delete process.env.ALLOW_FIXTURE_SYNC;
+    else process.env.ALLOW_FIXTURE_SYNC = original.allow;
+  });
+
+  it("refuses when USE_FIXTURES is on", () => {
+    process.env.USE_FIXTURES = "true";
+    delete process.env.ALLOW_FIXTURE_SYNC;
+    expect(() => assertNotFixtureSync("clans")).toThrow(/USE_FIXTURES=true/);
+  });
+
+  it("names the job and the way out, because the message is the whole feature", () => {
+    process.env.USE_FIXTURES = "true";
+    delete process.env.ALLOW_FIXTURE_SYNC;
+    // An operator who cannot tell WHICH job stopped or WHAT to change reaches for
+    // the nearest override, which here is the one thing they must not do.
+    expect(() => assertNotFixtureSync("cwl")).toThrow(/cwl sync/);
+    expect(() => assertNotFixtureSync("cwl")).toThrow(/USE_FIXTURES=false/);
+  });
+
+  it("allows a real sync when USE_FIXTURES is off", () => {
+    process.env.USE_FIXTURES = "false";
+    expect(() => assertNotFixtureSync("clans")).not.toThrow();
+  });
+
+  it("allows a real sync when USE_FIXTURES is unset", () => {
+    delete process.env.USE_FIXTURES;
+    expect(() => assertNotFixtureSync("clans")).not.toThrow();
+  });
+
+  it("lets ALLOW_FIXTURE_SYNC through, for deliberately seeding a scratch database", () => {
+    process.env.USE_FIXTURES = "true";
+    process.env.ALLOW_FIXTURE_SYNC = "true";
+    expect(() => assertNotFixtureSync("clans")).not.toThrow();
+  });
+
+  // The discriminator is the injected client, not an environment variable. Get
+  // this backwards and either the offline suite stops testing the fixture path or
+  // the guard stops guarding — and both look like everything is fine.
+  it("stops a real run before it builds a client or opens a sync_log row", async () => {
+    process.env.USE_FIXTURES = "true";
+    delete process.env.ALLOW_FIXTURE_SYNC;
+
+    let jobRan = false;
+    await expect(
+      runSyncJob("clans", async () => {
+        jobRan = true;
+      }),
+    ).rejects.toThrow(/USE_FIXTURES=true/);
+
+    // No client was injected, so reaching Supabase at all would have needed
+    // credentials this test does not have. Nothing ran, and nothing was logged.
+    expect(jobRan).toBe(false);
+  });
+
+  it("does not touch the offline suite, which injects its own client", async () => {
+    const h = await createHarness();
+    try {
+      process.env.USE_FIXTURES = "true";
+      delete process.env.ALLOW_FIXTURE_SYNC;
+      await h.asSuperuser();
+
+      const result = await runSyncJob("clans", async () => {}, { client: pgliteClient(h) });
+      expect(result).toBe("success");
+    } finally {
+      await h.close();
+    }
   });
 });
 

@@ -17,9 +17,13 @@ const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
 /**
  * Every migration written so far, in the order the SQL editor must apply them.
  *
- * 009 is intentionally absent: it held cwl_signups from the superseded T4.9,
- * which Phase 4B replaced with polls and rosters. 012 (war lineups, T6.8) is
- * still a stub and joins this list when its task lands.
+ * TWO NUMBERS ARE ABSENT, both retired rather than reused, so that apply order
+ * stays equal to numeric order:
+ *
+ *   009  held cwl_signups from the superseded T4.9, which Phase 4B replaced
+ *        with polls and rosters.
+ *   012  reserved war_lineups for T6.8 and was never written. 024 delivered
+ *        those tables instead and says so in its header.
  *
  * 010 must precede 011 and 022: it defines auth_leadership_clan_ids(), which
  * both of their policies depend on.
@@ -33,7 +37,7 @@ export const PHASE1_MIGRATIONS = [
   "006_rls.sql",
   "007_member_snapshots.sql", // T2.9
   "008_player_left_at.sql", // T3.9
-  "010_polls.sql", // T4B.1 polls, options, responses (009 absent; 012 still a stub)
+  "010_polls.sql", // T4B.1 polls, options, responses
   "011_cwl_rosters.sql", // T4B.6 the leader's CWL selection + double-booking guard
   "013_user_status.sql", // T3.8
   "014_service_role_grants.sql", // fixes a missing grant in 006
@@ -45,6 +49,10 @@ export const PHASE1_MIGRATIONS = [
   "020_clan_details.sql", // T3B.0 level, war league, member count, war-log visibility
   "021_announcements.sql", // T5.1 post/edit/remove as audited definer functions
   "022_cwl_bonus_awards.sql", // T4.7/T4B.13 bonus awards in the leader's order
+  "023_notifications.sql", // T5.5/T5.9/T5.6 push write policies, preferences, push_targets()
+  "024_war.sql", // Phase 6 war_members, war lineups, and war_targets' write path
+  "025_war_target_claim.sql", // T6.4 the member-claim path 024 left with no write route
+  "026_war_opponent.sql", // T6.3 the other roster, fetched and discarded until now
 ] as const;
 
 export function readMigration(file: string): string {
@@ -193,6 +201,7 @@ export const PHASE1_TABLES = [
   "cwl_war_members",
   "cwl_wars",
   "member_snapshots",
+  "notification_preferences",
   "players",
   "poll_options",
   "poll_responses",
@@ -203,6 +212,10 @@ export const PHASE1_TABLES = [
   "sync_log",
   "users",
   "war_attacks",
+  "war_lineup_members",
+  "war_lineups",
+  "war_members",
+  "war_opponent_members",
   "war_targets",
   "wars",
 ] as const;

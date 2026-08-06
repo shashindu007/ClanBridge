@@ -7,7 +7,7 @@
 -- BEGIN/COMMIT means a failure anywhere rolls the entire thing back, so you
 -- cannot end up with a half-applied schema.
 --
--- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql
+-- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql
 --
 -- Deliberately EXCLUDED: 010_polls, 011_cwl_rosters, 012_war_lineups. Those
 -- are still comment-only stubs for Phase 4B and T6.8. 009 does not exist.
@@ -3119,6 +3119,1047 @@ grant select on cwl_bonuses to anon, authenticated;
 --
 --   select has_table_privilege('authenticated', 'cwl_bonuses', 'insert');
 --     -- expect FALSE. If true, an unaudited award is possible.
+-- ---------------------------------------------------------------------------
+
+-- ========================================================================
+-- 023_notifications.sql
+-- ========================================================================
+
+-- T5.5 / T5.9 / T5.6 — making push actually possible.
+--
+-- push_subscriptions has existed since 004 and has never been writable. 006 gave
+-- it RLS and exactly one policy — "read own push subscriptions", for select — so
+-- the table that exists to hold a member's device registration could not accept
+-- one. This is the same hole 022 found in cwl_bonuses, and it is worth naming the
+-- pattern: 006 enabled RLS everywhere and shipped select policies only, on the
+-- stated plan that each write would add its own policy scoped to the role allowed
+-- to perform it. Every table written since has had to pay that debt on arrival.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- WHY PLAIN POLICIES HERE, WHEN 021 AND 022 ARGUED FOR DEFINER FUNCTIONS
+--
+-- Those two write clan data — an announcement, a bonus medal — and R4 says every
+-- write is recorded in audit_log. A definer function is how the write and its
+-- audit row become one indivisible act.
+--
+-- A push subscription is not clan data. It is one member's own browser telling
+-- the server where to reach it, and it has no clan_id to record against. That is
+-- not a detail: audit_log's read policy is
+--
+--     using (clan_id in (select auth_leader_clan_ids()))
+--
+-- and `null in (...)` is NULL, never true. An audit row with no clan would be
+-- invisible to every reader forever. Writing rows nobody can read is worse than
+-- not writing them — it grows the table, and it makes the audit log look more
+-- complete than it is.
+--
+-- So these are ordinary owner-scoped policies. The subject and the actor are the
+-- same person, the row affects nobody else, and there is no decision to justify
+-- to anyone later. Same reasoning for notification_preferences below.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+
+-- ---------------------------------------------------------------------------
+-- push_subscriptions — a member registers and de-registers their own devices.
+-- ---------------------------------------------------------------------------
+
+-- with check, not using: the row does not exist yet, so this constrains what may
+-- be written rather than what may be read. Pinning user_id to auth.uid() is what
+-- stops a member registering a device against somebody else's account and
+-- receiving their notifications.
+create policy "insert own push subscription" on push_subscriptions
+  for insert to authenticated
+  with check (user_id = auth.uid());
+
+-- UPDATE covers three ordinary cases, all of which look like a rewrite:
+--
+--   * the browser rotates its keys and re-subscribes on the same endpoint —
+--     004 made `endpoint` unique, so this arrives as an upsert, not an insert
+--   * the member turns notifications off, which is a soft delete (R4)
+--   * a subscription the push service reported as 410 Gone is revived when the
+--     member re-subscribes later, by clearing deleted_at
+--
+-- Both clauses are needed: `using` decides which rows may be targeted, `with
+-- check` decides what they may become. Without the second, a member could
+-- reassign their own row's user_id to someone else.
+create policy "update own push subscription" on push_subscriptions
+  for update to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+-- A POLICY IS NOT A GRANT, and this is the third time this project has paid for
+-- the difference. 006 granted `select on all tables` and nothing more; 014 had to
+-- restore service_role's grants after every sync job failed with 42501 on first
+-- contact with real Supabase.
+--
+-- Without these two lines the policies above are unreachable: Postgres checks the
+-- table privilege first, so the insert fails with "permission denied for table
+-- push_subscriptions" and the policy is never evaluated at all. That error looks
+-- like a bug in the route rather than a missing grant, which is what makes it
+-- expensive to find.
+--
+-- No DELETE, ever. R4, and the "grants no DELETE privilege" test in
+-- migrations.test.ts enforces it.
+grant insert, update on push_subscriptions to authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- T5.9 — notification_preferences.
+--
+-- Without these a member who finds the notifications annoying disables them at
+-- the browser level, which is a decision they make once and never revisit. They
+-- then stop receiving the CWL reminder too, which is the one that mattered. A
+-- per-kind toggle is the difference between "too noisy" and "off".
+--
+-- ONE COLUMN PER KIND, not one row per (user, kind). The set of kinds is fixed
+-- by what this system actually sends, adding one is a migration either way (a
+-- row-per-kind table still needs its check constraint widened), and this shape
+-- lets the default live in the column where it is impossible to overlook.
+--
+-- EVERY DEFAULT IS TRUE, and the absence of a row means the same thing. A member
+-- who never opens the settings page must still get the CWL reminder, so the send
+-- path left-joins this table and coalesces to true — see push_targets() below.
+-- The opposite default is the version where the feature silently does nothing
+-- for everyone who has not opted in, which is indistinguishable from broken.
+-- ---------------------------------------------------------------------------
+create table notification_preferences (
+  id              uuid primary key default gen_random_uuid(),
+  user_id         uuid not null references users (id) on delete restrict,
+  announcements   boolean not null default true,
+  cwl_reminders   boolean not null default true,
+  war_reminders   boolean not null default true,
+  raid_reminders  boolean not null default true,
+  poll_reminders  boolean not null default true,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz,
+  deleted_at      timestamptz
+);
+
+-- One live preference row per member. Partial, so a soft-deleted row does not
+-- block writing a fresh one (R4 keeps the old one).
+create unique index notification_preferences_user_idx
+  on notification_preferences (user_id)
+  where deleted_at is null;
+
+create trigger notification_preferences_set_updated_at
+  before update on notification_preferences
+  for each row execute function set_updated_at();
+
+alter table notification_preferences enable row level security;
+
+create policy "read own notification preferences" on notification_preferences
+  for select to authenticated
+  using (user_id = auth.uid());
+
+create policy "insert own notification preferences" on notification_preferences
+  for insert to authenticated
+  with check (user_id = auth.uid());
+
+create policy "update own notification preferences" on notification_preferences
+  for update to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+-- As above: the policies decide which rows, these decide who may ask at all.
+-- service_role is stated explicitly rather than left to 014's default privileges,
+-- because those apply only to tables created by the role that ran the ALTER, and
+-- relying on that is how 006's omission survived unnoticed for twelve migrations.
+grant select, insert, update on notification_preferences to authenticated;
+grant select, insert, update on notification_preferences to service_role;
+
+comment on table notification_preferences is
+  'T5.9 — per-member notification toggles. Absence of a row means every kind is '
+  'enabled; the send path coalesces to true so a member who never visited the '
+  'settings page still receives the reminder that matters.';
+
+
+-- ---------------------------------------------------------------------------
+-- T5.6 — push_targets(clan, kind)
+--
+-- Who should receive a notification of this kind, in this clan, right now.
+--
+-- WHY THIS IS A DEFINER FUNCTION AND NOT A QUERY IN THE APPLICATION
+--
+-- Sending requires reading OTHER members' subscriptions, and "read own push
+-- subscriptions" forbids exactly that — correctly, because a push endpoint is a
+-- capability URL: anyone holding it can push to that device until it expires.
+--
+-- The service key could read them, but R6 keeps it out of Vercel, and an
+-- announcement is posted from the web app. So the read is expressed once, here,
+-- with the authority check attached to it: leadership of the clan being notified.
+-- Members cannot call it usefully, and no route can widen it by forgetting a
+-- filter, because the filter is not in the route.
+--
+-- R3 — the clan filter is the first thing this does, and it is not optional.
+--
+-- Sync jobs (T5.8, CWL reminders) run with the service key and bypass RLS, so
+-- they may read the tables directly; they call this anyway, so that preference
+-- handling and the clan filter have exactly one implementation.
+-- ---------------------------------------------------------------------------
+create or replace function push_targets(p_clan uuid, p_kind text)
+returns table (
+  user_id  uuid,
+  endpoint text,
+  p256dh   text,
+  auth_key text
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    ps.user_id,
+    ps.endpoint,
+    ps.p256dh,
+    ps.auth
+  from public.push_subscriptions ps
+  -- The subscription belongs to a member of this clan. clan_roles is the only
+  -- statement of who is in a clan (R3); a leader who left keeps neither.
+  join public.clan_roles cr
+    on cr.user_id = ps.user_id
+   and cr.clan_id = p_clan
+   and cr.deleted_at is null
+  -- Absent row = every kind enabled, which is why this is a LEFT join and every
+  -- branch coalesces to true.
+  left join public.notification_preferences np
+    on np.user_id = ps.user_id
+   and np.deleted_at is null
+  where ps.deleted_at is null
+    and case p_kind
+          when 'announcements'  then coalesce(np.announcements,  true)
+          when 'cwl_reminders'  then coalesce(np.cwl_reminders,  true)
+          when 'war_reminders'  then coalesce(np.war_reminders,  true)
+          when 'raid_reminders' then coalesce(np.raid_reminders, true)
+          when 'poll_reminders' then coalesce(np.poll_reminders, true)
+          -- An unrecognised kind sends to nobody. A typo in a call site should
+          -- deliver nothing, not deliver to everyone.
+          else false
+        end
+    -- Leadership of the clan being notified, or the service role, which is the
+    -- sync jobs (T5.8) and bypasses RLS in any case.
+    and (
+      p_clan in (select public.auth_leadership_clan_ids())
+      or current_setting('role', true) = 'service_role'
+    )
+$$;
+
+revoke execute on function push_targets(uuid, text) from public;
+grant execute on function push_targets(uuid, text) to authenticated, service_role;
+
+comment on function push_targets(uuid, text) is
+  'T5.6 — subscriptions to notify for one clan and one kind, with T5.9 '
+  'preferences applied. Returns nothing unless the caller is leadership of that '
+  'clan or the service role.';
+
+
+-- ---------------------------------------------------------------------------
+-- Verify:
+--
+--   -- as an ordinary member of the clan, this must return ZERO rows even
+--   -- though their own subscription is in the table:
+--   select count(*) from push_targets('<clan>', 'announcements');   -- 0
+--
+--   -- as a leader of that clan, it must return one row per subscribed member:
+--   select count(*) from push_targets('<clan>', 'announcements');   -- n
+--
+--   -- opting out removes only that kind:
+--   insert into notification_preferences (user_id, announcements)
+--   values (auth.uid(), false);
+--   select count(*) from push_targets('<clan>', 'announcements');   -- n - 1
+--   select count(*) from push_targets('<clan>', 'cwl_reminders');   -- n
+--
+--   -- and a member may never register a device against another account:
+--   insert into push_subscriptions (user_id, endpoint, p256dh, auth)
+--   values ('<someone else>', 'x', 'y', 'z');   -- violates row level security
+-- ---------------------------------------------------------------------------
+
+-- ========================================================================
+-- 024_war.sql
+-- ========================================================================
+
+-- Phase 6 — everything the war module needs that does not exist yet.
+--
+-- Three separate holes, one migration, because none of them is useful alone and
+-- T6.3 is blocked on all three.
+--
+--   1. war_members        the API's roster. THE 019 GAP, AGAIN.
+--   2. war_lineups        the leader's intended lineup (T6.8, promised by the
+--      war_lineup_members  012 stub, which was never written)
+--   3. war_targets        had no write policy, so T6.4 could not assign anything
+--
+-- SUPERSEDES 012_war_lineups.sql, which is comment-only and was never applied
+-- anywhere. Its number is retired the way 009's was — see the note in
+-- test/pg-harness.ts. Keeping numeric order equal to apply order matters more
+-- than keeping the number that was reserved a year earlier.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- WHY war_members HAS TO EXIST, WHICH IS THE SAME ARGUMENT 019 MADE
+--
+-- 003 gave war wars, war_targets and war_attacks — the plan, and what happened.
+-- It did not give a way to know WHO WAS IN THE WAR, and every question worth
+-- asking after a war needs that:
+--
+--   "who did not attack"        roster MINUS war_attacks. The people on that
+--                               list have no war_attacks row, so they cannot be
+--                               found by querying it.
+--   "attacks used out of 2"     needs a denominator, which is membership
+--   "selected but did not play" needs the API roster to compare the plan against
+--
+-- 019's header says the missed-attack list "had no source at all" before it.
+-- Identical here. A war is 15-50 members and each gets two attacks; without this
+-- table the war module can report what happened and never what did not.
+--
+-- R11 — a GAME FACT. Written only by scripts/sync/war.ts. Never confused with
+-- war_lineup_members below, which is a HUMAN DECISION and which no sync job may
+-- ever touch. R12 — T6.10 shows the difference between them, which is only
+-- possible while both still exist.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+
+-- ---------------------------------------------------------------------------
+-- war_members — who the API reported in the war.
+-- ---------------------------------------------------------------------------
+create table war_members (
+  id            uuid primary key default gen_random_uuid(),
+  war_id        uuid not null references wars (id) on delete restrict,
+  player_id     uuid not null references players (id) on delete restrict,
+  map_position  smallint,
+  th_level      smallint,
+  -- Regular war gives two attacks per member; CWL gives one, which is why
+  -- cwl_war_members has no such column. Stored rather than assumed: the value
+  -- comes from the war the API described, and a future game change that alters
+  -- it must not silently rewrite what old wars meant.
+  attacks_allowed smallint not null default 2,
+  created_at    timestamptz not null default now(),
+  deleted_at    timestamptz,
+
+  -- The idempotency key, exactly as 019's. Without it ON CONFLICT DO NOTHING
+  -- matches nothing and every sync run duplicates the whole roster, silently.
+  unique (war_id, player_id)
+);
+
+create index war_members_war_id_idx on war_members (war_id) where deleted_at is null;
+create index war_members_player_id_idx on war_members (player_id) where deleted_at is null;
+
+comment on table war_members is
+  'Who the API reported in a war (a game fact, R11). Missed attacks are this '
+  'minus war_attacks. Not to be confused with war_lineup_members, which is who '
+  'the leader picked (R12).';
+
+alter table war_members enable row level security;
+
+-- One-level join: wars carries clan_id directly, unlike cwl_war_members which
+-- has to reach through cwl_seasons. Simpler, and worth stating so nobody
+-- "fixes" it later to match the CWL shape.
+create policy "read own clan war members" on war_members
+  for select to authenticated
+  using (
+    exists (
+      select 1 from wars w
+      where w.id = war_members.war_id
+        and w.clan_id in (select auth_clan_ids())
+    )
+  );
+
+grant select on war_members to anon, authenticated;
+grant select, insert, update on war_members to service_role;
+
+
+-- ---------------------------------------------------------------------------
+-- T6.4 — war_targets could not be written.
+--
+-- 003 created the table and 006 granted select and nothing else, so "leadership
+-- assigns targets" had no way to happen. This is the fourth table to arrive in
+-- that state (announcements 021, cwl_bonuses 022, push_subscriptions 023).
+--
+-- A definer function, not an insert policy, for the reason 021 gives at length:
+-- assigning a target must also write audit_log (R4), and a policy splits one
+-- indivisible act into a permission check and a separate, forgettable insert.
+--
+-- R12 — this writes the PLAN. It never touches war_attacks, which is the
+-- outcome. A single "reconcile" that wrote results back into war_targets would
+-- destroy the exact comparison T6.5 and T6.10 exist to show.
+-- ---------------------------------------------------------------------------
+create or replace function assign_war_target(
+  p_war      uuid,
+  p_player   uuid,
+  p_position smallint,
+  p_note     text default null
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_clan   uuid;
+  v_state  text;
+  v_before jsonb;
+begin
+  if auth.uid() is null or p_war is null or p_player is null then
+    return false;
+  end if;
+
+  select clan_id, state into v_clan, v_state
+  from public.wars
+  where id = p_war and deleted_at is null;
+
+  if not found then
+    return false;
+  end if;
+
+  -- R3 — the clan filter, and it is the authority check as well.
+  if v_clan not in (select public.auth_leadership_clan_ids()) then
+    raise exception 'only a leader or co-leader may assign targets in this war';
+  end if;
+
+  -- A war that has ended cannot be planned. Refused here rather than in the
+  -- form: editing the plan after the outcome is known is how a "plan versus
+  -- reality" report gets quietly rewritten into agreement with itself (R12).
+  if v_state = 'warEnded' then
+    raise exception 'this war has ended; its plan can no longer be changed';
+  end if;
+
+  -- The player must actually be in the war. Without this a leader can assign a
+  -- target to somebody the API never put in the lineup, and the missed-attack
+  -- list then contains a person who was never able to attack.
+  if not exists (
+    select 1 from public.war_members
+    where war_id = p_war and player_id = p_player and deleted_at is null
+  ) then
+    raise exception 'that player is not in this war';
+  end if;
+
+  select to_jsonb(t) into v_before
+  from public.war_targets t
+  where t.war_id = p_war and t.player_id = p_player;
+
+  -- 003 made (war_id, player_id) unique and its comment says reassigning
+  -- UPDATES the row, with the change recorded in audit_log rather than by
+  -- inserting a second target. This is that behaviour.
+  insert into public.war_targets (war_id, player_id, target_position, note, assigned_by)
+  values (p_war, p_player, p_position, p_note, auth.uid())
+  on conflict (war_id, player_id) do update
+    set target_position = excluded.target_position,
+        note            = excluded.note,
+        assigned_by     = excluded.assigned_by,
+        assigned_at     = now(),
+        deleted_at      = null;
+
+  insert into public.audit_log (user_id, clan_id, action, entity, entity_id, before, after)
+  values (auth.uid(), v_clan, 'assign-target', 'war_targets', p_player, v_before,
+          jsonb_build_object('target_position', p_position, 'note', p_note));
+
+  return true;
+end;
+$$;
+
+revoke execute on function assign_war_target(uuid, uuid, smallint, text) from public;
+grant execute on function assign_war_target(uuid, uuid, smallint, text) to authenticated;
+
+
+-- The mirror. Soft delete (R4): the row stays and the audit trail keeps both
+-- states, so "who told me to hit base 7" has an answer after it is withdrawn.
+create or replace function clear_war_target(p_war uuid, p_player uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_clan uuid;
+  v_before jsonb;
+begin
+  if auth.uid() is null or p_war is null or p_player is null then
+    return false;
+  end if;
+
+  select clan_id into v_clan from public.wars
+  where id = p_war and deleted_at is null;
+
+  if not found then
+    return false;
+  end if;
+
+  if v_clan not in (select public.auth_leadership_clan_ids()) then
+    raise exception 'only a leader or co-leader may clear targets in this war';
+  end if;
+
+  select to_jsonb(t) into v_before
+  from public.war_targets t
+  where t.war_id = p_war and t.player_id = p_player and t.deleted_at is null;
+
+  if v_before is null then
+    return false;                      -- already gone; not an error, not audited twice
+  end if;
+
+  update public.war_targets
+  set deleted_at = now()
+  where war_id = p_war and player_id = p_player;
+
+  insert into public.audit_log (user_id, clan_id, action, entity, entity_id, before)
+  values (auth.uid(), v_clan, 'clear-target', 'war_targets', p_player, v_before);
+
+  return true;
+end;
+$$;
+
+revoke execute on function clear_war_target(uuid, uuid) from public;
+grant execute on function clear_war_target(uuid, uuid) to authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- T6.8 — the lineup the leader intends, which the API can never tell you.
+--
+-- The API reports who IS in a war, never who WILL be. So this exists nowhere
+-- but here (R11), and it is the entire reason the war module needs a backend
+-- rather than a sync job.
+--
+-- Same shape as the CWL roster tables in 011, deliberately: a leader who has
+-- learned one screen has learned the other.
+--
+-- NOT tied to a war row. A lineup is decided BEFORE the war is declared in
+-- game, and until then no war exists to reference — that is the whole point.
+-- It hangs off (clan_id, planned_for) instead, and T6.10 matches it to the war
+-- that eventually appears.
+-- ---------------------------------------------------------------------------
+create table war_lineups (
+  id           uuid primary key default gen_random_uuid(),
+  clan_id      uuid not null references clans (id) on delete restrict,
+  -- Roughly when this war is expected. Also what makes two drafts for two
+  -- different wars distinguishable before either is declared.
+  planned_for  timestamptz not null default now(),
+  size         smallint not null check (size between 5 and 50),
+  status       text not null default 'draft' check (status in ('draft', 'published')),
+  -- Filled in once the war appears in game, which is what turns an intention
+  -- into something T6.10 can compare against reality.
+  war_id       uuid references wars (id) on delete restrict,
+  created_by   uuid not null references users (id) on delete restrict,
+  published_at timestamptz,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz,
+  deleted_at   timestamptz
+);
+
+create trigger war_lineups_set_updated_at
+  before update on war_lineups
+  for each row execute function set_updated_at();
+
+create index war_lineups_clan_id_idx on war_lineups (clan_id) where deleted_at is null;
+
+create table war_lineup_members (
+  id         uuid primary key default gen_random_uuid(),
+  lineup_id  uuid not null references war_lineups (id) on delete restrict,
+  player_id  uuid not null references players (id) on delete restrict,
+  position   smallint,
+  added_by   uuid not null references users (id) on delete restrict,
+  added_at   timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  deleted_at timestamptz,
+
+  unique (lineup_id, player_id)
+);
+
+create index war_lineup_members_lineup_id_idx
+  on war_lineup_members (lineup_id) where deleted_at is null;
+
+comment on table war_lineup_members is
+  'Who the leader picked for a war (a human decision, R11). Compared against '
+  'war_members at T6.10, never replaced by it (R12). No sync job may write here.';
+
+alter table war_lineups enable row level security;
+alter table war_lineup_members enable row level security;
+
+-- A DRAFT IS NOT VISIBLE TO MEMBERS, and the policy is what enforces that, not
+-- the page. 011 makes the same argument for CWL rosters: a draft is the leader
+-- thinking out loud, with people on it who will be cut, and showing it causes
+-- exactly the arguments publishing is meant to prevent.
+create policy "read published or own clan draft lineups" on war_lineups
+  for select to authenticated
+  using (
+    clan_id in (select auth_clan_ids())
+    and (status = 'published' or clan_id in (select auth_leadership_clan_ids()))
+  );
+
+create policy "leadership writes lineups" on war_lineups
+  for insert to authenticated
+  with check (clan_id in (select auth_leadership_clan_ids()));
+
+create policy "leadership updates lineups" on war_lineups
+  for update to authenticated
+  using (clan_id in (select auth_leadership_clan_ids()))
+  with check (clan_id in (select auth_leadership_clan_ids()));
+
+create policy "read lineup members of readable lineups" on war_lineup_members
+  for select to authenticated
+  using (
+    exists (
+      select 1 from war_lineups l
+      where l.id = war_lineup_members.lineup_id
+        and l.clan_id in (select auth_clan_ids())
+        and (l.status = 'published' or l.clan_id in (select auth_leadership_clan_ids()))
+    )
+  );
+
+create policy "leadership writes lineup members" on war_lineup_members
+  for insert to authenticated
+  with check (
+    exists (
+      select 1 from war_lineups l
+      where l.id = war_lineup_members.lineup_id
+        and l.clan_id in (select auth_leadership_clan_ids())
+    )
+  );
+
+create policy "leadership updates lineup members" on war_lineup_members
+  for update to authenticated
+  using (
+    exists (
+      select 1 from war_lineups l
+      where l.id = war_lineup_members.lineup_id
+        and l.clan_id in (select auth_leadership_clan_ids())
+    )
+  )
+  with check (
+    exists (
+      select 1 from war_lineups l
+      where l.id = war_lineup_members.lineup_id
+        and l.clan_id in (select auth_leadership_clan_ids())
+    )
+  );
+
+grant select, insert, update on war_lineups to authenticated;
+grant select, insert, update on war_lineup_members to authenticated;
+grant select on war_lineups, war_lineup_members to anon;
+
+-- ---------------------------------------------------------------------------
+-- R11 AS A PRIVILEGE, NOT A COMMENT.
+--
+-- These two tables hold the leader's decision. A sync job runs every fifteen
+-- minutes and overwrites; if one could write here, a routine tick erases an
+-- hour of their work, and R4 means there is no deleted row to recover.
+--
+-- The REVOKE is the operative line, and it is not redundant. 014 issued
+--
+--     alter default privileges in schema public
+--       grant select, insert, update on tables to service_role;
+--
+-- so EVERY table created after it is born writable by the sync jobs. Granting
+-- only select here changes nothing on its own — the default privilege has
+-- already been applied by the time this statement runs. A test asserting the
+-- sync role cannot write caught exactly that, having been written in the belief
+-- that a narrow grant was a narrow permission.
+--
+-- Worth knowing more broadly: the same default privilege reaches cwl_rosters,
+-- cwl_roster_members, polls and poll_responses. Nothing writes them today except
+-- the application, and the boundary is documented at the top of
+-- scripts/sync/shared.ts — but there it is discipline, and here it is enforced.
+-- Tightening the others deserves its own migration and its own tests.
+-- ---------------------------------------------------------------------------
+revoke insert, update, delete on war_lineups from service_role;
+revoke insert, update, delete on war_lineup_members from service_role;
+
+-- Still readable, so T6.10's comparison can be computed from a job if it ever
+-- moves there.
+grant select on war_lineups, war_lineup_members to service_role;
+
+-- No delete grant, for anybody. R4.
+
+
+-- ---------------------------------------------------------------------------
+-- Verify:
+--
+--   -- as an ordinary member, a draft lineup must be invisible:
+--   select count(*) from war_lineups where status = 'draft';        -- 0
+--
+--   -- as a member, assigning a target must RAISE:
+--   select assign_war_target('<war>', '<player>', 3::smallint);
+--
+--   -- as a leader, it must succeed AND leave exactly one audit row:
+--   select assign_war_target('<war>', '<player>', 3::smallint);
+--   select count(*) from audit_log where entity = 'war_targets';    -- 1
+--
+--   -- reassigning updates rather than duplicating:
+--   select assign_war_target('<war>', '<player>', 7::smallint);
+--   select count(*) from war_targets where war_id = '<war>';        -- still 1
+--
+--   -- and a sync job may never write the leader's plan:
+--   set role service_role;
+--   insert into war_lineup_members (lineup_id, player_id, added_by)
+--   values (...);                                                   -- denied
+-- ---------------------------------------------------------------------------
+
+-- ========================================================================
+-- 025_war_target_claim.sql
+-- ========================================================================
+
+-- T6.4, second half — "Members may claim an unassigned target."
+--
+-- 024 shipped assign_war_target() and clear_war_target(), both of which raise
+-- for anyone below co-leader. That is correct for assignment. It also means the
+-- sentence above, which is in the task text, has no write path at all: a member
+-- can read the board and change nothing on it.
+--
+-- This is the fifth table in this project to reach a page before it reached a
+-- grant (021 announcements, 022 cwl_bonuses, 023 push_subscriptions, 024
+-- war_targets for leadership, and now war_targets for members). The pattern is
+-- consistent enough to state plainly: a feature is not writable because someone
+-- wrote a form for it.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- WHY A CLAIM IS NOT JUST assign_war_target WITH A WEAKER ROLE CHECK
+--
+-- Four rules differ, and each of them is the difference between "members can
+-- self-organise" and "members can quietly undo the leader's plan":
+--
+--   1. YOU MAY ONLY CLAIM FOR YOURSELF. The player is resolved from
+--      players.user_id = auth.uid(), never passed in. A p_player argument would
+--      be an authorisation decision made by the caller.
+--
+--   2. YOU MAY NOT TAKE A BASE SOMEONE ELSE HOLDS. Asymmetric with the leader's
+--      function on purpose: 003 puts no unique constraint on
+--      (war_id, target_position) because double-hitting a base is a legitimate
+--      thing for a leader to order. A member helping themselves to base 3
+--      because it looks easy is not the same act, and the check below is the
+--      only thing that separates them.
+--
+--   3. YOU MAY NOT OVERWRITE AN ASSIGNMENT MADE BY SOMEBODY ELSE. Re-claiming
+--      your own previous claim is fine — that is changing your mind. Replacing
+--      what your co-leader told you to do is not a claim, it is a refusal, and
+--      it must not look identical to one in the audit trail.
+--
+--   4. THE AUDIT ACTION IS DIFFERENT. 'claim-target', not 'assign-target', so
+--      T9.6's viewer can answer "did the leader put me on base 7, or did I?"
+--      Recording both as the same action makes that question unanswerable, and
+--      it is precisely the question that gets asked after a lost war.
+--
+-- R12 — like 024's functions, this writes the PLAN and never touches
+-- war_attacks. R4 — nothing here deletes; withdrawal is clear_war_target's soft
+-- delete, which remains leadership-only by design (see the note at the end).
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create or replace function claim_war_target(
+  p_war      uuid,
+  p_position smallint,
+  p_note     text default null
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_clan   uuid;
+  v_state  text;
+  v_player uuid;
+  v_before jsonb;
+  v_holder uuid;
+  v_by     uuid;
+begin
+  if auth.uid() is null or p_war is null or p_position is null then
+    return false;
+  end if;
+
+  select clan_id, state into v_clan, v_state
+  from public.wars
+  where id = p_war and deleted_at is null;
+
+  if not found then
+    return false;
+  end if;
+
+  -- R3. Membership, not leadership — that is the whole point of this function —
+  -- but still a clan check: a member of clan A may not claim in clan B's war.
+  if v_clan not in (select public.auth_clan_ids()) then
+    raise exception 'you are not in this clan';
+  end if;
+
+  -- Same rule as 024. Editing the plan after the outcome is known is how a
+  -- "plan versus reality" report quietly becomes one that agrees with itself.
+  if v_state = 'warEnded' then
+    raise exception 'this war has ended; its plan can no longer be changed';
+  end if;
+
+  -- Rule 1. Resolved, never supplied. An account with no linked player has not
+  -- finished verification (T3.3) and has nothing to claim with — said plainly,
+  -- because "nothing happened" on a button press is the most confusing possible
+  -- answer to a member who has not realised they never verified.
+  select id into v_player
+  from public.players
+  where user_id = auth.uid() and deleted_at is null
+  limit 1;
+
+  if v_player is null then
+    raise exception 'no verified player is linked to your account; verify first';
+  end if;
+
+  if not exists (
+    select 1 from public.war_members
+    where war_id = p_war and player_id = v_player and deleted_at is null
+  ) then
+    raise exception 'you are not in this war';
+  end if;
+
+  -- Rule 2. Any LIVE target on that base, held by anyone else.
+  select player_id into v_holder
+  from public.war_targets
+  where war_id = p_war
+    and target_position = p_position
+    and player_id <> v_player
+    and deleted_at is null
+  limit 1;
+
+  if v_holder is not null then
+    raise exception 'base % is already taken', p_position;
+  end if;
+
+  -- Rule 3. Your own row, whoever put it there.
+  select to_jsonb(t), t.assigned_by into v_before, v_by
+  from public.war_targets t
+  where t.war_id = p_war and t.player_id = v_player and t.deleted_at is null;
+
+  if v_by is not null and v_by <> auth.uid() then
+    raise exception
+      'leadership has already assigned you a target; ask them to change it';
+  end if;
+
+  insert into public.war_targets (war_id, player_id, target_position, note, assigned_by)
+  values (p_war, v_player, p_position, p_note, auth.uid())
+  on conflict (war_id, player_id) do update
+    set target_position = excluded.target_position,
+        note            = excluded.note,
+        assigned_by     = excluded.assigned_by,
+        assigned_at     = now(),
+        deleted_at      = null;
+
+  -- Rule 4.
+  insert into public.audit_log (user_id, clan_id, action, entity, entity_id, before, after)
+  values (auth.uid(), v_clan, 'claim-target', 'war_targets', v_player, v_before,
+          jsonb_build_object('target_position', p_position, 'note', p_note));
+
+  return true;
+end;
+$$;
+
+revoke execute on function claim_war_target(uuid, smallint, text) from public;
+grant execute on function claim_war_target(uuid, smallint, text) to authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- The mirror, and it is narrower than clear_war_target on purpose.
+--
+-- A member may release a base THEY claimed. They may not release one leadership
+-- assigned them — that is clear_war_target's job and it stays leadership-only,
+-- because "I dropped the target you gave me" is a conversation, not a button.
+--
+-- Soft delete (R4): the row stays and both states are in the audit trail, so
+-- "who was on base 7 an hour ago" still has an answer.
+-- ---------------------------------------------------------------------------
+create or replace function release_war_target(p_war uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_clan   uuid;
+  v_state  text;
+  v_player uuid;
+  v_before jsonb;
+  v_by     uuid;
+begin
+  if auth.uid() is null or p_war is null then
+    return false;
+  end if;
+
+  select clan_id, state into v_clan, v_state
+  from public.wars
+  where id = p_war and deleted_at is null;
+
+  if not found then
+    return false;
+  end if;
+
+  if v_clan not in (select public.auth_clan_ids()) then
+    raise exception 'you are not in this clan';
+  end if;
+
+  if v_state = 'warEnded' then
+    raise exception 'this war has ended; its plan can no longer be changed';
+  end if;
+
+  select id into v_player
+  from public.players
+  where user_id = auth.uid() and deleted_at is null
+  limit 1;
+
+  if v_player is null then
+    return false;
+  end if;
+
+  select to_jsonb(t), t.assigned_by into v_before, v_by
+  from public.war_targets t
+  where t.war_id = p_war and t.player_id = v_player and t.deleted_at is null;
+
+  if v_before is null then
+    return false;                      -- already gone; not an error, not audited twice
+  end if;
+
+  if v_by is distinct from auth.uid() then
+    raise exception
+      'leadership assigned this target; ask them to clear it';
+  end if;
+
+  update public.war_targets
+  set deleted_at = now()
+  where war_id = p_war and player_id = v_player;
+
+  insert into public.audit_log (user_id, clan_id, action, entity, entity_id, before)
+  values (auth.uid(), v_clan, 'release-target', 'war_targets', v_player, v_before);
+
+  return true;
+end;
+$$;
+
+revoke execute on function release_war_target(uuid) from public;
+grant execute on function release_war_target(uuid) to authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- NO NEW GRANT ON war_targets, AND THAT IS THE POINT.
+--
+-- 023's header is worth restating because it is the mistake this project keeps
+-- almost making: a policy is not a grant, and Postgres checks the table
+-- privilege first. The inverse also holds — these functions are SECURITY
+-- DEFINER, so they run as the owner and need no privilege granted to
+-- `authenticated` at all. Adding `grant insert on war_targets to authenticated`
+-- to "make it work" would open a second, unaudited write path around every rule
+-- above, and it would work, which is what makes it dangerous.
+--
+-- Verify:
+--
+--   -- as a member with a linked player, in the war:
+--   select claim_war_target('<war>', 3::smallint);              -- true
+--   select count(*) from audit_log where action = 'claim-target';  -- 1
+--
+--   -- a second member cannot take the same base:
+--   select claim_war_target('<war>', 3::smallint);              -- RAISES
+--
+--   -- and cannot overwrite what a leader assigned them:
+--   select assign_war_target('<war>', '<them>', 5::smallint);   -- as leader
+--   select claim_war_target('<war>', 9::smallint);              -- RAISES
+--
+--   -- releasing your own claim is a soft delete, not a delete:
+--   select release_war_target('<war>');
+--   select count(*) from war_targets where deleted_at is not null;  -- 1
+-- ---------------------------------------------------------------------------
+
+-- ========================================================================
+-- 026_war_opponent.sql
+-- ========================================================================
+
+-- T6.3 — "War board page. BOTH ROSTERS, attack status per base."
+--
+-- Only one roster exists. 024 gave war_members, which references players and
+-- therefore holds our side alone; the opponent arrives on the same API response
+-- and is thrown away, exactly as 020 found the clan detail being thrown away
+-- hourly since T2.4.
+--
+-- Without it the board can show base numbers and nothing else, and T6.4 — the
+-- feature this whole phase is arranged around — becomes "assign your TH16 to
+-- base 7" with no way to know what base 7 is. A leader who cannot see the
+-- opposing lineup assigns targets by position and hope.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- WHY THIS IS NOT war_members WITH A `side` COLUMN, AND NOT players ROWS
+--
+-- war_members.player_id is NOT NULL and references players. Widening it to hold
+-- the opposition means either a nullable FK — after which every join in the war
+-- module needs a filter nobody will remember on the first day — or creating
+-- players rows for them.
+--
+-- Creating players rows is the one that looks convenient and is not. `players`
+-- is the member directory (T3B.2), the donation report (T3B.3), the inactivity
+-- list (T3B.5), the cross-clan search (T3B.6) and the roster pool (T4B.7).
+-- Fifty strangers per war, permanently, in all of them — and R4 means the
+-- correction is a deleted_at, never a delete. A separate table costs one join
+-- and cannot leak into anything.
+--
+-- R11 — a GAME FACT, written only by scripts/sync/war.ts.
+--
+-- NO TAG FORMAT CONSTRAINT, unlike players. That check exists to catch a human
+-- transcribing a tag wrongly (001_core.sql:95-98). Nothing here is typed by a
+-- human; it comes from the API. A war whose opponent has a tag Supercell accepts
+-- and this project's regex does not would fail the whole sync, which is a far
+-- worse outcome than storing an odd-looking tag.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create table war_opponent_members (
+  id           uuid primary key default gen_random_uuid(),
+  war_id       uuid not null references wars (id) on delete restrict,
+  tag          text not null,
+  name         text,
+  map_position smallint,
+  th_level     smallint,
+  created_at   timestamptz not null default now(),
+  deleted_at   timestamptz,
+
+  -- The idempotency key. Without it ON CONFLICT DO NOTHING matches nothing and
+  -- every sync run duplicates the entire opposing roster, silently — the same
+  -- hole 019 and 024 each name in their headers.
+  unique (war_id, tag)
+);
+
+create index war_opponent_members_war_id_idx
+  on war_opponent_members (war_id) where deleted_at is null;
+
+-- The lookup war_attacks.defender_position is resolved through, and the one the
+-- board reads for every row.
+create index war_opponent_members_position_idx
+  on war_opponent_members (war_id, map_position) where deleted_at is null;
+
+comment on table war_opponent_members is
+  'The opposing lineup for one war (a game fact, R11). Deliberately NOT in '
+  'players: they are not members of any of the three clans, and putting them '
+  'there would place fifty strangers per war into the member directory, the '
+  'donation report and the cross-clan search, permanently (R4).';
+
+alter table war_opponent_members enable row level security;
+
+-- One-level join, the same shape 024 uses for war_members: `wars` carries
+-- clan_id directly.
+create policy "read own clan war opponents" on war_opponent_members
+  for select to authenticated
+  using (
+    exists (
+      select 1 from wars w
+      where w.id = war_opponent_members.war_id
+        and w.clan_id in (select auth_clan_ids())
+    )
+  );
+
+grant select on war_opponent_members to anon, authenticated;
+grant select, insert, update on war_opponent_members to service_role;
+
+-- No insert or update for `authenticated`, and no delete for anybody. This is
+-- what the API said, not something a person edits (R11), and R4 forbids the
+-- delete regardless.
+
+
+-- ---------------------------------------------------------------------------
+-- Verify:
+--
+--   -- as a member, the opposing lineup for your own war is visible:
+--   select count(*) from war_opponent_members;         -- teamSize
+--
+--   -- and another clan's is not (R3):
+--   select count(*) from war_opponent_members
+--    where war_id = '<another clan's war>';            -- 0
+--
+--   -- a leader may not invent an opponent:
+--   insert into war_opponent_members (war_id, tag) values ('<war>', '#X');
+--                                                       -- denied
 -- ---------------------------------------------------------------------------
 
 commit;

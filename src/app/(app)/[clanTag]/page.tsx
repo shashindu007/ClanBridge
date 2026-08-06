@@ -164,6 +164,15 @@ export default async function ClanDashboardPage({
               <Link href={`${href}/cwl`}>Clan War League</Link>
             </Button>
             <Button asChild variant="outline" size="sm">
+              <Link href={`${href}/war`}>War board</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`${href}/war/lineup`}>War lineup</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`${href}/war/history`}>War history</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
               <Link href={`${href}/polls`}>Polls</Link>
             </Button>
             <Button asChild variant="outline" size="sm">
@@ -184,7 +193,6 @@ export default async function ClanDashboardPage({
       <section className="space-y-2 rounded-lg border border-dashed p-6">
         <h2 className="text-muted-foreground font-medium">Not built yet</h2>
         <ul className="text-muted-foreground list-inside list-disc text-sm">
-          <li>Current war state and war board (T6.1, T6.3)</li>
           <li>
             Next CWL start date — the API publishes none, so it has to be inferred
             from the season calendar (T4.4)

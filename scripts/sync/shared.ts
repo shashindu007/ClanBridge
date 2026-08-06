@@ -61,6 +61,47 @@ export function skip(reason: string, detail?: string): never {
   throw new SyncSkipped(reason, detail);
 }
 
+/**
+ * Refuse to write fixture data into a real database.
+ *
+ * USE_FIXTURES=true makes coc-client.ts read fixtures/ instead of the network
+ * (T2.3), which is correct for the offline suite and for development. It is
+ * catastrophic for a sync job pointed at Supabase: the job would write the
+ * scrubbed placeholder clan and its invented members into `clans`, `players` and
+ * `member_snapshots` as ordinary rows, indistinguishable from real ones.
+ *
+ * There is no undo. R4 forbids deletes, and 014 withholds DELETE from
+ * service_role deliberately, so the only available correction is setting
+ * deleted_at — the fabricated players stay in the table for the life of the
+ * project, attached to whatever history accumulates against their ids.
+ *
+ * `.env.local` ships with USE_FIXTURES=true, so this is the default state of a
+ * fresh checkout, not an exotic mistake.
+ *
+ * THE TEST SUITE IS NOT AFFECTED, and the discriminator is not an environment
+ * variable but the injected client: tests pass `options.client` (PGlite), whereas
+ * a job run from a workflow or a terminal has none and builds the service-role
+ * client against the real project. Guarding on that means the offline tests keep
+ * exercising the real fixture path, while the one case that reaches live data is
+ * the one that stops.
+ *
+ * ALLOW_FIXTURE_SYNC=true overrides, for deliberately seeding a scratch database.
+ */
+export function assertNotFixtureSync(jobType: JobType): void {
+  if (process.env.USE_FIXTURES !== "true") return;
+  if (process.env.ALLOW_FIXTURE_SYNC === "true") return;
+
+  throw new Error(
+    `Refusing to run the ${jobType} sync with USE_FIXTURES=true.\n\n` +
+      "  This job would read fixtures/ and write invented members into the real\n" +
+      "  database as real rows. R4 means they could never be removed, only\n" +
+      "  soft-deleted, so the correction is permanent damage rather than a fix.\n\n" +
+      "  Set USE_FIXTURES=false in .env.local to sync against the live API.\n" +
+      "  Set ALLOW_FIXTURE_SYNC=true as well only if you meant to seed a\n" +
+      "  throwaway database from fixtures.",
+  );
+}
+
 export interface JobContext {
   supabase: SupabaseClient;
   /** Count rows actually written, so sync_log records real work rather than "it ran". */
@@ -130,6 +171,13 @@ export async function runSyncJob(
   job: (ctx: JobContext) => Promise<void>,
   options: RunOptions = {},
 ): Promise<"success" | "skipped" | "failed"> {
+  // Before the client, and therefore before sync_log: a job that must not run has
+  // not failed, and recording a `failed` row here would also fire T5.8's alert —
+  // pushing a notification to the leader about a variable in someone's .env.local.
+  // Only for a real run; an injected client is the offline suite. See the note on
+  // assertNotFixtureSync.
+  if (!options.client) assertNotFixtureSync(jobType);
+
   const supabase = options.client ?? createAdminClient();
   const id = await startSyncLog(supabase, jobType, options.clanId);
 
@@ -164,6 +212,16 @@ export async function runSyncJob(
       recordsWritten: written,
     });
     console.error(`[${jobType}] FAILED: ${message}`);
+
+    // T5.8 — the log row is written; now tell someone without waiting for them
+    // to look. Imported lazily so that a job which never fails never loads the
+    // push stack, and awaited so the process cannot exit before it sends.
+    //
+    // alertSyncFailure never throws: an alerting failure must not replace the
+    // sync failure, which is the news.
+    const { alertSyncFailure } = await import("./alerts");
+    await alertSyncFailure(supabase, jobType, options.clanId ?? null, message);
+
     return "failed";
   }
 }
@@ -177,7 +235,19 @@ export async function main(
   job: (ctx: JobContext) => Promise<void>,
   options: RunOptions = {},
 ): Promise<void> {
-  const result = await runSyncJob(jobType, job, options);
+  let result: "success" | "skipped" | "failed";
+  try {
+    result = await runSyncJob(jobType, job, options);
+  } catch (error) {
+    // Only reachable before the log row is opened — currently the fixture guard
+    // and a startSyncLog failure. Printed as the message alone: both already say
+    // exactly what to do, and a stack trace above the instruction is how an
+    // operator concludes the tool is broken rather than that they are being told
+    // something.
+    console.error(`\n${error instanceof Error ? error.message : String(error)}\n`);
+    process.exitCode = 1;
+    return;
+  }
   process.exitCode = result === "failed" ? 1 : 0;
 }
 
