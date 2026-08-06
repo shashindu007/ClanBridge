@@ -120,6 +120,13 @@ async function seedFixtures(h: Harness) {
       ('11111111-0000-4000-8000-000000000003', '${PLAYER_A}', 1, 15),
       ('22222222-0000-4000-8000-000000000003', '${PLAYER_B}', 1, 14);
 
+    -- 026 — the other side. No players row and no FK to one: they are not
+    -- members of any of the three clans, and putting them in the players table
+    -- would place strangers in the member directory permanently (R4).
+    insert into war_opponent_members (war_id, tag, name, map_position, th_level) values
+      ('11111111-0000-4000-8000-000000000003', '#C2V89UGL', 'Opponent A', 1, 15),
+      ('22222222-0000-4000-8000-000000000003', '#C2V89UGJ', 'Opponent B', 1, 14);
+
     -- 024 — and the leader's intended lineup, which no sync job may write.
     insert into war_lineups (id, clan_id, size, status, created_by) values
       ('11111111-0000-4000-8000-000000000009', '${CLAN_A}', 15, 'published', '${USER_A}'),
@@ -414,6 +421,11 @@ describe("T3.7 — a member of clan A cannot read clan B", () => {
     "wars",
     "war_targets",
     "war_attacks",
+    // Both reach clan_id through a one-level join to `wars` (024, 026). Absent
+    // from this list until now, which is how the coverage rots: a table arrives
+    // with a policy nobody ever asserts.
+    "war_members",
+    "war_opponent_members",
     "raid_seasons",
     "raid_participants",
     "clan_games",

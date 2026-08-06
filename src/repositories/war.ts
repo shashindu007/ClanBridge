@@ -67,6 +67,20 @@ export interface WarAttackRow {
   defenderPosition: number | null;
 }
 
+/**
+ * A base on the other side (026).
+ *
+ * No playerId, because there is no player: the opposition are not members of any
+ * of the three clans and are deliberately kept out of `players` — see 026's
+ * header for what putting them there would do to the member directory.
+ */
+export interface WarOpponentRow {
+  tag: string;
+  name: string | null;
+  mapPosition: number | null;
+  thLevel: number | null;
+}
+
 export interface WarTargetRow {
   playerId: string;
   targetPosition: number;
@@ -291,6 +305,27 @@ export async function attacksForWar(
     destruction: Number(r.destruction),
     defenderTag: (r.defender_tag as string | null) ?? null,
     defenderPosition: (r.defender_position as number | null) ?? null,
+  }));
+}
+
+/** The other side's lineup — what a base number actually means (T6.3, T6.4). */
+export async function opponentsOfWar(
+  supabase: SupabaseClient,
+  warId: string,
+): Promise<WarOpponentRow[]> {
+  const { data, error } = await supabase
+    .from("war_opponent_members")
+    .select("tag, name, map_position, th_level")
+    .eq("war_id", warId)
+    .is("deleted_at", null)
+    .order("map_position");
+
+  if (error || !data) return [];
+  return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
+    tag: r.tag as string,
+    name: (r.name as string | null) ?? null,
+    mapPosition: (r.map_position as number | null) ?? null,
+    thLevel: (r.th_level as number | null) ?? null,
   }));
 }
 

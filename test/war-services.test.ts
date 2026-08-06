@@ -26,6 +26,7 @@ import type {
   LineupMember,
   WarAttackRow,
   WarMemberRow,
+  WarOpponentRow,
   WarRow,
   WarTargetRow,
 } from "@/repositories/war";
@@ -43,6 +44,7 @@ import {
   warsForClan,
 } from "@/repositories/war";
 import {
+  enemyBoard,
   isComparable,
   outstandingAttacks,
   planVersusReality,
@@ -417,6 +419,82 @@ describe("services/war — the derivations", () => {
 
     it("returns nothing for no wars", () => {
       expect(warContribution([])).toEqual([]);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  describe("enemyBoard (T6.3)", () => {
+    const opponent = (position: number, th = 15): WarOpponentRow => ({
+      tag: `#OPP${position}`,
+      name: `Opponent ${position}`,
+      mapPosition: position,
+      thLevel: th,
+    });
+
+    it("names every base and marks the free ones", () => {
+      const board = enemyBoard(3, [opponent(1), opponent(2), opponent(3)], [], [member("a")]);
+
+      expect(board.map((b) => b.position)).toEqual([1, 2, 3]);
+      expect(board[0]!.name).toBe("Opponent 1");
+      expect(board.every((b) => b.free)).toBe(true);
+    });
+
+    // A base with no roster row must still appear. The leader assigns by
+    // position, and an omitted base 3 is an unassignable base 3 — with the gap
+    // looking like a smaller war rather than missing data.
+    it("shows a base the sync has no roster row for", () => {
+      const board = enemyBoard(3, [opponent(1)], [], []);
+
+      expect(board).toHaveLength(3);
+      expect(board[2]!.name).toBeNull();
+      expect(board[2]!.position).toBe(3);
+    });
+
+    // Best, not latest and not summed. Two members on one base gives that base
+    // one score, and the game scores it as the best of them.
+    it("takes the BEST result on a base that was hit twice", () => {
+      const board = enemyBoard(
+        1,
+        [opponent(1)],
+        [
+          attack("a", 1, { defenderPosition: 1, stars: 3, destruction: 100 }),
+          attack("b", 1, { defenderPosition: 1, stars: 1, destruction: 45 }),
+        ],
+        [member("a"), member("b", { mapPosition: 2 })],
+      );
+
+      expect(board[0]!.bestStars).toBe(3);
+      expect(board[0]!.bestDestruction).toBe(100);
+      expect(board[0]!.attackedBy.map((a) => a.playerId)).toEqual(["a", "b"]);
+      expect(board[0]!.free).toBe(false);
+    });
+
+    it("reports an untouched base as having no result rather than zero stars", () => {
+      const board = enemyBoard(1, [opponent(1)], [], [member("a")]);
+      // Zero would read as "somebody attacked and failed", which is a different
+      // and much worse thing to tell a leader.
+      expect(board[0]!.bestStars).toBeNull();
+    });
+
+    it("marks a base as taken once somebody is assigned to it", () => {
+      const board = enemyBoard(2, [opponent(1), opponent(2)], [], [member("a")], [target("a", 2)]);
+
+      expect(board[0]!.free).toBe(true);
+      expect(board[1]!.free).toBe(false);
+      expect(board[1]!.assignedTo.map((m) => m.name)).toEqual(["Player a"]);
+    });
+
+    // An attack the sync could not place belongs to no base. Bucketing it into
+    // base 0 would show an attack on a base that does not exist.
+    it("drops an attack whose defender position could not be resolved", () => {
+      const board = enemyBoard(
+        1,
+        [opponent(1)],
+        [attack("a", 1, { defenderPosition: null })],
+        [member("a")],
+      );
+      expect(board[0]!.attackedBy).toEqual([]);
+      expect(board[0]!.free).toBe(true);
     });
   });
 

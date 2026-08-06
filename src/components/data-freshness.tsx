@@ -10,9 +10,15 @@
 import { Badge } from "@/components/ui/badge";
 import type { Freshness } from "@/services/freshness";
 
+// Every skip reason a job can record, in the words a member would use. An
+// unmapped reason falls through to the raw string below, which is readable but
+// looks like a leak — so a new skip() belongs here too.
 const NOT_IN_CWL: Record<string, string> = {
   noCwlGroup: "not in CWL this month",
   noClansSeeded: "no clans added yet",
+  // T6.1. As ordinary as noCwlGroup and for the same reason: most of the time
+  // there is no war on, and that is the sync working.
+  notInWar: "no war on right now",
 };
 
 export function DataFreshness({ freshness }: { freshness: Freshness }) {

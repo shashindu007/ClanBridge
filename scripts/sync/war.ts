@@ -189,6 +189,40 @@ async function upsertWarMembers(
 }
 
 /**
+ * war_opponent_members — the other side (026).
+ *
+ * Fetched on the same response as our own roster and, until 026, discarded. It
+ * is what turns "assign your TH16 to base 7" into a decision: T6.4 is target
+ * assignment, and a leader who cannot see what base 7 is assigns by position and
+ * hope.
+ *
+ * Not in `players` and not FK'd to it, deliberately — see 026's header. These
+ * are strangers, and `players` is the member directory.
+ */
+async function upsertOpponents(
+  supabase: SupabaseClient,
+  warId: string,
+  members: WarMember[],
+): Promise<number> {
+  const rows = members.map((m) => ({
+    war_id: warId,
+    tag: m.tag,
+    name: m.name,
+    map_position: m.mapPosition ?? null,
+    th_level: m.thLevel ?? null,
+  }));
+
+  if (!rows.length) return 0;
+
+  const { error } = await supabase
+    .from("war_opponent_members")
+    .upsert(rows, { onConflict: "war_id,tag", ignoreDuplicates: true });
+
+  if (error) throw new Error(`war_opponent_members upsert failed: ${error.message}`);
+  return rows.length;
+}
+
+/**
  * The attacks.
  *
  * `defender_position` IS LOAD-BEARING, and it is the one field here with no
@@ -317,6 +351,7 @@ export async function syncWar(ctx: JobContext): Promise<void> {
         war.attacksPerMember ?? 2,
       ),
     );
+    ctx.recorded(await upsertOpponents(supabase, warId, sides.theirs.members));
     ctx.recorded(
       await upsertWarAttacks(supabase, warId, sides.ours.members, playerIds, defenderPositions),
     );

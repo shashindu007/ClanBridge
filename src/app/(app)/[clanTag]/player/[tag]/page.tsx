@@ -30,12 +30,22 @@ import { createClient } from "@/lib/supabase/server";
 import { decodeTag, InvalidTagError } from "@/lib/tags";
 import { playerSeasonHistory } from "@/repositories/cwl";
 import { clanMovement, snapshotHistory } from "@/repositories/members";
+import {
+  attacksForWar,
+  membersOfWar,
+  targetsForWar,
+  warsForClan,
+} from "@/repositories/war";
 import { donationRatio, donationSeasons, lastActivityAt } from "@/services/members";
+import { warContribution } from "@/services/war";
 
 export const dynamic = "force-dynamic";
 
 /** Six months, because that is the window objective O4 names. */
 const HISTORY_DAYS = 182;
+
+/** The same window /war/report uses, so the two pages never show different totals. */
+const WAR_WINDOW = 10;
 
 function monthLabel(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", {
@@ -118,6 +128,21 @@ export default async function PlayerProfilePage({
   const movementRows = movement
     .map((m) => ({ ...m, name: names.get(m.clanId) }))
     .filter((m): m is typeof m & { name: string } => Boolean(m.name));
+
+  // T6.9 — this member's war record, from the same recent window /war/report
+  // uses. Computed with the shared derivation rather than a second query, so
+  // the two pages cannot disagree about what "missed" means.
+  const recentWars = await warsForClan(supabase, clan.id, WAR_WINDOW);
+  const perWar = [];
+  for (const war of recentWars) {
+    perWar.push({
+      members: await membersOfWar(supabase, war.id),
+      attacks: await attacksForWar(supabase, war.id),
+      targets: await targetsForWar(supabase, war.id),
+    });
+  }
+  const warRecordForPlayer =
+    warContribution(perWar).find((c) => c.playerId === player.id) ?? null;
 
   const totals = history.reduce(
     (sum, s) => ({
@@ -306,12 +331,81 @@ export default async function PlayerProfilePage({
         </section>
       )}
 
+      {/* ── T6.9 — clan war ──────────────────────────────────────────────
+          The aggregate lives on /war/report, which reads every recent war at
+          once. Repeating that work per profile would make O4's thirty seconds a
+          promise this page could not keep, so the headline numbers are computed
+          here from one pass and the detail is a link. */}
+      <section className="space-y-4 rounded-lg border p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-medium">Clan war</h2>
+          <Link
+            className="text-sm underline"
+            href={`/${encodeURIComponent(clan.tag)}/war/report`}
+          >
+            full report
+          </Link>
+        </div>
+
+        {!warRecordForPlayer ? (
+          <p className="text-muted-foreground text-sm">
+            No war record for this member in {clan.name} yet. They have either not
+            been in a war here, or the war sync has not run since one.
+          </p>
+        ) : (
+          <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
+            <div>
+              <p className="text-2xl font-semibold tabular-nums">
+                {warRecordForPlayer.attacksUsed}
+                <span className="text-muted-foreground text-base">
+                  {" "}
+                  of {warRecordForPlayer.attacksAvailable}
+                </span>
+              </p>
+              <p className="text-muted-foreground text-xs">
+                attacks used across {warRecordForPlayer.warsPlayed} war
+                {warRecordForPlayer.warsPlayed === 1 ? "" : "s"}
+              </p>
+            </div>
+            <div>
+              <p
+                className={`text-lg font-medium tabular-nums ${
+                  warRecordForPlayer.attacksMissed >= 3 ? "text-destructive" : ""
+                }`}
+              >
+                {warRecordForPlayer.attacksMissed}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                missed
+                {warRecordForPlayer.warsMissedEntirely > 0 &&
+                  `, ${warRecordForPlayer.warsMissedEntirely} war${
+                    warRecordForPlayer.warsMissedEntirely === 1 ? "" : "s"
+                  } skipped entirely`}
+              </p>
+            </div>
+            <div>
+              <p className="text-lg font-medium tabular-nums">{warRecordForPlayer.stars}</p>
+              <p className="text-muted-foreground text-xs">stars</p>
+            </div>
+            {warRecordForPlayer.targetsJudged > 0 && (
+              <div>
+                <p className="text-lg font-medium tabular-nums">
+                  {warRecordForPlayer.targetsFollowed} of {warRecordForPlayer.targetsJudged}
+                </p>
+                {/* Only the wars where it could be judged. A member who was
+                    never assigned a target has not ignored one. */}
+                <p className="text-muted-foreground text-xs">hit the base they were given</p>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
       {/* Named rather than omitted, so the page states what it does not yet know
           instead of implying this is the member's whole record. */}
       <section className="space-y-2 rounded-lg border border-dashed p-6">
         <h2 className="text-muted-foreground font-medium">Not built yet</h2>
         <ul className="text-muted-foreground list-inside list-disc text-sm">
-          <li>Clan war attacks and target adherence (T6.9)</li>
           <li>Raid Weekend participation (T7.3)</li>
           <li>Clan Games points (T7.5)</li>
         </ul>

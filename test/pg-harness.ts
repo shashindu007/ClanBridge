@@ -52,6 +52,7 @@ export const PHASE1_MIGRATIONS = [
   "023_notifications.sql", // T5.5/T5.9/T5.6 push write policies, preferences, push_targets()
   "024_war.sql", // Phase 6 war_members, war lineups, and war_targets' write path
   "025_war_target_claim.sql", // T6.4 the member-claim path 024 left with no write route
+  "026_war_opponent.sql", // T6.3 the other roster, fetched and discarded until now
 ] as const;
 
 export function readMigration(file: string): string {
@@ -214,6 +215,7 @@ export const PHASE1_TABLES = [
   "war_lineup_members",
   "war_lineups",
   "war_members",
+  "war_opponent_members",
   "war_targets",
   "wars",
 ] as const;

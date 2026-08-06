@@ -40,6 +40,7 @@ const TABLES = [
   "poll_responses", // 010
   "wars",
   "war_members", // 024
+  "war_opponent_members", // 026
   "war_targets",
   "war_attacks",
   "war_lineups", // 024

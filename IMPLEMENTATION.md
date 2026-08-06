@@ -20,14 +20,20 @@ pass, and `npm run typecheck` and `npm run lint` are clean — not that it has b
 run against the live game.
 
 **Done:** Phase 1 entire · Phase 2 except T2.1 · Phase 3 entire · **Phase 3B entire** ·
-T4.1–T4.8 · **Phase 4B entire** · **Phase 5 except the CWL half of T5.6** · T9.6.
-Phases 6, 7 and 8 are placeholders that name their own task ID.
+T4.1–T4.8 · **Phase 4B entire** · **Phase 5 except the CWL half of T5.6** ·
+**Phase 6 entire** · T9.6.
+Phases 7 and 8 are placeholders that name their own task ID.
 
 **Nothing in the application has ever run against real data.** Every phase above
-was proven against synthetic fixtures and PGlite. The live database has all 23
-migrations applied and RLS verified against real Supabase — and 0 rows in every
-table, including `users`. Nobody has signed in yet, which is why T0.2 below is
-where the whole chain starts.
+was proven against synthetic fixtures and PGlite. The live database has 023 and
+everything before it applied and RLS verified against real Supabase — and 0 rows
+in every table, including `users`. Nobody has signed in yet, which is why T0.2
+below is where the whole chain starts.
+
+**024, 025 and 026 have not been applied to the live database.** They exist, they
+pass against PGlite, and `npm run migrations:apply` has not been run since Phase 6
+landed. Nothing reads them yet because nothing reads anything yet, but the war
+module is broken against live Supabase until it is.
 
 **Four unticked boxes matter more than the rest:**
 
@@ -54,13 +60,43 @@ where the whole chain starts.
 
 **Where the build deviated from this document, deliberately:**
 
-- **23 migrations, not 12.** 013–023 fix holes this plan did not anticipate.
+- **26 migrations, not 12.** 013–026 fix holes this plan did not anticipate.
   014 restored missing `service_role` grants that would have failed every sync
   job. 015 breaks the clan↔role↔leader bootstrap cycle that made a first sign-in
   impossible, which is also why T1.10's hardcoded seed was replaced by
   leader-managed clans at `/admin`. 019 adds `cwl_war_members`, the API roster
   that missed attacks are derived from — Phase 4 had nowhere to put it. 020 adds
   the clan detail the sync had been fetching and discarding hourly since T2.4.
+  **024 supersedes 012**, whose number is retired rather than reused so that
+  apply order stays equal to numeric order, as 009's was.
+- **The same discard bug, three times, on three endpoints.** 019 found the CWL
+  roster being fetched and dropped; 020 found the clan detail; **026 found the
+  opposing war lineup**. Each time the API had already sent the data and the sync
+  had nowhere to put it, and each time the feature that needed it — missed
+  attacks, the clan dashboard, and now T6.3's "both rosters" — could not be
+  built until a table existed. Worth suspecting on every remaining endpoint:
+  the raid and Clan Games responses in Phase 7 carry more than their tables hold.
+- **`war_opponent_members` is deliberately not `players` (026).** The obvious
+  shortcut is to create player rows for the opposition and reuse every existing
+  join. That would put fifty strangers per war into the member directory, the
+  donation report, the inactivity list, the cross-clan search and the roster
+  pool — permanently, because R4 means the correction is a `deleted_at` and never
+  a delete.
+- **T6.4's member claim needed its own migration (025).** 024 made target
+  assignment leadership-only, which is right, and left "members may claim an
+  unassigned target" with no write path at all. A claim is not an assignment with
+  a weaker role check: you claim only for yourself, only a base nobody else
+  holds, never over what leadership assigned you, and it audits under a distinct
+  action so "did the leader put me on base 7, or did I?" stays answerable.
+- **The war sync runs hourly inside `sync-clans`, not every 15 minutes in its
+  own workflow (T6.2).** Every-15-minutes is ~2,880 runs/month against a
+  2,000-minute private-repo allowance, before `sync-clans` (~720), `sync-cwl`
+  (~360) and `sync-health` (~720) are counted; the stub for `sync-war.yml` had
+  already worked that out and left it unresolved. As a step it costs the marginal
+  API call rather than another checkout and `npm ci`. Nothing is lost: unlike
+  CWL, `/currentwar` reports the full cumulative state of the war, so a missed
+  tick costs freshness on the board and never history. `sync-war.yml` remains as
+  `workflow_dispatch` for the manual mid-war refresh.
 - **006 shipped select policies only, and every write since has paid for it.**
   021 (announcements), 022 (`cwl_bonuses` had existed since 002 and had never
   been writable) and 023 (`push_subscriptions`, identical hole) each had to add
@@ -870,40 +906,66 @@ planned route to its task.
 
 *Reuses phase 4 almost entirely.*
 
-- [ ] **T6.1 — `scripts/sync/war.ts`**
+- [x] **T6.1 — `scripts/sync/war.ts`**
   Handle `notInWar`, `preparation`, `inWar`, `warEnded` explicitly (R10).
+  Reuses `chooseSides`, `warResult`, `storedState` and `resolvePlayers` from
+  `scripts/sync/cwl.ts` rather than copying them — a second copy of "which side
+  is us" is a second place for it to drift, and drift there records every result
+  backwards with nothing to notice.
+  One guard has no CWL equivalent: **`/currentwar` can return a league war during
+  CWL week.** It carries a `warTag`, and writing it into `wars` double-counts the
+  same war against `cwl_wars` in both war history and the contribution report.
 
-- [ ] **T6.2 — `sync-war.yml`**
-  Every 15 minutes.
+- [x] **T6.2 — `sync-war.yml`**
+  ~~Every 15 minutes.~~ **Hourly, as a second step of `sync-clans.yml`.** See the
+  deviation note in §0 for the Actions-minutes arithmetic. `sync-war.yml` is
+  `workflow_dispatch` only, for the manual mid-war refresh.
 
-- [ ] **T6.3 — War board page**
+- [x] **T6.3 — War board page**
   Both rosters, attack status per base, live from the database.
+  **Needed migration 026.** Only our own roster was stored; the opposing lineup
+  arrived on the same response and was discarded, which made "both rosters"
+  impossible and left target assignment as a bare list of numbers.
 
-- [ ] **T6.4 — Target assignment**
+- [x] **T6.4 — Target assignment**
   Leadership assigns targets, writes to `war_targets`. Members may claim an unassigned target.
   Keep plan and outcome separate — never write results into `war_targets`.
+  024 delivered the leadership half; **the member claim needed 025**, which 024
+  had left with no write path at all.
 
-- [ ] **T6.5 — Plan versus outcome view**
+- [x] **T6.5 — Plan versus outcome view**
   Show assigned target beside what actually happened.
+  Adjacent columns on the war board's roster table. Never one reconciled column.
 
-- [ ] **T6.6 — War history**
+- [x] **T6.6 — War history**
 
-- [ ] **T6.7 — War availability poll**
+- [x] **T6.7 — War availability poll**
   Reuses the poll tables from T4B.1 with `poll_type = war_availability`, scoped to one clan.
   Leader opens it before declaring war. Members answer in one tap. The leader sees the count before choosing the war size.
+  Phase 4B had already built all of this except the last clause, and the last
+  clause is the feature: the count is rendered **on the lineup page beside the
+  size selector**, because a count on one screen and a size box on another is a
+  memory test the leader will fail by guessing.
 
-- [ ] **T6.8 — War lineup selection**
-  Migration 012: `war_lineups`, `war_lineup_members` — same shape as the CWL roster tables.
+- [x] **T6.8 — War lineup selection**
+  ~~Migration 012~~ **migration 024**: `war_lineups`, `war_lineup_members` — same shape as the CWL roster tables.
   The leader picks the lineup from those available. Published to members before the war is declared in game.
   The API cannot tell you who *will* be in a war, only who is. So this is entirely human-decision data (R11).
 
-- [ ] **T6.9 — War contribution report**
+- [x] **T6.9 — War contribution report**
   Per member per war: attacks used, stars, destruction, and whether they followed their assigned target.
   Aggregate view across the last N wars, linked from the player profile.
+  **A war gives two attacks, so CWL's boolean `missed` is wrong here.** Fifteen
+  members each leaving one attack unused is a whole roster's worth of attacks,
+  and a boolean reports every one of them as fine. The unit is the attack.
 
-- [ ] **T6.10 — War plan versus reality**
+- [x] **T6.10 — War plan versus reality**
   Compare `war_lineup_members` against the roster the API reported, and `war_targets` against `war_attacks`.
   Same principle as T4B.11 (R12).
+  "Ignored their target" is **not** the complement of "followed it" — the gap is
+  "cannot tell yet", which is the common case mid-war. It is counted and shown
+  separately, because a report saying six people disobeyed when five had simply
+  not attacked is worse than no report.
 
 ---
 

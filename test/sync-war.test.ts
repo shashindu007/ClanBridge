@@ -80,7 +80,7 @@ describe("T6.1 — the clan war sync", () => {
 
       await h.asSuperuser();
       await h.db.exec(`
-        truncate war_attacks, war_members, war_targets,
+        truncate war_attacks, war_members, war_opponent_members, war_targets,
                  war_lineup_members, war_lineups, wars,
                  member_snapshots, players, sync_log, users, clans cascade;
         delete from auth.users;
@@ -112,6 +112,27 @@ describe("T6.1 — the clan war sync", () => {
       // Five in the lineup, three of whom attacked once each.
       expect(await count(h, "war_members")).toBe(5);
       expect(await count(h, "war_attacks")).toBe(3);
+      // And the other side (026), which arrives on the same response and was
+      // discarded before T6.3 needed it.
+      expect(await count(h, "war_opponent_members")).toBe(5);
+    });
+
+    // 026. The opposition is what turns "assign your TH16 to base 7" into a
+    // decision, and it is deliberately NOT in `players` — putting fifty
+    // strangers per war into the member directory is not undoable under R4.
+    it("records the opposing lineup without inventing players rows for them", async () => {
+      await runSyncJob("war", syncWar, { client });
+
+      const rows = await h.db.query<{ tag: string; name: string; map_position: number }>(
+        `select tag, name, map_position from war_opponent_members order by map_position`,
+      );
+      expect(rows.rows.map((r) => r.map_position)).toEqual([1, 2, 3, 4, 5]);
+      expect(rows.rows[0]!.name).toBe("Opponent 05");
+
+      // Only our own five. An opponent tag must never appear in the member
+      // directory, the donation report or the cross-clan search.
+      expect(await count(h, "players")).toBe(5);
+      expect(await count(h, "players", `tag like '#C2V89UG%'`)).toBe(0);
     });
 
     // Trap 2. The fixture gives our side 8 stars and theirs 6, so a job that
@@ -264,6 +285,7 @@ describe("T6.1 — the clan war sync", () => {
         const before = {
           wars: await count(h, "wars"),
           members: await count(h, "war_members"),
+          opponents: await count(h, "war_opponent_members"),
           attacks: await count(h, "war_attacks"),
           players: await count(h, "players"),
         };
@@ -274,6 +296,7 @@ describe("T6.1 — the clan war sync", () => {
         expect({
           wars: await count(h, "wars"),
           members: await count(h, "war_members"),
+          opponents: await count(h, "war_opponent_members"),
           attacks: await count(h, "war_attacks"),
           players: await count(h, "players"),
         }).toEqual(before);
@@ -327,7 +350,7 @@ describe("T6.1 — the clan war sync", () => {
         const row = log.rows[0]!;
         expect(row.status).toBe("success");
         expect(row.finished_at).not.toBeNull();
-        expect(row.records_written).toBe(8); // 5 in the lineup + 3 attacks
+        expect(row.records_written).toBe(13); // 5 ours + 5 theirs + 3 attacks
       });
     });
 

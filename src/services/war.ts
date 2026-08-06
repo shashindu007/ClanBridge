@@ -32,6 +32,7 @@ import type {
   LineupMember,
   WarAttackRow,
   WarMemberRow,
+  WarOpponentRow,
   WarRow,
   WarTargetRow,
 } from "@/repositories/war";
@@ -150,6 +151,99 @@ export function outstandingAttacks(record: MemberWarRecord[]): MemberWarRecord[]
         b.attacksRemaining - a.attacksRemaining ||
         (a.mapPosition ?? 99) - (b.mapPosition ?? 99),
     );
+}
+
+// ---------------------------------------------------------------------------
+// T6.3 — the enemy board
+// ---------------------------------------------------------------------------
+
+export interface EnemyBase {
+  position: number;
+  tag: string | null;
+  name: string | null;
+  thLevel: number | null;
+  /** Best stars anyone got on it. null when nobody has hit it. */
+  bestStars: number | null;
+  bestDestruction: number | null;
+  /** Everyone who attacked it, in the order they did. */
+  attackedBy: Array<{ playerId: string; name: string; stars: number; destruction: number }>;
+  /** Members told to hit it, whether or not they have. */
+  assignedTo: Array<{ playerId: string; name: string }>;
+  /** Nobody assigned and nobody attacked — what a member may claim (T6.4). */
+  free: boolean;
+}
+
+/**
+ * The other side, base by base, with what has happened to each (T6.3).
+ *
+ * Built from `teamSize` rather than from the opponent rows, so a base the sync
+ * has no roster entry for still appears. It has to: the leader assigns targets
+ * by position, and a board that silently omitted base 11 would make base 11
+ * unassignable — with the missing row looking like a smaller war rather than a
+ * gap.
+ *
+ * BEST stars, not latest and not a sum. Two members hitting one base gives that
+ * base one score, and it is the best of them — which is how the game scores it
+ * and therefore the only number that matches what the leader sees in-game.
+ */
+export function enemyBoard(
+  teamSize: number,
+  opponents: WarOpponentRow[],
+  attacks: WarAttackRow[],
+  members: WarMemberRow[],
+  targets: WarTargetRow[] = [],
+): EnemyBase[] {
+  const nameOf = new Map(members.map((m) => [m.playerId, m.name]));
+  const byPosition = new Map(
+    opponents.filter((o) => o.mapPosition !== null).map((o) => [o.mapPosition!, o]),
+  );
+
+  // An attack whose defender_position the sync could not resolve belongs to no
+  // base. Dropped from the board rather than bucketed into base 0, which would
+  // read as somebody attacking a base that does not exist.
+  const hits = new Map<number, WarAttackRow[]>();
+  for (const attack of attacks) {
+    if (attack.defenderPosition === null) continue;
+    const list = hits.get(attack.defenderPosition) ?? [];
+    list.push(attack);
+    hits.set(attack.defenderPosition, list);
+  }
+
+  const assigned = new Map<number, WarTargetRow[]>();
+  for (const target of targets) {
+    const list = assigned.get(target.targetPosition) ?? [];
+    list.push(target);
+    assigned.set(target.targetPosition, list);
+  }
+
+  const board: EnemyBase[] = [];
+  for (let position = 1; position <= teamSize; position += 1) {
+    const opponent = byPosition.get(position) ?? null;
+    const landed = (hits.get(position) ?? []).slice().sort((a, b) => a.attackOrder - b.attackOrder);
+    const plan = assigned.get(position) ?? [];
+
+    board.push({
+      position,
+      tag: opponent?.tag ?? null,
+      name: opponent?.name ?? null,
+      thLevel: opponent?.thLevel ?? null,
+      bestStars: landed.length ? Math.max(...landed.map((a) => a.stars)) : null,
+      bestDestruction: landed.length ? Math.max(...landed.map((a) => a.destruction)) : null,
+      attackedBy: landed.map((a) => ({
+        playerId: a.playerId,
+        name: nameOf.get(a.playerId) ?? "Unknown player",
+        stars: a.stars,
+        destruction: a.destruction,
+      })),
+      assignedTo: plan.map((t) => ({
+        playerId: t.playerId,
+        name: nameOf.get(t.playerId) ?? "Unknown player",
+      })),
+      free: plan.length === 0 && landed.length === 0,
+    });
+  }
+
+  return board;
 }
 
 export interface WarTotals {
