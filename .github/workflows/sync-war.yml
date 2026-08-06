@@ -1,8 +1,77 @@
-# T6.2 — Clan war sync
-# 
-# schedule: every 15 minutes    on.workflow_dispatch: yes
-# runs: npm run sync:war
-# 
-# The heaviest consumer of the 2,000 free minutes/month. At ~1 minute per run this
-# is ~2,880 minutes — over budget. Either widen the interval or make the job exit
-# immediately on notInWar before doing any setup work.
+# T6.2 — Clan war sync, on demand.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# THERE IS NO SCHEDULE HERE, AND THAT IS DELIBERATE.
+#
+# The scheduled war sync runs hourly as the second step of sync-clans.yml. The
+# argument is written out in full at that step; the short version is that this
+# file's original plan — every 15 minutes — is ~2,880 runs/month against a
+# 2,000-minute private-repo allowance, which the earlier draft of this very file
+# had already noticed and left unresolved.
+#
+# Adding a schedule here as well would double-run the job every hour. Both runs
+# are idempotent, so nothing would break — it would simply spend the budget
+# twice for identical rows, which is the failure mode nobody notices.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# What this file IS for: the manual run. During a war you will want the board
+# refreshed now rather than at :17 — after the last hour of attacks, or when
+# chasing someone who says they attacked and the page disagrees. Actions ->
+# sync-war -> Run workflow.
+#
+# R2 — sync runs here, never on Vercel.
+#
+# Repository secrets required (Settings -> Secrets and variables -> Actions):
+#   COC_API_TOKEN         the PRODUCTION key, registered against the RoyaleAPI proxy IP
+#   COC_API_BASE          https://cocproxy.royaleapi.dev/v1
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_KEY
+#
+# R6 — none of these may ever be set as a Vercel environment variable.
+#
+# R10 — notInWar is a clean exit, recorded as `skipped`. Most of the time that is
+# every clan, and it is a success, not something to investigate.
+
+name: sync-war
+
+on:
+  workflow_dispatch:
+
+# A manual run fired while the hourly one is mid-flight would write the same
+# rows twice. Every write is ON CONFLICT DO NOTHING so it is survivable, but it
+# doubles the API calls against a rate-limited key for no benefit. The group name
+# is shared with sync-clans deliberately: that is the workflow the scheduled war
+# sync actually lives in, so this is the same job contending with itself.
+concurrency:
+  group: sync-clans
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    # One API call per clan, throttled to one every 200 ms. The install is the
+    # slow part, not the work.
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Sync the current clan war
+        run: npm run sync:war
+        env:
+          COC_API_TOKEN: ${{ secrets.COC_API_TOKEN }}
+          COC_API_BASE: ${{ secrets.COC_API_BASE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # Explicitly false. Defaulting to fixtures here would write the
+          # scrubbed placeholder clan's invented members into the real database
+          # as ordinary rows, which R4 means could never be removed. The guard in
+          # scripts/sync/shared.ts refuses that anyway; this is the belt.
+          USE_FIXTURES: "false"

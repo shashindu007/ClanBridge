@@ -149,7 +149,14 @@ const FIXTURES: Record<string, unknown> = {
       attacks: 4,
       stars: 6,
       destructionPercentage: 71.2,
-      members: [],
+      // Present for the reason opponentWarMember() gives. This file had the
+      // empty-roster bug one endpoint longer than cwlwar.json did, and the cost
+      // is the same: war_attacks.defender_position is derived by looking
+      // defenderTag up here, and T6.9's "did they hit the base they were told
+      // to" compares that column against war_targets.target_position. An empty
+      // opponent makes the whole comparison read "unknown" with nothing to show
+      // for it. teamSize is 5, so five is also the only self-consistent value.
+      members: [0, 1, 2, 3, 4].map(opponentWarMember),
     },
   },
 

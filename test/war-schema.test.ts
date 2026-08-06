@@ -310,4 +310,216 @@ describe("Phase 6 — the war schema (024)", () => {
       expect(await count(h, `select 1 from war_lineup_members`)).toBe(1);
     });
   });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // T6.4, second half — claim_war_target (025)
+  //
+  // 024 made assignment leadership-only, which left "members may claim an
+  // unassigned target" with no write path at all. What makes a claim different
+  // from a weak-role assignment is the four rules below; each one is the line
+  // between members self-organising and members undoing the leader's plan.
+  // ───────────────────────────────────────────────────────────────────────────
+  describe("claim_war_target (T6.4 / 025)", () => {
+    beforeEach(async () => {
+      // MEMBER_A owns PLAYER_A (see the fixture above) and PLAYER_A is in WAR_A.
+      // PLAYER_A2 belongs to nobody, which is what makes "claim for yourself
+      // only" testable — there is no second account to claim it as.
+      await h.asSuperuser();
+      await h.db.exec(`
+        insert into war_members (war_id, player_id, map_position, th_level)
+        values ('${WAR_A}', '${PLAYER_A2}', 2, 14);
+      `);
+    });
+
+    it("lets a member claim a free base for their own player, and audits it", async () => {
+      await h.asUser(MEMBER_A);
+      const res = await h.db.query<{ claim_war_target: boolean }>(
+        `select claim_war_target('${WAR_A}', 4::smallint, 'I can three-star it')`,
+      );
+      expect(res.rows[0]!.claim_war_target).toBe(true);
+
+      expect(
+        await count(
+          h,
+          `select 1 from war_targets
+            where war_id = '${WAR_A}' and player_id = '${PLAYER_A}'
+              and target_position = 4 and deleted_at is null`,
+        ),
+      ).toBe(1);
+
+      // Rule 4 — a distinct action. "Did the leader put me on base 4, or did I?"
+      // is the question asked after a lost war, and one shared action name makes
+      // it unanswerable.
+      //
+      // Read as the LEADER, not as the member who just wrote it. audit_log's
+      // read policy is `clan_id in (select auth_leader_clan_ids())`, so a member
+      // cannot see their own trail — which is the point of a trail. It is
+      // visible to somebody, unlike the null-clan rows 023 declined to write.
+      await h.asUser(LEADER_A);
+      expect(await count(h, `select 1 from audit_log where action = 'claim-target'`)).toBe(1);
+      expect(await count(h, `select 1 from audit_log where action = 'assign-target'`)).toBe(0);
+    });
+
+    // Rule 1. The player is resolved from auth.uid(), never passed in, so there
+    // is no argument through which to claim on somebody else's behalf.
+    it("claims only for the caller's own player", async () => {
+      await h.asUser(MEMBER_A);
+      await h.db.exec(`select claim_war_target('${WAR_A}', 4::smallint);`);
+
+      expect(
+        await count(h, `select 1 from war_targets where player_id = '${PLAYER_A2}'`),
+      ).toBe(0);
+    });
+
+    // Rule 2, and the asymmetry with the leader's function. 003 puts no unique
+    // constraint on (war_id, target_position) because a leader may legitimately
+    // order two people onto one base; a member helping themselves to it is not
+    // the same act, and this check is the only thing separating them.
+    it("refuses a base another player already holds", async () => {
+      await h.asUser(LEADER_A);
+      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A2}', 4::smallint);`);
+
+      await h.asUser(MEMBER_A);
+      await expect(
+        h.db.exec(`select claim_war_target('${WAR_A}', 4::smallint);`),
+      ).rejects.toThrow(/already taken/i);
+    });
+
+    it("still lets a leader deliberately double-assign that base", async () => {
+      await h.asUser(LEADER_A);
+      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A2}', 4::smallint);`);
+      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 4::smallint);`);
+
+      expect(
+        await count(h, `select 1 from war_targets where target_position = 4`),
+      ).toBe(2);
+    });
+
+    it("lets a member change their own mind", async () => {
+      await h.asUser(MEMBER_A);
+      await h.db.exec(`select claim_war_target('${WAR_A}', 4::smallint);`);
+      await h.db.exec(`select claim_war_target('${WAR_A}', 9::smallint);`);
+
+      expect(await count(h, `select 1 from war_targets where player_id = '${PLAYER_A}'`)).toBe(1);
+      const res = await h.db.query<{ target_position: number }>(
+        `select target_position from war_targets where player_id = '${PLAYER_A}'`,
+      );
+      expect(res.rows[0]!.target_position).toBe(9);
+
+      // Both claims recorded — "when did I move off base 4" has an answer.
+      await h.asUser(LEADER_A);
+      expect(await count(h, `select 1 from audit_log where action = 'claim-target'`)).toBe(2);
+    });
+
+    // Rule 3. Replacing what a co-leader told you to do is not a claim, it is a
+    // refusal, and it must not be able to look identical to one.
+    it("refuses to overwrite a target leadership assigned", async () => {
+      await h.asUser(LEADER_A);
+      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 3::smallint);`);
+
+      await h.asUser(MEMBER_A);
+      await expect(
+        h.db.exec(`select claim_war_target('${WAR_A}', 9::smallint);`),
+      ).rejects.toThrow(/leadership has already assigned/i);
+    });
+
+    it("refuses the leader of another clan (R3)", async () => {
+      await h.asUser(LEADER_B);
+      await expect(
+        h.db.exec(`select claim_war_target('${WAR_A}', 4::smallint);`),
+      ).rejects.toThrow(/not in this clan/i);
+    });
+
+    // An account that never finished verification has no players row. Saying so
+    // matters: silent failure on a button press is the most confusing possible
+    // answer to a member who has not realised they skipped a step.
+    it("refuses an account with no linked player, and says why", async () => {
+      await h.asSuperuser();
+      await h.db.exec(`update players set user_id = null where id = '${PLAYER_A}';`);
+
+      await h.asUser(MEMBER_A);
+      await expect(
+        h.db.exec(`select claim_war_target('${WAR_A}', 4::smallint);`),
+      ).rejects.toThrow(/verify first/i);
+    });
+
+    it("refuses a player who is not in the war", async () => {
+      await h.asSuperuser();
+      await h.db.exec(
+        `delete from war_members where war_id = '${WAR_A}' and player_id = '${PLAYER_A}';`,
+      );
+
+      await h.asUser(MEMBER_A);
+      await expect(
+        h.db.exec(`select claim_war_target('${WAR_A}', 4::smallint);`),
+      ).rejects.toThrow(/not in this war/i);
+    });
+
+    // R12 — same rule 024 applies to leadership. A plan editable after the
+    // outcome is known is a plan that always agrees with reality.
+    it("refuses once the war has ended", async () => {
+      await h.asSuperuser();
+      await h.db.exec(`update wars set state = 'warEnded' where id = '${WAR_A}';`);
+
+      await h.asUser(MEMBER_A);
+      await expect(
+        h.db.exec(`select claim_war_target('${WAR_A}', 4::smallint);`),
+      ).rejects.toThrow(/has ended/i);
+    });
+
+    describe("release_war_target", () => {
+      it("releases a claim softly, keeping the record (R4)", async () => {
+        await h.asUser(MEMBER_A);
+        await h.db.exec(`select claim_war_target('${WAR_A}', 4::smallint);`);
+        const res = await h.db.query<{ release_war_target: boolean }>(
+          `select release_war_target('${WAR_A}')`,
+        );
+        expect(res.rows[0]!.release_war_target).toBe(true);
+
+        expect(
+          await count(
+            h,
+            `select 1 from war_targets where player_id = '${PLAYER_A}' and deleted_at is null`,
+          ),
+        ).toBe(0);
+
+        await h.asSuperuser();
+        expect(await count(h, `select 1 from war_targets where player_id = '${PLAYER_A}'`)).toBe(1);
+      });
+
+      // "I dropped the target you gave me" is a conversation, not a button.
+      it("refuses to release what leadership assigned", async () => {
+        await h.asUser(LEADER_A);
+        await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 3::smallint);`);
+
+        await h.asUser(MEMBER_A);
+        await expect(
+          h.db.exec(`select release_war_target('${WAR_A}');`),
+        ).rejects.toThrow(/ask them to clear it/i);
+      });
+
+      it("is not an error when there is nothing to release", async () => {
+        await h.asUser(MEMBER_A);
+        const res = await h.db.query<{ release_war_target: boolean }>(
+          `select release_war_target('${WAR_A}')`,
+        );
+        expect(res.rows[0]!.release_war_target).toBe(false);
+        expect(await count(h, `select 1 from audit_log where action = 'release-target'`)).toBe(0);
+      });
+    });
+
+    // 023's header, restated: a policy is not a grant. The inverse matters here
+    // — these are SECURITY DEFINER, so no table privilege is needed by
+    // `authenticated`, and granting one "to make it work" would open a second,
+    // unaudited write path around every rule above.
+    it("gives members no direct write path to war_targets", async () => {
+      await h.asUser(MEMBER_A);
+      await expect(
+        h.db.exec(
+          `insert into war_targets (war_id, player_id, target_position)
+           values ('${WAR_A}', '${PLAYER_A}', 4);`,
+        ),
+      ).rejects.toThrow(/permission denied|row-level security/i);
+    });
+  });
 });

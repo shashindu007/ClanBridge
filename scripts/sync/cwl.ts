@@ -44,7 +44,8 @@ import { normaliseTag } from "@/lib/tags";
 import type { War, WarMember, WarResult, WarSide } from "@/types/domain";
 import { activeClans, main, skip, type JobContext } from "./shared";
 
-interface ClanRow {
+/** One row of `activeClans()`. Exported alongside resolvePlayers, which takes it. */
+export interface ClanRow {
   id: string;
   tag: string;
   name: string;
@@ -245,11 +246,17 @@ async function upsertWar(
  * unique, and a player who has since moved to another of the three clans must
  * still resolve — filtering by clan_id would miss them, and the insert that
  * followed would collide on the unique tag and drag them back to their old clan.
+ *
+ * Exported for scripts/sync/war.ts (T6.1), which needs exactly this and for
+ * exactly this reason: a war attack is as unrecoverable as a CWL one once the
+ * war rolls off `/currentwar`. `context` only names the caller in the warning,
+ * so an operator reading the log knows which job invented the row.
  */
-async function resolvePlayers(
+export async function resolvePlayers(
   supabase: SupabaseClient,
   clan: ClanRow,
   members: WarMember[],
+  context = "CWL",
 ): Promise<Map<string, string>> {
   if (!members.length) return new Map();
 
@@ -267,7 +274,7 @@ async function resolvePlayers(
   if (!missing.length) return known;
 
   console.warn(
-    `  ${clan.tag}: ${missing.length} CWL participant(s) absent from players — ` +
+    `  ${clan.tag}: ${missing.length} ${context} participant(s) absent from players — ` +
       `creating so their attacks are not lost: ${missing.map((m) => m.tag).join(", ")}`,
   );
 
