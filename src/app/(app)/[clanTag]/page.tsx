@@ -29,6 +29,7 @@ import Link from "next/link";
 import {
   BellRing,
   CalendarDays,
+  Castle,
   ClipboardList,
   Flame,
   Layers,
@@ -536,6 +537,12 @@ export default async function ClanDashboardPage({
             Icon={ClipboardList}
           />
           <Go
+            href={`${href}/raids`}
+            label="Raid weekends"
+            hint="Medals, loot, and who still has attacks"
+            Icon={Castle}
+          />
+          <Go
             href={`${href}/polls`}
             label="Polls"
             hint="Ask, answer, and chase the quiet ones"
@@ -567,7 +574,7 @@ export default async function ClanDashboardPage({
             Next CWL start date — the API publishes none, so it has to be inferred
             from the season calendar (T4.4)
           </li>
-          <li>Raid Weekend and Clan Games summaries (T7.3, T7.5)</li>
+          <li>Clan Games participation (T7.5)</li>
         </ul>
       </section>
     </main>
