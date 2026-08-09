@@ -24,7 +24,16 @@ export const STALE_AFTER_MS: Record<string, number> = {
   // indicator that is amber a quarter of the time is one nobody reads on the
   // day it means something — the same argument the R10 note above makes.
   war: 2 * 60 * 60 * 1000,
+  // Daily. 36 hours allows a missed run plus GitHub's delay.
   raids: 36 * 60 * 60 * 1000,
+  // Daily too, as a step of sync-raids.yml, so the same window.
+  //
+  // Without an entry here it would fall through to DEFAULT_STALE_AFTER_MS — 3
+  // hours against a job that runs once a day, which reads stale for 21 hours
+  // out of every 24. That is the same mistake the `war` note above records,
+  // and it is worth stating that the default is not a safe fallback for a job
+  // slower than a few hours: EVERY job on a schedule needs a line here.
+  "clan-games": 36 * 60 * 60 * 1000,
 };
 
 const DEFAULT_STALE_AFTER_MS = 3 * 60 * 60 * 1000;

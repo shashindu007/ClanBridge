@@ -117,6 +117,13 @@ export interface RaidSeason {
   startTime: Date;
   endTime: Date;
   totalLoot?: number;
+  /** 'ongoing' | 'ended'. R10 — an ongoing weekend is not a failed sync. */
+  state?: string;
+  raidsCompleted?: number;
+  totalAttacks?: number;
+  /** Raid medals. The offensive one is what every member is paid. */
+  offensiveReward?: number;
+  defensiveReward?: number;
   participants: RaidParticipant[];
 }
 
@@ -124,6 +131,16 @@ export interface RaidParticipant {
   playerTag: string;
   name: string;
   attacksUsed?: number;
+  /**
+   * The denominator, and the reason 027 exists.
+   *
+   * It is per-member and it varies — a bonus attack goes to some members and
+   * not others — so unlike a regular war's two attacks it cannot be inferred
+   * from a constant. `attacksUsed` alone cannot answer "did they do what was
+   * asked": 5 of 5 and 5 of 6 are different answers.
+   */
+  attackLimit?: number;
+  bonusAttackLimit?: number;
   loot?: number;
 }
 

@@ -266,6 +266,41 @@ describe("mapRaidSeasons", () => {
     );
     expect(empty[0]!.participants).toEqual([]);
   });
+
+  // 027. Each of these was on the response and was being dropped — the same
+  // shape of loss 019, 020 and 026 each had to add a table to correct.
+  it("carries the season detail 027 added columns for", () => {
+    expect(seasons[0]!.state).toBe("ended");
+    expect(seasons[0]!.raidsCompleted).toBe(4);
+    expect(seasons[0]!.totalAttacks).toBe(42);
+    expect(seasons[0]!.offensiveReward).toBe(180);
+    expect(seasons[0]!.defensiveReward).toBe(95);
+  });
+
+  // The denominator. attacksUsed alone cannot answer "did they do what was
+  // asked", and the limit varies per member so it cannot be a constant.
+  it("carries each member's attack limit, not just their attacks used", () => {
+    const first = seasons[0]!.participants[0]!;
+    expect(first.attacksUsed).toBe(6);
+    expect(first.attackLimit).toBe(5);
+    expect(first.bonusAttackLimit).toBe(1);
+  });
+
+  it("leaves the new fields undefined when the API omits them", () => {
+    const bare = mapRaidSeasons(
+      raidSeasonsSchema.parse({
+        items: [
+          {
+            startTime: "20260725T070000.000Z",
+            endTime: "20260728T070000.000Z",
+            members: [{ tag: "#2PP0JCCL", name: "x" }],
+          },
+        ],
+      }),
+    );
+    expect(bare[0]!.offensiveReward).toBeUndefined();
+    expect(bare[0]!.participants[0]!.attackLimit).toBeUndefined();
+  });
 });
 
 describe("mapPlayer", () => {

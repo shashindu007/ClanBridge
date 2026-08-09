@@ -206,15 +206,30 @@ export function mapCwlGroup(api: ApiCwlGroup): CwlGroup {
   };
 }
 
+/**
+ * Every field the response carries, not the four that fitted the old table.
+ *
+ * The mapper is where the discard bug lives each time it happens: 019, 020 and
+ * 026 were all cases of the API having already sent something and nothing
+ * carrying it further. Widen this and `RaidSeason` together with the migration
+ * — a mapper that drops a column the table now has is how the fifth one starts.
+ */
 export function mapRaidSeasons(api: ApiRaidSeasons): RaidSeason[] {
   return api.items.map((season) => ({
     startTime: parseCocTime(season.startTime),
     endTime: parseCocTime(season.endTime),
     totalLoot: season.capitalTotalLoot,
+    state: season.state,
+    raidsCompleted: season.raidsCompleted,
+    totalAttacks: season.totalAttacks,
+    offensiveReward: season.offensiveReward,
+    defensiveReward: season.defensiveReward,
     participants: (season.members ?? []).map((m) => ({
       playerTag: normaliseTag(m.tag),
       name: m.name,
       attacksUsed: m.attacks,
+      attackLimit: m.attackLimit,
+      bonusAttackLimit: m.bonusAttackLimit,
       loot: m.capitalResourcesLooted,
     })),
   }));
