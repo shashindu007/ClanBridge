@@ -6,7 +6,27 @@
 
    The palette is shadcn's "slate" base (components.json), written out by hand
    rather than by `shadcn init`, because components.json already existed and the
-   CLI therefore skipped the init step that normally writes this block. */
+   CLI therefore skipped the init step that normally writes this block.
+
+   ───────────────────────────────────────────────────────────────────────────
+   THE STATUS COLOURS ARE RESERVED. THEY ARE NOT DECORATION.
+
+   --success / --warning / --info / --destructive mean "this is fine", "look at
+   this", "here is something you might want", "this is broken". Nothing else may
+   wear them. The moment a heading is amber because amber looked nice, every
+   amber thing on every other page stops meaning anything, and the sync-failure
+   indicator this whole system exists to make unmissable becomes wallpaper.
+   data-freshness.tsx makes the same argument about R10 skips.
+
+   AND COLOUR NEVER CARRIES MEANING ALONE. Every status colour ships with an
+   icon and a word — one in eight men reads red and green as the same colour,
+   and --warning is deliberately sub-3:1 on white (1.83:1), which is exactly why
+   the icon and the label are not optional.
+
+   Each value below was measured, not chosen by eye: WCAG contrast of every ink
+   against the tint it sits on, and the three clan hues run through the
+   colour-blindness separation check in both modes. The numbers are in the
+   comments. If you change a value, re-measure it. */
 
 @custom-variant dark (&:is(.dark *));
 
@@ -27,13 +47,72 @@
   --secondary-foreground: oklch(0.208 0.042 265.755);
   --muted: oklch(0.968 0.007 247.896);
   --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
+  /* Was byte-identical to --secondary and --muted, which meant every
+     `hover:bg-accent` in the app — the clan switcher, ghost and outline
+     buttons, table rows — hovered to a grey indistinguishable from not
+     hovering. Now a blue tint, so hover is visible everywhere at once. */
+  --accent: oklch(0.948 0.018 250.6);
+  --accent-foreground: oklch(0.433 0.128 256.5);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.984 0.003 247.858);
   --border: oklch(0.929 0.013 255.508);
   --input: oklch(0.929 0.013 255.508);
   --ring: oklch(0.704 0.04 256.788);
+
+  /* ── Status. Reserved; see the header. ────────────────────────────────────
+     -mark  the icon, the dot, the border  (>= 3:1 vs surface, or icon+label)
+     -ink   text on the tinted surface     (>= 4.5:1, measured vs that tint)
+     -tint  the surface itself, mixed from -mark so one value drives both modes
+
+     measured, mark on #ffffff and ink on its own tint:
+       success  mark 3.35:1   ink 6.56:1
+       warning  mark 1.83:1   ink 6.95:1   ← sub-3:1 BY DESIGN, icon+label only
+       info     mark 4.42:1   ink 6.97:1
+
+     There is deliberately no --destructive-tint. `destructive` already means
+     something everywhere in this app and both its variants use --destructive
+     directly; a fourth token nothing reads is a value nobody re-measures and
+     the next person uses on trust. */
+  --success: oklch(0.621 0.207 142.6);
+  --success-ink: oklch(0.433 0.147 142.5);
+  --warning: oklch(0.811 0.164 78.5);
+  --warning-ink: oklch(0.454 0.1 68.1);
+  --info: oklch(0.575 0.163 255.5);
+  --info-ink: oklch(0.433 0.128 256.5);
+
+  /* Each mark laid over --background at 12%, computed once and written out —
+     NOT `color-mix(...)` at run time, which was tried and cannot be made safe
+     here. Lightning CSS wraps every color-mix in `@supports` and, where it is
+     unsupported, collapses the token to its FIRST argument: --info-tint became
+     --info at full strength, putting #184f95 ink on #2a78d6 at 1.84:1. Writing
+     a literal fallback ahead of it does not help — the build discards it as a
+     duplicate declaration and re-derives the same unsafe one.
+
+     Mixed in sRGB, not oklch: this is a wash, and oklch interpolates HUE, which
+     at 84% background turned the dark success tint BLUE (#001934) — a green
+     status rendering a blue surface.
+
+     The cost is that these no longer follow --success automatically. Change a
+     mark and you must recompute its tint and re-measure the ink on it, which is
+     what the header already asks of anyone touching this block. */
+  --success-tint: oklch(0.949 0.031 145.3);
+  --warning-tint: oklch(0.974 0.026 87.9);
+  --info-tint: oklch(0.948 0.018 250.6);
+
+  /* ── Clan identity (T3B.1, R3) ────────────────────────────────────────────
+     THREE HUES, NOT THREE CLANS. There is deliberately no mapping from a clan
+     to a hue here — lib/clan-accent.ts derives the index from the clan's id at
+     render time, because a hardcoded list of the three clans in a stylesheet is
+     the same hardcoded list lib/clans.ts:1-9 forbids everywhere else, and it
+     would be the one place nobody thinks to look when a fourth clan is added.
+
+     Slots 1-3 of the reference categorical palette. Validated as a set, all
+     pairs, both modes: worst colour-blind separation ΔE 9.2 light / 9.4 dark
+     (>= 8 target), worst normal-vision ΔE 24.0 / 20.9 (>= 15 floor). Aqua is
+     2.82:1 on white, so it never appears without the clan name beside it. */
+  --clan-1: oklch(0.575 0.163 255.5);
+  --clan-2: oklch(0.671 0.175 40.6);
+  --clan-3: oklch(0.669 0.141 162.1);
 }
 
 .dark {
@@ -49,13 +128,37 @@
   --secondary-foreground: oklch(0.984 0.003 247.858);
   --muted: oklch(0.279 0.041 260.031);
   --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
+  --accent: oklch(0.252 0.061 262.8);
   --accent-foreground: oklch(0.984 0.003 247.858);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.984 0.003 247.858);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.551 0.027 264.364);
+
+  /* Same four meanings, re-stepped for the dark surface — not an automatic
+     flip. The marks stay put (they clear 3:1 on #020618 already); the inks
+     lighten, because dark-on-dark is unreadable. Measured against a 16% tint
+     of each mark: success 9.94:1, warning 9.38:1, info 8.33:1.
+
+     NOTE these are currently dead. `@custom-variant dark` above targets `.dark`
+     and nothing in the app ever adds that class — there is no theme toggle and
+     no next-themes. They are written anyway so that adding one is a one-line
+     change rather than a colour audit. */
+  --success-ink: oklch(0.8 0.182 151.7);
+  --warning-ink: oklch(0.837 0.164 84.4);
+  --info: oklch(0.622 0.161 255.1);
+  --info-ink: oklch(0.764 0.097 253.2);
+
+  /* 16% here, not 12%: the same wash over a near-black surface is invisible at
+     the lighter weight. Ink measured against these, not against --background. */
+  --success-tint: oklch(0.215 0.038 167.9);
+  --warning-tint: oklch(0.258 0.022 72.8);
+  --info-tint: oklch(0.228 0.062 261.7);
+
+  --clan-1: oklch(0.622 0.161 255.1);
+  --clan-2: oklch(0.622 0.173 40.1);
+  --clan-3: oklch(0.621 0.128 163.1);
 }
 
 @theme inline {
@@ -78,6 +181,20 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  --color-success: var(--success);
+  --color-success-ink: var(--success-ink);
+  --color-success-tint: var(--success-tint);
+  --color-warning: var(--warning);
+  --color-warning-ink: var(--warning-ink);
+  --color-warning-tint: var(--warning-tint);
+  --color-info: var(--info);
+  --color-info-ink: var(--info-ink);
+  --color-info-tint: var(--info-tint);
+
+  --color-clan-1: var(--clan-1);
+  --color-clan-2: var(--clan-2);
+  --color-clan-3: var(--clan-3);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

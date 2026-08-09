@@ -127,6 +127,55 @@ module is broken against live Supabase until it is.
   (`.github/workflows/ci.yml`). It needs no secrets, because the tests use PGlite
   and `fixtures/`.
 
+**Two Phase 6 defects found after the boxes were ticked, and fixed:**
+
+- **The lineup page sized a war from the previous war's poll (T6.7).** It read
+  `polls.find(p => p.pollType === "war_availability")` with no open check at all,
+  and `pollsForClan` filters on `deleted_at` alone — so after one war the newest
+  match was a poll closed days earlier, and it drove the member "poll is open"
+  alert, the "N in" headline, the largest-supported-size line and the default on
+  the size selector. `isOpen()` had existed since T4B.2 and this one page never
+  called it. Now `openWarAvailabilityPoll()` in `services/polls.ts`, with the
+  regression test the original had no way to fail.
+- **An empty base field wrote target position 0 (T6.4).** The action tested
+  `Number.isFinite(Number(formData.get("position")))`, and `Number("")` is 0.
+  A base-0 row takes the member's one `unique (war_id, player_id)` slot while
+  being invisible on the board — `enemyBoard` iterates `1..teamSize` — so the
+  member reads as unassigned and cannot be assigned, with nothing saying why.
+  **Nothing else in the stack checks the range**: 003 has no CHECK on
+  `war_targets.target_position` and neither definer function validates it, which
+  is why the fix is `parseBasePosition()` in `services/war.ts` rather than a
+  duplicate of a check the database already makes. It bounds by the war's own
+  `teamSize`, because base 47 in a 15v15 is the same invisible row as base 0.
+
+**And one number the T6.2 deviation had left behind:** `STALE_AFTER_MS.war` was
+45 minutes, written for the every-15-minutes schedule that T6.2 replaced with an
+hourly step of `sync-clans`. The war sync therefore read as stale for the last
+quarter of every hour. Now 2 hours, matching `clans`.
+
+**The UI has a colour system as of the T3B.1 rebuild.** `globals.css` gains a
+reserved status palette — `--success`, `--warning`, `--info`, each with an `-ink`
+step for text and a `-tint` step for the surface it sits on — plus `--clan-1..3`
+for clan identity. Every value was measured rather than chosen: WCAG contrast for
+each ink on its own tint, and the three clan hues run through a colour-blindness
+separation check in both modes. Three rules travel with it, and the block's own
+header states them: the status colours mean one thing each and are never
+decoration; a status colour is always accompanied by an icon and a word, because
+`--warning` is deliberately 1.83:1 on white; and the clan hue is **derived from
+the clan id** in `lib/clan-accent.ts`, never a lookup table, for the same reason
+R3 forbids a hardcoded list of the three clans anywhere else.
+
+`--accent` had been byte-identical to `--secondary` and `--muted`, which meant
+every `hover:bg-accent` in the app hovered to an indistinguishable grey. It now
+carries a hue, so hover became visible on the clan switcher, ghost and outline
+buttons and table rows in one line.
+
+The tints are **static values, not `color-mix()`**. The mix was tried and cannot
+be made safe: Lightning CSS wraps it in `@supports` and, where unsupported,
+collapses the token to its first argument — `--info-tint` became `--info` at full
+strength, putting the ink on it at 1.84:1 — and a literal fallback written ahead
+of it is discarded as a duplicate declaration.
+
 ---
 
 ## 1. What this project is
@@ -301,7 +350,7 @@ clanbridge/
 │   ├── sync-clans.yml       T2.7  hourly
 │   ├── sync-cwl.yml         T4.2  every 2h
 │   ├── sync-health.yml      T5.8  hourly watchdog — needs no game API key
-│   ├── sync-war.yml         T6.2  every 15m
+│   ├── sync-war.yml         T6.2  manual only; the schedule is a sync-clans step
 │   ├── sync-raids.yml       T7.2  daily
 │   └── backup.yml           T2.8  weekly pg_dump
 │

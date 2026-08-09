@@ -11,6 +11,19 @@ const alertVariants = cva(
         default: "bg-card text-card-foreground",
         destructive:
           "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 [&>svg]:text-current",
+
+        // Status. Unlike `destructive` these tint the surface, because an alert
+        // is a block the eye should land on before it reads a word — and unlike
+        // the badge variants they keep muted-foreground on the description, so
+        // a three-line explanation is not three lines of coloured text.
+        //
+        // ALWAYS PASS AN ICON. --warning is 1.83:1 on white by design; the icon
+        // and the title are what make it legible, not the fill.
+        success:
+          "bg-success-tint border-success/30 text-success-ink [&>svg]:text-success",
+        warning:
+          "bg-warning-tint border-warning/40 text-warning-ink [&>svg]:text-warning-ink",
+        info: "bg-info-tint border-info/30 text-info-ink [&>svg]:text-info",
       },
     },
     defaultVariants: {
