@@ -21,8 +21,15 @@ run against the live game.
 
 **Done:** Phase 1 entire · Phase 2 except T2.1 · Phase 3 entire · **Phase 3B entire** ·
 T4.1–T4.8 · **Phase 4B entire** · **Phase 5 except the CWL half of T5.6** ·
-**Phase 6 entire** · T9.6.
-Phases 7 and 8 are placeholders that name their own task ID.
+**Phase 6 entire** · **Phase 7 entire** · T9.6.
+Phase 8 is placeholders that name their own task ID.
+
+**Two Phase 9 boxes are wrong in the other direction and worth correcting when
+someone next touches them:** T9.2 is substantially built (`admin/page.tsx`, 310
+lines; missing only the `sync_log` history and a manual trigger) and T9.5 is
+effectively done (`guide/page.tsx`, 225 real lines). A ledger that overstates in
+one place and understates in another is unreliable as a planning input, which is
+the only reason this note exists.
 
 **Nothing in the application has ever run against real data.** Every phase above
 was proven against synthetic fixtures and PGlite. The live database has 023 and
@@ -30,10 +37,16 @@ everything before it applied and RLS verified against real Supabase — and 0 ro
 in every table, including `users`. Nobody has signed in yet, which is why T0.2
 below is where the whole chain starts.
 
-**024, 025 and 026 have not been applied to the live database.** They exist, they
-pass against PGlite, and `npm run migrations:apply` has not been run since Phase 6
-landed. Nothing reads them yet because nothing reads anything yet, but the war
-module is broken against live Supabase until it is.
+**024 through 027 have not been applied to the live database.** They exist, they
+pass against PGlite, and `npm run migrations:apply` has not been run since before
+Phase 6 landed. Nothing reads them yet because nothing reads anything yet, but
+**the war module and the whole of Phase 7 are broken against live Supabase until
+it is.**
+
+The proof is independent of anyone's memory: `src/types/database.ts` is generated
+from the live schema and contains 28 tables, none of them `war_members`,
+`war_lineups`, `war_lineup_members` or `war_opponent_members`. Run
+`npm run migrations:apply` and then `npm run types:db`; expect 32 tables.
 
 **Four unticked boxes matter more than the rest:**
 
@@ -60,7 +73,7 @@ module is broken against live Supabase until it is.
 
 **Where the build deviated from this document, deliberately:**
 
-- **26 migrations, not 12.** 013–026 fix holes this plan did not anticipate.
+- **27 migrations, not 12.** 013–027 fix holes this plan did not anticipate.
   014 restored missing `service_role` grants that would have failed every sync
   job. 015 breaks the clan↔role↔leader bootstrap cycle that made a first sign-in
   impossible, which is also why T1.10's hardcoded seed was replaced by
@@ -76,6 +89,8 @@ module is broken against live Supabase until it is.
   attacks, the clan dashboard, and now T6.3's "both rosters" — could not be
   built until a table existed. Worth suspecting on every remaining endpoint:
   the raid and Clan Games responses in Phase 7 carry more than their tables hold.
+  **That prediction was correct, and 027 acted on it before the sync was
+  written** — the first of the four caught in advance rather than archaeology.
 - **`war_opponent_members` is deliberately not `players` (026).** The obvious
   shortcut is to create player rows for the opposition and reuse every existing
   join. That would put fifty strangers per war into the member directory, the
@@ -175,6 +190,36 @@ be made safe: Lightning CSS wraps it in `@supports` and, where unsupported,
 collapses the token to its first argument — `--info-tint` became `--info` at full
 strength, putting the ink on it at 1.84:1 — and a literal fallback written ahead
 of it is discarded as a duplicate declaration.
+
+**Phase 7 caught the discard bug in advance, for the first time.** 019, 020 and
+026 each found data the API had already sent and the schema had nowhere to hold,
+discovered only when a feature could not be built. The note above predicted the
+fourth by name; **migration 027 was written before `scripts/sync/raids.ts`
+existed**, adding the five `raid_seasons` columns and the two
+`raid_participants` ones the response was already carrying. `attack_limit` is
+the one that mattered — a per-member, varying denominator without which "attacks
+used: 5" answers nothing.
+
+**`clan_games.settled_at` (027) exists because T7.4 breaks R5 without it.** The
+end-of-period pass must update a row its own start pass inserted, and with no
+marker there is no way to distinguish "still running, the value may move" from
+"finished in March, never touch again". A re-run in April would write April's
+lifetime achievement total into March's `end_value` — silently, because
+overwriting is what the job does the rest of the time.
+
+**Two watchdogs had never been wired, and one had been missed by its own
+instruction.** `health.ts` carried "ADD TO THIS LIST WHEN A WORKFLOW IS ADDED"
+naming `war`, and T6.2 shipped the war sync onto a schedule anyway: it was
+unwatched for all of Phase 6 — the one job whose absence nothing else can report
+going unreported. `clan-games` had no `STALE_AFTER_MS` entry either and would
+have fallen to the 3-hour default against a daily job, reading stale 21 hours in
+24. `test/cwl-services.test.ts` now ties the two lists together so a scheduled
+job cannot be added without a threshold.
+
+**`sync-raids.yml` was not an inert stub.** Four lines of comments with no
+`name:`, `on:` or `jobs:` — a file GitHub reports as invalid in the Actions tab,
+unlike the `export {}` script stubs beside it, which are valid TypeScript that
+does nothing.
 
 ---
 
@@ -351,7 +396,7 @@ clanbridge/
 │   ├── sync-cwl.yml         T4.2  every 2h
 │   ├── sync-health.yml      T5.8  hourly watchdog — needs no game API key
 │   ├── sync-war.yml         T6.2  manual only; the schedule is a sync-clans step
-│   ├── sync-raids.yml       T7.2  daily
+│   ├── sync-raids.yml       T7.2  daily; also runs sync:clan-games (T7.4)
 │   └── backup.yml           T2.8  weekly pg_dump
 │
 ├── fixtures/                T2.1  captured API responses, for USE_FIXTURES
@@ -407,8 +452,15 @@ clanbridge/
 │       ├── 020_clan_details.sql       T3B.0  level, league, war-log visibility
 │       ├── 021_announcements.sql      T5.1   audited definer functions
 │       ├── 022_cwl_bonus_awards.sql   T4.7   the leader's own award order
-│       └── 023_notifications.sql      T5.5/T5.9/T5.6  push writes, prefs,
-│                                             push_targets(). A policy is not a grant
+│       ├── 023_notifications.sql      T5.5/T5.9/T5.6  push writes, prefs,
+│       │                                     push_targets(). A policy is not a grant
+│       ├── 024_war.sql                T6.4/T6.8  war_members, lineups,
+│       │                                     assign/clear_war_target(). Supersedes 012
+│       ├── 025_war_target_claim.sql   T6.4   the member claim 024 had no path for
+│       ├── 026_war_opponent.sql       T6.3   the other roster, discarded until now
+│       └── 027_raid_detail.sql        T7.1/T7.4  raid rewards + attack limits,
+│                                             clan_games.settled_at. Written BEFORE
+│                                             the sync, unlike 019/020/026
 │
 ├── test/                    QA — runs the migrations against real Postgres (PGlite)
 │   ├── pg-harness.ts        boots PGlite
@@ -1020,19 +1072,56 @@ planned route to its task.
 
 # Phase 7 — Raids and Clan Games
 
-- [ ] **T7.1 — `scripts/sync/raids.ts`**
+*Needed migration 027, written BEFORE the syncs rather than after — the first
+time the discard bug of 019/020/026 was caught in advance. §0 had predicted it
+by name.*
+
+- [x] **T7.1 — `scripts/sync/raids.ts`**
   Capital raid seasons. The API keeps recent history here, which makes this the easiest sync to write.
+  The forgiving part is real: `/capitalraidseasons?limit=N` returns the last N
+  weekends complete on every call, so a missed run backfills. **`limit` is the
+  whole memory, though** — a clan unsynced longer than that loses the weekends
+  that rolled off, permanently, which is why it asks for 10 and not 1.
+  A 403 is deliberately **not** caught. `WAR_ENDPOINT` in `coc-client.ts` covers
+  `/currentwar` only, so one arrives here as a key-IP error; whether this
+  endpoint 403s for a private war log is unknown while the fixtures are
+  synthetic (T2.1), and guessing would send an operator to fix a correct setting.
 
-- [ ] **T7.2 — `sync-raids.yml`**
-  Daily.
+- [x] **T7.2 — `sync-raids.yml`**
+  Daily. ~~Was~~ **four lines of comments with no `name:`, `on:` or `jobs:` — not
+  an inert stub but a file GitHub reports as invalid.** Replaced.
+  **Clan Games rides in as a second step**, not its own workflow, on T6.2's
+  arithmetic: ~90% of a run is checkout and `npm ci`.
 
-- [ ] **T7.3 — Raid pages**
+- [x] **T7.3 — Raid pages**
   Participation, attacks used, capital loot, history per member.
+  **027 added `attack_limit`, and it is the point.** "Attacks used: 5" answers
+  nothing — 5 of 5 did everything asked, 5 of 6 did not — and the limit varies
+  per member with the bonus attack, so unlike a war's two it cannot be a
+  constant. Third time this project has met the shape: CWL's boolean `missed`
+  was right for one attack, T6.9 found it wrong for two, and raids are the
+  general case. An unknown limit renders as unknown, never as complete.
 
-- [ ] **T7.4 — Clan Games sync**
+- [x] **T7.4 — Clan Games sync**
   The API gives no per-season score. Snapshot each player's "Games Champion" achievement value at the start and end of the period; the difference is that season's score.
+  **The window is derived from the calendar** (`lib/coc-time.ts`), never typed in
+  by a leader — R11 keeps human dates out of a game-fact table. Deliberately
+  conservative: snapshotting early costs nothing, late costs the month.
+  **027's `settled_at` is what makes the end pass safe.** It must UPDATE a row
+  its own earlier pass inserted, which R5 otherwise forbids, and without a marker
+  a re-run in April would write April's lifetime total into March's `end_value`
+  and silently turn a real score into a wrong one.
+  The start write uses `ignoreDuplicates` for the same reason: the start window
+  is a day wide (GitHub delays scheduled runs), and a second run inside it must
+  not overwrite the opening reading with one taken after members had scored.
 
-- [ ] **T7.5 — Clan Games page**
+- [x] **T7.5 — Clan Games page**
+  **Three states, not two: scored / pending / not measured.** A score is a
+  difference, so a member with no opening reading has nothing to subtract from
+  and cannot be given one later. Rendering that as 0 puts someone who joined on
+  the 25th at the bottom of the leaderboard beside someone who did nothing —
+  and bonus decisions get made off this page. Same distinction T6.10 keeps
+  between "cannot tell yet" and "ignored their target".
 
 ---
 

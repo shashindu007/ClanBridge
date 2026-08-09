@@ -32,6 +32,7 @@ import {
   Castle,
   ClipboardList,
   Flame,
+  Gamepad2,
   Layers,
   Megaphone,
   Search,
@@ -543,6 +544,12 @@ export default async function ClanDashboardPage({
             Icon={Castle}
           />
           <Go
+            href={`${href}/games`}
+            label="Clan Games"
+            hint="Points per member, month by month"
+            Icon={Gamepad2}
+          />
+          <Go
             href={`${href}/polls`}
             label="Polls"
             hint="Ask, answer, and chase the quiet ones"
@@ -564,9 +571,12 @@ export default async function ClanDashboardPage({
       </section>
 
       {/* Named rather than omitted, so the page states what it does not yet know
-          instead of implying this clan has no raids or Clan Games. Deliberately
-          the only uncoloured block on the page — it must not compete with the
-          sections above it, which are about things that actually happened. */}
+          instead of implying nothing is missing. Deliberately the only
+          uncoloured block on the page — it must not compete with the sections
+          above it, which are about things that actually happened.
+
+          Raids and Clan Games left this list when Phase 7 landed; both are in
+          the nav grid above now. */}
       <section className="space-y-2 rounded-lg border border-dashed p-6">
         <h2 className="text-muted-foreground font-medium">Not built yet</h2>
         <ul className="text-muted-foreground list-inside list-disc text-sm">
@@ -574,7 +584,7 @@ export default async function ClanDashboardPage({
             Next CWL start date — the API publishes none, so it has to be inferred
             from the season calendar (T4.4)
           </li>
-          <li>Clan Games participation (T7.5)</li>
+          <li>Base layout library (Phase 8)</li>
         </ul>
       </section>
     </main>
