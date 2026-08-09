@@ -49,7 +49,12 @@ import {
   warById,
   type WarRow,
 } from "@/repositories/war";
-import { enemyBoard, outstandingAttacks, warRecord } from "@/services/war";
+import {
+  enemyBoard,
+  outstandingAttacks,
+  parseBasePosition,
+  warRecord,
+} from "@/services/war";
 import { freshness, type Freshness } from "@/services/freshness";
 
 export const dynamic = "force-dynamic";
@@ -87,6 +92,11 @@ function stateBadge(war: WarRow) {
  * whether it has ended, and they write audit_log in the same statement. This
  * only routes and reports. A role check here as well would be a second opinion
  * that can disagree with the first, and the first is the one that counts.
+ *
+ * The ONE thing it does check is the base number, because nothing else does.
+ * 003's war_targets has no range CHECK and neither definer function validates
+ * the position, so the range is unowned — and an unowned check is not a second
+ * opinion, it is the only one. See parseBasePosition.
  */
 async function mutate(formData: FormData) {
   "use server";
@@ -99,19 +109,27 @@ async function mutate(formData: FormData) {
   const warId = String(formData.get("warId") ?? "");
   const action = String(formData.get("action") ?? "");
   const playerId = String(formData.get("playerId") ?? "");
-  const position = Number(formData.get("position") ?? Number.NaN);
   const note = String(formData.get("note") ?? "").trim() || null;
 
   const here = `/${encodeURIComponent(clanTag)}/war?war=${encodeURIComponent(warId)}`;
 
+  // Only for the two actions that carry one. Resolving the war costs two
+  // queries, so clear and release — which have no position — do not pay for it.
+  let position = Number.NaN;
+  if (action === "assign" || action === "claim") {
+    const clan = await requireClanByTag(supabase, clanTag);
+    const war = await warById(supabase, clan.id, warId);
+    const parsed = parseBasePosition(formData.get("position"), war?.teamSize ?? null);
+    if (parsed === null) redirect(`${here}&error=pick-a-base`);
+    position = parsed;
+  }
+
   let result: { error?: string } = {};
   if (action === "assign") {
-    if (!Number.isFinite(position)) redirect(`${here}&error=pick-a-base`);
     result = await assignTarget(supabase, warId, playerId, position, note);
   } else if (action === "clear") {
     result = await clearTarget(supabase, warId, playerId);
   } else if (action === "claim") {
-    if (!Number.isFinite(position)) redirect(`${here}&error=pick-a-base`);
     result = await claimTarget(supabase, warId, position, note);
   } else if (action === "release") {
     result = await releaseTarget(supabase, warId);

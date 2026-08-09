@@ -47,6 +47,7 @@ import {
   enemyBoard,
   isComparable,
   outstandingAttacks,
+  parseBasePosition,
   planVersusReality,
   targetCompliance,
   warContribution,
@@ -503,6 +504,72 @@ describe("services/war — the derivations", () => {
       expect(isComparable(null)).toBe(false);
       expect(isComparable({ status: "draft" } as never)).toBe(false);
       expect(isComparable({ status: "published" } as never)).toBe(true);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // T6.4 — the base number. Nothing else in the stack checks it: 003 has no
+  // range CHECK on war_targets.target_position and neither definer function
+  // validates it, so if this is wrong the bad row is written.
+  describe("parseBasePosition", () => {
+    // THE BUG THIS FUNCTION EXISTS FOR. The old call site was
+    // `Number(formData.get("position") ?? NaN)` guarded by Number.isFinite —
+    // and Number("") is 0, which is finite. An empty select wrote base 0: a row
+    // occupying the member's one unique(war_id, player_id) slot, invisible on
+    // the board because enemyBoard iterates 1..teamSize. The member then reads
+    // as unassigned AND cannot be assigned, with nothing on screen saying why.
+    it("rejects the empty string rather than reading it as base 0", () => {
+      expect(parseBasePosition("", 15)).toBeNull();
+      expect(parseBasePosition("   ", 15)).toBeNull();
+    });
+
+    it("rejects zero and negatives outright", () => {
+      expect(parseBasePosition("0", 15)).toBeNull();
+      expect(parseBasePosition(0, 15)).toBeNull();
+      expect(parseBasePosition("-3", 15)).toBeNull();
+    });
+
+    it("takes a real base number", () => {
+      expect(parseBasePosition("7", 15)).toBe(7);
+      expect(parseBasePosition(7, 15)).toBe(7);
+      expect(parseBasePosition("1", 15)).toBe(1);
+      expect(parseBasePosition("15", 15)).toBe(15);
+    });
+
+    // Base 47 in a 15v15 is the same invisible row as base 0, for the same
+    // reason — enemyBoard never draws it.
+    it("rejects a base beyond the war's own size", () => {
+      expect(parseBasePosition("16", 15)).toBeNull();
+      expect(parseBasePosition("47", 15)).toBeNull();
+    });
+
+    it("falls back to the largest war the game offers when size is unknown", () => {
+      expect(parseBasePosition("47", null)).toBe(47);
+      expect(parseBasePosition("50", null)).toBe(50);
+      expect(parseBasePosition("51", null)).toBeNull();
+    });
+
+    it("rejects anything that is not a whole number", () => {
+      expect(parseBasePosition("3.5", 15)).toBeNull();
+      expect(parseBasePosition("3abc", 15)).toBeNull();
+      expect(parseBasePosition("abc", 15)).toBeNull();
+      expect(parseBasePosition(Number.NaN, 15)).toBeNull();
+      expect(parseBasePosition(Infinity, 15)).toBeNull();
+    });
+
+    // formData.get() returns null for a field that was never submitted, and a
+    // File for a multipart upload. Neither is a base number.
+    it("rejects a missing or non-scalar value", () => {
+      expect(parseBasePosition(null, 15)).toBeNull();
+      expect(parseBasePosition(undefined, 15)).toBeNull();
+      expect(parseBasePosition({}, 15)).toBeNull();
+      expect(parseBasePosition([], 15)).toBeNull();
+    });
+
+    // teamSize is null on a war the sync recorded before the game reported a
+    // size, and 0 would otherwise make every base invalid.
+    it("treats a zero team size as unknown, not as a war with no bases", () => {
+      expect(parseBasePosition("7", 0)).toBe(7);
     });
   });
 });

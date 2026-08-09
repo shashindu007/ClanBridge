@@ -17,8 +17,13 @@ export const STALE_AFTER_MS: Record<string, number> = {
   cwl: 3 * 60 * 60 * 1000,
   // Hourly.
   clans: 2 * 60 * 60 * 1000,
-  // Every 15 minutes.
-  war: 45 * 60 * 1000,
+  // Hourly, as a step of sync-clans.yml — NOT every 15 minutes as first planned
+  // (see the T6.2 deviation note in IMPLEMENTATION.md §0). The old 45-minute
+  // window was written for the 15-minute schedule and, against the hourly one,
+  // marked the war sync stale for the last quarter of every single hour. An
+  // indicator that is amber a quarter of the time is one nobody reads on the
+  // day it means something — the same argument the R10 note above makes.
+  war: 2 * 60 * 60 * 1000,
   raids: 36 * 60 * 60 * 1000,
 };
 

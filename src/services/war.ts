@@ -462,3 +462,48 @@ export function warContribution(
 export function isComparable(lineup: Lineup | null): boolean {
   return lineup !== null && lineup.status === "published";
 }
+
+// ---------------------------------------------------------------------------
+// T6.4 — the base number, validated
+// ---------------------------------------------------------------------------
+
+/** The largest war the game offers, and 024's upper CHECK on lineup size. */
+export const MAX_WAR_SIZE = 50;
+
+/**
+ * A base number from a form, or null if it is not one.
+ *
+ * This exists because NOTHING ELSE CHECKS IT. `003_war.sql` gives
+ * `war_targets.target_position` no range CHECK, and neither `assign_war_target`
+ * (024) nor `claim_war_target` (025) validates it — they check the role, the
+ * clan, the war state and whether the base is taken, and take the number on
+ * trust. The old call site read `Number(formData.get("position") ?? NaN)` and
+ * tested `Number.isFinite`, which passes `0`: an empty select coerces to zero,
+ * and zero is finite.
+ *
+ * A base-0 row is not a harmless bad value. It occupies the member's one
+ * `unique (war_id, player_id)` slot, so they cannot be given a real target
+ * without it being cleared first — while being invisible on the board, because
+ * `enemyBoard` iterates 1..teamSize. The member appears unassigned and cannot
+ * be assigned, and nothing on screen says why.
+ *
+ * Bounded above by the war's own size when known: base 47 in a 15v15 is the
+ * same invisible row as base 0, and MAX_WAR_SIZE alone would let it through.
+ * Falls back to MAX_WAR_SIZE only when teamSize is null, which is a war the
+ * sync recorded before the game reported a size.
+ */
+export function parseBasePosition(raw: unknown, teamSize: number | null): number | null {
+  // Rejects "", null, undefined, " ", "3.5", "3abc" and NaN. Number("") is 0,
+  // which is the whole bug, so the empty string is turned away by hand first.
+  if (typeof raw !== "string" && typeof raw !== "number") return null;
+  const text = String(raw).trim();
+  if (text === "") return null;
+
+  const position = Number(text);
+  if (!Number.isInteger(position)) return null;
+
+  const upper = teamSize && teamSize > 0 ? teamSize : MAX_WAR_SIZE;
+  if (position < 1 || position > upper) return null;
+
+  return position;
+}

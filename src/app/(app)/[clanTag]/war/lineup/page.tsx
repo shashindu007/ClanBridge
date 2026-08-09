@@ -51,7 +51,7 @@ import {
   removeFromLineup,
   unpublishLineup,
 } from "@/repositories/war";
-import { optionShare } from "@/services/polls";
+import { openWarAvailabilityPoll, optionShare } from "@/services/polls";
 
 export const dynamic = "force-dynamic";
 
@@ -142,8 +142,13 @@ export default async function WarLineupPage({
   const picked = selected ? await membersOfLineup(supabase, selected.id) : [];
 
   // ── T6.7 — the availability count, here because here is where size is chosen
+  //
+  // OPEN polls only. pollsForClan filters on deleted_at alone, so the newest
+  // war_availability poll is usually last war's, closed days ago — and every
+  // number below it (the "in" count, the largest supported size, the default on
+  // the size selector) would then be describing a war that already happened.
   const polls = await pollsForClan(supabase, clan.id);
-  const availabilityPoll = polls.find((p) => p.pollType === "war_availability");
+  const availabilityPoll = openWarAvailabilityPoll(polls);
   const counts = availabilityPoll ? await countsForPoll(supabase, availabilityPoll.id) : [];
   const shares = optionShare(counts);
   const inCount = counts.find((c) => c.label.toLowerCase() === "in")?.votes ?? 0;
