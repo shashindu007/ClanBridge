@@ -68,16 +68,22 @@ export default async function AppLayout({
 
   if (!approved && !exempt) redirect("/pending");
 
+  // Issued TOGETHER, not one after the other. Both need only `userId`, so
+  // awaiting them in sequence made every navigation in the app wait for two
+  // round trips where one would do — and this layout re-runs on every one of
+  // them, so it was pure latency added to every page in the product.
+  //
   // Not fetched at all while unapproved: there is nothing to show, and asking
   // would just be two queries returning nothing on every /pending render.
-  const clans = approved ? await visibleClans(supabase, userId) : [];
+  const [clans, admin] = approved
+    ? await Promise.all([visibleClans(supabase, userId), isPlatformAdmin(supabase, userId)])
+    : [[], false];
 
   // Which clan the switcher should mark as current. Purely cosmetic — the page
   // itself resolves the tag through requireClanByTag, which is what actually
   // decides who may see what. A segment that is not a tag at all (/admin,
   // /roster, /settings) simply matches nothing and no link is highlighted.
   const current = currentClanTag(pathname);
-  const admin = approved && (await isPlatformAdmin(supabase, userId));
   const showAdminLink = admin || clans.some((c) => c.role === "leader");
 
   return (
