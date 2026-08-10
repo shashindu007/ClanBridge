@@ -16,19 +16,83 @@
 //
 // None of the four produces an error at the time.
 
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createHarness, type Harness } from "./pg-harness";
 import { createPgliteSupabase } from "./pglite-supabase";
 import { runSyncJob } from "../scripts/sync/shared";
 import { isLeagueWar, syncWar } from "../scripts/sync/war";
+import { parseCocTime } from "@/lib/coc-time";
 import type { War } from "@/types/domain";
 
 const CLAN_A = "aaaaaaaa-0000-4000-8000-000000000001";
 
-/** The tags inside fixtures/currentwar.json. */
-const OUR_TAG = "#2PP0JCCL";
-const THEIR_TAG = "#8QUCLJY0";
+/**
+ * A REAL war, borrowed from cwlwar.json, standing in for currentwar.json.
+ *
+ * The captured currentwar.json is `notInWar`. That is the honest result — it is
+ * the ordinary state for most of a month (R10) — and it makes the fixture
+ * useless as the subject of a job whose whole purpose is recording a war. Nor is
+ * it a one-off to wait out: `/currentwar` only carries a war for a few days at a
+ * time, so most future re-captures will land on `notInWar` too.
+ *
+ * cwlwar.json is a complete, real war from the same API, and the two endpoints
+ * return an identical shape. Two deliberate edits make it a REGULAR war:
+ *
+ *   warTag        removed. isLeagueWar() keys on exactly this, and a war that
+ *                 carries one belongs in cwl_wars — writing it to `wars` is the
+ *                 double-counting bug named as trap 1 in this file's header.
+ *   attacksPerMember  set to 2. Regular war gives two attacks per member; CWL
+ *                 gives one. The captured war is a CWL war, so leaving this
+ *                 alone would quietly assert the wrong denominator for T6.9.
+ *
+ * Written before each test and restored after, so the committed fixture on disk
+ * is never left modified — the same pattern sync-clans.test.ts uses for its
+ * private-war-log case.
+ */
+const CURRENT_WAR_PATH = join(process.cwd(), "fixtures", "currentwar.json");
+const CWL_WAR_PATH = join(process.cwd(), "fixtures", "cwlwar.json");
+
+const REAL_CURRENT_WAR = readFileSync(CURRENT_WAR_PATH, "utf8");
+
+interface WarFixture {
+  state: string;
+  warTag?: string;
+  attacksPerMember?: number;
+  startTime: string;
+  endTime: string;
+  clan: WarSideFixture;
+  opponent: WarSideFixture;
+}
+
+interface WarSideFixture {
+  tag: string;
+  stars: number;
+  destructionPercentage: number;
+  members: Array<{
+    tag: string;
+    mapPosition: number;
+    attacks?: Array<{ defenderTag: string; stars: number }>;
+  }>;
+}
+
+const IN_WAR: WarFixture = (() => {
+  const war = JSON.parse(readFileSync(CWL_WAR_PATH, "utf8")) as WarFixture;
+  delete war.warTag;
+  war.attacksPerMember = 2;
+  return war;
+})();
+
+const OURS = IN_WAR.clan;
+const THEIRS = IN_WAR.opponent;
+const OUR_TAG = OURS.tag;
+const THEIR_TAG = THEIRS.tag;
+
+const ROSTER_SIZE = OURS.members.length;
+const OPPONENT_SIZE = THEIRS.members.length;
+const ATTACK_COUNT = OURS.members.reduce((n, m) => n + (m.attacks?.length ?? 0), 0);
 
 async function count(h: Harness, table: string, where = "true"): Promise<number> {
   const res = await h.db.query<{ n: number }>(
@@ -69,6 +133,10 @@ describe("T6.1 — the clan war sync", () => {
     });
 
     beforeEach(async () => {
+      // See IN_WAR: the captured currentwar.json is notInWar, so it is swapped
+      // for a real war for the duration of each case and restored below.
+      writeFileSync(CURRENT_WAR_PATH, JSON.stringify(IN_WAR, null, 2), "utf8");
+
       process.env.USE_FIXTURES = "true";
       delete process.env.COC_API_TOKEN;
       vi.stubGlobal("fetch", () => {
@@ -89,6 +157,9 @@ describe("T6.1 — the clan war sync", () => {
     });
 
     afterEach(() => {
+      // Unconditional, and before anything else that could throw: a failing test
+      // must not leave a rewritten fixture committed to the repository.
+      writeFileSync(CURRENT_WAR_PATH, REAL_CURRENT_WAR, "utf8");
       vi.unstubAllGlobals();
       vi.restoreAllMocks();
     });
@@ -109,12 +180,13 @@ describe("T6.1 — the clan war sync", () => {
 
       expect(result).toBe("success");
       expect(await count(h, "wars")).toBe(1);
-      // Five in the lineup, three of whom attacked once each.
-      expect(await count(h, "war_members")).toBe(5);
-      expect(await count(h, "war_attacks")).toBe(3);
+      // The full lineup, and the subset of it that attacked. Both derived from
+      // the fixture — see IN_WAR.
+      expect(await count(h, "war_members")).toBe(ROSTER_SIZE);
+      expect(await count(h, "war_attacks")).toBe(ATTACK_COUNT);
       // And the other side (026), which arrives on the same response and was
       // discarded before T6.3 needed it.
-      expect(await count(h, "war_opponent_members")).toBe(5);
+      expect(await count(h, "war_opponent_members")).toBe(OPPONENT_SIZE);
     });
 
     // 026. The opposition is what turns "assign your TH16 to base 7" into a
@@ -126,12 +198,15 @@ describe("T6.1 — the clan war sync", () => {
       const rows = await h.db.query<{ tag: string; name: string; map_position: number }>(
         `select tag, name, map_position from war_opponent_members order by map_position`,
       );
-      expect(rows.rows.map((r) => r.map_position)).toEqual([1, 2, 3, 4, 5]);
-      expect(rows.rows[0]!.name).toBe("Opponent 05");
+      expect(rows.rows.map((r) => r.map_position)).toEqual(
+        [...THEIRS.members].map((m) => m.mapPosition).sort((a, b) => a - b),
+      );
+      // Named, not numbered: T6.3 shows the leader who is on each base.
+      expect(rows.rows[0]!.name).toBeTruthy();
 
       // Only our own five. An opponent tag must never appear in the member
       // directory, the donation report or the cross-clan search.
-      expect(await count(h, "players")).toBe(5);
+      expect(await count(h, "players")).toBe(ROSTER_SIZE);
       expect(await count(h, "players", `tag like '#C2V89UG%'`)).toBe(0);
     });
 
@@ -151,13 +226,16 @@ describe("T6.1 — the clan war sync", () => {
                  opponent_tag, team_size from wars`);
 
       const war = rows.rows[0]!;
-      expect(war.our_stars).toBe(8);
-      expect(war.their_stars).toBe(6);
-      expect(Number(war.our_destruction)).toBeCloseTo(87.4);
+      expect(war.our_stars).toBe(OURS.stars);
+      expect(war.their_stars).toBe(THEIRS.stars);
+      expect(Number(war.our_destruction)).toBeCloseTo(
+        IN_WAR.clan.destructionPercentage,
+        2,
+      );
       expect(war.result).toBe("win");
-      expect(war.state).toBe("inWar");
+      expect(war.state).toBe(IN_WAR.state);
       expect(war.opponent_tag).toBe(THEIR_TAG);
-      expect(war.team_size).toBe(5);
+      expect(war.team_size).toBe(ROSTER_SIZE);
     });
 
     // `unique (clan_id, start_time)` is the natural key — the API gives a
@@ -168,8 +246,12 @@ describe("T6.1 — the clan war sync", () => {
         `select start_time, end_time, clan_id from wars`,
       );
 
-      expect(rows.rows[0]!.start_time.toISOString()).toBe("2026-07-29T06:00:00.000Z");
-      expect(rows.rows[0]!.end_time.toISOString()).toBe("2026-07-30T06:00:00.000Z");
+      expect(rows.rows[0]!.start_time.toISOString()).toBe(
+        parseCocTime(IN_WAR.startTime).toISOString(),
+      );
+      expect(rows.rows[0]!.end_time.toISOString()).toBe(
+        parseCocTime(IN_WAR.endTime).toISOString(),
+      );
       expect(rows.rows[0]!.clan_id).toBe(CLAN_A); // R3
     });
 
@@ -177,7 +259,7 @@ describe("T6.1 — the clan war sync", () => {
     // assumed, so a future game change cannot rewrite what old wars meant.
     it("records two attacks allowed per member, unlike CWL's one", async () => {
       await runSyncJob("war", syncWar, { client });
-      expect(await count(h, "war_members", "attacks_allowed = 2")).toBe(5);
+      expect(await count(h, "war_members", "attacks_allowed = 2")).toBe(ROSTER_SIZE);
     });
 
     // Trap 3, and the one with no visible symptom. The only source is looking
@@ -194,14 +276,21 @@ describe("T6.1 — the clan war sync", () => {
           order by m.map_position`,
       );
 
-      expect(rows.rows.map((r) => r.defender_position)).toEqual([5, 4, 3]);
+      const byPosition = new Map(THEIRS.members.map((m) => [m.tag, m.mapPosition]));
+      const expected = [...OURS.members]
+        .filter((m) => m.attacks?.length)
+        .sort((a, b) => a.mapPosition - b.mapPosition)
+        .flatMap((m) => m.attacks!.map((a) => byPosition.get(a.defenderTag)));
+
+      expect(rows.rows.map((r) => r.defender_position)).toEqual(expected);
+      expect(expected).not.toEqual(rows.rows.map((r) => r.map_position));
     });
 
     it("numbers attacks per player, not by the API's global war order", async () => {
       await runSyncJob("war", syncWar, { client });
       // Each of the three attacked once, so every row is that player's first —
       // even though the API's `order` field runs 1, 2, 3 across the war.
-      expect(await count(h, "war_attacks", "attack_order = 1")).toBe(3);
+      expect(await count(h, "war_attacks", "attack_order = 1")).toBe(ATTACK_COUNT);
       expect(await count(h, "war_attacks", "attack_order <> 1")).toBe(0);
     });
 
@@ -218,8 +307,11 @@ describe("T6.1 — the clan war sync", () => {
             select count(*) from war_attacks a
              where a.war_id = m.war_id and a.player_id = m.player_id)`,
       );
-      // Two who did nothing, plus three who used one of their two.
-      expect(unused.rows[0]!.n).toBe(5);
+      // Every member of a CWL roster gets one attack, and this fixture is a CWL
+      // war relabelled as a regular one (see IN_WAR) — so with attacks_allowed
+      // forced to 2, everyone is short of their allowance, including the 14 who
+      // attacked once. That is the state the chase list has to distinguish.
+      expect(unused.rows[0]!.n).toBe(ROSTER_SIZE);
 
       const none = await h.db.query<{ n: number }>(
         `select count(*)::int as n
@@ -228,15 +320,15 @@ describe("T6.1 — the clan war sync", () => {
             select 1 from war_attacks a
              where a.war_id = m.war_id and a.player_id = m.player_id)`,
       );
-      expect(none.rows[0]!.n).toBe(2);
+      expect(none.rows[0]!.n).toBe(ROSTER_SIZE - ATTACK_COUNT);
     });
 
     it("creates a players row for a participant sync:clans has never seen", async () => {
       expect(await count(h, "players")).toBe(0);
       await runSyncJob("war", syncWar, { client });
 
-      expect(await count(h, "players")).toBe(5);
-      expect(await count(h, "players", `clan_id = '${CLAN_A}'`)).toBe(5);
+      expect(await count(h, "players")).toBe(ROSTER_SIZE);
+      expect(await count(h, "players", `clan_id = '${CLAN_A}'`)).toBe(ROSTER_SIZE);
     });
 
     it("does not reassign a player who has since moved to another clan", async () => {
@@ -254,7 +346,7 @@ describe("T6.1 — the clan war sync", () => {
         `select clan_id from players where tag = '#PY0LQGRJ'`,
       );
       expect(row.rows[0]!.clan_id).toBe(OTHER);
-      expect(await count(h, "war_attacks")).toBe(3);
+      expect(await count(h, "war_attacks")).toBe(ATTACK_COUNT);
     });
 
     // R11/R12 — the leader's plan is not this job's to touch. Migration 024
@@ -350,7 +442,7 @@ describe("T6.1 — the clan war sync", () => {
         const row = log.rows[0]!;
         expect(row.status).toBe("success");
         expect(row.finished_at).not.toBeNull();
-        expect(row.records_written).toBe(13); // 5 ours + 5 theirs + 3 attacks
+        expect(row.records_written).toBe(ROSTER_SIZE + OPPONENT_SIZE + ATTACK_COUNT);
       });
     });
 

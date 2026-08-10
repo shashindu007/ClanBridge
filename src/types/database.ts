@@ -2,7 +2,7 @@
 // DO NOT EDIT. Regenerate after every migration — a stale file type-checks
 // against a schema that no longer exists, which is worse than having none.
 //
-// 28 tables, generated 2026-08-05.
+// 32 tables, generated 2026-08-10.
 
 export type Json =
   | string
@@ -142,6 +142,7 @@ export interface Database {
           created_at: string;
           updated_at: string | null;
           deleted_at: string | null;
+          settled_at: string | null;
         };
         Insert: {
           id?: string;
@@ -152,6 +153,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string | null;
           deleted_at?: string | null;
+          settled_at?: string | null;
         };
         Update: {
           id?: string;
@@ -162,6 +164,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string | null;
           deleted_at?: string | null;
+          settled_at?: string | null;
         };
       };
       clan_games_scores: {
@@ -821,6 +824,8 @@ export interface Database {
           created_at: string;
           updated_at: string | null;
           deleted_at: string | null;
+          attack_limit: number | null;
+          bonus_attack_limit: number | null;
         };
         Insert: {
           id?: string;
@@ -831,6 +836,8 @@ export interface Database {
           created_at?: string;
           updated_at?: string | null;
           deleted_at?: string | null;
+          attack_limit?: number | null;
+          bonus_attack_limit?: number | null;
         };
         Update: {
           id?: string;
@@ -841,6 +848,8 @@ export interface Database {
           created_at?: string;
           updated_at?: string | null;
           deleted_at?: string | null;
+          attack_limit?: number | null;
+          bonus_attack_limit?: number | null;
         };
       };
       raid_seasons: {
@@ -853,6 +862,11 @@ export interface Database {
           created_at: string;
           updated_at: string | null;
           deleted_at: string | null;
+          state: string | null;
+          raids_completed: number | null;
+          total_attacks: number | null;
+          offensive_reward: number | null;
+          defensive_reward: number | null;
         };
         Insert: {
           id?: string;
@@ -863,6 +877,11 @@ export interface Database {
           created_at?: string;
           updated_at?: string | null;
           deleted_at?: string | null;
+          state?: string | null;
+          raids_completed?: number | null;
+          total_attacks?: number | null;
+          offensive_reward?: number | null;
+          defensive_reward?: number | null;
         };
         Update: {
           id?: string;
@@ -873,6 +892,11 @@ export interface Database {
           created_at?: string;
           updated_at?: string | null;
           deleted_at?: string | null;
+          state?: string | null;
+          raids_completed?: number | null;
+          total_attacks?: number | null;
+          offensive_reward?: number | null;
+          defensive_reward?: number | null;
         };
       };
       sync_log: {
@@ -994,6 +1018,143 @@ export interface Database {
           defender_tag?: string | null;
           defender_position?: number | null;
           attacked_at?: string | null;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+      };
+      war_lineup_members: {
+        Row: {
+          id: string;
+          lineup_id: string;
+          player_id: string;
+          position: number | null;
+          added_by: string;
+          added_at: string;
+          created_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          lineup_id: string;
+          player_id: string;
+          position?: number | null;
+          added_by: string;
+          added_at?: string;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          lineup_id?: string;
+          player_id?: string;
+          position?: number | null;
+          added_by?: string;
+          added_at?: string;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+      };
+      war_lineups: {
+        Row: {
+          id: string;
+          clan_id: string;
+          planned_for: string;
+          size: number;
+          status: string;
+          war_id: string | null;
+          created_by: string;
+          published_at: string | null;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          clan_id: string;
+          planned_for?: string;
+          size: number;
+          status?: string;
+          war_id?: string | null;
+          created_by: string;
+          published_at?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          clan_id?: string;
+          planned_for?: string;
+          size?: number;
+          status?: string;
+          war_id?: string | null;
+          created_by?: string;
+          published_at?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      war_members: {
+        Row: {
+          id: string;
+          war_id: string;
+          player_id: string;
+          map_position: number | null;
+          th_level: number | null;
+          attacks_allowed: number;
+          created_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          war_id: string;
+          player_id: string;
+          map_position?: number | null;
+          th_level?: number | null;
+          attacks_allowed?: number;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          war_id?: string;
+          player_id?: string;
+          map_position?: number | null;
+          th_level?: number | null;
+          attacks_allowed?: number;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+      };
+      war_opponent_members: {
+        Row: {
+          id: string;
+          war_id: string;
+          tag: string;
+          name: string | null;
+          map_position: number | null;
+          th_level: number | null;
+          created_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          war_id: string;
+          tag: string;
+          name?: string | null;
+          map_position?: number | null;
+          th_level?: number | null;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          war_id?: string;
+          tag?: string;
+          name?: string | null;
+          map_position?: number | null;
+          th_level?: number | null;
           created_at?: string;
           deleted_at?: string | null;
         };
@@ -1123,5 +1284,9 @@ export type RaidSeasonsRow = Database["public"]["Tables"]["raid_seasons"]["Row"]
 export type SyncLogRow = Database["public"]["Tables"]["sync_log"]["Row"];
 export type UsersRow = Database["public"]["Tables"]["users"]["Row"];
 export type WarAttacksRow = Database["public"]["Tables"]["war_attacks"]["Row"];
+export type WarLineupMembersRow = Database["public"]["Tables"]["war_lineup_members"]["Row"];
+export type WarLineupsRow = Database["public"]["Tables"]["war_lineups"]["Row"];
+export type WarMembersRow = Database["public"]["Tables"]["war_members"]["Row"];
+export type WarOpponentMembersRow = Database["public"]["Tables"]["war_opponent_members"]["Row"];
 export type WarTargetsRow = Database["public"]["Tables"]["war_targets"]["Row"];
 export type WarsRow = Database["public"]["Tables"]["wars"]["Row"];

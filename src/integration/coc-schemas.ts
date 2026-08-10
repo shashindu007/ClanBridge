@@ -165,7 +165,14 @@ export const warSchema = z.looseObject({
 
 export const cwlGroupSchema = z.looseObject({
   state: z.string().optional(),
-  season: z.string(), // 'YYYY-MM'
+  // NOT 'YYYY-MM', whatever the documentation implies. The live API returned
+  // '2026-08-03' — a full date. Left as a bare string here on purpose: this
+  // schema records what Supercell actually sends, and `normaliseCwlSeason()` in
+  // the mappers is what reduces it to the 'YYYY-MM' key the rest of the project
+  // uses. Tightening this to a regex would turn a real CWL week into a failed
+  // sync the first time the shape shifts again, which is the one outcome this
+  // project cannot afford (R10).
+  season: z.string(),
   clans: z
     .array(
       z.looseObject({

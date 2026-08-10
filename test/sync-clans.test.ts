@@ -15,9 +15,47 @@ import { createHarness, type Harness } from "./pg-harness";
 import { createPgliteSupabase } from "./pglite-supabase";
 import { runSyncJob } from "../scripts/sync/shared";
 import { syncClans } from "../scripts/sync/clans";
+import { mapRole } from "../src/integration/mappers";
 
 const CLAN_A = "aaaaaaaa-0000-4000-8000-000000000001";
 const CLAN_B = "bbbbbbbb-0000-4000-8000-000000000001";
+
+/**
+ * The expectations below are DERIVED from fixtures/clan.json, never written as
+ * literals.
+ *
+ * T2.1 re-captures these files from the live API — and did, which is what turned
+ * this suite red: a `toBe(5)` asserted that the synthetic clan had five members,
+ * not that the sync writes every member it was given. The first real capture had
+ * thirty, and eight tests failed while the code was entirely correct.
+ *
+ * A test that has to be edited whenever the fixtures are refreshed is a test that
+ * will eventually be edited to match a bug.
+ */
+const CLAN_FIXTURE = JSON.parse(
+  readFileSync(join(process.cwd(), "fixtures", "clan.json"), "utf8"),
+) as {
+  name: string;
+  clanLevel: number;
+  warLeague?: { name: string };
+  isWarLogPublic?: boolean;
+  memberList: Array<{
+    name: string;
+    // The API's own vocabulary, which is NOT the database's — mapRole() is the
+    // only thing that should know the difference. Typed as the wire union so
+    // that passing one of these straight to a column is a compile error.
+    role?: "leader" | "coLeader" | "admin" | "member" | "notMember";
+    donations?: number;
+    trophies?: number;
+  }>;
+};
+
+const MEMBER_COUNT = CLAN_FIXTURE.memberList.length;
+
+/** The member the `order by name limit 1` queries below will land on. */
+const FIRST_BY_NAME = [...CLAN_FIXTURE.memberList].sort((a, b) =>
+  a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+)[0]!;
 
 async function count(h: Harness, table: string, where = "true"): Promise<number> {
   const res = await h.db.query<{ n: number }>(
@@ -72,7 +110,7 @@ describe("T2.6 — sync:clans against real Postgres, offline", () => {
     const result = await runSyncJob("clans", syncClans, { client });
 
     expect(result).toBe("success");
-    expect(await count(h, "players")).toBe(5);
+    expect(await count(h, "players")).toBe(MEMBER_COUNT);
   });
 
   it("updates the clan's own row from the API", async () => {
@@ -80,7 +118,7 @@ describe("T2.6 — sync:clans against real Postgres, offline", () => {
     const res = await h.db.query<{ name: string; badge_url: string }>(
       `select name, badge_url from clans where id = '${CLAN_A}'`,
     );
-    expect(res.rows[0]!.name).toBe("Synthetic Clan");
+    expect(res.rows[0]!.name).toBe(CLAN_FIXTURE.name);
     expect(res.rows[0]!.badge_url).toContain("api-assets.clashofclans.com");
   });
 
@@ -100,31 +138,50 @@ describe("T2.6 — sync:clans against real Postgres, offline", () => {
     );
 
     const clan = res.rows[0]!;
-    expect(clan.level).toBe(18);
+    expect(clan.level).toBe(CLAN_FIXTURE.clanLevel);
     // The NAME, not warLeague.id — 48000012 means nothing to a member.
-    expect(clan.war_league).toBe("Crystal League I");
-    expect(clan.member_count).toBe(5);
+    expect(clan.war_league).toBe(CLAN_FIXTURE.warLeague?.name);
+    expect(clan.member_count).toBe(MEMBER_COUNT);
     // T0.1. False here would mean phase 6 can collect nothing for this clan.
-    expect(clan.is_war_log_public).toBe(true);
+    expect(clan.is_war_log_public).toBe(CLAN_FIXTURE.isWarLogPublic);
   });
 
   it("translates roles, including admin to elder", async () => {
     await runSyncJob("clans", syncClans, { client });
-    const res = await h.db.query<{ clan_role: string }>(
-      `select clan_role from players order by name`,
+    const res = await h.db.query<{ name: string; clan_role: string }>(
+      `select name, clan_role from players`,
     );
-    expect(res.rows.map((r) => r.clan_role)).toEqual([
-      "leader",
-      "co-leader",
-      "elder",
-      "member",
-      "member",
-    ]);
+
+    // Matched BY NAME rather than by row order. Postgres orders by collation and
+    // JavaScript by code point, so real member names — mixed case, emoji, non-Latin
+    // scripts — sort differently in the two, and a positional comparison fails on
+    // a correct result. Ordering is not what this test is about.
+    const actual = new Map(res.rows.map((r) => [r.name, r.clan_role]));
+    expect(actual.size).toBe(MEMBER_COUNT);
+
+    for (const member of CLAN_FIXTURE.memberList) {
+      expect(actual.get(member.name), member.name).toBe(mapRole(member.role));
+    }
+
+    // mapRole() rather than a re-implementation of it: there are TWO wire names
+    // that differ from ours — `admin` for elder and `coLeader` for co-leader —
+    // and a test that spells out its own translation table gets one of them
+    // wrong, which is exactly what happened here on the first attempt.
+    //
+    // The stored values must be the database's vocabulary, never Supercell's:
+    // players.clan_role has a check constraint naming these four, so a leaked
+    // raw name is a failed insert at 2 AM rather than a wrong label.
+    const stored = [...actual.values()];
+    expect(stored).not.toContain("admin");
+    expect(stored).not.toContain("coLeader");
+    for (const role of stored) {
+      expect(["leader", "co-leader", "elder", "member"]).toContain(role);
+    }
   });
 
   it("sets clan_id on every player (R3)", async () => {
     await runSyncJob("clans", syncClans, { client });
-    expect(await count(h, "players", `clan_id = '${CLAN_A}'`)).toBe(5);
+    expect(await count(h, "players", `clan_id = '${CLAN_A}'`)).toBe(MEMBER_COUNT);
     expect(await count(h, "players", "clan_id is null")).toBe(0);
   });
 
@@ -143,7 +200,7 @@ describe("T2.6 — sync:clans against real Postgres, offline", () => {
     it("leaves the snapshot count unchanged within the hour (T2.9)", async () => {
       await runSyncJob("clans", syncClans, { client });
       const afterFirst = await count(h, "member_snapshots");
-      expect(afterFirst).toBe(5);
+      expect(afterFirst).toBe(MEMBER_COUNT);
 
       await runSyncJob("clans", syncClans, { client });
       await runSyncJob("clans", syncClans, { client });
@@ -176,13 +233,15 @@ describe("T2.6 — sync:clans against real Postgres, offline", () => {
          from member_snapshots s join players p on p.id = s.player_id
          order by p.name limit 1`,
       );
-      expect(res.rows[0]!.donations).toBe(1200);
-      expect(res.rows[0]!.trophies).toBe(5200);
+      expect(res.rows[0]!.donations).toBe(FIRST_BY_NAME.donations);
+      expect(res.rows[0]!.trophies).toBe(FIRST_BY_NAME.trophies);
     });
 
     it("links every snapshot to its clan (R3)", async () => {
       await runSyncJob("clans", syncClans, { client });
-      expect(await count(h, "member_snapshots", `clan_id = '${CLAN_A}'`)).toBe(5);
+      expect(await count(h, "member_snapshots", `clan_id = '${CLAN_A}'`)).toBe(
+        MEMBER_COUNT,
+      );
     });
   });
 

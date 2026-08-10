@@ -19,10 +19,12 @@ The checkboxes below are the ledger. A ticked box means the code exists, the tes
 pass, and `npm run typecheck` and `npm run lint` are clean — not that it has been
 run against the live game.
 
-**Done:** Phase 1 entire · Phase 2 except T2.1 · Phase 3 entire · **Phase 3B entire** ·
+**Done:** **Phase 2 entire** · Phase 1 entire · Phase 3 entire · **Phase 3B entire** ·
 T4.1–T4.8 · **Phase 4B entire** · **Phase 5 except the CWL half of T5.6** ·
 **Phase 6 entire** · **Phase 7 entire** · T9.6.
 Phase 8 is placeholders that name their own task ID.
+**Phase 0 is 8 of 15** — T0.3, T0.4, T0.7, T0.10 and now T0.1, T0.2, T0.6, T0.14.
+Outstanding: T0.5, T0.8, T0.9, T0.11, T0.12. Dropped: T0.13 (with T4.10).
 
 **Two Phase 9 boxes are wrong in the other direction and worth correcting when
 someone next touches them:** T9.2 is substantially built (`admin/page.tsx`, 310
@@ -31,45 +33,68 @@ effectively done (`guide/page.tsx`, 225 real lines). A ledger that overstates in
 one place and understates in another is unreliable as a planning input, which is
 the only reason this note exists.
 
-**Nothing in the application has ever run against real data.** Every phase above
-was proven against synthetic fixtures and PGlite. The live database has 023 and
-everything before it applied and RLS verified against real Supabase — and 0 rows
-in every table, including `users`. Nobody has signed in yet, which is why T0.2
-below is where the whole chain starts.
+**The application has now run against real data — 2026-08-09.** That sentence
+replaces "nothing ever has", which was true for every previous revision of this
+file and was the single most important fact in it.
 
-**024 through 027 have not been applied to the live database.** They exist, they
-pass against PGlite, and `npm run migrations:apply` has not been run since before
-Phase 6 landed. Nothing reads them yet because nothing reads anything yet, but
-**the war module and the whole of Phase 7 are broken against live Supabase until
-it is.**
+What actually happened, in order: custom SMTP was configured so magic links
+deliver at all (T0.14, below), the platform was claimed at `/admin`, two clans
+were added, `npm run sync:clans` wrote 66 rows and did it twice with no
+duplicates (R5's real done-when), and `npm run fixtures:capture` replaced all six
+synthetic fixtures with real captures. `npm run sync:war` returned `notInWar` and
+recorded it as `skipped`, not `failed` — R10 behaving correctly on its first
+contact with the live API.
 
-The proof is independent of anyone's memory: `src/types/database.ts` is generated
-from the live schema and contains 28 tables, none of them `war_members`,
-`war_lineups`, `war_lineup_members` or `war_opponent_members`. Run
-`npm run migrations:apply` and then `npm run types:db`; expect 32 tables.
+**The first real-data bug arrived immediately, and it is the reason T2.1 exists.**
+The live league group reported `"season": "2026-08-03"` — a full date. Every layer
+of this project assumes `'YYYY-MM'`, and `coc-schemas.ts` declares the field as a
+bare `z.string()`, so the capture's validation gate passed it and the wrong shape
+reached the database. `season` is the natural key of both `cwl_seasons` (written
+by the sync) and `cwl_rosters` (written by the leader), so T4B.6's "one roster per
+season across all three clans" would have matched nothing, every season lookup
+would have returned null, and the double-booking that rule prevents would have
+surfaced on CWL day one. Nothing would have thrown. Fixed at the mapper boundary
+(R7) by `normaliseCwlSeason()` in `src/integration/mappers/index.ts`.
 
-**Four unticked boxes matter more than the rest:**
+**Two clans exist, not three.** `DH CWL ONLY` and `DH v2` — and `DH v2` is a test
+clan, so of the three real clans only one is in the database. The remaining two
+are added the same way, at `/admin`. Anywhere this document says "three clans",
+read it as intent rather than current state.
 
-- **T0.2 — no clan exists in the database.** Clans are added at `/admin` by the
-  platform admin after signing in (migration 015), and `clans` is the one source
-  of truth every sync job and `fixtures:capture` reads through `activeClans()`.
-  It is blocked only by the first sign-in never having happened. Order: sign in,
-  claim ownership, add clans, "Make me leader".
+**027 has not been applied, and `src/types/database.ts` is stale.** 024 through
+026 were applied on 2026-08-09; 027 landed after that and `npm run types:db` has
+not been re-run since. The proof is independent of memory: the generated types
+still describe 28 tables and contain none of `war_members`, `war_lineups`,
+`war_lineup_members` or `war_opponent_members`. Run `npm run migrations:apply`
+then `npm run types:db`, and expect 32. Until then **Phase 7 is broken against
+live Supabase**, and the war module's live behaviour is unverified — the one war
+sync that has run exited at `notInWar` without touching a Phase 6 table.
 
-- **T2.1 — the fixtures are synthetic.** They were written by hand to match the
-  schemas, so the schemas cannot fail them. The suite prints `6/6 fixtures are
-  SYNTHETIC` on every run. This is a circular pass on the one module whose data
-  cannot be re-fetched. `cwlgroup` and `cwlwar` are capturable only during CWL
-  week — the first week of the month.
+**The boxes that still matter:**
+
+- **T0.9 and T0.5 have a deadline now, and it is the first week of September.**
+  Both were deferred as deployment-only, which was correct while nothing ran. It
+  no longer is: without T0.5 no scheduled workflow can reach the API, and a CWL
+  week that passes with no sync running is data that cannot be re-fetched from
+  anywhere. That is the exact loss this entire project was built to prevent.
+
 - **T0.9 — Upstash is not configured**, so `/api/verify` throws under
   `NODE_ENV=production`. That is deliberate (`lib/rate-limit.ts`): a per-instance
-  in-memory counter on Vercel looks like protection and limits nothing. It also
-  means signup is blocked until T0.9 is done.
+  in-memory counter on Vercel looks like protection and limits nothing.
+  **It does not block local work and never did** — `getRateLimiter()` only throws
+  when `NODE_ENV === "production"`, and `/admin` is exempt from the approval gate
+  (`lib/gate.ts`), so the entire bootstrap above ran without it. Earlier revisions
+  of this file said signup was blocked until T0.9 was done; that was true only of
+  production, and reading it as a hard blocker is what left the chain stalled.
+  It does block real members verifying a player tag on a deployed instance.
 - **T0.5 — `COC_API_BASE` still points at the direct API**, not the RoyaleAPI
   proxy, so no key registered against the proxy IP exists yet. No sync workflow
-  has had a green run. **This does not block T2.1**: `fixtures:capture` runs
-  locally against the dev key and your home IP. T0.5 blocks the scheduled runs in
-  GitHub Actions, which has no fixed egress IP — nothing else.
+  has had a green run. It did not block T2.1 — `fixtures:capture` and every sync
+  above ran locally against the dev key and a home IP. It blocks the scheduled
+  runs in GitHub Actions, which has no fixed egress IP.
+  **The dev key's IP binding is now a recurring cost:** the first live sync
+  failed `403 accessDenied` because the home IP had changed since the key was
+  issued, and it will again.
 
 **Where the build deviated from this document, deliberately:**
 
@@ -537,11 +562,27 @@ planned route to its task.
 
 *Nothing here is code. All of it blocks later work.*
 
-- [ ] **T0.1 — Confirm war logs are public**
+- [x] **T0.1 — Confirm war logs are public**
   All three clans, in game, Clan Settings. If private, the API returns 403 and the war module cannot work at all.
 
-- [ ] **T0.2 — Record the three clan tags**
+  **Verified automatically, not by eye.** The API reports `isWarLogPublic`, so
+  `scripts/sync/clans.ts` warns by name on every run and migration 020 stores it.
+  The live sync on 2026-08-09 printed no warning for either clan added so far —
+  which is the check, and it re-runs hourly rather than being trusted once. A clan
+  switched to private mid-season is caught on the next run instead of surfacing
+  later as an unexplained 403 in the war module.
+  **Still to confirm for the two clans not yet added** (see T0.2).
+
+- [x] **T0.2 — Record the three clan tags**
   Write them into a scratch file. Uppercase, with the hash.
+
+  **Superseded in the doing.** Tags are not the deliverable — rows in `clans` are,
+  because `activeClans()` is what every sync job and `fixtures:capture` read
+  through. They are added at `/admin` after signing in (migration 015), never
+  seeded. Done on 2026-08-09: platform claimed, clans added, "Make me leader".
+  **Only one of the three real clans is in the database so far** — `DH CWL ONLY`.
+  `DH v2` is a test clan. The remaining two go in the same way, and T0.1 above
+  needs re-checking once they do.
 
 - [x] **T0.3 — Create a Clash of Clans developer account**
   `https://developer.clashofclans.com`. Separate from your game login. Check spam for the confirmation email.
@@ -553,12 +594,21 @@ planned route to its task.
 - [ ] **T0.5 — Create the production API key**
   IP address = the RoyaleAPI proxy IP. Check the current value at `docs.royaleapi.com/proxy` before entering it.
 
-- [ ] **T0.6 — Test the key**
+- [x] **T0.6 — Test the key**
   ```bash
   curl -H "Authorization: Bearer $TOKEN" \
     "https://api.clashofclans.com/v1/clans/%232PP0JCCL"
   ```
   `403` means the IP does not match. `404` means the tag is wrong. The `#` must be `%23`.
+
+  **Tested by using it**, which is a better test than curl: `npm run sync:clans`
+  and `npm run fixtures:capture` both completed against the live API on
+  2026-08-09. The first attempt returned `403 accessDenied` because the home IP
+  had changed since the key was issued — reissuing against the current IP fixed
+  it. **Expect that again.** A dev key is bound to one IP and a domestic
+  connection does not keep one; this is the recurring failure the project will
+  hit most often, and `scripts/capture-fixtures.ts` already explains it by status
+  code when it does.
 
 - [x] **T0.7 — Create the Supabase project**
   Region closest to Sri Lanka. Save the project URL, anon key, and service role key.
@@ -582,8 +632,42 @@ planned route to its task.
 - [ ] **T0.12 — Read Supercell's Fan Content Policy**
   The platform must display a disclaimer that it is not affiliated with or endorsed by Supercell, and must not be monetised. The API key is issued for non-commercial use only. Note the exact wording required — it goes in the footer at T9.8.
 
-- [ ] **T0.13 — Photograph the existing logbooks**
-  Before anything else, capture every page of the handwritten CWL records. This is the only copy of that history, and T4.10 imports it. Do it now, not when you get to phase 4.
+- [~] **T0.13 — Photograph the existing logbooks** — **DROPPED, by decision**
+  ~~Before anything else, capture every page of the handwritten CWL records.~~
+  The leader does not want the historical seasons carried over; the platform
+  starts its history on the day it starts running. **T4.10 is dropped with it.**
+  Recorded rather than deleted because O2 ("logbook eliminated") in section 5B
+  still names it, and a silently missing task reads as an oversight later.
+  The cost is accepted and one-way: those seasons exist nowhere else, and if the
+  books are lost the decision cannot be revisited.
+
+- [ ] **T0.14 — Configure custom SMTP in Supabase Auth** — *not in the original plan*
+  Supabase's built-in email sender is shared across every free project, capped at
+  roughly 2–4 messages an hour, and on newer projects delivers only to addresses
+  belonging to the project team.
+
+  **This is a hard blocker for Phase 3 in production and nothing in this document
+  said so.** Login is a magic link, so *every* sign-in sends an email — not only
+  the first. Three clans is on the order of 100–150 members. At 2 an hour that is
+  not a slow platform, it is one that does not work.
+
+  Done with Gmail SMTP (`smtp.gmail.com:465`, an App Password, not the account
+  password) — free, no domain needed, ~500/day. **Raise the email rate limit
+  under Authentication → Rate Limits as well**; enabling custom SMTP does not
+  raise it on its own, and that step is the one everybody misses.
+
+  Related work this exposed, none of it built:
+  - **T3.10** — `/login` cannot detect a failed delivery. `signInWithOtp` returns
+    success either way, deliberately, so an attacker cannot probe which addresses
+    have accounts. The "Check your email" state is therefore a dead end for the
+    most common onboarding failure, and the only fix is guidance on the page.
+  - **T9.11** — a member who changes their email becomes a new account, because
+    Supabase keys identity by address. Their history survives and becomes
+    invisible to them. `auth/callback/route.ts` already uses `ignoreDuplicates`
+    so a corrected address is not overwritten; no UI ever sets one.
+  - **T9.12** — platform admin cannot be transferred. `claim_platform_ownership()`
+    refuses once any admin exists (015), and nothing else sets
+    `is_platform_admin`, so moving it needs SQL against the live database.
 
 ---
 
@@ -655,24 +739,45 @@ planned route to its task.
 
 # Phase 2 — API client and first sync
 
-- [ ] **T2.1 — Capture fixtures**
+- [x] **T2.1 — Capture fixtures**
   Save real responses to `fixtures/`: `clan.json`, `currentwar.json`, `cwlgroup.json`, `cwlwar.json`, `capitalraids.json`, `player.json`.
   Capture a CWL fixture during an actual CWL week — that is the first week of the month only.
 
-  **Not done. The six files currently in `fixtures/` are synthetic** — written by
-  hand against the schemas, which is why every schema test passes and none of them
-  proves anything. `mappers.test.ts` prints `6/6 fixtures are SYNTHETIC` on every
-  run and will stop once real ones land. Run `npm run fixtures:capture` — it
-  reads the clan tags from the database (they are added by a leader at `/admin`,
-  not seeded), fetches, and scrubs in one step, so nothing identifying reaches
-  git. Pass a tag to override: `npm run fixtures:capture -- '#TAG'`.
+  **Done. All six are real**, captured 2026-08-09 and scrubbed in the same step
+  (245 member names and 297 tags replaced; every number, field and array length
+  untouched). `mappers.test.ts` no longer prints the SYNTHETIC banner.
 
-  For the two CWL fixtures it tries **every** active clan, because a league group
-  exists only for a clan currently in CWL and that may be the third one. Trying
-  only the first would report "not CWL week" while a season nobody can re-fetch
-  was running elsewhere.
+  Both CWL files landed, which was luck worth recording: the capture ran on the
+  9th, outside the first week, and `DH CWL ONLY` was still in a league group. The
+  script tries **every** active clan for those two endpoints precisely so a season
+  running in the third clan is not missed — and that is what saved it here.
 
-  Expect tests to **fail** afterwards. That failure is the value.
+  **The failure afterwards was the value, exactly as promised.** 51 tests went
+  red. Fifty were expectations pinned to synthetic values — `toBe(5)` for a clan
+  that now has 30 members, `"Synthetic Clan"`, `21000` for a Games Champion
+  achievement that is really 178935. Those assert which clan was captured, not
+  what the code does, so they were rewritten to derive from the fixture; a test
+  that must be edited on every re-capture is one that will eventually be edited
+  to match a bug.
+
+  **The fifty-first was a real bug.** See the note on `normaliseCwlSeason` under
+  section 0.
+
+  Two things the real data changed permanently:
+
+  - **`currentwar.json` is `notInWar`**, and usually will be — a clan is in a war
+    a few days at a time. `test/sync-war.test.ts` therefore builds its in-war
+    fixture from `cwlwar.json` (identical shape, real data), stripping `warTag`
+    and setting `attacksPerMember` to 2, and restores the captured file in
+    `afterEach`. Re-capturing will not fix this and is not meant to.
+  - **Fixture mode replays one war for all 28 war tags** in the league group, so
+    CWL row counts scale with the group size while per-war assertions do not.
+    `test/sync-cwl.test.ts` asserts counts against `WAR_COUNT` and everything
+    else against a single war row.
+
+  Re-run `npm run fixtures:capture` during any later CWL week to refresh. It
+  reads the clan tags from the database (added by a leader at `/admin`, not
+  seeded). Pass a tag to override: `npm run fixtures:capture -- '#TAG'`.
 
 - [x] **T2.2 — Zod schemas**
   `integration/coc-schemas.ts`, one schema per endpoint, written against the fixtures.
@@ -820,10 +925,17 @@ planned route to its task.
 - [ ] **T4.9 — Moved**
   CWL roster planning is now Phase 4B. It became a module, not a task.
 
-- [ ] **T4.10 — Import the handwritten logbooks**
-  A leader-only form to enter past CWL seasons by hand from the photographs taken at T0.13: season, player, day, attacks used, stars, bonus received.
-  Mark these rows `source = 'manual'` so they are visually distinguishable from API-captured data.
-  This is objective O2 taken seriously. Without it the platform starts with an empty history and the logbook years are lost anyway.
+- [~] **T4.10 — Import the handwritten logbooks** — **DROPPED, by decision**
+  ~~A leader-only form to enter past CWL seasons by hand from the photographs
+  taken at T0.13.~~ Dropped with T0.13: the leader does not want the historical
+  seasons carried over.
+
+  What this costs, stated plainly so the decision is not re-litigated from
+  memory: **the platform's history begins on 2026-08-09.** O2 in section 5B
+  ("logbook eliminated") is now only forward-looking, and O4 — any member's
+  six-month history in thirty seconds — cannot answer for any month before that
+  until six months have passed. Nothing else depends on it;
+  `app/(app)/[clanTag]/cwl/import/page.tsx` stays a placeholder.
 
 ---
 
@@ -1198,7 +1310,7 @@ Every requirement traced to the tasks that deliver it. Use this to confirm nothi
 | **Contribution shown after CWL and war** | **M10** | **T4B.11–T4B.13, T6.9, T6.10** |
 | **Rosters and reports kept as history** | **M10** | **T4B.14** |
 | Bonus medals with justification | M3 | T4.7, T4B.13, T9.6 |
-| Logbook history preserved | M3 | T0.13, T4.10 |
+| ~~Logbook history preserved~~ | M3 | ~~T0.13, T4.10~~ — **dropped by decision** |
 | Clan war planning and results | M4 | T6.1–T6.10 |
 | Raid Weekend | M5 | T7.1–T7.3 |
 | Clan Games | M6 | T7.4–T7.5 |
@@ -1217,7 +1329,7 @@ Every requirement traced to the tasks that deliver it. Use this to confirm nothi
 | # | Objective | Delivered by |
 |---|---|---|
 | O1 | CWL captured automatically | T4.1, T4.2 |
-| O2 | Logbook eliminated | T4.1–T4.10 |
+| O2 | Logbook eliminated — **forward-looking only** | T4.1–T4.8 (T4.10 dropped) |
 | O3 | Single view across three clans | T9.1, T3B.6 |
 | O4 | Any member's six-month history in 30 seconds | **T3B.4** |
 | O5 | Base layouts searchable | T8.4 |

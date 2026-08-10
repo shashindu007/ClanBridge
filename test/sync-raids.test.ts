@@ -18,6 +18,8 @@
 //
 // None of the four produces an error at the time.
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createHarness, type Harness } from "./pg-harness";
@@ -28,8 +30,50 @@ import { syncRaids } from "../scripts/sync/raids";
 const CLAN_A = "aaaaaaaa-0000-4000-8000-000000000001";
 const OTHER = "aaaaaaaa-0000-4000-8000-000000000002";
 
-/** The clan tag inside fixtures/capitalraids.json's sibling clan.json. */
-const OUR_TAG = "#2PP0JCCL";
+/**
+ * Read from the fixtures, not written down here — see the note in
+ * test/sync-cwl.test.ts. These were literals until T2.1 captured real data and
+ * every one of them changed at once.
+ */
+const CLAN_FIXTURE = JSON.parse(
+  readFileSync(join(process.cwd(), "fixtures", "clan.json"), "utf8"),
+) as { tag: string };
+
+const RAIDS = JSON.parse(
+  readFileSync(join(process.cwd(), "fixtures", "capitalraids.json"), "utf8"),
+) as {
+  items: Array<{
+    state: string;
+    raidsCompleted?: number;
+    totalAttacks?: number;
+    offensiveReward?: number;
+    defensiveReward?: number;
+    members?: Array<{
+      tag: string;
+      attacks?: number;
+      attackLimit?: number;
+      bonusAttackLimit?: number;
+      capitalResourcesLooted?: number;
+    }>;
+  }>;
+};
+
+/** The clan the raid weekends belong to — the same one clan.json describes. */
+const OUR_TAG = CLAN_FIXTURE.tag;
+
+/** The most recent weekend, which is the one the job records. */
+const LATEST = RAIDS.items[0]!;
+const RAIDER_COUNT = LATEST.members?.length ?? 0;
+const FIRST_RAIDER = LATEST.members![0]!;
+
+/**
+ * Every weekend on the response, not just the newest.
+ *
+ * `/capitalraidseasons` returns the last N weekends complete on every call, and
+ * the job records all of them — that is what makes a missed run harmless, and it
+ * is the reason raids are the most forgiving data in the project.
+ */
+const SEASON_COUNT = RAIDS.items.length;
 
 async function count(h: Harness, table: string, where = "true"): Promise<number> {
   const res = await h.db.query<{ n: number }>(
@@ -89,8 +133,8 @@ describe("T7.1 — the capital raid sync", () => {
     const result = await runSyncJob("raids", syncRaids, { client });
 
     expect(result).toBe("success");
-    expect(await count(h, "raid_seasons")).toBe(1);
-    expect(await count(h, "raid_participants")).toBe(5);
+    expect(await count(h, "raid_seasons")).toBe(SEASON_COUNT);
+    expect(await count(h, "raid_participants")).toBe(RAIDER_COUNT);
   });
 
   // 027. Each of these was arriving on the response and being dropped before
@@ -110,11 +154,11 @@ describe("T7.1 — the capital raid sync", () => {
                offensive_reward, defensive_reward, total_loot from raid_seasons`);
 
     expect(row.rows[0]).toMatchObject({
-      state: "ended",
-      raids_completed: 4,
-      total_attacks: 42,
-      offensive_reward: 180,
-      defensive_reward: 95,
+      state: LATEST.state,
+      raids_completed: LATEST.raidsCompleted,
+      total_attacks: LATEST.totalAttacks,
+      offensive_reward: LATEST.offensiveReward,
+      defensive_reward: LATEST.defensiveReward,
     });
   });
 
@@ -131,14 +175,19 @@ describe("T7.1 — the capital raid sync", () => {
     }>(`select rp.attacks_used, rp.attack_limit, rp.bonus_attack_limit, rp.loot
           from raid_participants rp
           join players p on p.id = rp.player_id
-         where p.tag = '#PY0LQGRJ'`);
+         where p.tag = '${FIRST_RAIDER.tag}'`);
 
     expect(row.rows[0]).toMatchObject({
-      attacks_used: 6,
-      attack_limit: 5,
-      bonus_attack_limit: 1,
-      loot: 24000,
+      attacks_used: FIRST_RAIDER.attacks,
+      attack_limit: FIRST_RAIDER.attackLimit,
+      bonus_attack_limit: FIRST_RAIDER.bonusAttackLimit,
+      loot: FIRST_RAIDER.capitalResourcesLooted,
     });
+
+    // The denominator has to actually be there. Deriving both sides from the
+    // fixture would otherwise pass with every column null, which is risk 3 in
+    // this file's header exactly.
+    expect(row.rows[0]!.attack_limit).toBeGreaterThan(0);
   });
 
   // A raider who joined and left between two runs of sync:clans has no players
@@ -147,7 +196,7 @@ describe("T7.1 — the capital raid sync", () => {
   it("creates player rows for raiders sync:clans has never seen", async () => {
     expect(await count(h, "players")).toBe(0);
     await runSyncJob("raids", syncRaids, { client });
-    expect(await count(h, "players")).toBe(5);
+    expect(await count(h, "players")).toBe(RAIDER_COUNT);
   });
 
   // R3. The response is fetched per clan and written under that clan's id;
@@ -265,11 +314,13 @@ describe("T7.1 — the capital raid sync", () => {
 
       // Back to the fixture's own numbers: still writable, and written.
       const row = await h.db.query<{ total_loot: number; state: string }>(
-        `select total_loot, state from raid_seasons`,
+        `select total_loot, state from raid_seasons order by start_time desc`,
       );
       expect(row.rows[0]!.total_loot).not.toBe(1);
-      expect(row.rows[0]!.state).toBe("ended");
-      expect(await count(h, "raid_seasons")).toBe(1);
+      expect(row.rows[0]!.state).toBe(LATEST.state);
+
+      // Re-running must not add a second copy of any weekend (R5).
+      expect(await count(h, "raid_seasons")).toBe(SEASON_COUNT);
     });
   });
 
@@ -286,7 +337,7 @@ describe("T7.1 — the capital raid sync", () => {
       const row = log.rows[0]!;
       expect(row.status).toBe("success");
       expect(row.finished_at).not.toBeNull();
-      expect(row.records_written).toBe(6); // 1 season + 5 participants
+      expect(row.records_written).toBe(SEASON_COUNT + RAIDER_COUNT);
     });
   });
 
