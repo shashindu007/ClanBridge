@@ -12,9 +12,62 @@
 
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { WRITE_LIMIT, sharedRateLimiter } from "@/lib/rate-limit";
 
 /** Paths reachable without a session. Everything else redirects to /login. */
 const PUBLIC_PATHS = ["/login", "/auth"];
+
+/**
+ * T9.7 — the write limit, applied once instead of in every Server Action.
+ *
+ * WHY HERE AND NOT IN THE ACTIONS. There are eleven files containing
+ * `"use server"` and there will be more. A check copy-pasted into each is a
+ * check that will be missing from the twelfth, and nothing fails when it is —
+ * the action works perfectly, it is simply unlimited, which is invisible until
+ * somebody finds it. Middleware is the only place every action necessarily
+ * passes through.
+ *
+ * A Server Action is a POST to the page's own URL carrying a `next-action`
+ * header, which is what distinguishes it from an ordinary navigation. API
+ * routes are deliberately NOT limited here: /api/verify has its own far
+ * stricter 5-per-hour budget (T3.3) and /api/push/subscribe its own, and a
+ * second limiter over the top would only make the tighter one harder to reason
+ * about.
+ *
+ * Keyed by user id, falling back to IP for the unauthenticated case — which in
+ * practice cannot reach an action anyway, since this function redirects those
+ * requests to /login a few lines below.
+ */
+function isServerAction(request: NextRequest): boolean {
+  return request.method === "POST" && request.headers.has("next-action");
+}
+
+/**
+ * Whether this request has budget left.
+ *
+ * FAILS OPEN, and the distinction from lib/rate-limit.ts's refusal to fall back
+ * to an in-memory counter in production is worth being precise about. That
+ * refusal is about a limiter that is CONFIGURED WRONG and would silently
+ * pretend to work forever. This is about one that is configured correctly and
+ * momentarily unreachable. Rejecting every write in the product because Upstash
+ * is having a bad minute is a worse outcome than briefly not limiting, and the
+ * writes behind this are still gated by RLS and by each action's own role check
+ * — the limiter is a budget, never the access control.
+ */
+async function hasWriteBudget(key: string): Promise<boolean> {
+  try {
+    const limiter = await sharedRateLimiter(WRITE_LIMIT);
+    const { success } = await limiter.limit(`write:${key}`);
+    return success;
+  } catch (error) {
+    console.error(
+      `rate limit unavailable, allowing write: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return true;
+  }
+}
 
 /**
  * Header carrying the current path down to Server Components.
@@ -98,6 +151,22 @@ export async function updateSession(request: NextRequest) {
     // Remember where they were headed so login can return them there.
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
+  }
+
+  // T9.7 — after the session is resolved, so the budget is per member rather
+  // than per IP, and after the redirect above, so an unauthenticated action
+  // never consumes anyone's budget.
+  if (isServerAction(request)) {
+    const key = user?.id ?? request.headers.get("x-forwarded-for") ?? "anonymous";
+    if (!(await hasWriteBudget(key))) {
+      return new NextResponse("Too many requests. Wait a minute and try again.", {
+        status: 429,
+        headers: {
+          "Retry-After": String(Math.ceil(WRITE_LIMIT.windowMs / 1000)),
+          "Content-Type": "text/plain; charset=utf-8",
+        },
+      });
+    }
   }
 
   // A signed-in user has no business on /login. Without this they can sit on the

@@ -1,6 +1,4 @@
-// Admin — first-run bootstrap and clan management.
-//
-// (T9.2 adds sync_log health and a manual sync trigger to this page later.)
+// Admin — first-run bootstrap, clan management, and sync health (T9.2).
 //
 // THE BOOTSTRAP PROBLEM this solves, from migration 015:
 //
@@ -26,10 +24,15 @@ import { createClient } from "@/lib/supabase/server";
 import { currentUserId, isPlatformAdmin } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
 import { InvalidTagError, normaliseTag } from "@/lib/tags";
+import { failedRuns, recentRuns, type SyncRunRecord } from "@/repositories/sync-log";
+import { ago, freshness } from "@/services/freshness";
+import { DISPATCHABLE, dispatchConfig, dispatchWorkflow, isDispatchable } from "@/lib/github";
+import { SYNC_TRIGGER_LIMIT, sharedRateLimiter } from "@/lib/rate-limit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
@@ -112,12 +115,96 @@ async function grantSelfLeader(formData: FormData) {
   redirect("/admin");
 }
 
+/**
+ * T9.2 — ask GitHub to run one sync workflow now.
+ *
+ * R2 — this DISPATCHES, it does not sync. Running the job here would put it on
+ * Vercel, where a ten-second function timeout kills a CWL sync partway through
+ * and leaves half-written data. See lib/github.ts.
+ *
+ * Authority is checked here rather than by RLS, because dispatching a workflow
+ * is not a database write and no policy can see it. Platform admin or a leader
+ * of some clan — the same audience the page itself is gated to, restated at the
+ * action because a Server Action is independently addressable and must never
+ * rely on the page around it having done the check.
+ */
+async function triggerSync(formData: FormData) {
+  "use server";
+
+  const supabase = await createClient();
+  const userId = await currentUserId(supabase);
+  if (!userId) redirect("/login");
+
+  const admin = await isPlatformAdmin(supabase, userId);
+  const clans = await visibleClans(supabase, userId);
+  if (!admin && !clans.some((c) => c.role === "leader")) {
+    redirect("/admin?error=forbidden");
+  }
+
+  const job = String(formData.get("job") ?? "");
+  if (!isDispatchable(job)) redirect("/admin?error=unknown-job");
+
+  // T9.7 — a workflow run costs Actions minutes and hits a rate-limited game
+  // API. Keyed by user so one impatient leader cannot exhaust the budget for
+  // everyone, and 3/hour because a manual sync is a repair, not a workflow.
+  const limiter = await sharedRateLimiter(SYNC_TRIGGER_LIMIT);
+  const { success } = await limiter.limit(`sync-trigger:${userId}`);
+  if (!success) redirect("/admin?error=rate-limited");
+
+  const outcome = await dispatchWorkflow(job);
+  revalidatePath("/admin");
+  redirect(outcome.ok ? "/admin?ok=dispatched" : `/admin?error=${encodeURIComponent(outcome.detail)}`);
+}
+
+/** One row of the history table. */
+function RunRow({ run, clanNames }: { run: SyncRunRecord; clanNames: Map<string, string> }) {
+  const state = freshness(run);
+  const minutes = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(run.startedAt).getTime()) / 60_000),
+  );
+
+  return (
+    <tr className="border-b last:border-0">
+      <td className="py-2 pr-4 font-mono text-xs">{run.jobType}</td>
+      <td className="py-2 pr-4">
+        <Badge
+          variant={
+            run.status === "failed"
+              ? "destructive"
+              : run.status === "running"
+                ? "outline"
+                : "secondary"
+          }
+        >
+          {run.status}
+        </Badge>
+      </td>
+      <td className="text-muted-foreground py-2 pr-4 text-sm">
+        {run.clanId ? (clanNames.get(run.clanId) ?? "—") : "all clans"}
+      </td>
+      <td className="text-muted-foreground py-2 pr-4 text-sm">{ago(minutes)}</td>
+      <td className="text-muted-foreground py-2 pr-4 text-sm">
+        {/* A skip is a NORMAL outcome (R10), so it shows its reason rather than
+            a row count — "noCwlGroup" is the answer three weeks a month. */}
+        {run.status === "skipped"
+          ? (run.skipReason ?? "skipped")
+          : run.recordsWritten !== null
+            ? `${run.recordsWritten} rows`
+            : state.level === "never"
+              ? "did not finish"
+              : "—"}
+      </td>
+    </tr>
+  );
+}
+
 export default async function AdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, ok } = await searchParams;
   const supabase = await createClient();
 
   const userId = await currentUserId(supabase);
@@ -150,6 +237,15 @@ export default async function AdminPage({
 
   const unclaimed = !admin && (adminCount ?? 0) === 0;
 
+  // T9.2 — read once and derive the failed list from it, rather than querying
+  // twice. Two reads of a table a live sync job is writing to can disagree, and
+  // a "failed jobs" panel contradicting the history table directly below it is
+  // worse than either on its own. RLS scopes these rows; see recentRuns().
+  const runs = await recentRuns(supabase, 50);
+  const failed = failedRuns(runs);
+  const clanNames = new Map(clanRows.map((c) => [c.id, c.name]));
+  const canDispatch = dispatchConfig() !== null;
+
   if (!admin && !isLeaderSomewhere && !unclaimed) {
     return (
       <main className="mx-auto max-w-3xl space-y-4 p-8">
@@ -176,7 +272,7 @@ export default async function AdminPage({
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
         <p className="text-muted-foreground text-sm">
-          Clans and accounts. Sync health arrives at T9.2.
+          Clans, accounts and sync health.
         </p>
       </div>
 
@@ -192,7 +288,44 @@ export default async function AdminPage({
                   ? "This account is not the configured owner. Set OWNER_EMAIL to the address you sign in with."
                   : error === "no-name"
                     ? "Give the clan a name."
-                    : error}
+                    : error === "forbidden"
+                      ? "You do not have permission to do that."
+                      : error === "unknown-job"
+                        ? "That is not a job that can be started by hand."
+                        : error === "rate-limited"
+                          ? "Too many manual runs. A sync is a repair, not a routine — wait an hour."
+                          : error}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {ok === "dispatched" && (
+        <Alert>
+          {/* Deliberately not "sync complete". GitHub returns 204 to say it
+              ACCEPTED the request, not that the job ran — the real answer lands
+              in the history below, minutes later. */}
+          <AlertTitle>Asked GitHub to run it</AlertTitle>
+          <AlertDescription>
+            The run takes a minute or two to start. It will appear in the history
+            below when it finishes.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {failed.length > 0 && (
+        <Alert variant="destructive">
+          <AlertTitle>
+            {failed.length === 1 ? "1 sync job failed" : `${failed.length} sync jobs failed`}
+          </AlertTitle>
+          <AlertDescription>
+            <ul className="mt-1 space-y-1">
+              {failed.slice(0, 5).map((run) => (
+                <li key={run.id} className="text-sm">
+                  <span className="font-mono text-xs">{run.jobType}</span>
+                  {run.error ? ` — ${run.error.slice(0, 160)}` : ""}
+                </li>
+              ))}
+            </ul>
           </AlertDescription>
         </Alert>
       )}
@@ -278,6 +411,80 @@ export default async function AdminPage({
               </li>
             ))}
           </ul>
+        )}
+      </section>
+
+      {/* T9.2 — run a sync now. R2: this asks GitHub Actions to run the job; it
+          never runs one here, because a Vercel function is killed at ten seconds
+          and would leave a CWL sync half written. */}
+      <section className="space-y-4 rounded-lg border p-6">
+        <div className="space-y-1">
+          <h2 className="font-medium">Run a sync now</h2>
+          <p className="text-muted-foreground text-sm">
+            Starts the same GitHub Actions workflow the schedule uses. Results
+            appear in the history below, not immediately.
+          </p>
+        </div>
+
+        {canDispatch ? (
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(DISPATCHABLE) as Array<keyof typeof DISPATCHABLE>).map((job) => (
+              <form key={job} action={triggerSync}>
+                <input type="hidden" name="job" value={job} />
+                <Button type="submit" variant="outline" size="sm">
+                  {job}
+                </Button>
+              </form>
+            ))}
+          </div>
+        ) : (
+          // Unconfigured is a state, not an error — the same shape as
+          // pushConfigured(). Offering a button that always fails teaches an
+          // operator that the page is broken.
+          <p className="text-muted-foreground text-sm">
+            Manual runs are not configured. Set <code>GITHUB_DISPATCH_TOKEN</code>{" "}
+            and <code>GITHUB_DISPATCH_REPO</code> to enable them. Until then, use
+            the <strong>Run workflow</strong> button on the Actions tab in GitHub.
+          </p>
+        )}
+      </section>
+
+      {/* T9.2 — the history. R9 says every job writes to sync_log; this is what
+          makes that record visible, and without it the log catches nothing. */}
+      <section className="space-y-4 rounded-lg border p-6">
+        <div className="space-y-1">
+          <h2 className="font-medium">Sync history</h2>
+          <p className="text-muted-foreground text-sm">
+            The last {runs.length} runs, newest first.
+          </p>
+        </div>
+
+        {runs.length === 0 ? (
+          // T9.10 — "a sync that has never run" is the state of a fresh install,
+          // not an edge case, and it needs to say what to do next.
+          <p className="text-muted-foreground text-sm">
+            No sync has ever run. Once a workflow runs — on its schedule, or from
+            the buttons above — every attempt is recorded here.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-muted-foreground border-b text-xs">
+                  <th className="py-2 pr-4 font-medium">Job</th>
+                  <th className="py-2 pr-4 font-medium">Status</th>
+                  <th className="py-2 pr-4 font-medium">Clan</th>
+                  <th className="py-2 pr-4 font-medium">Started</th>
+                  <th className="py-2 pr-4 font-medium">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map((run) => (
+                  <RunRow key={run.id} run={run} clanNames={clanNames} />
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 

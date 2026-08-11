@@ -1365,8 +1365,46 @@ by name.*
 - [ ] **T9.1 — Cross-clan report**
   Participation across all three clans in one view. This is what the leader actually wants.
 
-- [ ] **T9.2 — Admin page**
+- [x] **T9.2 — Admin page**
   `sync_log` history, failed jobs, manual sync trigger, member management.
+
+  **Done 2026-08-11.** Member management already existed (`/admin/members`,
+  T3.8); this added the other three to `/admin`.
+
+  - **History** — `recentRuns()` in `repositories/sync-log.ts`, newest first.
+    Descending matters more than it looks: ascending plus a limit returns the
+    OLDEST runs, which is still a full table on the page and completely wrong,
+    with nothing to notice. Deliberately unfiltered by clan — 006's policy
+    already scopes the rows, and re-stating the filter here would have given a
+    platform admin a narrower answer than the policy grants them.
+  - **Failed jobs** — derived from the same read rather than a second query. Two
+    reads of a table a live sync job is writing to can disagree, and a failure
+    panel contradicting the history directly beneath it is worse than either
+    alone. A `skipped` run is not a failure (R10) and a `running` one has not
+    failed yet — it becomes a problem by being old, which is `staleJobs()`.
+  - **Manual trigger** — `lib/github.ts`, and **R2 is the whole design**. The
+    obvious implementation imports `syncClans()` and calls it from a Server
+    Action, which puts a sync on Vercel where a ten-second timeout kills it
+    partway through. This dispatches `workflow_dispatch` instead and returns
+    immediately, so the manual path and the 2 AM path are the same code. The
+    button says "asked GitHub to run it", never "sync complete": GitHub's 204
+    means the request was accepted, not that the job ran.
+
+  Needs two new environment variables, both optional — unconfigured is a
+  first-class state that explains itself rather than a button that always fails,
+  the same shape as `pushConfigured()`:
+
+  ```
+  GITHUB_DISPATCH_TOKEN   fine-grained PAT, Actions read+write, this repo only
+  GITHUB_DISPATCH_REPO    owner/repo
+  GITHUB_DISPATCH_REF     optional, defaults to main
+  ```
+
+  **R6 is untouched by this.** That token is neither the Supabase service key
+  nor the Clash of Clans token, so the web app still cannot bypass RLS and still
+  cannot read game data. A leak lets someone run this repository's workflows;
+  those are idempotent (R5) and write only game facts, so the cost is throttling
+  and wasted Actions minutes, not altered data.
 
 - [ ] **T9.3 — Full security review**
   Repeat T3.7 against every route. Confirm no secrets in Vercel. Confirm the repository is private.
@@ -1374,16 +1412,53 @@ by name.*
 - [ ] **T9.4 — Restore test**
   Actually restore a backup into a scratch Supabase project. An untested backup is not a backup.
 
-- [ ] **T9.5 — Member guide**
+- [x] **T9.5 — Member guide**
   One page: how to sign up, verify, and install the app.
+
+  **Was already done and the box was simply never ticked** — `/guide`
+  (`app/(app)/guide/page.tsx`, 225 lines) has covered all three since T5.7, plus
+  the approval step in between and turning notifications on afterwards. Verified
+  2026-08-11 rather than assumed: it carries the sign-in path, the link to
+  `/verify`, the "this API token is safe to share, a Supercell ID password is
+  never required" warning, and separate Android/Chrome and iPhone/Safari install
+  sections. The iOS one is the reason the page exists at all, since iOS exposes
+  push only to a site installed from Safari.
 
 - [x] **T9.6 — Audit log viewer**
   Leader-only page reading `audit_log`: who changed what and when, filterable by user and by entity.
   R4 says every write is recorded. Without a viewer that record is invisible, and the protection against a departing member is theoretical.
 
-- [ ] **T9.7 — Global rate limiting**
+- [x] **T9.7 — Global rate limiting**
   T3.3 rate limits verification only. Apply Upstash limits to every write route and every route that triggers a sync.
   Prevents the platform being used as an open proxy to the Clash of Clans API, which would get your key throttled.
+
+  **Done 2026-08-11, in the middleware rather than in every action.** There are
+  eleven files containing `"use server"` and there will be more; a check
+  copy-pasted into each is a check that will be missing from the twelfth, and
+  nothing fails when it is — the action works perfectly, it is simply
+  unlimited, which is invisible until somebody finds it. `lib/supabase/middleware.ts`
+  is the one place every action necessarily passes through. A Server Action is
+  a POST carrying a `next-action` header, which is what distinguishes it from
+  an ordinary navigation.
+
+  Applied after the session is resolved, so the budget is per member rather
+  than per IP, and after the unauthenticated redirect, so a signed-out request
+  never consumes anyone's budget. `WRITE_LIMIT` is 30/minute.
+
+  **API routes are deliberately excluded** — `/api/verify` has its own far
+  stricter 5-per-hour budget (T3.3) and `/api/push/subscribe` its own. A second
+  limiter over the top would only make the tighter one harder to reason about.
+  The sync trigger added at T9.2 uses `SYNC_TRIGGER_LIMIT` (3/hour) at its own
+  call site, because a workflow run costs Actions minutes and hits a
+  rate-limited game API — a different budget from an ordinary write.
+
+  **It fails open, and the distinction from `lib/rate-limit.ts`'s refusal to
+  fall back in production matters.** That refusal is about a limiter
+  CONFIGURED WRONG, which would pretend to work forever. This is about one
+  configured correctly and momentarily unreachable. Rejecting every write in
+  the product because Upstash is having a bad minute is worse than briefly not
+  limiting, and the writes behind it are still gated by RLS and each action's
+  own role check — the limiter is a budget, never the access control.
 
 - [x] **T9.8 — Fan content compliance**
   Footer disclaimer stating the platform is not affiliated with, endorsed by, or sponsored by Supercell, using the wording recorded at T0.12.
