@@ -21,10 +21,14 @@ run against the live game.
 
 **Done:** **Phase 2 entire** · Phase 1 entire · Phase 3 entire · **Phase 3B entire** ·
 T4.1–T4.8 · **Phase 4B entire** · **Phase 5 except the CWL half of T5.6** ·
-**Phase 6 entire** · **Phase 7 entire** · T9.6.
+**Phase 6 entire** · **Phase 7 entire** · T9.6, T9.8.
 Phase 8 is placeholders that name their own task ID.
-**Phase 0 is 8 of 15** — T0.3, T0.4, T0.7, T0.10 and now T0.1, T0.2, T0.6, T0.14.
-Outstanding: T0.5, T0.8, T0.9, T0.11, T0.12. Dropped: T0.13 (with T4.10).
+
+**Phase 0 is effectively complete — 13 of 14, and the 14th was dropped by
+decision, not left undone.** T0.1–T0.12 and T0.14 are all done as of
+2026-08-11; only T0.13 (photographing the old logbooks) is outstanding, and it
+is not going to happen — see below. This section carried a long, deserved list
+of blockers through most of this project's life; today it does not need one.
 
 **Two Phase 9 boxes are wrong in the other direction and worth correcting when
 someone next touches them:** T9.2 is substantially built (`admin/page.tsx`, 310
@@ -56,45 +60,39 @@ would have returned null, and the double-booking that rule prevents would have
 surfaced on CWL day one. Nothing would have thrown. Fixed at the mapper boundary
 (R7) by `normaliseCwlSeason()` in `src/integration/mappers/index.ts`.
 
-**Two clans exist, not three.** `DH CWL ONLY` and `DH v2` — and `DH v2` is a test
-clan, so of the three real clans only one is in the database. The remaining two
-are added the same way, at `/admin`. Anywhere this document says "three clans",
-read it as intent rather than current state.
+**Two clans exist, not three, by choice rather than by blocker.** `DH CWL ONLY`
+and `DH v2` — and `DH v2` is a test clan, so of the three real clans only one
+is in the database. Confirmed 2026-08-11: adding the remaining two is not
+needed for the work currently underway and is deferred deliberately, not
+forgotten. They go in the same way, at `/admin`, whenever it becomes relevant.
+Anywhere this document says "three clans", read it as intent rather than
+current state.
 
-**027 has not been applied, and `src/types/database.ts` is stale.** 024 through
-026 were applied on 2026-08-09; 027 landed after that and `npm run types:db` has
-not been re-run since. The proof is independent of memory: the generated types
-still describe 28 tables and contain none of `war_members`, `war_lineups`,
-`war_lineup_members` or `war_opponent_members`. Run `npm run migrations:apply`
-then `npm run types:db`, and expect 32. Until then **Phase 7 is broken against
-live Supabase**, and the war module's live behaviour is unverified — the one war
-sync that has run exited at `notInWar` without touching a Phase 6 table.
+**027 is applied, and `src/types/database.ts` is current.** Both were stale as
+of 2026-08-09 — this is now corrected. The generated types describe 32 tables,
+including `war_members`, `war_lineups`, `war_lineup_members`,
+`war_opponent_members`, and `raid_seasons` carries 027's columns
+(`raids_completed`, `offensive_reward`, and the rest). Phase 7 is no longer
+broken against live Supabase on this account.
 
-**The boxes that still matter:**
+**The boxes that mattered are now closed.** T0.5 and T0.9 carried a real
+deadline — the first week of September, when CWL next runs — because without
+T0.5 no scheduled workflow could reach the API, and a CWL week that passes
+with no sync running is data that cannot be re-fetched from anywhere. Both are
+done as of 2026-08-11, ahead of that date rather than against it:
 
-- **T0.9 and T0.5 have a deadline now, and it is the first week of September.**
-  Both were deferred as deployment-only, which was correct while nothing ran. It
-  no longer is: without T0.5 no scheduled workflow can reach the API, and a CWL
-  week that passes with no sync running is data that cannot be re-fetched from
-  anywhere. That is the exact loss this entire project was built to prevent.
-
-- **T0.9 — Upstash is not configured**, so `/api/verify` throws under
-  `NODE_ENV=production`. That is deliberate (`lib/rate-limit.ts`): a per-instance
-  in-memory counter on Vercel looks like protection and limits nothing.
-  **It does not block local work and never did** — `getRateLimiter()` only throws
-  when `NODE_ENV === "production"`, and `/admin` is exempt from the approval gate
-  (`lib/gate.ts`), so the entire bootstrap above ran without it. Earlier revisions
-  of this file said signup was blocked until T0.9 was done; that was true only of
-  production, and reading it as a hard blocker is what left the chain stalled.
-  It does block real members verifying a player tag on a deployed instance.
-- **T0.5 — `COC_API_BASE` still points at the direct API**, not the RoyaleAPI
-  proxy, so no key registered against the proxy IP exists yet. No sync workflow
-  has had a green run. It did not block T2.1 — `fixtures:capture` and every sync
-  above ran locally against the dev key and a home IP. It blocks the scheduled
-  runs in GitHub Actions, which has no fixed egress IP.
-  **The dev key's IP binding is now a recurring cost:** the first live sync
-  failed `403 accessDenied` because the home IP had changed since the key was
-  issued, and it will again.
+- **T0.5 is done.** A production key is registered to the RoyaleAPI proxy IP,
+  and `COC_API_BASE` points at `https://cocproxy.royaleapi.dev/v1`. This also
+  retires a cost that was recurring rather than one-off: the dev key bound to
+  a home IP had already failed once with `403 accessDenied` after a routine ISP
+  reassignment, and would have kept failing on the same schedule that IP
+  changes on. The proxy's IP does not move.
+- **T0.9 is done.** Upstash credentials are in `.env.local`. `getRateLimiter()`
+  only throws under `NODE_ENV=production`, so nothing about local development
+  was ever blocked by this being empty — that reading of an earlier revision
+  of this file is what left the chain stalled for longer than it needed to.
+  **Functional verification is still outstanding** — see T0.9's entry below for
+  why, and what a real check looks like.
 
 **Where the build deviated from this document, deliberately:**
 
@@ -591,8 +589,18 @@ planned route to its task.
 - [x] **T0.4 — Create the development API key**
   IP address = your current public IP. Save the token in a password manager.
 
-- [ ] **T0.5 — Create the production API key**
+- [x] **T0.5 — Create the production API key**
   IP address = the RoyaleAPI proxy IP. Check the current value at `docs.royaleapi.com/proxy` before entering it.
+
+  Done 2026-08-11 — a key registered to `45.79.218.79` (the proxy IP at the
+  time; re-check `docs.royaleapi.com/proxy` before trusting this number,
+  because RoyaleAPI can change it), and `COC_API_BASE` now points at
+  `https://cocproxy.royaleapi.dev/v1` rather than the direct API. This resolves
+  the recurring `403 accessDenied` the dev key produced on every home IP
+  change — the proxy's IP is what Supercell's key sees, and it does not move
+  when a Sri Lankan ISP reassigns a dynamic address. It also unblocks the
+  GitHub Actions workflows: they have no fixed egress IP either, and this is
+  the same fix for both.
 
 - [x] **T0.6 — Test the key**
   ```bash
@@ -613,24 +621,86 @@ planned route to its task.
 - [x] **T0.7 — Create the Supabase project**
   Region closest to Sri Lanka. Save the project URL, anon key, and service role key.
 
-- [ ] **T0.8 — Create a private GitHub repository**
+- [x] **T0.8 — Create a private GitHub repository**
+  Confirmed 2026-08-11 via the repository's Settings → Danger Zone: "This
+  repository is currently private."
 
-- [ ] **T0.9 — Create the Upstash Redis database**
+- [x] **T0.9 — Create the Upstash Redis database**
   Save the REST URL and token.
+
+  Done 2026-08-11 — a Regional database, region chosen close to Sri Lanka, and
+  `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` are in `.env.local`.
+  **Functional verification against `getRateLimiter()` is still outstanding** —
+  the attempt during setup used bash `VAR=value cmd` syntax in a PowerShell
+  session, which PowerShell does not support (`$env:VAR = "value"; cmd` is the
+  equivalent). Not blocking: `getRateLimiter()` only throws under
+  `NODE_ENV=production`, which local `npm run dev` never sets, so `/api/verify`
+  has been running on the in-memory limiter throughout and nothing here has
+  been exercised end to end yet. Worth a real check before this is deployed.
 
 - [x] **T0.10 — Generate VAPID keys**
   ```bash
   npx web-push generate-vapid-keys
   ```
 
-- [ ] **T0.11 — Ask the clan leader four questions**
+- [x] **T0.11 — Ask the clan leader four questions**
   May a leader of clan A view clan B's data? (Recommend yes.)
   What is the rule for allocating bonus medals?
   How does a new member get an account — invite only, or open signup? (Recommend invite only.)
   When a member leaves a clan, should their history stay visible?
 
-- [ ] **T0.12 — Read Supercell's Fan Content Policy**
+  Answered 2026-08-11 (the leader and the developer are the same small circle,
+  which is why one round of WhatsApp settled all five at once — the fifth
+  question was T4B's own assumption check, asked alongside the rest):
+
+  1. **Yes.** All three clans are led by the same person, so this was never
+     really in question — but it is now recorded rather than assumed.
+  2. **No fixed rule. The leader's judgement, case by case.** This matches
+     what `allocationList()` in `src/services/rosters.ts` already does — it is
+     explicitly commented "Deliberately NOT a ranking function," sorts
+     candidates by stars and missed attacks only to keep the evidence legible,
+     and lets the leader set `bonusOrder` directly. **No code follows from this
+     answer; the design already assumed it correctly.** T4B.13 stays a
+     suggestion surface, never an algorithm — this file's earlier revisions
+     were wrong to describe it as "an assumption nobody confirmed."
+  3. **Invite only, gated on a verified in-game account the leader approves.**
+     Already the built behaviour: `link_verified_player()` (016) is the only
+     way `users.requested_clan_id` is ever set, and `approve_account()` (017)
+     requires it — an admin cannot approve someone with no verified player
+     behind their request. No code change.
+  4. **Yes, history stays visible after departure.** Already built:
+     `players.left_at` is set, never the row deleted (R4), and the player
+     profile page renders a "left the clan" badge rather than hiding the
+     player. No code change.
+  5. **One family-wide pool, not three separate ones.** Confirms the
+     assumption T4B's header asked to have checked before T4B.6 was built:
+     the leader chooses from every available player across all three clans at
+     once, deciding which clan each one plays for. Matches
+     `cwl_roster_members`' constraint — one roster per player per season
+     *across* the three clans — exactly. No code change.
+
+- [x] **T0.12 — Read Supercell's Fan Content Policy**
   The platform must display a disclaimer that it is not affiliated with or endorsed by Supercell, and must not be monetised. The API key is issued for non-commercial use only. Note the exact wording required — it goes in the footer at T9.8.
+
+  Read in full 2026-08-11. The policy's own "Insert disclaimers" clause gives
+  the required text verbatim (or "a substantially similar notice"), copied
+  rather than paraphrased into the footer at T9.8:
+
+  > This material is unofficial and is not endorsed by Supercell. For more
+  > information see Supercell's Fan Content Policy:
+  > www.supercell.com/fan-content-policy.
+
+  Constraints worth restating because they bound Phase 8 as much as Phase 0:
+  no fee of any kind without Supercell's approval, with three named
+  exceptions — ads, donations, and **coaching, which the policy explicitly
+  defines to include selling base layouts.** Section 3 already commits to zero
+  monetisation, so none of this changes anything currently planned; it is
+  recorded so a future "what if we charged for premium layouts" idea is
+  answered by this document rather than by guessing. Also binding: no
+  blockchain/crypto, no leaks of unpublished game information (not a risk here
+  — this platform only ever reads clan-visible, already-public data), and no
+  domain name or account handle containing Supercell's trademarks (`ClanBridge`
+  does not).
 
 - [~] **T0.13 — Photograph the existing logbooks** — **DROPPED, by decision**
   ~~Before anything else, capture every page of the handwritten CWL records.~~
@@ -641,7 +711,7 @@ planned route to its task.
   The cost is accepted and one-way: those seasons exist nowhere else, and if the
   books are lost the decision cannot be revisited.
 
-- [ ] **T0.14 — Configure custom SMTP in Supabase Auth** — *not in the original plan*
+- [x] **T0.14 — Configure custom SMTP in Supabase Auth** — *not in the original plan*
   Supabase's built-in email sender is shared across every free project, capped at
   roughly 2–4 messages an hour, and on newer projects delivers only to addresses
   belonging to the project team.
@@ -1283,16 +1353,39 @@ by name.*
   T3.3 rate limits verification only. Apply Upstash limits to every write route and every route that triggers a sync.
   Prevents the platform being used as an open proxy to the Clash of Clans API, which would get your key throttled.
 
-- [ ] **T9.8 — Fan content compliance**
+- [x] **T9.8 — Fan content compliance**
   Footer disclaimer stating the platform is not affiliated with, endorsed by, or sponsored by Supercell, using the wording recorded at T0.12.
   Confirm no advertising and no payment of any kind. The API key is non-commercial and can be revoked.
+
+  Done 2026-08-11 — `src/app/layout.tsx`, the root layout rather than the
+  `(app)` group's, specifically so it also covers `/login` and `/pending`:
+  every page reachable before a session exists still displays Clash of Clans
+  data or branding, and the policy's obligation is not conditional on being
+  signed in. T0.12's wording copied verbatim, not paraphrased — the policy
+  permits "a substantially similar notice," and a verbatim copy removes any
+  question of whether a rewrite still qualifies. No advertising, no payment of
+  any kind, anywhere in the codebase — confirmed by inspection, not merely by
+  absence of a payment integration.
 
 - [ ] **T9.9 — Local time display**
   Every timestamp is stored UTC and displayed in the member's local time. Confirm war end times, CWL day boundaries, and raid weekend windows all show correctly for Sri Lanka.
   Off-by-one-day errors here are common and quietly make missed-attack lists wrong.
 
-- [ ] **T9.10 — Empty and loading states**
+- [~] **T9.10 — Empty and loading states** — *loading half only*
   Every page needs a sensible state for: no war in progress, not CWL week, no layouts uploaded, new member with no history, and a sync that has never run. Three weeks of every month there is no CWL, so this is the normal state, not an edge case.
+
+  **Loading half done 2026-08-11.** 0 of 33 pages had a `loading.tsx`, so every
+  navigation rendered fully server-side with nothing shown until it finished —
+  no spinner, no dimming, the previous page just sitting there unchanged. A
+  700ms page therefore read as a dead link, and the natural response was to
+  click it again. One `loading.tsx` at the `(app)` group root now covers all
+  33 pages with a skeleton, streamed in ahead of the real content; the header
+  and clan switcher live outside it so only the content area swaps. Same
+  commit also parallelised two independent Supabase calls in that layout
+  (`Promise.all`) that were awaited one after the other on every navigation.
+  **The empty-states half — "no war in progress," "not CWL week," "no layouts
+  uploaded" — is not built.** Those are per-page content decisions, not a
+  shared boundary, and remain open.
 
 ---
 
