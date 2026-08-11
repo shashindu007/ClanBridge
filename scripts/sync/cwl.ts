@@ -43,6 +43,7 @@ import { mapCwlGroup, mapWar } from "@/integration/mappers";
 import { normaliseTag } from "@/lib/tags";
 import type { War, WarMember, WarResult, WarSide } from "@/types/domain";
 import { activeClans, main, skip, type JobContext } from "./shared";
+import { remindUnusedAttacks } from "./cwl-reminders";
 
 /** One row of `activeClans()`. Exported alongside resolvePlayers, which takes it. */
 export interface ClanRow {
@@ -458,6 +459,13 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
   if (clansInCwl === 0) {
     skip("noCwlGroup", `none of the ${clans.length} clan(s) are in CWL`);
   }
+
+  // T5.6 — after the capture, never before it. The reminder reads the rows this
+  // run just wrote, and the capture is the part that cannot be repeated: a war
+  // that ends before the next run takes its attacks with it permanently. Nothing
+  // in here throws, so a push service having a bad day cannot fail a sync that
+  // already did the irreplaceable half of its job.
+  await remindUnusedAttacks(supabase, clans);
 }
 
 if (process.argv[1]?.includes("cwl")) {

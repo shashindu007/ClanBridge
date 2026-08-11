@@ -20,7 +20,7 @@ pass, and `npm run typecheck` and `npm run lint` are clean — not that it has b
 run against the live game.
 
 **Done:** **Phase 2 entire** · Phase 1 entire · Phase 3 entire · **Phase 3B entire** ·
-T4.1–T4.8 · **Phase 4B entire** · **Phase 5 except the CWL half of T5.6** ·
+T4.1–T4.8 · **Phase 4B entire** · **Phase 5 entire** ·
 **Phase 6 entire** · **Phase 7 entire** · T9.6, T9.8.
 Phase 8 is placeholders that name their own task ID.
 
@@ -1137,19 +1137,51 @@ planned route to its task.
   Needed migration 023 first: the table had existed since 004 with a select
   policy and nothing else.
 
-- [~] **T5.6 — Push sending**
+- [x] **T5.6 — Push sending**
   Triggered from sync jobs: new announcement, CWL day ending with unused attacks.
-  `lib/push.ts` is done and wired to **announcements** (T5.1) and **poll
-  reminders** (T4B.5). **The CWL day-ending reminder is NOT built** — it is the
-  one part of this task still outstanding, and it is the most valuable
-  notification in the system, because it is the only one that changes an outcome
-  instead of reporting one. It needs: wars in `state = 'inWar'` whose `end_time`
-  is a few hours out, `cwl_war_members` minus `cwl_attacks` for each, those
-  players mapped to accounts, then `notifyUsers(..., 'cwl_reminders', ...)`.
-  Read the API roster (019), never the leader's plan (011) — R12.
+  `lib/push.ts` is wired to **announcements** (T5.1), **poll reminders**
+  (T4B.5), and now the **CWL day-ending reminder** — the last outstanding piece,
+  and the most valuable notification in the system, because it is the only one
+  that changes an outcome instead of reporting one.
   Sent from the application rather than only from a job, where a person triggered
   it: routing "the roster is published" through a two-hourly job means the
   notification arrives after the member has already heard it in WhatsApp.
+
+  **Done 2026-08-11** — `scripts/sync/cwl-reminders.ts`, called at the tail of
+  `syncCwl()` after the capture is durable. It reads `cwl_war_members` (019) and
+  never `cwl_roster_members` (011), which is R12 and is asserted by a test that
+  puts a player in the leader's roster and proves they are not chased.
+  `missedAttacks()` (T4.3) is reused rather than re-derived, so "missed = on the
+  roster with no attack row" keeps one implementation.
+
+  Three decisions worth keeping:
+
+  - **A four-hour window against a two-hourly job.** At most two reminders per
+    war, and the second is only sent to whoever still has not attacked, because
+    the missed list is recomputed each run. Narrower risks missing the war
+    entirely when GitHub delays a scheduled run (T4.2 notes up to twenty
+    minutes); wider produces a reminder far enough out to acknowledge and
+    forget, competing with the one that matters.
+  - **A war whose `end_time` has passed never reminds anyone.** That state is
+    ordinary, not a bug — the sync runs every two hours, so a war can end well
+    before anything notices. Asking for an attack that can no longer be made is
+    how a clan learns to ignore the channel.
+  - **It never throws.** It runs after the season data is written, and the
+    capture is the half that cannot be repeated. A push service having a bad day
+    must not fail the job, which would also fire T5.8's alert about a sync that
+    in fact worked.
+
+  Unlike T5.8's operational alert this one *is* preference-filtered: it goes to
+  ordinary members about their own play, and T5.9 lists `cwl_reminders` as
+  switchable for exactly that reason.
+
+  **This also closed a gap in the test harness.** `test/pglite-supabase.ts`'s
+  `rpc()` only handled scalar functions — `select fn(...)`, which yields one
+  composite column for a `returns table` function instead of PostgREST's array
+  of objects. `push_targets()` (023) is set-returning, so every notification
+  path through `lib/push.ts` was unreachable from tests and
+  `notifications.test.ts` had to exercise the function as hand-written SQL. Now
+  dispatched on `pg_proc.proretset`.
 
 - [x] **T5.7 — Install instructions page**
   Android: Chrome menu → Add to Home Screen.

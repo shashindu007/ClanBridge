@@ -240,8 +240,8 @@ export function createPgliteSupabase(db: PGlite): SupabaseClient {
    */
   const rpc = async (fn: string, args: Record<string, unknown> = {}) => {
     try {
-      const meta = await db.query<{ name: string; type: string }>(
-        `select a.name, format_type(a.oid, null) as type
+      const meta = await db.query<{ name: string; type: string; retset: boolean }>(
+        `select a.name, format_type(a.oid, null) as type, p.proretset as retset
            from pg_proc p,
                 lateral unnest(p.proargnames, p.proargtypes::oid[]) as a(name, oid)
           where p.proname = $1`,
@@ -252,6 +252,17 @@ export function createPgliteSupabase(db: PGlite): SupabaseClient {
       if (!types.size) {
         return { data: null, error: { message: `function ${fn} does not exist` } };
       }
+
+      // `returns table` / `returns setof` needs `select * from fn(...)`, not
+      // `select fn(...)`. The scalar form yields one composite column per row,
+      // so a caller expecting PostgREST's array of objects gets a single record
+      // and fails with something as unhelpful as ".filter is not a function".
+      //
+      // push_targets() (023) is the case that forced this: it is how every
+      // notification in the project decides who to send to, and before this it
+      // could only be reached as hand-written SQL — which tests the FUNCTION and
+      // leaves lib/push.ts's wrapper around it unexercised.
+      const returnsSet = meta.rows[0]?.retset === true;
 
       // Only the arguments actually supplied. Anything omitted keeps its
       // declared default, which is the behaviour PostgREST gives too.
@@ -264,6 +275,11 @@ export function createPgliteSupabase(db: PGlite): SupabaseClient {
             : `${name} => ${literal(value)}::${type}`;
         })
         .join(", ");
+
+      if (returnsSet) {
+        const res = await db.query<Row>(`select * from ${fn}(${named})`);
+        return { data: res.rows, error: null };
+      }
 
       const res = await db.query<Row>(`select ${fn}(${named}) as result`);
       return { data: res.rows[0]?.result ?? null, error: null };
