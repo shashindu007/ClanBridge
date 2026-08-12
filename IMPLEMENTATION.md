@@ -443,6 +443,7 @@ clanbridge/
 │   ├── gen-db-types.ts      → src/types/database.ts, from the live schema
 │   ├── capture-fixtures.ts  T2.1  fetch + scrub, in one step
 │   ├── scrub-fixtures.ts    replaces names and tags, keeps every shape
+│   ├── restore-verify.ts    T9.4  restores a dump into a scratch project and audits it
 │   └── make-icons.ts        T5.3  writes public/icons/ — no image dependency
 │
 ├── scripts/sync/
@@ -1567,8 +1568,39 @@ by name.*
   storage bucket is the first place in this project where a member supplies
   bytes rather than a form field.
 
-- [ ] **T9.4 — Restore test**
+- [~] **T9.4 — Restore test** — *tooling written; needs a scratch project to run against*
   Actually restore a backup into a scratch Supabase project. An untested backup is not a backup.
+
+  **`npm run restore:verify -- --dump <file>` exists as of 2026-08-12.** It could
+  have been discharged by restoring one dump by hand and ticking the box, but the
+  thing under test is not the file, it is the PROCEDURE — the one that has to work
+  on the worst day this project ever has, run by somebody who is not calm. A
+  procedure executed once, months ago, from memory, is not one to meet then.
+
+  What it checks, in order: pg_restore is present and new enough (a custom-format
+  dump from pg_dump 17 is unreadable by pg_restore 15, and the error does not say
+  so); the target is empty, because a restore into a populated database cannot be
+  told apart from one that did nothing; every table in `PHASE1_TABLES` came back;
+  and nothing restored empty that the live database has rows for.
+
+  It names `IRREPLACEABLE` separately from the rest. Most of this database is a
+  copy of something Supercell will still tell us and the next sync would replace
+  within the hour. `cwl_*`, `wars`, `war_attacks`, `member_snapshots`,
+  `raid_seasons`, `clan_games*`, `poll_responses` and `audit_log` would not come
+  back from anywhere — the CWL endpoints serve the current season only, a war
+  leaves `currentwar` when the next one starts, and the roster and audit tables
+  are this project's own record of human decisions (R11, R12).
+
+  **The refusal that matters more than any of the checks:** `--into` is compared
+  against `SUPABASE_DB_URL` and rejected if they match. A restore is the one
+  operation here that destroys rather than appends, and R4's protections do not
+  apply to it — pg_restore passes through no policy, no grant and no definer
+  function. Pointing it at production would cause exactly the loss this task
+  exists to prevent, by way of the task itself.
+
+  **Still outstanding:** running it. That needs a scratch Supabase project and a
+  downloaded artifact from the `backup` workflow, neither of which exists from
+  here.
 
 - [x] **T9.5 — Member guide**
   One page: how to sign up, verify, and install the app.
