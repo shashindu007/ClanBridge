@@ -156,15 +156,36 @@ export function createPgliteSupabase(db: PGlite): SupabaseClient {
         }
       };
 
+      /**
+       * CHAINABLE, like the select builder above and like supabase-js itself.
+       *
+       * These used to run the query on the first `.eq()`, which worked only
+       * because every caller happened to use exactly one filter. A second one
+       * failed with ".eq is not a function" — but the real cost was worse than
+       * the error: R3 asks every query to filter by clan, and an update builder
+       * that accepts one condition quietly argues against adding the clan to an
+       * update that already filters by id.
+       *
+       * `in` on an empty list matches nothing rather than everything: an
+       * unfiltered UPDATE here would rewrite the whole table.
+       */
       const builder = {
         eq(column: string, value: unknown) {
           filters.push(`${column} = ${literal(value)}`);
-          return run();
+          return builder;
+        },
+        is(column: string, _value: null) {
+          filters.push(`${column} is null`);
+          return builder;
         },
         in(column: string, values: unknown[]) {
-          if (!values.length) return Promise.resolve({ error: null });
-          filters.push(`${column} in (${values.map(literal).join(", ")})`);
-          return run();
+          filters.push(
+            values.length ? `${column} in (${values.map(literal).join(", ")})` : "false",
+          );
+          return builder;
+        },
+        then(resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) {
+          return run().then(resolve, reject);
         },
       };
       return builder;

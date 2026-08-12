@@ -34,6 +34,7 @@ import {
   Flame,
   Gamepad2,
   Layers,
+  LayoutGrid,
   Megaphone,
   Search,
   Shield,
@@ -562,6 +563,14 @@ export default async function ClanDashboardPage({
             label="Announcements"
             hint="What leadership has posted"
             Icon={Megaphone}
+          />
+          {/* T8.4 — the library needs a way in, and the dashboard is the only
+              page every member already opens. */}
+          <Go
+            href={`${href}/layouts`}
+            label="Base layouts"
+            hint="Shared bases, ranked by votes"
+            Icon={LayoutGrid}
           />
           <Go
             href="/search"
