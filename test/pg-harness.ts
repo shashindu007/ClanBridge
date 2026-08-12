@@ -63,6 +63,41 @@ export const PHASE1_MIGRATIONS = [
   "028_base_layouts.sql",
 ] as const;
 
+/**
+ * Migrations that belong on Supabase but cannot run here.
+ *
+ * PHASE1_MIGRATIONS is the harness's list, and `npm run migrations:apply` reads
+ * it because for twenty-eight files the two questions — "what does the schema
+ * consist of" and "what must be applied" — had the same answer. 029 is the first
+ * file where they diverge: it configures the Storage bucket, so PGlite cannot run
+ * it, and Supabase must.
+ *
+ * WITHOUT THIS LIST THAT DIVERGENCE IS A SILENT SKIP. `migrations:apply` would
+ * report "Nothing to do — every migration is already applied", which is true of
+ * the list it read and false of the directory. The bucket would simply not exist,
+ * and the first symptom would be a member's upload failing in production with a
+ * storage error that names nothing about a migration.
+ *
+ * Every .sql file in the directory must appear in exactly one of these three
+ * lists; migrations.test.ts enforces it, so a future 030 cannot be forgotten the
+ * way 029 nearly was.
+ */
+export const LIVE_ONLY_MIGRATIONS = [
+  "029_layouts_storage.sql", // T8.1 the layouts bucket and its storage.objects policies
+] as const;
+
+/**
+ * Numbers that are retired, not pending. Nothing applies these and nothing
+ * should — see the header of each file, and the note above PHASE1_MIGRATIONS.
+ *
+ * 009 has no file at all. 012 has one, kept so the history reads honestly, which
+ * is exactly why it needs naming here: a comment-only file is indistinguishable
+ * from an unfinished one to anything that only counts .sql files.
+ */
+export const RETIRED_MIGRATIONS = [
+  "012_war_lineups.sql", // T6.8, superseded by 024_war.sql
+] as const;
+
 export function readMigration(file: string): string {
   return readFileSync(join(MIGRATIONS_DIR, file), "utf8");
 }
