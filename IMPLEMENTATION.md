@@ -21,7 +21,9 @@ run against the live game.
 
 **Done:** **Phase 2 entire** · Phase 1 entire · Phase 3 entire · **Phase 3B entire** ·
 T4.1–T4.8 · **Phase 4B entire** · **Phase 5 entire** ·
-**Phase 6 entire** · **Phase 7 entire** · T9.6, T9.8.
+**Phase 6 entire** · **Phase 7 entire** ·
+**Phase 9 except T9.4** — T9.1, T9.2, T9.5, T9.6, T9.7, T9.8, T9.9 done; T9.3
+and T9.10 done apart from the parts that wait on a deployment and on Phase 8.
 Phase 8 is placeholders that name their own task ID.
 
 **Phase 0 is effectively complete — 13 of 14, and the 14th was dropped by
@@ -511,7 +513,7 @@ clanbridge/
     │   │   │   ├── members/           T3B.2, T3B.3, T3B.5
     │   │   │   ├── player/[tag]/      T3B.4  ★ objective O4
     │   │   │   ├── polls/             T4B.2-4
-    │   │   │   ├── cwl/               T4.4, T4.5, T4.10, T4B.10-13
+    │   │   │   ├── cwl/               T4.4, T4.5, T4B.10-13  (T4.10 dropped)
     │   │   │   ├── war/               T6.3-6.6, T6.8-6.10
     │   │   │   ├── raids/  games/     T7.3, T7.5
     │   │   │   ├── layouts/           T8.2-8.4
@@ -1434,8 +1436,36 @@ by name.*
   those are idempotent (R5) and write only game facts, so the cost is throttling
   and wasted Actions minutes, not altered data.
 
-- [ ] **T9.3 — Full security review**
+- [~] **T9.3 — Full security review** — *code side done; the Vercel half needs the dashboard*
   Repeat T3.7 against every route. Confirm no secrets in Vercel. Confirm the repository is private.
+
+  **Audited 2026-08-12.** Each of these was run as a check rather than asserted
+  from memory, which matters because every one of them is the kind of thing that
+  is true right up until somebody adds one import:
+
+  | Rule | Check | Result |
+  |---|---|---|
+  | R6 | anything under `src/app`, `src/components`, `src/lib` importing `supabase/admin` | none — the service key reaches only `scripts/` |
+  | R1 | any page or route importing `integration/` | `api/verify/route.ts` alone, which is R6's one documented carve-out |
+  | R4 | any `.delete()` in `src/` | none — soft delete everywhere |
+  | R3 | any repository with no clan filter | none; all ten filter explicitly |
+  | R8 | the in-game token stored or logged in `/api/verify` | length-checked, passed to Supercell, never persisted |
+  | — | `.env.local` tracked by git | untracked |
+  | — | JWT/API-key shaped literals in tracked source | none |
+  | T3.7 | `test/authorisation.test.ts` | 35 passing |
+
+  **T0.8 confirmed the repository is private** (Settings → Danger Zone,
+  2026-08-11).
+
+  **What is NOT done, and cannot be from here: confirming no secrets in
+  Vercel.** That is a dashboard check against a deployment that does not exist
+  yet. When it does, the rule is `SUPABASE_SERVICE_KEY` must not appear there at
+  all, and `COC_API_TOKEN` only because `/api/verify` needs it (R6's carve-out).
+  `GITHUB_DISPATCH_TOKEN` (T9.2) is Vercel-safe and belongs there.
+
+  Worth repeating after Phase 8: base layouts add a storage bucket and the first
+  user-uploaded content in the project, which is a new class of surface — file
+  type validation, EXIF stripping and bucket policies are all T8's to get right.
 
 - [ ] **T9.4 — Restore test**
   Actually restore a backup into a scratch Supabase project. An untested backup is not a backup.
@@ -1539,7 +1569,7 @@ by name.*
   key. Re-zoning those rolls them backwards into the previous month and labels
   August's totals "Jul 2026".
 
-- [~] **T9.10 — Empty and loading states** — *loading half only*
+- [~] **T9.10 — Empty and loading states** — *all but "no layouts", which waits on Phase 8*
   Every page needs a sensible state for: no war in progress, not CWL week, no layouts uploaded, new member with no history, and a sync that has never run. Three weeks of every month there is no CWL, so this is the normal state, not an edge case.
 
   **Loading half done 2026-08-11.** 0 of 33 pages had a `loading.tsx`, so every
@@ -1551,9 +1581,34 @@ by name.*
   and clan switcher live outside it so only the content area swaps. Same
   commit also parallelised two independent Supabase calls in that layout
   (`Promise.all`) that were awaited one after the other on every navigation.
-  **The empty-states half — "no war in progress," "not CWL week," "no layouts
-  uploaded" — is not built.** Those are per-page content decisions, not a
-  shared boundary, and remain open.
+  **Empty-states half audited 2026-08-12, and it was already there.** The note
+  above said it was "not built"; that was wrong. Each page grew its own empty
+  state as it was written, because a page whose normal condition is empty — and
+  three weeks in four that is most of this product — is not usable without one.
+  Every built page under `(app)` was checked individually:
+
+  - **No war in progress** — `war/page.tsx` and the dashboard both distinguish
+    "no war on right now, the board fills in within the hour" from "the sync has
+    never run", which are different problems with different fixes.
+  - **Not CWL week** — `cwl/page.tsx`, and `sync:cwl` records it as `skipped`
+    rather than `failed` (R10) so the freshness indicator stays green.
+  - **New member with no history** — the player profile has three separate ones,
+    for CWL, donations and war, rather than one blanket message.
+  - **A sync that has never run** — `DataFreshness` (T4.8), the admin history,
+    and the members directory each say so explicitly.
+  - Directories, polls, rosters, search, audit log and pending accounts all
+    carry their own.
+
+  **The audit's one real finding was an orphan route**, and it is removed in the
+  same commit: `[clanTag]/cwl/import/` was T4.10's placeholder, still serving
+  "Placeholder — see IMPLEMENTATION.md" to anyone who found the URL. T4.10 was
+  dropped by decision (see T0.13), so the right empty state for it is not a
+  better message — it is not being routable. Nothing linked to it.
+
+  **"No layouts uploaded" is the one genuinely outstanding case**, and it is
+  outstanding because Phase 8 is not built. Its two placeholder pages are
+  unlinked, so no member reaches them; they get real empty states when the
+  feature lands rather than a placeholder dressed up as one.
 
 ---
 
