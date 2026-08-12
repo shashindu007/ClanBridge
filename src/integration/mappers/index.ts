@@ -191,12 +191,47 @@ export function mapWar(api: ApiWar): War {
 }
 
 /**
+ * The API's season string, reduced to the 'YYYY-MM' every other layer expects.
+ *
+ * THE FIRST REAL-DATA BUG T2.1 CAUGHT, and a textbook one. The synthetic fixture
+ * carried `"2026-07"`, because that is what the documented shape looked like. The
+ * live API returned **`"2026-08-03"`** — a full date, the day the round opened.
+ *
+ * `coc-schemas.ts` declares this field as a bare `z.string()`, so the capture's
+ * validation gate passed it without complaint and the wrong shape travelled all
+ * the way to the database. That is precisely the failure IMPLEMENTATION.md
+ * predicts: "the shape you guess is the shape the parser will be wrong about."
+ *
+ * WHY THIS MATTERS MORE THAN A DISPLAY GLITCH. `season` is a natural key:
+ *
+ *   cwl_seasons(clan_id, season)     written by the sync, from this value
+ *   cwl_rosters.season               written by the LEADER, through the UI
+ *
+ * T4B.6's rule — a player may appear in only one roster per season across all
+ * three clans — compares those two. `"2026-08-03"` and `"2026-08"` are different
+ * strings, so the constraint would have matched nothing, every season lookup
+ * would have returned null, and the double-booking it exists to prevent would
+ * have been discovered on CWL day one. Silently, with no error anywhere.
+ *
+ * Truncating is safe because CWL runs once per calendar month, so 'YYYY-MM'
+ * identifies a season uniquely. A value that is already 'YYYY-MM' passes through
+ * unchanged, so this handles both shapes rather than betting on the new one.
+ */
+export function normaliseCwlSeason(season: string): string {
+  const match = /^(\d{4}-\d{2})/.exec(season);
+  // Unrecognised shapes are returned untouched rather than mangled: a third
+  // format would then surface as a visibly odd season key, which is findable,
+  // instead of being silently truncated into a plausible-looking wrong month.
+  return match ? match[1]! : season;
+}
+
+/**
  * `#0` is the API's placeholder for a round that has not started. Fetching one
  * is a guaranteed 404, so they are filtered out here rather than in every caller.
  */
 export function mapCwlGroup(api: ApiCwlGroup): CwlGroup {
   return {
-    season: api.season,
+    season: normaliseCwlSeason(api.season),
     state: api.state,
     clanTags: api.clans.map((c) => normaliseTag(c.tag)),
     warTags: api.rounds
@@ -206,15 +241,30 @@ export function mapCwlGroup(api: ApiCwlGroup): CwlGroup {
   };
 }
 
+/**
+ * Every field the response carries, not the four that fitted the old table.
+ *
+ * The mapper is where the discard bug lives each time it happens: 019, 020 and
+ * 026 were all cases of the API having already sent something and nothing
+ * carrying it further. Widen this and `RaidSeason` together with the migration
+ * — a mapper that drops a column the table now has is how the fifth one starts.
+ */
 export function mapRaidSeasons(api: ApiRaidSeasons): RaidSeason[] {
   return api.items.map((season) => ({
     startTime: parseCocTime(season.startTime),
     endTime: parseCocTime(season.endTime),
     totalLoot: season.capitalTotalLoot,
+    state: season.state,
+    raidsCompleted: season.raidsCompleted,
+    totalAttacks: season.totalAttacks,
+    offensiveReward: season.offensiveReward,
+    defensiveReward: season.defensiveReward,
     participants: (season.members ?? []).map((m) => ({
       playerTag: normaliseTag(m.tag),
       name: m.name,
       attacksUsed: m.attacks,
+      attackLimit: m.attackLimit,
+      bonusAttackLimit: m.bonusAttackLimit,
       loot: m.capitalResourcesLooted,
     })),
   }));

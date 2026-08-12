@@ -104,6 +104,26 @@ export function isOpen(poll: Poll, now: Date = new Date()): boolean {
   return true;
 }
 
+/**
+ * The war availability poll a leader should size the next war from (T6.7).
+ *
+ * OPEN ones only, and that is the whole point. `pollsForClan` filters on
+ * `deleted_at` alone, so the newest war_availability poll it returns is very
+ * often last war's, closed days ago. Sizing a war from those answers is the
+ * exact failure T6.7 exists to prevent — worse than having no poll at all,
+ * because a stale count looks like a fresh one and nothing on the page says
+ * which it is.
+ *
+ * Null when none is open. The lineup page's "you are picking blind" branch is
+ * the honest answer there.
+ *
+ * Takes the list newest-first, as `pollsForClan` returns it, and keeps that
+ * order: with two open polls the newer one is the one being answered now.
+ */
+export function openWarAvailabilityPoll(polls: Poll[], now: Date = new Date()): Poll | null {
+  return polls.find((p) => p.pollType === "war_availability" && isOpen(p, now)) ?? null;
+}
+
 /** Percentage per option, for the bar a member sees. Empty poll gives zeroes. */
 export function optionShare(counts: PollCount[]): Array<PollCount & { share: number }> {
   const total = counts.reduce((sum, c) => sum + c.votes, 0);

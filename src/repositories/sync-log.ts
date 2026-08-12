@@ -21,6 +21,77 @@ export interface SyncRun {
   recordsWritten: number | null;
 }
 
+/** As SyncRun, plus the identity a history table needs to key and group rows. */
+export interface SyncRunRecord extends SyncRun {
+  id: string;
+  clanId: string | null;
+}
+
+const RUN_COLUMNS =
+  "id, job_type, clan_id, status, started_at, finished_at, skip_reason, error, records_written";
+
+function toRun(row: Record<string, unknown>): SyncRunRecord {
+  return {
+    id: row.id as string,
+    jobType: row.job_type as string,
+    clanId: (row.clan_id as string | null) ?? null,
+    status: row.status as string,
+    startedAt: row.started_at as string,
+    finishedAt: (row.finished_at as string | null) ?? null,
+    skipReason: (row.skip_reason as string | null) ?? null,
+    error: (row.error as string | null) ?? null,
+    recordsWritten: (row.records_written as number | null) ?? null,
+  };
+}
+
+/**
+ * T9.2 — the most recent runs of every job, newest first.
+ *
+ * UNFILTERED BY JOB TYPE AND BY CLAN, deliberately, and RLS is what scopes it.
+ * 006's sync_log policy already returns only rows for clans the caller belongs
+ * to, plus the global ones; re-stating that here as an explicit filter would
+ * mean a platform admin — who legitimately sees every clan — silently got a
+ * narrower answer than the policy grants them.
+ *
+ * Descending, which is the whole reason this is not `latestRun()` in a loop:
+ * ascending plus a limit returns the OLDEST N, which is exactly the opposite of
+ * a history page and fails silently because it still returns rows.
+ *
+ * `limit` is applied before `order` because the PGlite stand-in the tests use
+ * runs the query on `.order()` — legal in supabase-js too, and the note in
+ * test/pglite-supabase.ts explains why it has to be this way round.
+ */
+export async function recentRuns(
+  supabase: SupabaseClient,
+  limit = 50,
+): Promise<SyncRunRecord[]> {
+  const { data, error } = await supabase
+    .from("sync_log")
+    .select(RUN_COLUMNS)
+    .is("deleted_at", null)
+    .limit(limit)
+    .order("started_at", { ascending: false });
+
+  if (error || !data) return [];
+  return (data as unknown as Array<Record<string, unknown>>).map(toRun);
+}
+
+/**
+ * Runs that ended badly and are still worth someone's attention.
+ *
+ * Derived from the same read rather than a second query: a "failed" list that
+ * disagrees with the history table directly above it on the same page is worse
+ * than either alone, and two queries against a table being written to by a live
+ * sync job can absolutely disagree.
+ *
+ * A row still `running` is not a failure and is not listed. It becomes one only
+ * by being old, which is `staleJobs()` in scripts/sync/alerts.ts (T5.8) — the
+ * check that runs from outside and does not wait to be looked at.
+ */
+export function failedRuns(runs: readonly SyncRunRecord[]): SyncRunRecord[] {
+  return runs.filter((r) => r.status === "failed");
+}
+
 /**
  * The most recent FINISHED run of one job type for one clan.
  *

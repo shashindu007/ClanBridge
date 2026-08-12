@@ -15,6 +15,7 @@ import type { RosterMember } from "@/repositories/rosters";
 import type { CwlAttack, CwlRosterEntry } from "@/repositories/cwl";
 import {
   isOpen,
+  openWarAvailabilityPoll,
   optionShare,
   pollBreakdown,
   nonResponders,
@@ -121,6 +122,76 @@ describe("isOpen — mirrors the insert policy", () => {
   });
   it("is closed when the status says so, whatever the dates", () => {
     expect(isOpen(poll({ status: "closed" }), now)).toBe(false);
+  });
+});
+
+// The regression test for a bug that shipped and was invisible for exactly this
+// reason: the lineup page did `polls.find(p => p.pollType === "war_availability")`
+// with no open check at all, and pollsForClan filters on deleted_at alone. After
+// one war it therefore sized the NEXT war from the LAST war's answers, with
+// nothing on screen admitting the count was days old.
+describe("T6.7 — openWarAvailabilityPoll", () => {
+  const now = new Date("2026-08-02T12:00:00Z");
+  const poll = (over: Partial<Poll> = {}): Poll => ({
+    id: "poll",
+    scope: "clan",
+    clanId: "clan",
+    season: null,
+    pollType: "war_availability",
+    title: "War availability",
+    question: null,
+    opensAt: null,
+    closesAt: null,
+    status: "open",
+    createdBy: "u",
+    createdAt: "2026-08-01T00:00:00Z",
+    ...over,
+  });
+
+  it("finds the open one", () => {
+    expect(openWarAvailabilityPoll([poll()], now)?.id).toBe("poll");
+  });
+
+  it("does NOT return last war's closed poll", () => {
+    expect(openWarAvailabilityPoll([poll({ status: "closed" })], now)).toBeNull();
+  });
+
+  it("does NOT return one whose closes_at has passed", () => {
+    const expired = poll({ closesAt: "2026-08-02T11:00:00Z" });
+    expect(openWarAvailabilityPoll([expired], now)).toBeNull();
+  });
+
+  it("does NOT return one that has not opened yet", () => {
+    const early = poll({ opensAt: "2026-08-03T00:00:00Z" });
+    expect(openWarAvailabilityPoll([early], now)).toBeNull();
+  });
+
+  // The exact shape pollsForClan hands over after a couple of wars: newest
+  // first, most of them closed.
+  it("skips past closed ones to the open one", () => {
+    const polls = [
+      poll({ id: "war-3", status: "closed" }),
+      poll({ id: "war-2", status: "open" }),
+      poll({ id: "war-1", status: "closed" }),
+    ];
+    expect(openWarAvailabilityPoll(polls, now)?.id).toBe("war-2");
+  });
+
+  it("ignores open polls of other types", () => {
+    const cwl = poll({ id: "cwl", pollType: "cwl_availability" });
+    const general = poll({ id: "gen", pollType: "general" });
+    expect(openWarAvailabilityPoll([cwl, general], now)).toBeNull();
+  });
+
+  // Two open at once is a leader who opened a second by mistake. Newest wins,
+  // because that is the one people are answering.
+  it("takes the first of several open ones, the list being newest-first", () => {
+    const polls = [poll({ id: "newer" }), poll({ id: "older" })];
+    expect(openWarAvailabilityPoll(polls, now)?.id).toBe("newer");
+  });
+
+  it("returns null for an empty list", () => {
+    expect(openWarAvailabilityPoll([], now)).toBeNull();
   });
 });
 

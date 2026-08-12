@@ -29,6 +29,7 @@ import { auditActorEmails, auditEntriesForClan, describeAudit } from "@/lib/audi
 import { currentUserId } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
 import { createClient } from "@/lib/supabase/server";
+import { DISPLAY_ZONE } from "@/lib/display-time";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ function when(iso: string): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: DISPLAY_ZONE,
   });
 }
 

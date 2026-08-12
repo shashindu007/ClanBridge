@@ -1,4 +1,105 @@
-# T7.2 — Capital raid sync
-# 
-# schedule: daily    on.workflow_dispatch: yes
-# runs: npm run sync:raids
+# T7.2 — Capital raid weekend sync, and T7.4's Clan Games snapshot.
+#
+# R2 — sync runs here, never on Vercel.
+#
+# Repository secrets required (Settings -> Secrets and variables -> Actions):
+#   COC_API_TOKEN         the PRODUCTION key, registered against the RoyaleAPI proxy IP
+#   COC_API_BASE          https://cocproxy.royaleapi.dev/v1
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_KEY
+#
+# R6 — none of these may ever be set as a Vercel environment variable.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# DAILY IS ENOUGH FOR RAIDS, AND IS THE MINIMUM FOR CLAN GAMES
+#
+# `/capitalraidseasons?limit=10` returns the last ten weekends complete on every
+# call, so a missed raid run costs nothing — the next one backfills it. Daily is
+# generous.
+#
+# Clan Games is the opposite and is why this workflow cannot be weekly. The API
+# publishes NO per-season score; T7.4 derives it by differencing each player's
+# "Games Champion" achievement between a snapshot at the start of the period and
+# one at the end. Miss the start and that month cannot be reconstructed from
+# anywhere, which is the same permanence that makes CWL this project's reason to
+# exist. Running daily means the period boundary is caught within a day of it
+# opening, whenever Supercell moves it.
+#
+# WHY CLAN GAMES IS A STEP HERE AND NOT ITS OWN WORKFLOW
+#
+# The same arithmetic T6.2 did for the war sync (see IMPLEMENTATION.md §0, and
+# the long note in sync-clans.yml). A private repository has 2,000 Actions
+# minutes a month, billed per run rounded up to the minute, and roughly 90% of a
+# run's wall time is checkout + setup-node + `npm ci` rather than the work. With
+# sync-clans hourly (~720), sync-health hourly (~720) and sync-cwl two-hourly
+# (~360) already committed, a second daily workflow would pay for a whole
+# checkout again to make a few dozen API calls. As a step it costs the calls and
+# nothing else.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# R10 — both jobs report "skipped" most days by design. Raids: every weekend
+# already settled, four days in seven. Clan Games: outside the monthly period,
+# three weeks in four. Neither is something to investigate.
+
+name: sync-raids
+
+on:
+  schedule:
+    # Once a day at 05:41 UTC. The minute is offset from sync-clans' :17,
+    # sync-cwl's :23 and sync-health's :47 so no two jobs contend for the same
+    # rate-limited API key.
+    #
+    # Do not assume punctual execution: GitHub delays scheduled runs by up to
+    # twenty minutes under load, and skips them entirely if the repository has
+    # been inactive for 60 days. The second of those is the one that would cost
+    # a Clan Games month, and it is what sync-health (T5.8) exists to catch.
+    - cron: "41 5 * * *"
+  workflow_dispatch: # for a manual catch-up after a missed period boundary
+
+concurrency:
+  group: sync-raids
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    # Raids are one call per clan. Clan Games is one call per MEMBER, throttled
+    # to one every 200 ms — roughly 50 members x 3 clans x 0.2s ≈ 30 seconds of
+    # throttle alone, before retries. Ten minutes is ample and still bounded.
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Sync capital raid weekends
+        run: npm run sync:raids
+        env:
+          COC_API_TOKEN: ${{ secrets.COC_API_TOKEN }}
+          COC_API_BASE: ${{ secrets.COC_API_BASE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # Explicitly false. Defaulting to fixtures in CI would make this job
+          # report success every day while writing nothing real — a green tick
+          # over an empty database, which is worse than a red one.
+          USE_FIXTURES: "false"
+
+      - name: Snapshot Clan Games achievement values
+        # `always()`, so a raid failure does not cost the Clan Games snapshot.
+        # These two share a workflow for billing reasons alone and have no
+        # dependency on each other — and of the pair, this is the one whose
+        # missed run is unrecoverable. Same argument as sync-clans.yml's war step.
+        if: always()
+        run: npm run sync:clan-games
+        env:
+          COC_API_TOKEN: ${{ secrets.COC_API_TOKEN }}
+          COC_API_BASE: ${{ secrets.COC_API_BASE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          USE_FIXTURES: "false"

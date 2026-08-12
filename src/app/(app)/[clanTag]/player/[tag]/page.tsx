@@ -38,6 +38,7 @@ import {
 } from "@/repositories/war";
 import { donationRatio, donationSeasons, lastActivityAt } from "@/services/members";
 import { warContribution } from "@/services/war";
+import { DISPLAY_ZONE } from "@/lib/display-time";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,11 @@ const HISTORY_DAYS = 182;
 /** The same window /war/report uses, so the two pages never show different totals. */
 const WAR_WINDOW = 10;
 
+/**
+ * A donation season's month. Stays UTC: the key is 'YYYY-MM' and the date is
+ * constructed to sit inside it, so re-zoning could roll it into the neighbouring
+ * month and label August's totals "Jul 2026".
+ */
 function monthLabel(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", {
     month: "short",
@@ -55,12 +61,17 @@ function monthLabel(iso: string): string {
   });
 }
 
+/**
+ * A real instant — when a member joined a clan, when activity was last seen —
+ * so it moves to clan-local time (T9.9). Sri Lanka is UTC+05:30, which is
+ * enough to put a late-evening reading on the following day.
+ */
 function dayLabel(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
-    timeZone: "UTC",
+    timeZone: DISPLAY_ZONE,
   });
 }
 

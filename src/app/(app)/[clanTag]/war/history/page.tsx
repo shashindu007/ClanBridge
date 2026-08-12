@@ -24,6 +24,7 @@ import { latestRun } from "@/repositories/sync-log";
 import { warsForClan, type WarRow } from "@/repositories/war";
 import { freshness } from "@/services/freshness";
 import { warTotals } from "@/services/war";
+import { DISPLAY_ZONE } from "@/lib/display-time";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ function when(iso: string | null): string {
     day: "numeric",
     month: "short",
     year: "numeric",
+    timeZone: DISPLAY_ZONE,
   });
 }
 

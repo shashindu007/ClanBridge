@@ -18,6 +18,15 @@ const badgeVariants = cva(
           "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         link: "text-primary underline-offset-4 [a&]:hover:underline",
+
+        // Status. Tinted fill + measured ink rather than the solid-fill shape
+        // above, because these sit inline next to body text — a solid green
+        // pill beside a sentence reads as a button. See globals.css: these
+        // three mean something, and a badge wearing one to look nice spends
+        // the meaning. Pair with an icon; hue is never the only signal.
+        success: "bg-success-tint text-success-ink border-success/25",
+        warning: "bg-warning-tint text-warning-ink border-warning/35",
+        info: "bg-info-tint text-info-ink border-info/25",
       },
     },
     defaultVariants: {

@@ -20,16 +20,25 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * The jobs actually on a schedule today.
  *
  * The operator's statement of what should be running. A job type absent from
- * this list is not watched — which is correct for the phases not yet built:
- * alerting that the war sync has never run is noise until T6.2 exists, and an
- * alerting system that is wrong on day one is one nobody believes on day ninety.
+ * this list is not watched — which is correct for a phase not yet built, since
+ * an alerting system that is wrong on day one is one nobody believes on day
+ * ninety.
  *
- * ADD TO THIS LIST WHEN A WORKFLOW IS ADDED:
- *   war         T6.2   every 15 minutes
+ * ADD TO THIS LIST WHEN A WORKFLOW IS ADDED. That instruction was here from the
+ * start and T6.2 still missed it: the war sync shipped, went on a schedule, and
+ * was unwatched for the whole of Phase 6 — the one job whose absence nothing
+ * else could report, unreported. Corrected here along with both Phase 7 jobs.
+ *
+ *   clans       T2.6   hourly
+ *   cwl         T4.2   every 2 hours
+ *   war         T6.2   hourly, as a step of sync-clans.yml
  *   raids       T7.2   daily
- *   clan-games  T7.4   daily during the games period
+ *   clan-games  T7.4   daily, as a step of sync-raids.yml
+ *
+ * The staleness thresholds these are judged against live in
+ * src/services/freshness.ts and must be kept in step with the crons above.
  */
-const WATCHED = ["clans", "cwl"] as const;
+const WATCHED = ["clans", "cwl", "war", "raids", "clan-games"] as const;
 
 async function main(): Promise<void> {
   const supabase = createAdminClient();

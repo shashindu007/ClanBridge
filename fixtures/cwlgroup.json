@@ -1,53 +1,1379 @@
 {
-  "_synthetic": "SYNTHETIC — generated from documented API shapes, not captured from Supercell. Replace with `npm run fixtures:capture` (T2.1).",
   "state": "inWar",
-  "season": "2026-07",
+  "season": "2026-08-03",
   "clans": [
     {
-      "tag": "#2PP0JCCL",
-      "name": "Synthetic Clan",
-      "clanLevel": 18,
+      "tag": "#GRYRURLL",
+      "name": "BLINKs L.J.R.J.",
+      "clanLevel": 19,
+      "badgeUrls": {
+        "small": "https://api-assets.clashofclans.com/badges/70/SQLf4uYrl05IRGh1a0GBKU63b9SD0yO6z-uezCkMfWs.png",
+        "large": "https://api-assets.clashofclans.com/badges/512/SQLf4uYrl05IRGh1a0GBKU63b9SD0yO6z-uezCkMfWs.png",
+        "medium": "https://api-assets.clashofclans.com/badges/200/SQLf4uYrl05IRGh1a0GBKU63b9SD0yO6z-uezCkMfWs.png"
+      },
       "members": [
         {
-          "tag": "#PY0LQGRJ",
-          "name": "Player 01"
+          "tag": "#YGJRQPJ0",
+          "name": "Player 31",
+          "townHallLevel": 17
         },
         {
-          "tag": "#PY0LQGRC",
-          "name": "Player 02"
+          "tag": "#2YJRPCJL",
+          "name": "Player 32",
+          "townHallLevel": 15
         },
         {
-          "tag": "#PY0LQGRU",
-          "name": "Player 03"
+          "tag": "#JCUULY02",
+          "name": "Player 33",
+          "townHallLevel": 18
         },
         {
-          "tag": "#PY0LQGRV",
-          "name": "Player 04"
+          "tag": "#G9QYQP9V",
+          "name": "Player 34",
+          "townHallLevel": 16
         },
         {
-          "tag": "#PY0LQGR0",
-          "name": "Player 05"
+          "tag": "#R02QJJ22",
+          "name": "Player 35",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#VRCYCYVV",
+          "name": "Player 36",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#Y9VY0PLR",
+          "name": "Player 37",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#JL9UQUPQ",
+          "name": "Player 38",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#GPL2Q9YP",
+          "name": "Player 39",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#RQRQRUG8",
+          "name": "Player 40",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#Q2928G9Q",
+          "name": "Player 41",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#QJ9VRUGJ",
+          "name": "Player 42",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#G80UCY0G",
+          "name": "Player 43",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#PU2JYLQP",
+          "name": "Player 44",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#2R80LJUR",
+          "name": "Player 45",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#LPV2G8U8",
+          "name": "Player 46",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#JQR2ULJG",
+          "name": "Player 47",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#Y8VQ9R0V",
+          "name": "Player 48",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#G92JQ08G",
+          "name": "Player 49",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#LL8002Y9",
+          "name": "Player 50",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#C9P0VPRV",
+          "name": "Player 51",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#ULGRPJLV",
+          "name": "Player 52",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#Y22YR2QV",
+          "name": "Player 53",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#L8220YVY",
+          "name": "Player 54",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#VJG2VYVC",
+          "name": "Player 55",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#VJU29P2P",
+          "name": "Player 56",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#G9U9LCRV",
+          "name": "Player 57",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#9YYPC8QG",
+          "name": "Player 58",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#8QC2PJ9U",
+          "name": "Player 59",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#2JV9UVLQ",
+          "name": "Player 60",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#Y8RRRY0G",
+          "name": "Player 61",
+          "townHallLevel": 18
         }
       ]
     },
     {
-      "tag": "#8QUCLJY0",
-      "name": "Synthetic Opponent",
-      "clanLevel": 16,
-      "members": []
+      "tag": "#CYR8PVVL",
+      "name": "OUR HOME",
+      "clanLevel": 5,
+      "badgeUrls": {
+        "small": "https://api-assets.clashofclans.com/badges/70/Q0XS6AxWgM8BF7M0q2bKWSIKMTUI4VCjX8bTfPptfD0.png",
+        "large": "https://api-assets.clashofclans.com/badges/512/Q0XS6AxWgM8BF7M0q2bKWSIKMTUI4VCjX8bTfPptfD0.png",
+        "medium": "https://api-assets.clashofclans.com/badges/200/Q0XS6AxWgM8BF7M0q2bKWSIKMTUI4VCjX8bTfPptfD0.png"
+      },
+      "members": [
+        {
+          "tag": "#V8C2P0JU",
+          "name": "Player 62",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#2Y9Q8CRQ",
+          "name": "Player 63",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#RJJQCV9R",
+          "name": "Player 64",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#G9Q2QP9P",
+          "name": "Player 65",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#PJP9CJ9L",
+          "name": "Player 66",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#800U9RJ0",
+          "name": "Player 67",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#J0CQ9LU8",
+          "name": "Player 68",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#U00QRP9L",
+          "name": "Player 69",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#9UUUV8Y0",
+          "name": "Player 70",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#0V9V8LGP",
+          "name": "Player 71",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#VQ2GJ0UQ",
+          "name": "Player 72",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#YYG2JGCU",
+          "name": "Player 73",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#LLUP0L02",
+          "name": "Player 74",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#8892P0YY",
+          "name": "Player 75",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#QJJ9RRQL",
+          "name": "Player 76",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#UP8QYGLU",
+          "name": "Player 77",
+          "townHallLevel": 18
+        }
+      ]
+    },
+    {
+      "tag": "#RY2PV2VY",
+      "name": "Not now",
+      "clanLevel": 15,
+      "badgeUrls": {
+        "small": "https://api-assets.clashofclans.com/badges/70/Ysta8QNmzhRo0dJZBw1-y8MkDas74KsCNZVJSDFfISE.png",
+        "large": "https://api-assets.clashofclans.com/badges/512/Ysta8QNmzhRo0dJZBw1-y8MkDas74KsCNZVJSDFfISE.png",
+        "medium": "https://api-assets.clashofclans.com/badges/200/Ysta8QNmzhRo0dJZBw1-y8MkDas74KsCNZVJSDFfISE.png"
+      },
+      "members": [
+        {
+          "tag": "#P828QGCJ",
+          "name": "Player 78",
+          "townHallLevel": 12
+        },
+        {
+          "tag": "#98GYCRUG",
+          "name": "Player 79",
+          "townHallLevel": 12
+        },
+        {
+          "tag": "#CLU2RYPQ",
+          "name": "Player 80",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#Q0GRC8Y0",
+          "name": "Player 81",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#09Q8CVC0",
+          "name": "Player 82",
+          "townHallLevel": 12
+        },
+        {
+          "tag": "#2LCRV9VR",
+          "name": "Player 83",
+          "townHallLevel": 13
+        },
+        {
+          "tag": "#CQCQV2YQ",
+          "name": "Player 84",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#LV0PQ92L",
+          "name": "Player 85",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#Y8LRUPLQ",
+          "name": "Player 86",
+          "townHallLevel": 12
+        },
+        {
+          "tag": "#LY0RQY80",
+          "name": "Player 87",
+          "townHallLevel": 11
+        },
+        {
+          "tag": "#LGP2800U",
+          "name": "Player 88",
+          "townHallLevel": 13
+        },
+        {
+          "tag": "#2PVC9VGG",
+          "name": "Player 89",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#V9PYPYCG",
+          "name": "Player 90",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#20J9J2PP",
+          "name": "Player 91",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#802J2G20",
+          "name": "Player 92",
+          "townHallLevel": 12
+        },
+        {
+          "tag": "#LYRU890U",
+          "name": "Player 93",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#JQ9UPL28",
+          "name": "Player 94",
+          "townHallLevel": 12
+        },
+        {
+          "tag": "#CUU8GJ0L",
+          "name": "Player 95",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#QQ98L2LQ",
+          "name": "Player 96",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#VRYY2CQJ",
+          "name": "Player 97",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#PRGJUQYC",
+          "name": "Player 98",
+          "townHallLevel": 10
+        },
+        {
+          "tag": "#Q09Q2QJR",
+          "name": "Player 99",
+          "townHallLevel": 12
+        },
+        {
+          "tag": "#LLLRJ02Y",
+          "name": "Player 100",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#GCPUGPCQ",
+          "name": "Player 101",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#8LG9GC29",
+          "name": "Player 102",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#YP0LQUG0",
+          "name": "Player 103",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#JULPRL9P",
+          "name": "Player 104",
+          "townHallLevel": 12
+        },
+        {
+          "tag": "#92CJJR9U",
+          "name": "Player 105",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#8CJGJ29G",
+          "name": "Player 106",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#LGP8GVYU",
+          "name": "Player 107",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#90R0R980",
+          "name": "Player 108",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#JQ8VJLVJ",
+          "name": "Player 109",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#0LG9RVPU",
+          "name": "Player 110",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#82YCU2QV",
+          "name": "Player 111",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#Y2UQQL09",
+          "name": "Player 112",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#VYJCRVG9",
+          "name": "Player 113",
+          "townHallLevel": 12
+        },
+        {
+          "tag": "#UUJU8GGU",
+          "name": "Player 110",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#02PJRGG0",
+          "name": "Player 114",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#GQQR09RV",
+          "name": "Player 115",
+          "townHallLevel": 10
+        },
+        {
+          "tag": "#0RCCCVGP",
+          "name": "Player 116",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#CLY8QQ2P",
+          "name": "Player 117",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#VGLCJRVV",
+          "name": "Player 118",
+          "townHallLevel": 12
+        }
+      ]
+    },
+    {
+      "tag": "#LLUY2VR8",
+      "name": "Moon",
+      "clanLevel": 22,
+      "badgeUrls": {
+        "small": "https://api-assets.clashofclans.com/badges/70/RMer8xI2I3IaFc4mp3QJMiZ5MJXYvzC7N2XFlXyUhbQ.png",
+        "large": "https://api-assets.clashofclans.com/badges/512/RMer8xI2I3IaFc4mp3QJMiZ5MJXYvzC7N2XFlXyUhbQ.png",
+        "medium": "https://api-assets.clashofclans.com/badges/200/RMer8xI2I3IaFc4mp3QJMiZ5MJXYvzC7N2XFlXyUhbQ.png"
+      },
+      "members": [
+        {
+          "tag": "#92CJ2G80",
+          "name": "Player 119",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#CVV9022Y",
+          "name": "Player 120",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#YPGYYUUU",
+          "name": "Player 121",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#VRJGPPCV",
+          "name": "Player 122",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#0LR2JCY9",
+          "name": "Player 123",
+          "townHallLevel": 13
+        },
+        {
+          "tag": "#CG90UJCQ",
+          "name": "Player 124",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#RPPJY2PV",
+          "name": "Player 125",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#09VUR0PY",
+          "name": "Player 126",
+          "townHallLevel": 13
+        },
+        {
+          "tag": "#PGQUGG08",
+          "name": "Player 127",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#PJQ28VLU",
+          "name": "Player 128",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#QQV0RLY8",
+          "name": "Player 129",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#RVPY8QJL",
+          "name": "Player 130",
+          "townHallLevel": 13
+        },
+        {
+          "tag": "#G0RYGJQC",
+          "name": "Player 131",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#YRGJULVL",
+          "name": "Player 132",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#2LCGUY9V",
+          "name": "Player 133",
+          "townHallLevel": 13
+        },
+        {
+          "tag": "#8GJ222QQ",
+          "name": "Player 134",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#GG0R2P0V",
+          "name": "Player 135",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#VP0U9PV0",
+          "name": "Player 136",
+          "townHallLevel": 11
+        },
+        {
+          "tag": "#U8JRGR9R",
+          "name": "Player 137",
+          "townHallLevel": 13
+        },
+        {
+          "tag": "#YL8QGQ0L",
+          "name": "Player 119",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#QJ82U209",
+          "name": "Player 138",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#8RYVJV8R",
+          "name": "Player 139",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#G00GG2YP",
+          "name": "Player 140",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#UVRQVUQJ",
+          "name": "Player 141",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#U9VY98JU",
+          "name": "Player 142",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#JPLYVUC0",
+          "name": "Player 143",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#CCJV8JCR",
+          "name": "Player 144",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#UYVGUP8R",
+          "name": "Player 145",
+          "townHallLevel": 11
+        },
+        {
+          "tag": "#92UR9U8V",
+          "name": "Player 146",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#YRPR8QVC",
+          "name": "Player 147",
+          "townHallLevel": 12
+        },
+        {
+          "tag": "#RGQ0LG0Y",
+          "name": "Player 148",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#V0RRR09R",
+          "name": "Player 149",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#PCLYU9VL",
+          "name": "Player 150",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#P8L0Q9PU",
+          "name": "Player 151",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#LQQRGUQ9",
+          "name": "Player 152",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#CPPVLUYG",
+          "name": "Player 153",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#G8PY2C8P",
+          "name": "Player 154",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#J8QVQ9JL",
+          "name": "Player 155",
+          "townHallLevel": 7
+        },
+        {
+          "tag": "#Y9QR88UY",
+          "name": "Player 156",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#PJJU80CR",
+          "name": "Player 157",
+          "townHallLevel": 13
+        },
+        {
+          "tag": "#RJJCG90V",
+          "name": "Player 158",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#2CCJ08RG",
+          "name": "Player 159",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#9UY9RJU0",
+          "name": "Player 160",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#02GLRPJY",
+          "name": "Player 161",
+          "townHallLevel": 12
+        },
+        {
+          "tag": "#PLYCPRQY",
+          "name": "Player 162",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#QL999LV0",
+          "name": "Player 163",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#C09C29YQ",
+          "name": "Player 164",
+          "townHallLevel": 11
+        },
+        {
+          "tag": "#2YY20C8R",
+          "name": "Player 165",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#YGQGYR82",
+          "name": "Player 166",
+          "townHallLevel": 14
+        }
+      ]
+    },
+    {
+      "tag": "#8P2CJQUY",
+      "name": "TEAM SOLID",
+      "clanLevel": 3,
+      "badgeUrls": {
+        "small": "https://api-assets.clashofclans.com/badges/70/sbBk1Dqih0_s9q6QRRv9kp3ipxAuMxuMh-GM3DaE-4M.png",
+        "large": "https://api-assets.clashofclans.com/badges/512/sbBk1Dqih0_s9q6QRRv9kp3ipxAuMxuMh-GM3DaE-4M.png",
+        "medium": "https://api-assets.clashofclans.com/badges/200/sbBk1Dqih0_s9q6QRRv9kp3ipxAuMxuMh-GM3DaE-4M.png"
+      },
+      "members": [
+        {
+          "tag": "#908GCG9C",
+          "name": "Player 167",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#J2LP0QYG",
+          "name": "Player 168",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#8PGL00UC",
+          "name": "Player 169",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#20YJUYVG",
+          "name": "Player 170",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#0YPPLL8C",
+          "name": "Player 171",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#9CCV2PLG",
+          "name": "Player 172",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#VLJ09VYV",
+          "name": "Player 173",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#88CGU2JG",
+          "name": "Player 174",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#0LR9CPJQ",
+          "name": "Player 175",
+          "townHallLevel": 6
+        },
+        {
+          "tag": "#YGVJGQPU",
+          "name": "Player 176",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#QYQQ0CJJ",
+          "name": "Player 177",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#UPU0Q92L",
+          "name": "Player 178",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#9Y2L8C8Q",
+          "name": "Player 179",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#JVP9J8RJ",
+          "name": "Player 180",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#JRLLLJQ0",
+          "name": "Player 181",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#QR2UVPPL",
+          "name": "Player 182",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#P09Y829L",
+          "name": "Player 183",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#J29UQ8G0",
+          "name": "Player 184",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#PY9RYVVG",
+          "name": "Player 185",
+          "townHallLevel": 18
+        }
+      ]
+    },
+    {
+      "tag": "#LP8PYCP9",
+      "name": "DH CWL ONLY",
+      "clanLevel": 17,
+      "badgeUrls": {
+        "small": "https://api-assets.clashofclans.com/badges/70/Az2KTu1Fo-2eOl6555nLAbcJvV_x3iW-TjJVM8vqt0s.png",
+        "large": "https://api-assets.clashofclans.com/badges/512/Az2KTu1Fo-2eOl6555nLAbcJvV_x3iW-TjJVM8vqt0s.png",
+        "medium": "https://api-assets.clashofclans.com/badges/200/Az2KTu1Fo-2eOl6555nLAbcJvV_x3iW-TjJVM8vqt0s.png"
+      },
+      "members": [
+        {
+          "tag": "#GCVLRGYP",
+          "name": "Player 20",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#Q9LPUUYR",
+          "name": "Player 01",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#R0J9VC92",
+          "name": "Player 04",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#8L0VQC8Y",
+          "name": "Player 09",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#V8YJ02GC",
+          "name": "Player 08",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#LRU9CU8C",
+          "name": "Player 03",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#CRG0CJP9",
+          "name": "Player 186",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#QYYULPRV",
+          "name": "Player 24",
+          "townHallLevel": 13
+        },
+        {
+          "tag": "#2229PPCL",
+          "name": "Player 25",
+          "townHallLevel": 12
+        },
+        {
+          "tag": "#L8229LCC",
+          "name": "Player 11",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#J9Q0J9CR",
+          "name": "Player 187",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#QUVJP2GY",
+          "name": "Player 17",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#PGRGJPR8",
+          "name": "Player 15",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#PY9UCRY0",
+          "name": "Player 12",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#0CUGJR0R",
+          "name": "Player 29",
+          "townHallLevel": 12
+        },
+        {
+          "tag": "#Q2JQCU8U",
+          "name": "Player 14",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#CV9RLV00",
+          "name": "Player 05",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#2UPC0LJL",
+          "name": "Player 02",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#R802JYVL",
+          "name": "Player 26",
+          "townHallLevel": 12
+        },
+        {
+          "tag": "#8LVYU90Y",
+          "name": "Player 19",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#2VCQ0P0G",
+          "name": "Player 16",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#9Q899RJC",
+          "name": "Player 21",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#RYUUUY0Q",
+          "name": "Player 27",
+          "townHallLevel": 12
+        },
+        {
+          "tag": "#CGP9YYQQ",
+          "name": "Player 07",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#R9VJU89C",
+          "name": "Player 13",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#LPRQYYUQ",
+          "name": "Player 10",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#YCPCV908",
+          "name": "Player 30",
+          "townHallLevel": 12
+        },
+        {
+          "tag": "#J9GRRVV0",
+          "name": "Player 18",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#02JYYJJ2",
+          "name": "Player 28",
+          "townHallLevel": 11
+        }
+      ]
+    },
+    {
+      "tag": "#LPRGV02R",
+      "name": "Polish Devil's",
+      "clanLevel": 26,
+      "badgeUrls": {
+        "small": "https://api-assets.clashofclans.com/badges/70/Ap08ekexZNGKgdiqoy87IRACszR1wqrnONz5TEu9JTc.png",
+        "large": "https://api-assets.clashofclans.com/badges/512/Ap08ekexZNGKgdiqoy87IRACszR1wqrnONz5TEu9JTc.png",
+        "medium": "https://api-assets.clashofclans.com/badges/200/Ap08ekexZNGKgdiqoy87IRACszR1wqrnONz5TEu9JTc.png"
+      },
+      "members": [
+        {
+          "tag": "#RQJPPYJJ",
+          "name": "Player 188",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#2VQ8VQPU",
+          "name": "Player 189",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#YULYULPC",
+          "name": "Player 190",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#GGJJQLV2",
+          "name": "Player 191",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#VQCQQ0JV",
+          "name": "Player 192",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#9LPYYGR9",
+          "name": "Player 193",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#UQV9RRYL",
+          "name": "Player 194",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#2Q82JG82",
+          "name": "Player 195",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#982QQQ00",
+          "name": "Player 196",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#GP80GRG9",
+          "name": "Player 197",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#LRUYVYJV",
+          "name": "Player 198",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#JCRJCUC8",
+          "name": "Player 199",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#QR8UVJCU",
+          "name": "Player 200",
+          "townHallLevel": 14
+        },
+        {
+          "tag": "#RPJ8CUVP",
+          "name": "Player 201",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#8CGQLQUC",
+          "name": "Player 202",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#LGG2QCJP",
+          "name": "Player 203",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#0PY2YCP8",
+          "name": "Player 204",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#YPY0YUVC",
+          "name": "Player 205",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#U8QUQJVY",
+          "name": "Player 206",
+          "townHallLevel": 13
+        },
+        {
+          "tag": "#L9GPPQPY",
+          "name": "Player 207",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#LVCQ2QCL",
+          "name": "Player 208",
+          "townHallLevel": 11
+        },
+        {
+          "tag": "#LLGPCL9V",
+          "name": "Player 209",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#JU99LUVG",
+          "name": "Player 210",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#L8CQRCJC",
+          "name": "Player 211",
+          "townHallLevel": 10
+        },
+        {
+          "tag": "#YQYR2809",
+          "name": "Player 212",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#CJGUVRC0",
+          "name": "Player 213",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#2U0LV8UQ",
+          "name": "Player 214",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#GV2CC9YQ",
+          "name": "Player 215",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#2RUJ0RUC",
+          "name": "Player 216",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#LYRUYVVP",
+          "name": "Player 217",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#8PVCL29L",
+          "name": "Player 218",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#9GLG98YQ",
+          "name": "Player 219",
+          "townHallLevel": 13
+        },
+        {
+          "tag": "#Y9PLCJQV",
+          "name": "Player 220",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#PCQYY99G",
+          "name": "Player 221",
+          "townHallLevel": 13
+        },
+        {
+          "tag": "#RUVC28U0",
+          "name": "Player 222",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#U0YLL0PY",
+          "name": "Player 223",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#0LCYQY8Q",
+          "name": "Player 224",
+          "townHallLevel": 8
+        },
+        {
+          "tag": "#YVG8RPLR",
+          "name": "Player 225",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#L88P2LGV",
+          "name": "Player 226",
+          "townHallLevel": 16
+        },
+        {
+          "tag": "#YC08R2JP",
+          "name": "Player 227",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#LVCYY9RY",
+          "name": "Player 228",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#JUL2P0GL",
+          "name": "Player 229",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#2Q9P0C82",
+          "name": "Player 230",
+          "townHallLevel": 18
+        }
+      ]
+    },
+    {
+      "tag": "#JVL082UC",
+      "name": "灵云",
+      "clanLevel": 5,
+      "badgeUrls": {
+        "small": "https://api-assets.clashofclans.com/badges/70/ktaCCfsAagWxSLtoHYHTjWIxc74U8B5L7pXdlSktff8.png",
+        "large": "https://api-assets.clashofclans.com/badges/512/ktaCCfsAagWxSLtoHYHTjWIxc74U8B5L7pXdlSktff8.png",
+        "medium": "https://api-assets.clashofclans.com/badges/200/ktaCCfsAagWxSLtoHYHTjWIxc74U8B5L7pXdlSktff8.png"
+      },
+      "members": [
+        {
+          "tag": "#VQYGV2YU",
+          "name": "Player 231",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#CPPC2CRV",
+          "name": "Player 232",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#UC2LJG8P",
+          "name": "Player 233",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#QGGVUP09",
+          "name": "Player 234",
+          "townHallLevel": 11
+        },
+        {
+          "tag": "#99CV8228",
+          "name": "Player 235",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#29CPLJRG",
+          "name": "Player 236",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#CPGCVC2Y",
+          "name": "Player 237",
+          "townHallLevel": 11
+        },
+        {
+          "tag": "#9PJ8CJ29",
+          "name": "Player 238",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#RVJ8PPGG",
+          "name": "Player 239",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#RPJ0200L",
+          "name": "Player 240",
+          "townHallLevel": 15
+        },
+        {
+          "tag": "#9RCJ8LUU",
+          "name": "Player 241",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#CR2JPG2V",
+          "name": "Player 242",
+          "townHallLevel": 17
+        },
+        {
+          "tag": "#VVUQ2LY0",
+          "name": "Player 243",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#88R2CG28",
+          "name": "Player 244",
+          "townHallLevel": 18
+        },
+        {
+          "tag": "#0YLU2YCC",
+          "name": "Player 245",
+          "townHallLevel": 18
+        }
+      ]
     }
   ],
   "rounds": [
     {
       "warTags": [
-        "#8G9QRVJL",
-        "#9CUVPYQ2"
+        "#8RRU8YPYY",
+        "#8RRU8YLVV",
+        "#8RRU8YYRR",
+        "#8RRU8YGP9"
       ]
     },
     {
       "warTags": [
-        "#0",
-        "#0"
+        "#8RJ0QVQ9Y",
+        "#8RJ0QV9PQ",
+        "#8RJ0QVPGC",
+        "#8RJ0QVYV2"
+      ]
+    },
+    {
+      "warTags": [
+        "#8RJ8C0Y22",
+        "#8RJ8JVGGC",
+        "#8RJ8JVC9Y",
+        "#8RJ8JVRV2"
+      ]
+    },
+    {
+      "warTags": [
+        "#8RJY80GUC",
+        "#8RJY80J92",
+        "#8RJY80CQY",
+        "#8RJY80UCR"
+      ]
+    },
+    {
+      "warTags": [
+        "#8RJQYL0JQ",
+        "#8RJQYL9Y2",
+        "#8RJQYL80C",
+        "#8RJQYQ22R"
+      ]
+    },
+    {
+      "warTags": [
+        "#8RJRJL0RY",
+        "#8RJRJL2VR",
+        "#8RJRJL99V",
+        "#8RJRJLPG9"
+      ]
+    },
+    {
+      "warTags": [
+        "#8RJJVR8VV",
+        "#8RJJVQCYR",
+        "#8RJJVG009",
+        "#8RJJVQURV"
       ]
     }
   ]

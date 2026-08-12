@@ -17,9 +17,23 @@ export const STALE_AFTER_MS: Record<string, number> = {
   cwl: 3 * 60 * 60 * 1000,
   // Hourly.
   clans: 2 * 60 * 60 * 1000,
-  // Every 15 minutes.
-  war: 45 * 60 * 1000,
+  // Hourly, as a step of sync-clans.yml — NOT every 15 minutes as first planned
+  // (see the T6.2 deviation note in IMPLEMENTATION.md §0). The old 45-minute
+  // window was written for the 15-minute schedule and, against the hourly one,
+  // marked the war sync stale for the last quarter of every single hour. An
+  // indicator that is amber a quarter of the time is one nobody reads on the
+  // day it means something — the same argument the R10 note above makes.
+  war: 2 * 60 * 60 * 1000,
+  // Daily. 36 hours allows a missed run plus GitHub's delay.
   raids: 36 * 60 * 60 * 1000,
+  // Daily too, as a step of sync-raids.yml, so the same window.
+  //
+  // Without an entry here it would fall through to DEFAULT_STALE_AFTER_MS — 3
+  // hours against a job that runs once a day, which reads stale for 21 hours
+  // out of every 24. That is the same mistake the `war` note above records,
+  // and it is worth stating that the default is not a safe fallback for a job
+  // slower than a few hours: EVERY job on a schedule needs a line here.
+  "clan-games": 36 * 60 * 60 * 1000,
 };
 
 const DEFAULT_STALE_AFTER_MS = 3 * 60 * 60 * 1000;

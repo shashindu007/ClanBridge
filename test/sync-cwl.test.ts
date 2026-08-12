@@ -16,6 +16,8 @@
 // None of the three produces an error at the time. Each one produces a database
 // full of confident, wrong history.
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createHarness, type Harness } from "./pg-harness";
@@ -27,15 +29,85 @@ import type { ApiCwlGroup } from "@/integration/coc-schemas";
 
 const CLAN_A = "aaaaaaaa-0000-4000-8000-000000000001";
 
-/** The tag inside fixtures/cwlgroup.json and cwlwar.json. */
-const OUR_TAG = "#2PP0JCCL";
-const THEIR_TAG = "#8QUCLJY0";
+/**
+ * Everything below is read out of the captured fixtures, not written down here.
+ *
+ * These were `"#2PP0JCCL"` and `"#8QUCLJY0"` — the synthetic clan's tags. T2.1
+ * then captured a real CWL week, and the tags changed, so the seeded clan no
+ * longer matched either side of the war. `chooseSides()` correctly returned null
+ * for all 28 wars, the sync correctly wrote nothing, and eleven tests failed
+ * without a single line of production code being wrong.
+ *
+ * A CWL fixture can only be captured during CWL week — one week a month — so
+ * these files WILL be re-captured, and a hardcoded tag here breaks the suite
+ * every time on a schedule nobody remembers.
+ */
+const CWL_WAR = JSON.parse(
+  readFileSync(join(process.cwd(), "fixtures", "cwlwar.json"), "utf8"),
+) as {
+  clan: ApiWarSideFixture;
+  opponent: ApiWarSideFixture;
+};
+
+interface ApiWarSideFixture {
+  tag: string;
+  stars: number;
+  members: Array<{
+    tag: string;
+    mapPosition: number;
+    attacks?: Array<{ defenderTag: string; stars: number }>;
+  }>;
+}
+
+/** Our side of the captured war. Arbitrary, but it must match what is seeded. */
+const OURS = CWL_WAR.clan;
+const THEIRS = CWL_WAR.opponent;
+const OUR_TAG = OURS.tag;
+const THEIR_TAG = THEIRS.tag;
+
+/** 15 in the roster, 14 of whom attacked — CWL gives one attack each. */
+const ROSTER_SIZE = OURS.members.length;
+const ATTACK_COUNT = OURS.members.reduce((n, m) => n + (m.attacks?.length ?? 0), 0);
+const MISSED_COUNT = ROSTER_SIZE - ATTACK_COUNT;
+
+const CWL_GROUP = JSON.parse(
+  readFileSync(join(process.cwd(), "fixtures", "cwlgroup.json"), "utf8"),
+) as { season: string; rounds: Array<{ warTags: string[] }> };
+
+/** The season key AFTER normalisation — the live API sends a full date. */
+const SEASON = CWL_GROUP.season.slice(0, 7);
+
+/**
+ * Every war tag in the group: 28 of them, for 8 clans over 7 rounds.
+ *
+ * IN PRODUCTION the job fetches all 28 and keeps the 7 we played in — the other
+ * 21 belong to other clans and `chooseSides()` returns null for them.
+ *
+ * IN FIXTURE MODE every tag returns the SAME cwlwar.json, in which we are a
+ * participant, so all 28 are kept. That is an artifact of the offline harness,
+ * not a defect: it is the price of proving the whole path without a network.
+ *
+ * So the row COUNTS below scale with this number, while everything about what a
+ * war actually contains is asserted against a single war row instead. Otherwise
+ * the test measures the harness rather than the job.
+ */
+const WAR_COUNT = CWL_GROUP.rounds
+  .flatMap((r) => r.warTags)
+  .filter((t) => t && t !== "#0").length;
 
 async function count(h: Harness, table: string, where = "true"): Promise<number> {
   const res = await h.db.query<{ n: number }>(
     `select count(*)::int as n from ${table} where ${where}`,
   );
   return res.rows[0]!.n;
+}
+
+/** One war row to scope per-war assertions to. See the note on WAR_COUNT. */
+async function firstWarId(h: Harness): Promise<string> {
+  const res = await h.db.query<{ id: string }>(
+    `select id from cwl_wars order by war_tag limit 1`,
+  );
+  return res.rows[0]!.id;
 }
 
 function side(tag: string, stars?: number, destruction?: number): WarSide {
@@ -177,10 +249,17 @@ describe("T4.1 — the CWL sync", () => {
 
       expect(result).toBe("success");
       expect(await count(h, "cwl_seasons")).toBe(1);
-      expect(await count(h, "cwl_wars")).toBe(1);
-      // Five in the roster, four of whom attacked. The fifth is the miss.
-      expect(await count(h, "cwl_war_members")).toBe(5);
-      expect(await count(h, "cwl_attacks")).toBe(4);
+      expect(await count(h, "cwl_wars")).toBe(WAR_COUNT);
+
+      // Per war, not in total — see the note on WAR_COUNT. This is the shape
+      // that stays true whatever the harness replays.
+      const war = await firstWarId(h);
+      expect(await count(h, "cwl_war_members", `war_id = '${war}'`)).toBe(ROSTER_SIZE);
+      expect(await count(h, "cwl_attacks", `war_id = '${war}'`)).toBe(ATTACK_COUNT);
+
+      // The roster must be bigger than the attack list, or the missed-attack
+      // list this whole module exists to produce has nothing to derive from.
+      expect(MISSED_COUNT).toBeGreaterThan(0);
     });
 
     it("records the season string the API reported", async () => {
@@ -188,7 +267,11 @@ describe("T4.1 — the CWL sync", () => {
       const rows = await h.db.query<{ season: string; clan_id: string }>(
         `select season, clan_id from cwl_seasons`,
       );
-      expect(rows.rows[0]!.season).toBe("2026-07");
+      // 'YYYY-MM', which is NOT what the API sends — it sent '2026-08-03'.
+      // normaliseCwlSeason() in the mappers is what makes this true, and it must
+      // stay true or cwl_seasons.season and cwl_rosters.season stop matching.
+      expect(rows.rows[0]!.season).toBe(SEASON);
+      expect(rows.rows[0]!.season).toMatch(/^\d{4}-\d{2}$/);
       expect(rows.rows[0]!.clan_id).toBe(CLAN_A); // R3
     });
 
@@ -204,29 +287,54 @@ describe("T4.1 — the CWL sync", () => {
       }>(`select our_stars, their_stars, result, state, opponent_tag, day_number from cwl_wars`);
 
       const war = rows.rows[0]!;
-      expect(war.our_stars).toBe(11); // fixture: our clan
-      expect(war.their_stars).toBe(9); // fixture: opponent
-      expect(war.result).toBe("win");
+      expect(war.our_stars).toBe(OURS.stars);
+      expect(war.their_stars).toBe(THEIRS.stars);
+      // warResult() itself, not a re-implementation: the vocabulary is 'lose',
+      // not 'loss', and a hand-written ternary here gets that wrong silently
+      // whenever the captured war happens to be a win.
+      expect(war.result).toBe(
+        warResult(side(OUR_TAG, OURS.stars), side(THEIR_TAG, THEIRS.stars)),
+      );
       expect(war.state).toBe("warEnded");
       expect(war.opponent_tag).toBe(THEIR_TAG);
-      expect(war.day_number).toBe(1);
+
+      // The trap this test exists for: fetched by war tag, the API returns the
+      // two sides in no guaranteed order, and reading `clan` as "ours" records
+      // every result backwards with no error anywhere. Asserting the two star
+      // counts DIFFER is what keeps that detectable — with equal scores the
+      // assertion above would pass whichever way round they were read.
+      expect(OURS.stars).not.toBe(THEIRS.stars);
     });
 
     // The only source for this is looking defenderTag up in the OPPONENT's
-    // roster. The fixture's opponent positions run 5,4,3,2,1 against attackers
-    // 1,2,3,4,5, so a job that used the attacker's own index would pass a
-    // count assertion and fail this one.
+    // roster. A job that used the attacker's own index instead would pass every
+    // count assertion above and fail only this one.
     it("resolves defender_position from the opponent roster, not the attacker index", async () => {
       await runSyncJob("cwl", syncCwl, { client });
+      const warId = await firstWarId(h);
       const rows = await h.db.query<{ map_position: number; defender_position: number }>(
         `select m.map_position, a.defender_position
            from cwl_attacks a
            join cwl_war_members m
              on m.war_id = a.war_id and m.player_id = a.player_id
+          where a.war_id = '${warId}'
           order by m.map_position`,
       );
 
-      expect(rows.rows.map((r) => r.defender_position)).toEqual([5, 4, 3, 2]);
+      // Computed the way the job must: defenderTag looked up in THEIR roster.
+      const byPosition = new Map(THEIRS.members.map((m) => [m.tag, m.mapPosition]));
+      const expected = [...OURS.members]
+        .filter((m) => m.attacks?.length)
+        .sort((a, b) => a.mapPosition - b.mapPosition)
+        .map((m) => byPosition.get(m.attacks![0]!.defenderTag));
+
+      expect(rows.rows.map((r) => r.defender_position)).toEqual(expected);
+
+      // In a real war the attacker's rank and their target's rank rarely agree,
+      // which is what makes the index shortcut detectable at all. If they ever
+      // did line up for every attacker, this test would silently stop testing.
+      const attackerPositions = rows.rows.map((r) => r.map_position);
+      expect(expected).not.toEqual(attackerPositions);
     });
 
     it("stores no placeholder row for the player who did not attack", async () => {
@@ -235,33 +343,43 @@ describe("T4.1 — the CWL sync", () => {
       // 002_cwl.sql:76-78 — a miss is the ABSENCE of a row, never a zero-star one.
       expect(await count(h, "cwl_attacks", "stars = 0")).toBe(0);
 
+      const warId = await firstWarId(h);
       const missed = await h.db.query<{ n: number }>(
         `select count(*)::int as n
            from cwl_war_members m
-          where not exists (
-            select 1 from cwl_attacks a
-             where a.war_id = m.war_id and a.player_id = m.player_id)`,
+          where m.war_id = '${warId}'
+            and not exists (
+              select 1 from cwl_attacks a
+               where a.war_id = m.war_id and a.player_id = m.player_id)`,
       );
-      expect(missed.rows[0]!.n).toBe(1);
+      expect(missed.rows[0]!.n).toBe(MISSED_COUNT);
     });
 
     it("creates a players row for a CWL participant sync:clans has never seen", async () => {
-      // The job runs against an empty players table, so every one of the five is
-      // unknown. Dropping them would drop their attacks, which is the one loss
-      // this project exists to prevent.
+      // The job runs against an empty players table, so every member of the
+      // roster is unknown. Dropping them would drop their attacks, which is the
+      // one loss this project exists to prevent.
       expect(await count(h, "players")).toBe(0);
       await runSyncJob("cwl", syncCwl, { client });
 
-      expect(await count(h, "players")).toBe(5);
-      expect(await count(h, "players", `clan_id = '${CLAN_A}'`)).toBe(5);
+      // Deduplicated by tag: the same roster arrives once per war the harness
+      // replays, and must not produce a player row each time (R5).
+      expect(await count(h, "players")).toBe(ROSTER_SIZE);
+      expect(await count(h, "players", `clan_id = '${CLAN_A}'`)).toBe(ROSTER_SIZE);
     });
 
     it("does not reassign a player who has since moved to another clan", async () => {
       const OTHER = "cccccccc-0000-4000-8000-000000000009";
+
+      // A tag from the ACTUAL captured roster. It used to be '#PY0LQGRJ', which
+      // was a synthetic player — once the real fixture landed, no such row was
+      // ever created and the assertion below silently stopped testing anything.
+      const MOVED = OURS.members[0]!.tag;
+
       await h.db.exec(`
         insert into clans (id, tag, name) values ('${OTHER}', '#9CUVPYQ2', 'Other clan');
         insert into players (clan_id, tag, name)
-        values ('${OTHER}', '#PY0LQGRJ', 'Moved player');
+        values ('${OTHER}', '${MOVED}', 'Moved player');
       `);
 
       await runSyncJob("cwl", syncCwl, { client });
@@ -269,11 +387,13 @@ describe("T4.1 — the CWL sync", () => {
       // sync:clans owns clan membership (T3.9). This job may not drag someone
       // back to the clan they played CWL for a month ago.
       const row = await h.db.query<{ clan_id: string }>(
-        `select clan_id from players where tag = '#PY0LQGRJ'`,
+        `select clan_id from players where tag = '${MOVED}'`,
       );
+      expect(row.rows).toHaveLength(1);
       expect(row.rows[0]!.clan_id).toBe(OTHER);
-      // ...and their attack is still recorded against the right war.
-      expect(await count(h, "cwl_attacks")).toBe(4);
+
+      // ...and their attacks are still recorded against the right wars.
+      expect(await count(h, "cwl_attacks")).toBe(ATTACK_COUNT * WAR_COUNT);
     });
 
     describe("running it repeatedly changes nothing (R5)", () => {
@@ -323,7 +443,7 @@ describe("T4.1 — the CWL sync", () => {
 
         const result = await runSyncJob("cwl", syncCwl, { client });
         expect(result).toBe("success");
-        expect(await count(h, "cwl_wars")).toBe(1);
+        expect(await count(h, "cwl_wars")).toBe(WAR_COUNT);
       });
     });
 
@@ -340,7 +460,8 @@ describe("T4.1 — the CWL sync", () => {
         const row = log.rows[0]!;
         expect(row.status).toBe("success");
         expect(row.finished_at).not.toBeNull();
-        expect(row.records_written).toBe(9); // 5 roster + 4 attacks
+        // roster + attacks, for every war the harness replayed.
+        expect(row.records_written).toBe((ROSTER_SIZE + ATTACK_COUNT) * WAR_COUNT);
       });
 
       it("records a failure rather than throwing out of the job", async () => {

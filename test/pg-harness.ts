@@ -53,6 +53,7 @@ export const PHASE1_MIGRATIONS = [
   "024_war.sql", // Phase 6 war_members, war lineups, and war_targets' write path
   "025_war_target_claim.sql", // T6.4 the member-claim path 024 left with no write route
   "026_war_opponent.sql", // T6.3 the other roster, fetched and discarded until now
+  "027_raid_detail.sql", // T7.1 the raid/Clan Games detail 004 had nowhere to put
 ] as const;
 
 export function readMigration(file: string): string {

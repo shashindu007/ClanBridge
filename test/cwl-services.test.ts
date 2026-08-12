@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import type { CwlAttack, CwlRosterEntry, CwlWar } from "@/repositories/cwl";
 import type { SyncRun } from "@/repositories/sync-log";
 import { missedAttacks, seasonContribution, seasonTotals, warRecord } from "@/services/cwl";
-import { ago, freshness } from "@/services/freshness";
+import { ago, freshness, STALE_AFTER_MS } from "@/services/freshness";
 
 function member(n: number): CwlRosterEntry {
   return {
@@ -160,6 +160,53 @@ describe("freshness — T4.8", () => {
   it("distinguishes never-run from stale", () => {
     expect(freshness(null, now).level).toBe("never");
     expect(freshness(run({ finishedAt: null }), now).level).toBe("never");
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // The drift this file exists to catch, and did not.
+  //
+  // Twice now a threshold here has fallen out of step with the schedule it
+  // describes. T6.2 moved the war sync from 15-minutely to hourly and left
+  // `war: 45 minutes` behind, so it read stale for the last quarter of every
+  // hour. `clan-games` had no entry at all and would have fallen through to
+  // the 3-hour default against a daily job — stale 21 hours out of 24.
+  //
+  // Both are the same failure: an indicator that cries wolf on a schedule is
+  // one nobody reads on the day it means something. These two tests are the
+  // tripwire, tied to health.ts's WATCHED list so a new scheduled job cannot
+  // be added without a threshold.
+  // ─────────────────────────────────────────────────────────────────────────
+  describe("every watched job has a threshold matched to its schedule", () => {
+    // Mirrors scripts/sync/health.ts's WATCHED. Not imported: that module
+    // builds an admin Supabase client at import time and needs the service key.
+    const WATCHED = ["clans", "cwl", "war", "raids", "clan-games"] as const;
+
+    it.each(WATCHED)("%s has an explicit entry, not the default", (jobType) => {
+      expect(STALE_AFTER_MS[jobType]).toBeDefined();
+    });
+
+    // A job may be late by up to its own interval plus GitHub's habit of
+    // delaying scheduled runs by twenty minutes. A threshold at or below the
+    // interval guarantees a permanent amber.
+    it.each([
+      ["clans", 60],
+      ["cwl", 120],
+      ["war", 60],
+      ["raids", 24 * 60],
+      ["clan-games", 24 * 60],
+    ])("%s allows more than its %i-minute interval", (jobType, intervalMinutes) => {
+      expect(STALE_AFTER_MS[jobType]!).toBeGreaterThan(intervalMinutes * 60 * 1000);
+    });
+
+    it("does not mark a daily job stale the morning after it ran", () => {
+      const ranAt = "2026-07-31T05:41:00Z"; // sync-raids.yml's cron
+      const nextMorning = new Date("2026-08-01T11:00:00Z"); // ~29h later
+      for (const jobType of ["raids", "clan-games"] as const) {
+        expect(
+          freshness(run({ jobType, finishedAt: ranAt }), nextMorning).level,
+        ).toBe("fresh");
+      }
+    });
   });
 
   it.each([
