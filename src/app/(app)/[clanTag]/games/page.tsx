@@ -43,10 +43,17 @@ import {
 import { latestRun } from "@/repositories/sync-log";
 import { freshness } from "@/services/freshness";
 import { gamesTotals, isSettled, leaderboard } from "@/services/clan-games";
+import { DISPLAY_ZONE } from "@/lib/display-time";
 
 export const dynamic = "force-dynamic";
 
 /** 'YYYY-MM' as something a person reads. */
+/**
+ * The season's month. Stays UTC deliberately: the date is CONSTRUCTED at
+ * midnight UTC on the first of the month purely to carry a 'YYYY-MM' key, and
+ * re-zoning it would roll it backwards into the previous month — labelling
+ * August's Clan Games "July 2026".
+ */
 function monthName(season: string): string {
   const [year, month] = season.split("-");
   if (!year || !month) return season;
@@ -57,6 +64,12 @@ function monthName(season: string): string {
   });
 }
 
+/**
+ * A real instant — when the Clan Games window opens and closes — so it shows in
+ * clan-local time (T9.9). This one matters more than most: the window opens at
+ * 08:00 UTC, which is 13:30 in Sri Lanka, and a member told "opens 08:00" waits
+ * half a day for something that already started.
+ */
 function when(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("en-GB", {
@@ -64,6 +77,7 @@ function when(iso: string | null): string {
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: DISPLAY_ZONE,
   });
 }
 

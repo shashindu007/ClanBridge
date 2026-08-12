@@ -133,9 +133,18 @@ export default async function AppLayout({
             {/* Cross-clan, so it lives here rather than under a clan tag: a CWL
                 season is picked across every clan a leader runs (T4B.7). */}
             {clans.some((c) => c.role === "leader" || c.role === "co-leader") && (
-              <Link href="/roster" className="hover:underline">
-                Rosters
-              </Link>
+              <>
+                <Link href="/roster" className="hover:underline">
+                  Rosters
+                </Link>
+                {/* T9.1 — objective O3, and it needs a way in. Leadership only:
+                    it lists every member of every clan with the reasons they
+                    were flagged, which is a leader's view of the family, not a
+                    member's view of their own clan. */}
+                <Link href="/report" className="hover:underline">
+                  Participation
+                </Link>
+              </>
             )}
             {showAdminLink && (
               <Link href="/admin" className="hover:underline">

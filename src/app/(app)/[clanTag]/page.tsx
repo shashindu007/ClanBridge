@@ -66,6 +66,7 @@ import {
 import { freshness } from "@/services/freshness";
 import { openWarAvailabilityPoll } from "@/services/polls";
 import { outstandingAttacks, warRecord } from "@/services/war";
+import { DISPLAY_ZONE } from "@/lib/display-time";
 
 export const dynamic = "force-dynamic";
 
@@ -176,7 +177,7 @@ function warStateBadge(war: WarRow) {
   return <Badge variant="outline">Ended</Badge>;
 }
 
-/** UTC in the database, local in the browser (T9.9). */
+/** Stored UTC, shown in clan-local time (T9.9). See lib/display-time.ts. */
 function when(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("en-GB", {
@@ -185,6 +186,7 @@ function when(iso: string | null): string {
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: DISPLAY_ZONE,
   });
 }
 

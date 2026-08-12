@@ -1362,8 +1362,36 @@ by name.*
 
 # Phase 9 — Consolidation
 
-- [ ] **T9.1 — Cross-clan report**
+- [x] **T9.1 — Cross-clan report**
   Participation across all three clans in one view. This is what the leader actually wants.
+
+  **Done 2026-08-12** — `/report`, `services/cross-clan.ts`, linked from the nav
+  for leadership only. Every member of every visible clan in one sortable list,
+  plus a per-clan summary card.
+
+  - **R3 — spanning clans is not the same as not filtering by clan**, and this
+    is the second page where that distinction is the whole risk (search, T3B.6,
+    was the first). One set of reads per clan over `visibleClans()`; nothing
+    queries `players` or `member_snapshots` unscoped and leans on RLS to sort it
+    out. RLS is the net, not the plan.
+  - **Flagged members sort first.** The page exists to answer "who has stopped
+    turning up", so the answer is at the top rather than behind a sort the
+    leader has to know to apply.
+  - **Median, not mean, for the per-clan ratio.** One member donating 40,000
+    drags a mean far above what a typical member there is doing, and the leader
+    reads that as "clan B is fine" while most of clan B donates nothing. The
+    median describes the middle member, which is the one the question is about.
+  - **Unknown is not zero.** A member the sync has not reached shows "—", never
+    0 — the difference between "new" and "inactive".
+  - `needsAttention()` (T3B.5) is called once with the whole list rather than
+    reimplemented, so this page and the per-clan attention list cannot drift
+    into two opinions. CWL counts are passed as zero and the flag they drive is
+    inert at zero by design; wiring them would be a roster-and-attack read per
+    player per season across every clan.
+
+  Advisory only, and the flags carry their reasons rather than a bare score. A
+  leader who cannot see why somebody was flagged cannot defend the decision to
+  them.
 
 - [x] **T9.2 — Admin page**
   `sync_log` history, failed jobs, manual sync trigger, member management.
@@ -1474,9 +1502,42 @@ by name.*
   any kind, anywhere in the codebase — confirmed by inspection, not merely by
   absence of a payment integration.
 
-- [ ] **T9.9 — Local time display**
+- [x] **T9.9 — Local time display**
   Every timestamp is stored UTC and displayed in the member's local time. Confirm war end times, CWL day boundaries, and raid weekend windows all show correctly for Sri Lanka.
   Off-by-one-day errors here are common and quietly make missed-attack lists wrong.
+
+  **This one was a real bug, not a confirmation exercise.** Every page formatted
+  timestamps with `new Date(iso).toLocaleString("en-GB", …)` inside a SERVER
+  component — and only `/login` and `/verify` are client components, so that is
+  all of them. `toLocaleString` there runs on the server and uses the server's
+  zone, which on Vercel is UTC, for every reader. `war/page.tsx` even carried
+  the comment *"UTC in the database, local in the browser (T9.9)"*, describing
+  the intention rather than the behaviour.
+
+  Sri Lanka is UTC+05:30, so a war ending 20:00 UTC on the 29th is 01:30 on the
+  30th locally. It rendered as "29 Jul, 20:00" — right instant, wrong day,
+  stated with complete confidence. Exactly the failure this task predicts.
+  `coc-time.test.ts` had asserted the Colombo boundary since T1.13; the display
+  layer simply never used it.
+
+  Fixed with two mechanisms, in `lib/display-time.ts`:
+
+  - **`formatDisplay()`** — server-side, always `DISPLAY_ZONE`
+    (`Asia/Colombo`). Correct for every member of these clans, needs no
+    JavaScript, cannot produce a hydration mismatch. Applied to all nine
+    affected helpers.
+  - **`<LocalTime>`** (`components/local-time.tsx`) — upgrades to the reader's
+    real zone once mounted, used where the value is a DEADLINE they act on. It
+    renders `DISPLAY_ZONE` on the server, so the two agree until the browser
+    takes over; `suppressHydrationWarning` is correct here rather than swept
+    under, because the server cannot know the reader's zone and the mismatch it
+    warns about IS the feature.
+
+  Two formatters deliberately stay UTC, and it is worth being explicit about
+  why: `monthName()` in `games/page.tsx` and `monthLabel()` in the player
+  profile both format a date CONSTRUCTED at midnight UTC to carry a `YYYY-MM`
+  key. Re-zoning those rolls them backwards into the previous month and labels
+  August's totals "Jul 2026".
 
 - [~] **T9.10 — Empty and loading states** — *loading half only*
   Every page needs a sensible state for: no war in progress, not CWL week, no layouts uploaded, new member with no history, and a sync that has never run. Three weeks of every month there is no CWL, so this is the normal state, not an edge case.

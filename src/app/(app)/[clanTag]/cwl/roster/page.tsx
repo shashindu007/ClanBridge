@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { requireClanByTag } from "@/lib/clans";
 import { createClient } from "@/lib/supabase/server";
 import { membersOfRoster, rosterFor, rosterSeasons } from "@/repositories/rosters";
+import { DISPLAY_ZONE } from "@/lib/display-time";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ function when(iso: string): string {
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: DISPLAY_ZONE,
   });
 }
 

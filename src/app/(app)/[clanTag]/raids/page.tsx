@@ -41,6 +41,7 @@ import {
 } from "@/repositories/raids";
 import { latestRun } from "@/repositories/sync-log";
 import { freshness } from "@/services/freshness";
+import { DISPLAY_ZONE } from "@/lib/display-time";
 import {
   historyTotals,
   isOngoing,
@@ -51,13 +52,14 @@ import {
 
 export const dynamic = "force-dynamic";
 
-/** UTC in the database, local in the browser (T9.9). */
+/** Stored UTC, shown in clan-local time (T9.9). See lib/display-time.ts. */
 function when(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
+    timeZone: DISPLAY_ZONE,
   });
 }
 

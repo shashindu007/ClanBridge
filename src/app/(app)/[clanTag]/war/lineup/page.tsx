@@ -52,6 +52,7 @@ import {
   unpublishLineup,
 } from "@/repositories/war";
 import { openWarAvailabilityPoll, optionShare } from "@/services/polls";
+import { DISPLAY_ZONE } from "@/lib/display-time";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,7 @@ function when(iso: string | null): string {
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: DISPLAY_ZONE,
   });
 }
 

@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { requireClanByTag } from "@/lib/clans";
 import { createClient } from "@/lib/supabase/server";
+import { DISPLAY_ZONE } from "@/lib/display-time";
 import {
   attacksForWar,
   lineupForWar,
@@ -65,6 +66,7 @@ function when(iso: string | null): string {
     day: "numeric",
     month: "short",
     year: "numeric",
+    timeZone: DISPLAY_ZONE,
   });
 }
 

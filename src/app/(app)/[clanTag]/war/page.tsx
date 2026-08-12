@@ -56,23 +56,12 @@ import {
   warRecord,
 } from "@/services/war";
 import { freshness, type Freshness } from "@/services/freshness";
+import { LocalTime } from "@/components/local-time";
 
 export const dynamic = "force-dynamic";
 
 function isLeadership(role: string): boolean {
   return role === "leader" || role === "co-leader";
-}
-
-/** UTC in the database, local in the browser (T9.9). */
-function when(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 function stateBadge(war: WarRow) {
@@ -250,7 +239,13 @@ export default async function WarBoardPage({
           </p>
           <p className="text-muted-foreground text-sm">
             {size}v{size} · {war.state === "preparation" ? "starts" : "ends"}{" "}
-            {when(war.state === "preparation" ? war.startTime : war.endTime)}
+            {/* The one timestamp on this page a member ACTS on, so it upgrades
+                to their real timezone rather than the clan default. Everything
+                else here is a record of what happened; this is a deadline. */}
+            <LocalTime
+              iso={war.state === "preparation" ? war.startTime : war.endTime}
+              style="weekday"
+            />
           </p>
         </div>
       </section>
