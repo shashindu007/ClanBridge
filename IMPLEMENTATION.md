@@ -21,9 +21,13 @@ run against the live game.
 
 **Done:** **Phase 2 entire** · Phase 1 entire · Phase 3 entire · **Phase 3B entire** ·
 T4.1–T4.8 · **Phase 4B entire** · **Phase 5 entire** ·
-**Phase 6 entire** · **Phase 7 entire** ·
+**Phase 6 entire** · **Phase 7 entire** · **Phase 8 entire** ·
 **Phase 9 except T9.4** — T9.1, T9.2, T9.5, T9.6, T9.7, T9.8, T9.9 done; T9.3
-and T9.10 done apart from the parts that wait on a deployment and on Phase 8.
+and T9.10 done apart from the parts that wait on a deployment.
+
+**Every phase in this document is now complete except T9.4 (restore test) and
+the deployment-side half of T9.3.** Both need something outside the codebase: a
+scratch Supabase project to restore into, and a Vercel deployment to inspect.
 Phase 8 is placeholders that name their own task ID.
 
 **Phase 0 is effectively complete — 13 of 14, and the 14th was dropped by
@@ -1345,20 +1349,111 @@ by name.*
 
 *Fully independent of everything else.*
 
-- [ ] **T8.1 — Storage bucket and policies**
+- [x] **T8.1 — Storage bucket and policies**
   Supabase Storage, RLS on the bucket.
 
-- [ ] **T8.2 — Browser-side compression**
+  **Two migrations, and the split is deliberate.** 028 carries the votes table,
+  the write policies 006 never gave `base_layouts`, the grants, and the voting
+  functions — all in `public`, so PGlite can test every one of them. 029
+  configures the Storage bucket and is **left out of `PHASE1_MIGRATIONS`**,
+  because the `storage` schema does not exist in a plain Postgres and stubbing
+  one would mean testing a mock of Supabase rather than Supabase. Its header
+  says plainly that those policies are the only part of Phase 8 the suite
+  cannot reach.
+
+  **Private bucket, not public.** A public bucket serves every object to anyone
+  holding the URL, and a war base is exactly what an opponent would like to see.
+  Object paths lead with the clan id so `storage.foldername(name)[1]` can be
+  checked against `auth_clan_ids()` — a flat `<layout_id>.jpg` would leave
+  nothing to filter on and push the check into the application, where
+  forgetting it fails open. **No DELETE policy at all** (R4): removing a layout
+  sets `deleted_at` and the image stays.
+
+  **006 shipped a select policy only, for the fourth time.** 021, 022 and 023
+  each had to add the write path for a table that already existed. A policy is
+  not a grant.
+
+- [x] **T8.2 — Browser-side compression**
   Resize and compress with canvas before upload. Target under 300 KB. This is what keeps you inside the 1 GB free tier.
 
-- [ ] **T8.3 — Upload flow**
+  `lib/layout-image.ts`. Longest edge 1280, quality stepped down through five
+  levels until the result fits, always emitting JPEG — a screenshot of a base is
+  a photograph as far as an encoder is concerned, and PNG's lossless encoding
+  runs several times the size for no visible gain. Never enlarges: scaling a
+  600px screenshot up to 1280 makes a bigger file out of the same information.
+
+  Quality is **measured rather than computed** from the input size, because the
+  relationship between the two depends entirely on the picture's content.
+
+  Two hundred layouts at 3 MB would be 600 MB of a 1 GB tier. At 250 KB the same
+  two hundred cost 50 MB.
+
+- [x] **T8.3 — Upload flow**
   Copy link, screenshot, Town Hall level, type (war / farming / trophy), description.
   Validate real file type, not the filename. Strip EXIF.
 
-- [ ] **T8.4 — Browse and filter**
+  **EXIF is stripped as a consequence, not as a step.** Drawing an image onto a
+  canvas and re-encoding produces a file containing pixels and nothing else — no
+  camera model, no timestamp, no GPS. That last one is why it matters: a
+  screenshot usually carries none, but a *photograph of a screen* taken on a
+  phone carries where it was taken, and members will do that. There is no
+  separate strip-EXIF call anywhere, because re-encoding is what strips it and a
+  stripper that could be forgotten would eventually be.
+
+  **File type is sniffed from magic bytes**, never the filename — a filename is
+  a string the client chose, and `evil.exe` renamed to `base.png` passes every
+  extension check ever written. An allow-list of JPEG/PNG/WebP, because a
+  deny-list is a promise to have thought of everything. The WebP check reads
+  both `RIFF` *and* `WEBP`, or any RIFF container (a `.wav`) would match.
+
+  **The copy link is checked as a parsed hostname**, so
+  `https://evil.example/?x=link.clashofclans.com` does not pass. A member
+  tapping "Open in game" has every reason to expect the game.
+
+  **The image is uploaded before the row is inserted**, which is not the obvious
+  order. The other way round leaves a row pointing at an image that does not
+  exist whenever the upload fails, and it renders as a broken card forever with
+  no way for a member to fix it. This way the failure mode is an orphaned object
+  costing a few hundred kilobytes — the same trade 029's missing DELETE policy
+  already accepts.
+
+- [x] **T8.4 — Browse and filter**
   By Town Hall level and type.
 
-- [ ] **T8.5 — Voting**
+  Filters compose and live in the URL, so a filtered library is a link. Applied
+  in the query rather than after it, so a clan with two hundred layouts does not
+  read all of them to show nine.
+
+  **Images are served through signed URLs minted per request**, in one batch
+  rather than one per card, for a member who has already passed the clan check.
+  They expire, so a link pasted into a chat stops working rather than becoming a
+  permanent hole. `base_layouts.image_url` therefore stores a *path*, not a URL.
+
+- [x] **T8.5 — Voting**
+
+  **`base_layouts.votes` is an integer, and an integer cannot answer the only
+  question voting has to answer** — have I already voted for this one? Without
+  that, every vote button is a +1 button, one member can hold it down, and the
+  ranking measures who cared most rather than what the clan thinks. It also
+  cannot be undone, because there is no record of who to undo.
+
+  So `base_layout_votes` carries one row per member per layout, and the counter
+  stays as a maintained cache so browse-by-popularity is a sort rather than an
+  aggregate per row. Both move inside one definer function: two statements from
+  the application can be interrupted between, leaving a score that disagrees
+  with the number of voters and nothing to say which is right. `authenticated`
+  has **no insert grant** on the votes table, so that path is the only one.
+
+  **R4, and the suite was right where the first draft was wrong.** That draft
+  used a real `DELETE` to withdraw a vote, arguing a retraction is not history.
+  `migrations.test.ts` rejected it — and 023 had already solved this exact shape
+  for `notification_preferences` with a **partial** unique index, so a tombstone
+  does not block a fresh row. The predicate is also what lets a member who
+  unvotes vote again later, which a plain unique constraint would have made
+  impossible. An invariant that holds everywhere beats a table-sized exception.
+
+  Another clan's layout raises **"layout not found" rather than "forbidden"**: a
+  distinct error would confirm the id exists (R3).
 
 ---
 
@@ -1463,9 +1558,14 @@ by name.*
   all, and `COC_API_TOKEN` only because `/api/verify` needs it (R6's carve-out).
   `GITHUB_DISPATCH_TOKEN` (T9.2) is Vercel-safe and belongs there.
 
-  Worth repeating after Phase 8: base layouts add a storage bucket and the first
-  user-uploaded content in the project, which is a new class of surface — file
-  type validation, EXIF stripping and bucket policies are all T8's to get right.
+  **Phase 8 has since landed, and it did add that surface.** What it brought:
+  a private bucket whose policies are the one part of this project the test
+  suite cannot reach (029 explains why), file types sniffed from magic bytes
+  rather than filenames, EXIF removed by re-encoding rather than by a step that
+  could be skipped, and copy links validated as parsed hostnames. Those are
+  worth re-reading during the deployment pass rather than taken on trust — a
+  storage bucket is the first place in this project where a member supplies
+  bytes rather than a form field.
 
 - [ ] **T9.4 — Restore test**
   Actually restore a backup into a scratch Supabase project. An untested backup is not a backup.
