@@ -54,6 +54,13 @@ export const PHASE1_MIGRATIONS = [
   "025_war_target_claim.sql", // T6.4 the member-claim path 024 left with no write route
   "026_war_opponent.sql", // T6.3 the other roster, fetched and discarded until now
   "027_raid_detail.sql", // T7.1 the raid/Clan Games detail 004 had nowhere to put
+  // T8.1/T8.5 the layout library's write path and one-vote-per-member.
+  //
+  // 029 is NOT here on purpose: it configures the Supabase Storage bucket, and
+  // the `storage` schema does not exist in a plain Postgres. Stubbing one would
+  // mean testing a mock of Supabase rather than Supabase, so 029 says in its own
+  // header that its policies are the one part of Phase 8 the suite cannot reach.
+  "028_base_layouts.sql",
 ] as const;
 
 export function readMigration(file: string): string {
@@ -189,6 +196,7 @@ export async function createHarness(
 export const PHASE1_TABLES = [
   "announcements",
   "audit_log",
+  "base_layout_votes",
   "base_layouts",
   "clan_games",
   "clan_games_scores",

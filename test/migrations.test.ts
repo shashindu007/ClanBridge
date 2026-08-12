@@ -152,9 +152,16 @@ async function seedFixtures(h: Harness) {
       ('11111111-0000-4000-8000-000000000005', '${PLAYER_A}', 4000),
       ('22222222-0000-4000-8000-000000000005', '${PLAYER_B}', 2500);
 
-    insert into base_layouts (clan_id, uploaded_by, th_level, layout_type, copy_link) values
-      ('${CLAN_A}', '${USER_A}', 15, 'war', 'https://link.clashofclans.com/a'),
-      ('${CLAN_B}', '${USER_B}', 14, 'farming', 'https://link.clashofclans.com/b');
+    insert into base_layouts (id, clan_id, uploaded_by, th_level, layout_type, copy_link) values
+      ('33333333-0000-4000-8000-000000000008', '${CLAN_A}', '${USER_A}', 15, 'war',
+       'https://link.clashofclans.com/a'),
+      ('44444444-0000-4000-8000-000000000008', '${CLAN_B}', '${USER_B}', 14, 'farming',
+       'https://link.clashofclans.com/b');
+
+    -- 028. One vote per clan, so the RLS probe has something to be denied.
+    insert into base_layout_votes (layout_id, user_id) values
+      ('33333333-0000-4000-8000-000000000008', '${USER_A}'),
+      ('44444444-0000-4000-8000-000000000008', '${USER_B}');
 
     insert into announcements (clan_id, author_id, title, body) values
       ('${CLAN_A}', '${USER_A}', 'A notice', 'body'),
@@ -278,6 +285,7 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
     //   push_subscriptions           023, a member registers their own device (T5.5)
     //   notification_preferences     023, a member sets their own toggles (T5.9)
     //   war_lineups, ..._members     024, leadership plans a war lineup (T6.8)
+    //   base_layouts                 028, any member uploads a layout (T8.3)
     //
     // The two from 023 are the only entries here whose subject and actor are the
     // same person, which is why they are plain policies rather than the audited
@@ -293,7 +301,15 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
     // war_targets is the one worth pausing on: it is a human decision, so it
     // could have had a policy — but assigning a target must be audited (R4), and
     // 024 makes it a definer function for the reason 021 states.
+    //
+    // base_layouts is here while base_layout_votes is NOT, and the split is the
+    // point: uploading a layout is a member's own row and needs no audit, but a
+    // VOTE has to move a counter on another table in the same breath. Two
+    // statements from the application can be interrupted between, leaving a
+    // score that disagrees with the number of people who voted and nothing to
+    // say which is right — so voting is a definer function (028).
     expect(res.rows.map((r) => r.tablename)).toEqual([
+      "base_layouts",
       "clan_roles",
       "clans",
       "cwl_roster_members",
