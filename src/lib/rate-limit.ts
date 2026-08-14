@@ -42,6 +42,21 @@ export const WRITE_LIMIT: RateLimitConfig = { max: 30, windowMs: 60 * 1000 };
 export const SYNC_TRIGGER_LIMIT: RateLimitConfig = { max: 3, windowMs: 60 * 60 * 1000 };
 
 /**
+ * T10.4 — password sign-in attempts.
+ *
+ * Generous enough that a member fumbling their password three times in a row
+ * never notices, tight enough that guessing is not a strategy. Fifteen minutes
+ * rather than an hour because the cost of getting this wrong is locking out a
+ * real person, and a real person will try again within the hour.
+ *
+ * Note what this is NOT protecting: before T10 the login form had no limit of
+ * any kind, because signInWithOtp went from the browser straight to Supabase and
+ * never passed through this application at all. It still does. This budget
+ * covers the password path, which is the one worth guessing at.
+ */
+export const SIGN_IN_LIMIT: RateLimitConfig = { max: 10, windowMs: 15 * 60 * 1000 };
+
+/**
  * Fixed-window counter held in process memory.
  *
  * Correct for tests and for local development. NOT correct in production: Vercel
