@@ -22,20 +22,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { safeNext } from "@/lib/safe-next";
 
-/**
- * Only ever redirect within this site.
- *
- * `next` arrives in a URL that is emailed out, so treating it as a bare
- * destination would turn every magic link into an open redirect: a link that
- * genuinely comes from ClanBridge, genuinely signs the member in, and then drops
- * them on someone else's page. Anything not a single-slash-prefixed relative
- * path is discarded rather than repaired.
- */
-function safeNext(raw: string | null): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
-  return raw;
-}
+// safeNext used to live here. It moved to lib/ when T10.4 added a second route
+// that establishes a session and needs the identical guard — see the note in
+// that file on why there must be exactly one copy.
 
 function errorRedirect(request: NextRequest, reason: string): NextResponse {
   const url = request.nextUrl.clone();
