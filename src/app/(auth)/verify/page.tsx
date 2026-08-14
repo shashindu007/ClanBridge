@@ -18,6 +18,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { isValidTag } from "@/lib/tags";
+import { SignOutButton } from "@/components/sign-out-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -180,6 +181,20 @@ export default function VerifyPage() {
         You can try five times an hour. If the token keeps being rejected, view it
         again in game — it changes each time you look at it.
       </p>
+
+      {/* T10.3 — this is the only authenticated page outside the app shell, so
+          without a button here it is the only page with no way out. A member who
+          opened a magic link on the wrong account lands exactly here, is asked
+          to prove they own a player tag, and needs to be able to say "not this
+          account" instead.
+
+          On the page rather than in (auth)/layout.tsx: the layout also wraps
+          /login, where deciding whether to show this needs a getUser() call, and
+          that is a network round trip added to the page members judge the whole
+          product's speed by. See the note in that file. */}
+      <div className="text-muted-foreground border-t pt-4 text-sm">
+        Wrong account? <SignOutButton />
+      </div>
     </div>
   );
 }
