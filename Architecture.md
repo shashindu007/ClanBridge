@@ -102,7 +102,7 @@ This is why the application needs a genuine backend and not just a sync pipeline
 | Concern | Choice | Free tier |
 |---|---|---|
 | Database | Supabase PostgreSQL | 500 MB |
-| Auth | Supabase Auth, email magic link | 50,000 monthly active users |
+| Auth | Supabase Auth, email magic link + password | 50,000 monthly active users |
 | File storage | Supabase Storage | 1 GB |
 | Database access | supabase-js plus SQL migrations | — |
 | Hosting | Vercel Hobby | Free, no card |
@@ -111,7 +111,17 @@ This is why the application needs a genuine backend and not just a sync pipeline
 | Push notifications | web-push, VAPID | Free, self-hosted |
 | Game API | Official API via RoyaleAPI proxy | Free |
 
-Magic-link authentication is chosen deliberately: no passwords to store, no password reset flow to build, and no password-related vulnerabilities. For a clan of ordinary members this is also easier to explain than any alternative.
+The magic link is how an account is **created**, and that has not changed: a link proves the address, and a leader still approves the person before any clan data is visible. It was originally chosen as the only mechanism, on the grounds that there would be no passwords to store, no reset flow to build, and no password-related vulnerabilities.
+
+**Phase 10 added a password anyway**, because the first of those was never the constraint that bit. Real members have more than one account — a second base under a second email — and with the link as the only door, every switch between them meant opening an inbox. There was also no sign-out at all: no `/logout`, no `signOut()` call, no cookie deletion anywhere in the project, so a session ended when it expired and not before. The two together made a second account effectively unreachable.
+
+What the trade actually costs is smaller than it looks, because none of it is implemented here:
+
+- **Nothing credential-shaped is stored in this database.** Passwords live in `auth.users.encrypted_password`, written only by `supabase.auth.updateUser({ password })`. There is no password column, no salt, no hash, and no hashing dependency in `package.json`. `test/account-credentials.test.ts` asserts that against `information_schema` so it stays true.
+- **The reset flow was not built**, because the magic link already is one: forget your password → sign in with a link → set a new one in Settings → Account.
+- **Password-related vulnerabilities** are the part that does arrive, and they are answered where they occur: `/api/auth/sign-in` is rate limited per address and per host, returns one sentence for every kind of failure so it cannot be used to enumerate accounts, and never puts the submitted password in a response or a log line.
+
+Every account is held on `/account/setup` until it has both a username and a password — see §2.2 of IMPLEMENTATION.md's T10 block for why that is compulsory rather than optional.
 
 ### 2.3 Deliberately not used
 

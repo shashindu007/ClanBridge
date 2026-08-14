@@ -23,12 +23,23 @@ run against the live game.
 T4.1–T4.8 · **Phase 4B entire** · **Phase 5 entire** ·
 **Phase 6 entire** · **Phase 7 entire** · **Phase 8 entire** ·
 **Phase 9 except T9.4** — T9.1, T9.2, T9.5, T9.6, T9.7, T9.8, T9.9 done; T9.3
-and T9.10 done apart from the parts that wait on a deployment.
+and T9.10 done apart from the parts that wait on a deployment ·
+**Phase 10 entire** — sign-out, password sign-in, the compulsory setup step, and
+four auth-adjacent security findings.
 
 **Every phase in this document is now complete except T9.4 (restore test) and
 the deployment-side half of T9.3.** Both need something outside the codebase: a
 scratch Supabase project to restore into, and a Vercel deployment to inspect.
 Phase 8 is placeholders that name their own task ID.
+
+**Phase 10 was not planned; it came from the member using the product.** He has
+two accounts and could not switch between them, because there was no sign-out
+anywhere in this codebase — no route, no `signOut()` call, no cookie deletion —
+and with the magic link as the only door, switching would have meant an inbox
+round trip each time regardless. Both halves are now fixed. Its own outstanding
+items are listed at the end of the Phase 10 block: migration 030 needs applying
+to the live database, and two Supabase dashboard settings need raising to match
+what the app tells members.
 
 **Phase 0 is effectively complete — 13 of 14, and the 14th was dropped by
 decision, not left undone.** T0.1–T0.12 and T0.14 are all done as of
@@ -1741,6 +1752,261 @@ by name.*
   outstanding because Phase 8 is not built. Its two placeholder pages are
   unlinked, so no member reaches them; they get real empty states when the
   feature lands rather than a placeholder dressed up as one.
+
+---
+
+## Phase 10 — Signing in, and signing out
+
+**The bug that started it, in the member's own words: he has two accounts — two
+bases, two email addresses — and once signed in as one of them there was no way
+to become the other.** He was right, and the cause was worse than he thought. A
+search of the whole repository for `logout|signOut|sign-out|destroy session|
+cookie delete` returned zero hits in `src/`, `supabase/`, `scripts/` and `test/`.
+There was no `/logout` route, no `supabase.auth.signOut()` call anywhere, no
+sign-out link in the shell, and no cookie deletion code of any kind. A session
+ended when it expired and not before. Clearing site data by hand was the
+workaround, and nothing in the product said so.
+
+That is one missing button. The second half is why the button alone would not
+have been enough: with the magic link as the only door, *every* switch between
+those two accounts means opening an inbox and waiting for mail to arrive. So
+Phase 10 is both — a real sign-out, and a password so that using it is cheap.
+
+**What did NOT change: how an account is created.** Sign-up is still the magic
+link, a leader still approves every account (T3.8), and verification still
+proves a player tag (T3.3). Nobody new can get in by a route that did not exist
+before.
+
+- [x] **T10.1 — Migration 030: `username` and `password_set_at`**
+  Two columns on `users`, no new policy, and the absence of the policy is the
+  part worth reading.
+
+  **No password is stored in this database and none ever should be.** Passwords
+  live in `auth.users.encrypted_password`, written only by
+  `supabase.auth.updateUser({ password })`. There is no password column, no
+  salt, no hash, and `package.json` gained no hashing dependency —
+  `test/account-credentials.test.ts` asserts that last point against
+  `information_schema` so that it stays true rather than remaining true by
+  nobody having got round to breaking it.
+
+  **Why no policy was needed.** 015's `"own profile update"` already grants
+  update on `users where id = auth.uid()`, and its guard trigger blocks exactly
+  three columns: `is_platform_admin`, `status`, `requested_clan_id`. Both new
+  columns therefore fall through as writable by their owner and nobody else,
+  which is the rule wanted. The next person to read 030 will look for a policy
+  and not find one, so the migration says this at length.
+
+  **One deliberate hole, recorded rather than closed.** `password_set_at` is
+  writable by its owner, so a member could set it without setting a password and
+  skip the setup step. That harms only them — the Sign in button then fails for
+  their account — and adding it to the guard trigger would block the setup
+  action, which is the only thing that legitimately writes it.
+
+  `username` is **not** the sign-in identifier. See T10.4.
+
+- [x] **T10.2 — `safeNext` extracted, and given the tests it never had**
+  It lived inside `auth/callback/route.ts` as a local function for eight phases,
+  untested, being the one guard between a genuine ClanBridge magic link and a
+  page on somebody else's domain. T10.4 gave it a second caller, so it moved to
+  `lib/safe-next.ts` — two copies of a redirect guard is one copy that gets
+  fixed and one that does not. `//evil.com` and `/\evil.com` both now have a
+  named test.
+
+- [x] **T10.3 — Sign out** — `src/app/auth/sign-out/route.ts`
+  A `POST` route handler, and each of the three reasons it is not a Server
+  Action matters: it sits under `/auth`, which `PUBLIC_PATHS` already reaches
+  without a session, so signing out of an *expired* session does not itself
+  bounce to `/login`; it is outside `(app)`, so neither the approval gate nor
+  the new setup gate can redirect it, which is what lets a member stranded on
+  `/account/setup` with the wrong account leave; and a plain
+  `<form method="post">` reaches it with no JavaScript.
+
+  **The failure it guards against is the silent one.** If one `sb-*` cookie
+  survives, `updateSession()` still resolves a user on the next request, the
+  member is bounced off `/login` back into the app, and the button looks like it
+  does nothing — indistinguishable from the bug it was written to fix. So the
+  route clears them explicitly on top of `signOut()`'s own clearing, because
+  this project never states the `@supabase/ssr` cookie names anywhere and
+  therefore cannot notice when they change.
+
+  303, not the default 307: a 307 preserves the method and re-POSTs to `/login`,
+  which is a page and answers 405. No `GET` handler — a GET sign-out is reachable
+  by a prefetch, an `<img src>`, or a link scanner in somebody's mail client.
+  Cross-origin POSTs are refused; a missing `Origin` is allowed, because a
+  browser cannot suppress it on a cross-site form post.
+
+- [x] **T10.4 — Password sign-in** — `src/app/api/auth/sign-in/route.ts`
+  **The identifier is the EMAIL, not the username**, and that was a decision
+  taken against the original request. Supabase Auth is keyed on email;
+  `signInWithPassword` takes an email. Signing in by handle would need an
+  endpoint that resolves a username to an email address, callable by anyone
+  holding the public anon key — which is in the JavaScript bundle. That is a
+  username-to-real-email harvester in exchange for a slightly shorter thing to
+  type. The username is kept as the display handle instead, which is what
+  actually solves the reported problem: the shell now shows *which* account you
+  are on.
+
+  **A route handler rather than calling `signInWithPassword` in the browser.**
+  The browser client would work — `@supabase/ssr` writes cookies either way — and
+  would be unlimited: every guess would travel from attacker to Supabase without
+  passing through anything this project controls. Structure follows
+  `/api/verify`: identify, limit, act.
+
+  **`SIGN_IN_LIMIT` — 10 per 15 minutes, keyed on both the folded address and
+  the host**, because the two stop different attacks: one account ground down
+  from a thousand hosts, and one host walking a list of addresses.
+
+  **It fails OPEN, and that is a deliberate disagreement with `/api/verify`,
+  which fails closed on the same condition.** Verify fails closed because
+  failing open exposes the game API key and there is nothing underneath it.
+  Sign-in has something underneath it: Supabase rate-limits its own token
+  endpoint per IP regardless. So the choice is not "limited or unlimited", it is
+  "our budget plus theirs, or theirs alone" — and failing closed means nobody
+  can get into the product at all because Upstash had a bad minute. Same
+  reasoning as `hasWriteBudget()`.
+
+  **Every credential failure returns the same sentence.** "Invalid login
+  credentials" and "Email not confirmed" are different Supabase strings for
+  different states; returning them turns this route into an oracle reporting
+  which addresses have accounts here. The real reason goes to the log. Four
+  distinct Supabase messages are asserted to produce byte-identical responses.
+
+  **`PUBLIC_PATHS` had to grow `/api/auth`, and that is the line most likely to
+  be dropped in a rewrite.** The middleware redirects every unauthenticated
+  non-public request to `/login`, and an unauthenticated request is the *only*
+  kind this route ever receives. Omitting it does not make the route secure — it
+  makes sign-in silently never work, and nothing else in the suite would notice,
+  because the route's own tests call `POST()` directly and pass.
+  `test/public-paths.test.ts` exists for that one line.
+
+- [x] **T10.5 — The compulsory setup step** — `(app)/account/setup/page.tsx`
+  Every account is held here, once, immediately after its first magic link,
+  until it has a username and a password.
+
+  **Compulsory rather than optional in Settings, because the optional version
+  fails silently:** members skip it, the Sign in button does not work for them,
+  and they find out by trying to sign in without their inbox and failing. A door
+  that works for some accounts and not others is worse than one door.
+
+  **The gate runs BEFORE the T3.8 approval gate, and the ordering is the whole
+  thing working.** A brand-new account is `pending` by definition, and every
+  account that predates Phase 10 has neither column set. Approval-first would
+  send all of them to `/pending`, where there is nothing to do and no way to
+  finish — so the Sign in button would never work for anybody and the magic link
+  would remain the only door. `"/account"` is in `GATE_EXEMPT` for the mirror
+  reason: without it the approval gate bounces them straight back off the setup
+  page.
+
+  This is the same defect class as the `/admin` bootstrap deadlock that
+  `lib/gate.ts` was written about, one phase later and worse — that one locked
+  out the first user, this would have locked out every user. Nothing would fail
+  loudly; every other test would pass. `src/lib/gate.test.ts` now asserts
+  `/account/setup` is exempt from **both** gates as a single case, because it is
+  a single bug.
+
+  **Writes go username → password → `password_set_at`.** The username is the
+  write that can fail on somebody else's data (the unique index), so it goes
+  first; the flag goes last because while it is null the member re-enters this
+  page, which is the correct place to be if any step above it did not finish.
+  The page is re-entrant and the index permits rewriting your own handle to the
+  value it already has — asserted in `test/account-credentials.test.ts`.
+
+  **One query, not four.** `(app)/layout.tsx` runs on every navigation and now
+  needs `status`, `username`, `password_set_at` and `email`. `accountProfile()`
+  fetches all four in one read and `accountStatus()` delegates to it, so the
+  gate cost nothing in round trips.
+
+- [x] **T10.6 — `/login` rewritten: two doors**
+  **Sign in** (email + password) and **Sign up** (the magic link, unchanged) as
+  distinct buttons on one page. One page rather than a `/signup` route, because
+  two forms can disagree about what an email address is.
+
+  **The password reset is the sign-up door used again**, deliberately: forgotten
+  password → get a link → Settings → Account → set a new one. No
+  `resetPasswordForEmail`, no second email template, no extra route, and the
+  mechanism it leans on is one that already has to work.
+
+  A `?signed-out=1` confirmation is rendered, because an unannounced return to
+  the login form is indistinguishable from a session that expired by itself —
+  which is exactly the confusion the sign-out button was added to end.
+
+  The old header comment and subtitle both asserted *"there is no password"*.
+  Both are rewritten rather than left as comments that lie.
+
+- [x] **T10.7 — Settings → Account** — `(app)/settings/account/page.tsx`
+  Change the username, change the password, sign out. Validation is shared with
+  T10.5 through `lib/account.ts` so the two pages cannot disagree about what a
+  valid handle is.
+
+  **The current password is not required, and that is a decision.** Requiring it
+  would close the reset path above for exactly the people who need it — somebody
+  who has forgotten their password cannot type it. The session is the proof, the
+  same proof every other write in this product accepts. If that stops being an
+  acceptable trade, the thing to turn on is Supabase's "secure password change"
+  reauthentication setting, at the auth layer where it belongs; do not
+  reimplement it in the page.
+
+- [x] **T10.8 — The auth-adjacent security findings**
+  Found while reading the system for the above, and fixed in the same pass.
+
+  **a. `/report` had no role check** — and this is the real one. The page checked
+  only `currentUserId` and `clans.length === 0`; the sole thing keeping ordinary
+  members out was that the nav link is rendered for leadership only. That link's
+  own comment says the page *"is a leader's view of the family, not a member's
+  view of their own clan"*. Any approved member who typed the URL got every
+  member of their clan with the reasons each was flagged. RLS still scoped it to
+  their own clans, so nothing crossed a clan boundary — but a hidden link is not
+  an access control, and this was the one page in the product gated by link
+  hiding alone. Now filters `visibleClans()` to leadership, the way `/roster`
+  already did.
+
+  **b. The login form had no rate limit at all** — `signInWithOtp` goes from the
+  browser straight to Supabase and never passes through this application, so
+  only Supabase's own email throttle applied. T10.4 covers the password path,
+  which is the one worth guessing at. The magic-link call is deliberately left
+  client-side: routing it through a server route would add a second endpoint to
+  protect in order to limit the *cheaper* attack.
+
+  **c. No security headers** — `next.config.ts` set only `images.remotePatterns`.
+  Added `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, and
+  HSTS (two years, subdomains, no `preload` — that is a submission to a list
+  baked into browsers and should be a deliberate act, not a config default).
+  Applied to `/:path*`, including `/api` and `/auth`; a header applied to pages
+  only is a header missing from the two routes that handle credentials.
+
+  **No CSP, and it is the obvious omission.** Next's App Router emits inline
+  bootstrap scripts, so a real one needs a per-request nonce threaded through
+  middleware — its own change, with its own way of silently breaking the app. A
+  CSP containing `'unsafe-inline'` is a header that looks like protection and is
+  not. **Outstanding, recorded rather than half-done.**
+
+  **d. Raw Postgres errors reached the browser** — most Server Actions redirect
+  with `?error=${error.message}`. React escapes it, so not XSS, but the member
+  saw things like `new row violates row-level security policy for table
+  "clan_roles"`, which tells them nothing actionable and tells a prober the
+  schema. The RLS one is the worse half: naming the table a policy guards is
+  describing the lock to whoever is picking it. `lib/errors.ts` logs the raw text
+  and returns a sentence; applied in the new auth code and in both `admin/`
+  files. **The remaining call sites are an outstanding mechanical sweep** —
+  `[clanTag]/notices`, `polls`, `war`, `layouts`, `roster` — left out of this
+  commit because a dozen unrelated files would make it unreviewable.
+
+**Outstanding after Phase 10, all of it needing something outside the repo:**
+
+- **Apply migration 030 to the live database**, then re-run `npm run types:db`.
+  Until both happen `src/types/database.ts` is stale for `users` (nothing
+  imports it today, which is why this type-checks regardless — that is a reason
+  to fix it, not to relax).
+- **Two Supabase dashboard settings**, and the app-side check is only a
+  courtesy: raise **Minimum password length** to 10 to match `lib/account.ts`,
+  and enable **leaked-password protection** (HaveIBeenPwned). `updateUser()`
+  applies the project setting regardless of what this codebase says, so if these
+  are not set the app promises something the backend does not keep.
+- **T9.3 needs re-running**, and now for two reasons rather than one: its own
+  note said to redo it after Phase 8 (which has since landed), and Phase 10 has
+  added the first password field in the product.
+- **The CSP** and **the `safeMessage` sweep**, both above.
 
 ---
 
