@@ -61,6 +61,7 @@ export const PHASE1_MIGRATIONS = [
   // mean testing a mock of Supabase rather than Supabase, so 029 says in its own
   // header that its policies are the one part of Phase 8 the suite cannot reach.
   "028_base_layouts.sql",
+  "030_account_credentials.sql", // T10.1 username + password_set_at, and the setup gate reads both
 ] as const;
 
 /**
