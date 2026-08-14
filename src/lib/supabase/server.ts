@@ -7,10 +7,25 @@
 // R6 — this file must never reference SUPABASE_SERVICE_KEY. The service client
 // lives in admin.ts and is imported only by scripts/.
 
+//
+// T10.9 — MEMOISED PER REQUEST, and that is what makes the auth helpers cheap.
+//
+// This function is called separately by the layout, by the page, and by any
+// helper either of them uses — five or six times in one render. Each call used
+// to build a fresh client object, which mattered for a reason that is not
+// obvious: React's cache() keys on ARGUMENT IDENTITY, so currentUserId(clientA)
+// and currentUserId(clientB) are different cache entries even when both clients
+// are configured identically. Every deduplication downstream in lib/auth.ts and
+// lib/clans.ts depends on there being exactly one client object per request.
+//
+// cache() scope is one request. Two members' requests never share a client, and
+// neither do a Server Action and the render that follows it.
+
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { cache } from "react";
 
-export async function createClient() {
+export const createClient = cache(async function createClient() {
   const cookieStore = await cookies();
 
   return createServerClient(
@@ -35,7 +50,7 @@ export async function createClient() {
       },
     },
   );
-}
+});
 
 function requireEnv(name: string): string {
   const value = process.env[name];

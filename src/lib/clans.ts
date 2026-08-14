@@ -10,6 +10,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { clanRoles, currentUserId } from "@/lib/auth";
 import { decodeTag, InvalidTagError } from "@/lib/tags";
 import type { ClanRole } from "@/types/domain";
@@ -22,8 +23,16 @@ export interface VisibleClan {
   role: ClanRole;
 }
 
-/** Every clan the user belongs to, ordered by tag so the switcher is stable. */
-export async function visibleClans(
+/**
+ * Every clan the user belongs to, ordered by tag so the switcher is stable.
+ *
+ * T10.9 — cached per request, because this is the most duplicated pair of
+ * queries in the product. (app)/layout.tsx calls it to build the clan switcher
+ * on every navigation, and then the page being navigated to calls
+ * requireClanByTag(), which calls it again for the same two queries and the same
+ * answer. /report and /roster call it a third time in their own filters.
+ */
+export const visibleClans = cache(async function visibleClans(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<VisibleClan[]> {
@@ -48,7 +57,7 @@ export async function visibleClans(
       // Non-null by construction: the id came from the roles map's own keys.
       role: roles.get(c.id) as ClanRole,
     }));
-}
+});
 
 /**
  * Resolve a `[clanTag]` route segment to a clan the signed-in user may actually see.
