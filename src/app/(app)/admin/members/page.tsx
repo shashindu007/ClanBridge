@@ -19,6 +19,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { currentUserId } from "@/lib/auth";
+import { safeMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -40,7 +41,13 @@ async function decide(formData: FormData) {
     { target },
   );
 
-  if (error) redirect(`/admin/members?error=${encodeURIComponent(error.message)}`);
+  // T10.8d — a code, not the raw text. approve_account() raises by name for
+  // "accounts cannot approve themselves", and the rest are Postgres internals
+  // that describe the definer function to whoever is poking at it.
+  if (error) {
+    safeMessage(`admin-members ${action}`, error, "");
+    redirect("/admin/members?error=failed");
+  }
 
   // The RPCs return false rather than raising when the caller lacks authority or
   // the account is no longer pending. Surfacing that matters: a silent no-op
@@ -107,7 +114,10 @@ export default async function AdminMembersPage({
               ? "The database refused that. Either you do not lead the clan this person applied to, they have not linked a player account yet, or their account is no longer pending."
               : error === "bad-request"
                 ? "Something was missing from that request."
-                : error}
+                : // T10.8d — every code this page produces is handled above, so
+                  // this branch is now unreachable rather than a place raw
+                  // Postgres text arrives.
+                  "That did not work. Check the server log for why."}
           </AlertDescription>
         </Alert>
       )}
