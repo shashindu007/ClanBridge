@@ -18,10 +18,11 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { accountStatus, currentUserId, isPlatformAdmin } from "@/lib/auth";
+import { accountProfile, currentUserId, needsAccountSetup } from "@/lib/auth";
 import { clanAccent } from "@/lib/clan-accent";
 import { visibleClans } from "@/lib/clans";
-import { isGateExempt } from "@/lib/gate";
+import { isGateExempt, isSetupExempt } from "@/lib/gate";
+import { SignOutButton } from "@/components/sign-out-button";
 import { PATHNAME_HEADER } from "@/lib/supabase/middleware";
 import { decodeTag } from "@/lib/tags";
 
@@ -61,23 +62,40 @@ export default async function AppLayout({
   if (!userId) redirect("/login");
 
   const pathname = (await headers()).get(PATHNAME_HEADER) ?? "";
-  const exempt = isGateExempt(pathname);
 
-  const status = await accountStatus(supabase, userId);
-  const approved = status === "approved";
+  const profile = await accountProfile(supabase, userId);
+  const approved = profile?.status === "approved";
 
-  if (!approved && !exempt) redirect("/pending");
-
-  // Issued TOGETHER, not one after the other. Both need only `userId`, so
-  // awaiting them in sequence made every navigation in the app wait for two
-  // round trips where one would do — and this layout re-runs on every one of
-  // them, so it was pure latency added to every page in the product.
+  // T10.5 — setup BEFORE approval, and the order is not arbitrary.
   //
-  // Not fetched at all while unapproved: there is nothing to show, and asking
-  // would just be two queries returning nothing on every /pending render.
-  const [clans, admin] = approved
-    ? await Promise.all([visibleClans(supabase, userId), isPlatformAdmin(supabase, userId)])
-    : [[], false];
+  // Every account that existed before T10 has no username and no password, and
+  // a brand-new one is 'pending' by definition. Running the approval gate first
+  // would send all of them to /pending, where there is nothing to do and no way
+  // to finish setting up — so the Sign in button would never work for anybody
+  // and the magic link would remain the only door. Approval is the second
+  // question because it is a question about an account that exists; this one is
+  // about whether it finished being made.
+  //
+  // "/account" is in GATE_EXEMPT for the mirror-image reason: without it the
+  // approval gate below immediately bounces them back off the setup page.
+  if (needsAccountSetup(profile) && !isSetupExempt(pathname)) {
+    redirect("/account/setup");
+  }
+
+  if (!approved && !isGateExempt(pathname)) redirect("/pending");
+
+  // T10.9 — one query, down from two.
+  //
+  // This used to be Promise.all([visibleClans, isPlatformAdmin]), issued
+  // together rather than in sequence, which was the right fix for the problem as
+  // understood then. The better fix is not to ask twice: isPlatformAdmin() read
+  // the `users` row that accountProfile() above had already fetched, so the
+  // parallel pair was one useful query racing a redundant one.
+  //
+  // Still not fetched at all while unapproved: there is nothing to show, and
+  // asking would be a query returning nothing on every /pending render.
+  const clans = approved ? await visibleClans(supabase, userId) : [];
+  const admin = profile?.isPlatformAdmin === true;
 
   // Which clan the switcher should mark as current. Purely cosmetic — the page
   // itself resolves the tag through requireClanByTag, which is what actually
@@ -154,9 +172,25 @@ export default async function AppLayout({
             <Link href="/settings/notifications" className="hover:underline">
               Notifications
             </Link>
+            <Link href="/settings/account" className="hover:underline">
+              Account
+            </Link>
             <Link href="/guide" className="hover:underline">
               Help
             </Link>
+
+            {/* T10.3 — who you are, then the way out.
+
+                The identity is not decoration. The bug that prompted all of this
+                was a member with two accounts who could not tell which one they
+                were signed in as and had no way to change it; a shell that shows
+                neither is how "I am on the wrong account" becomes a support
+                conversation. Username first because they chose it, email as the
+                fallback for the moments before setup has run. */}
+            <span className="text-muted-foreground border-l pl-3" title={profile?.email}>
+              {profile?.username ?? profile?.email ?? ""}
+            </span>
+            <SignOutButton />
           </div>
         </nav>
       </header>

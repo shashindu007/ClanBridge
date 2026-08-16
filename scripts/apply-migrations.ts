@@ -10,12 +10,67 @@
 // Each file runs inside its own transaction, so a failure rolls that file back
 // and stops — you never end up half-applied.
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Client } from "pg";
-import { PHASE1_MIGRATIONS } from "../test/pg-harness";
+import {
+  LIVE_ONLY_MIGRATIONS,
+  PHASE1_MIGRATIONS,
+  RETIRED_MIGRATIONS,
+} from "../test/pg-harness";
 
 const DIR = join(process.cwd(), "supabase", "migrations");
+
+/**
+ * What this script applies: the harness's list, then the ones only Supabase can
+ * run (the Storage bucket, 029). Numeric order is preserved because LIVE_ONLY
+ * files are always later than the schema they depend on — 029 needs
+ * public.clan_roles, which 001 created.
+ */
+const TO_APPLY = [...PHASE1_MIGRATIONS, ...LIVE_ONLY_MIGRATIONS];
+
+/**
+ * Refuse to run if any .sql file is in none of the three lists.
+ *
+ * This exists because of a near miss. 029 was written, committed, tested as far
+ * as it could be, and left out of PHASE1_MIGRATIONS on purpose — and
+ * `migrations:apply` then read that list and printed "Nothing to do", which was
+ * a true statement about the list and a false one about the database. Nothing
+ * anywhere said the word 029.
+ *
+ * A missing migration has no symptom at apply time. It surfaces later as a
+ * feature that fails for one user, in production, with an error from Postgres or
+ * the storage service that names a table or a bucket and never names a file. So
+ * the check is a hard stop rather than a warning: the cost of stopping is
+ * re-reading this comment, and the cost of continuing is a bug that looks like
+ * anything except what it is.
+ */
+function assertEveryFileIsAccountedFor(): void {
+  const known = new Set<string>([
+    ...PHASE1_MIGRATIONS,
+    ...LIVE_ONLY_MIGRATIONS,
+    ...RETIRED_MIGRATIONS,
+  ]);
+
+  const orphans = readdirSync(DIR)
+    .filter((f) => f.endsWith(".sql"))
+    .filter((f) => !known.has(f))
+    .sort();
+
+  if (!orphans.length) return;
+
+  console.error(
+    `\n  ${orphans.length} migration file(s) are in no list, so this script does not\n` +
+      "  know whether to apply them:\n\n" +
+      orphans.map((f) => `    ${f}`).join("\n") +
+      "\n\n  Add each one to test/pg-harness.ts:\n\n" +
+      "    PHASE1_MIGRATIONS     runs on PGlite and on Supabase — the normal case\n" +
+      "    LIVE_ONLY_MIGRATIONS  Supabase only (touches storage, auth, or another\n" +
+      "                          schema plain Postgres does not have)\n" +
+      "    RETIRED_MIGRATIONS    comment-only; nothing applies it\n",
+  );
+  process.exit(1);
+}
 
 /**
  * Records which migrations have run. Section 4: never edit an applied file.
@@ -49,6 +104,8 @@ function checksum(sql: string): string {
 }
 
 async function main(): Promise<void> {
+  assertEveryFileIsAccountedFor();
+
   const url = process.env.SUPABASE_DB_URL;
   if (!url) {
     console.error(
@@ -92,13 +149,18 @@ async function main(): Promise<void> {
     console.log(`  public schema: ${tableCount} tables\n`);
 
     let pending = 0;
-    for (const file of PHASE1_MIGRATIONS) {
+    for (const file of TO_APPLY) {
+      const liveOnly = (LIVE_ONLY_MIGRATIONS as readonly string[]).includes(file);
       const sql = readFileSync(join(DIR, file), "utf8");
       const sum = checksum(sql);
       const previous = applied.get(file);
 
+      // Marked in the output because it is the one class of file the test suite
+      // never saw. If it breaks, it breaks here or in production, nowhere else.
+      const mark = liveOnly ? "  [supabase only — not covered by npm test]" : "";
+
       if (previous === sum) {
-        console.log(`  applied   ${file}`);
+        console.log(`  applied   ${file}${mark}`);
         continue;
       }
 
@@ -114,7 +176,7 @@ async function main(): Promise<void> {
 
       pending += 1;
       if (listOnly) {
-        console.log(`  PENDING   ${file}`);
+        console.log(`  PENDING   ${file}${mark}`);
         continue;
       }
 
@@ -148,6 +210,22 @@ async function main(): Promise<void> {
 
         console.log("FAILED");
         console.error(`\n  ${message}\n\n  Rolled back. Nothing from this file was applied.`);
+
+        // The storage schema is owned by supabase_storage_admin, and on some
+        // projects the pooler's role cannot create policies on it. Postgres says
+        // "must be owner of table objects", which reads like the migration is
+        // wrong rather than like the connection is. It is not wrong; it is the
+        // one file that has to be pasted into the dashboard's SQL editor, which
+        // runs as a role that does own it.
+        if (liveOnly && /must be owner|permission denied/i.test(message)) {
+          console.error(
+            `\n  ${file} touches a schema Supabase owns.\n` +
+              "  Paste it into the dashboard SQL editor instead (SQL Editor -> New query),\n" +
+              "  then re-run this script — it will see the objects already exist and\n" +
+              "  record the file in the ledger.",
+          );
+        }
+
         process.exit(1);
       }
     }

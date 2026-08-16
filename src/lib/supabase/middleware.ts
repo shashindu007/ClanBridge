@@ -14,8 +14,31 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { WRITE_LIMIT, sharedRateLimiter } from "@/lib/rate-limit";
 
-/** Paths reachable without a session. Everything else redirects to /login. */
-const PUBLIC_PATHS = ["/login", "/auth"];
+/**
+ * Paths reachable without a session. Everything else redirects to /login.
+ *
+ *   /login     the form itself
+ *   /auth      the magic-link callback and the T10.3 sign-out, both of which
+ *              have to work when there is no valid session to begin with
+ *   /api/auth  T10.4's password sign-in. An unauthenticated POST is the ONLY
+ *              kind that ever arrives there, so omitting it does not make the
+ *              route secure — it makes the route answer a 307 to /login and
+ *              sign-in silently never work at all.
+ */
+export const PUBLIC_PATHS = ["/login", "/auth", "/api/auth"];
+
+/**
+ * Is this path reachable without a session?
+ *
+ * Segment-prefix matched, the same rule lib/gate.ts uses, so "/auth" covers
+ * "/auth/callback" but "/authorise" is not public. Exported so a test can assert
+ * the list without standing up a request — the failure mode here is a route that
+ * is quietly unreachable rather than one that is quietly exposed, and nothing
+ * else in the suite would notice.
+ */
+export function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
 
 /**
  * T9.7 — the write limit, applied once instead of in every Server Action.
@@ -104,8 +127,32 @@ function requireEnv(name: string, value: string | undefined): string {
   return value;
 }
 
+/**
+ * T10.9 — paths this function has nothing useful to do for.
+ *
+ * getUser() is an HTTPS round trip to Supabase's auth server on every single
+ * request that reaches here. For /api/auth/sign-in it buys nothing: the caller
+ * is unauthenticated by definition, the path is public so there is no redirect
+ * to make, it carries no `next-action` header so the write limiter does not
+ * apply, and the route establishes its own session on its own response. The call
+ * was pure latency added to the front of every sign-in.
+ *
+ * Deliberately narrow. /auth/callback is NOT here — it needs the cookie refresh
+ * machinery below — and neither is /login, which needs a user to answer "should
+ * this person be bounced into the app instead".
+ */
+function needsNoSession(pathname: string): boolean {
+  return pathname === "/api/auth" || pathname.startsWith("/api/auth/");
+}
+
 export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (needsNoSession(pathname)) {
+    return NextResponse.next({
+      request: { headers: headersWithPathname(request, pathname) },
+    });
+  }
 
   let response = NextResponse.next({
     request: { headers: headersWithPathname(request, pathname) },
@@ -141,11 +188,7 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isPublic = PUBLIC_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`),
-  );
-
-  if (!user && !isPublic) {
+  if (!user && !isPublicPath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     // Remember where they were headed so login can return them there.

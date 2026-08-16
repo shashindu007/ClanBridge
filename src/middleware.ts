@@ -19,7 +19,20 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   // Skip static assets, images, and the service worker (T5.4).
+  //
+  // T10.9 — the trailing `\..*$` clause is new, and it is the one that matters.
+  //
+  // The named exclusions only covered the files this project knew it had.
+  // Browsers ask for others unprompted — /favicon.ico, /apple-touch-icon.png,
+  // /robots.txt — and because `[clanTag]` is a dynamic segment at the ROOT of
+  // the routing tree, every one of those matched it. The dev log showed the
+  // result: `GET /favicon.ico 307 in 2965ms`, a full session lookup and a
+  // redirect, for an icon, on every single page load.
+  //
+  // Excluding anything with a file extension is safe here because a clan tag
+  // never contains a dot — they arrive URL-encoded as %232G8YQYRGJ, and
+  // lib/tags.ts rejects anything outside [0289PYLQGRJCUV].
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icons/|manifest.json|sw.js).*)",
+    "/((?!_next/static|_next/image|icons/|manifest.json|sw.js|.*\\..*$).*)",
   ],
 };

@@ -7,12 +7,14 @@
 // filter the most common bug in this project, and these policies are the net
 // that catches it.
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  LIVE_ONLY_MIGRATIONS,
   PHASE1_MIGRATIONS,
   PHASE1_TABLES,
+  RETIRED_MIGRATIONS,
   createHarness,
   readMigration,
   readSeed,
@@ -805,6 +807,73 @@ describe("supabase/apply-all.sql — the bundle that gets pasted", () => {
   it("excludes the T6.8 stub that is still comment-only", () => {
     const bundle = readFileSync(join(process.cwd(), "supabase", "apply-all.sql"), "utf8");
     expect(bundle).not.toContain(`-- 012_war_lineups.sql\n`);
+  });
+});
+
+/**
+ * Every .sql file is in exactly one list — the check that would have caught 029.
+ *
+ * PHASE1_MIGRATIONS answered two different questions for twenty-eight files
+ * running: what the schema consists of, and what has to be applied. 029 split
+ * them. It is deliberately absent from the harness list because PGlite has no
+ * storage schema — and being absent from the harness list also made it absent
+ * from `migrations:apply`, which then printed "Nothing to do" and meant it.
+ *
+ * The failure mode is what makes this worth a test rather than a convention. A
+ * forgotten migration produces no error when it is forgotten. It produces one
+ * later, from Postgres or the storage service, naming a missing table or bucket
+ * and never naming a file — for one user, in production, on the one path nobody
+ * ran locally because locally the file WAS applied.
+ */
+describe("the migration lists cover the directory", () => {
+  const files = readdirSync(join(process.cwd(), "supabase", "migrations"))
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
+
+  it("accounts for every file in the directory", () => {
+    const known = new Set<string>([
+      ...PHASE1_MIGRATIONS,
+      ...LIVE_ONLY_MIGRATIONS,
+      ...RETIRED_MIGRATIONS,
+    ]);
+    const orphans = files.filter((f) => !known.has(f));
+
+    expect(
+      orphans,
+      "Add each to PHASE1_MIGRATIONS (both), LIVE_ONLY_MIGRATIONS (Supabase only) " +
+        "or RETIRED_MIGRATIONS (nothing applies it) in test/pg-harness.ts",
+    ).toEqual([]);
+  });
+
+  it("names each file once and only once", () => {
+    const all = [...PHASE1_MIGRATIONS, ...LIVE_ONLY_MIGRATIONS, ...RETIRED_MIGRATIONS];
+    const seen = new Set<string>();
+    const twice = all.filter((f) => (seen.has(f) ? true : (seen.add(f), false)));
+
+    // A file in two lists is a file with two contradictory answers to "does this
+    // run on PGlite". Whichever the reader picks, half the tooling disagrees.
+    expect(twice).toEqual([]);
+  });
+
+  it("lists nothing that does not exist on disk", () => {
+    const onDisk = new Set(files);
+    const all = [...PHASE1_MIGRATIONS, ...LIVE_ONLY_MIGRATIONS, ...RETIRED_MIGRATIONS];
+
+    // A renamed or deleted file fails the harness with ENOENT at boot, which is
+    // loud. RETIRED_MIGRATIONS is the quiet one — nothing reads those, so a
+    // stale name there survives indefinitely and misdescribes the tree.
+    expect(all.filter((f) => !onDisk.has(f))).toEqual([]);
+  });
+
+  // The harness runs PHASE1_MIGRATIONS. Anything in LIVE_ONLY that PGlite could
+  // in fact run belongs in PHASE1 instead, where the suite can check it.
+  it("keeps live-only migrations to the schemas PGlite does not have", () => {
+    for (const file of LIVE_ONLY_MIGRATIONS) {
+      const sql = readMigration(file);
+      expect(sql, `${file} is live-only but touches no Supabase-owned schema`).toMatch(
+        /\b(storage|auth|realtime|vault)\./,
+      );
+    }
   });
 });
 

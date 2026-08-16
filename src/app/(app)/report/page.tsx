@@ -14,6 +14,19 @@
 // T3B.5 — ADVISORY ONLY. The flags here are reasons, never a score presented
 // alone, and nothing in this system acts on them. A member on holiday and a
 // member who has quit are identical from this data.
+//
+// T10.8a — LEADERSHIP ONLY, and it is checked here rather than assumed.
+//
+// This page previously had no role check at all. The nav link in (app)/layout.tsx
+// is rendered only for a leader or co-leader, and that hiding was the whole of
+// the protection — so any approved member who typed the URL got a list of
+// everyone in their clan with the reasons each was flagged. RLS still scoped it
+// to their own clans, so nothing crossed a clan boundary, but a member reading
+// which of their clanmates are "worth a look" is precisely what the link's own
+// comment says this page is not for.
+//
+// A hidden link is not an access control. /roster and /admin/audit both filter
+// by role in the page; this now does the same.
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -42,23 +55,36 @@ function ratioLabel(ratio: number | null): string {
   return ratio === null ? "—" : ratio.toFixed(2);
 }
 
+/** Same rule as /roster: co-leader and above. */
+function isLeadership(role: string): boolean {
+  return role === "leader" || role === "co-leader";
+}
+
 export default async function CrossClanReportPage() {
   const supabase = await createClient();
   const userId = await currentUserId(supabase);
   if (!userId) redirect("/login");
 
-  const clans = await visibleClans(supabase, userId);
+  const all = await visibleClans(supabase, userId);
 
-  // T9.10 — a member of exactly one clan is not an error and not a permission
-  // problem; the report simply has nothing to compare. Saying so beats an empty
-  // table that looks broken.
+  // T10.8a — the report covers only the clans this member LEADS, not every clan
+  // they are in. Filtering rather than refusing outright is the right shape: a
+  // co-leader of one clan and an ordinary member of another should see the first
+  // and not the second, and an all-or-nothing check would give them both or
+  // neither.
+  const clans = all.filter((c) => isLeadership(c.role));
+
   if (clans.length === 0) {
     return (
       <main className="mx-auto max-w-5xl space-y-4 p-8">
         <h1 className="text-2xl font-semibold tracking-tight">Participation</h1>
         <p className="text-muted-foreground text-sm">
-          You are not in any clan yet, so there is nothing to report on. A leader
-          needs to add you to one.
+          {all.length === 0
+            ? // T9.10 — being in no clan yet is not a permission problem, and
+              // saying "not permitted" to someone waiting to be added is both
+              // wrong and discouraging.
+              "You are not in any clan yet, so there is nothing to report on. A leader needs to add you to one."
+            : "This report is for leaders and co-leaders. It lists every member with the reasons they were flagged, which is not a view of your own clan you are meant to have."}
         </p>
       </main>
     );

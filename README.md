@@ -26,6 +26,28 @@ before you touch anything:
   design rather than rate limiting with a per-instance counter that limits nothing.
 - **No sync job has been run against the live API yet.** The workflows are written;
   none has had a green run.
+- **Migration 030 is not applied to the live database yet**, and until it is,
+  `src/types/database.ts` is stale for `users`. Apply it and re-run
+  `npm run types:db`. Two dashboard settings go with it — see the T10 block in
+  IMPLEMENTATION.md.
+
+## Signing in
+
+Two doors on `/login`, and they do different jobs:
+
+- **Sign up** sends a magic link. Still the only way an account is created, and a
+  leader still approves every one before any clan data is visible.
+- **Sign in** takes an email and a password. Every account is held on
+  `/account/setup` after its first link until it has chosen a username and a
+  password, so this door works for everybody.
+
+There is a **Sign out** button in the shell. Before Phase 10 there was not — no
+`/logout`, no `signOut()` call, no cookie deletion anywhere — which meant a member
+with two accounts was stuck on whichever one they last opened a link with. That is
+what the password is for: switching accounts should not require an inbox.
+
+Forgotten password: sign up with a link again, then Settings → Account. There is
+no separate reset flow, deliberately.
 
 ## Running it
 
@@ -58,7 +80,7 @@ everything above works offline and without an API key.
 
 | Path | What lives there |
 |---|---|
-| `src/app/` | Next.js App Router. `(auth)` is public, `(app)` requires a session |
+| `src/app/` | Next.js App Router. `(app)` requires a session; `(auth)` is the shell for `/login` and `/verify`, only the first of which is public |
 | `src/integration/` | The only code that knows Supercell's JSON shape (R7) |
 | `src/repositories/` | Database access. Every query filters by clan (R3) |
 | `src/services/` | Business logic between route handlers and repositories |

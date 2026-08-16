@@ -24,6 +24,7 @@ import { createClient } from "@/lib/supabase/server";
 import { currentUserId, isPlatformAdmin } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
 import { InvalidTagError, normaliseTag } from "@/lib/tags";
+import { isUniqueViolation, safeMessage } from "@/lib/errors";
 import { failedRuns, recentRuns, type SyncRunRecord } from "@/repositories/sync-log";
 import { ago, freshness } from "@/services/freshness";
 import { DISPATCHABLE, dispatchConfig, dispatchWorkflow, isDispatchable } from "@/lib/github";
@@ -53,8 +54,14 @@ async function claimOwnership() {
     redirect("/admin?error=not-owner");
   }
 
+  // T10.8d — a code, not the raw message. Postgres text here would name the
+  // definer function and its constraints to whoever is probing the bootstrap,
+  // which is the one URL an unapproved account can reach (lib/gate.ts).
   const { error } = await supabase.rpc("claim_platform_ownership");
-  if (error) redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  if (error) {
+    safeMessage("claim-ownership", error, "");
+    redirect("/admin?error=claim-failed");
+  }
 
   revalidatePath("/admin");
   redirect("/admin");
@@ -87,8 +94,9 @@ async function addClan(formData: FormData) {
   const { error } = await supabase.from("clans").insert({ tag, name });
 
   if (error) {
-    const reason = /duplicate key/.test(error.message) ? "duplicate" : error.message;
-    redirect(`/admin?error=${encodeURIComponent(reason)}`);
+    if (isUniqueViolation(error)) redirect("/admin?error=duplicate");
+    safeMessage("add-clan", error, "");
+    redirect("/admin?error=add-clan-failed");
   }
 
   revalidatePath("/admin");
@@ -109,7 +117,12 @@ async function grantSelfLeader(formData: FormData) {
     .from("clan_roles")
     .insert({ user_id: userId, clan_id: clanId, role: "leader" });
 
-  if (error) redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  if (error) {
+    // Almost always 015's "admin or leader grants roles" policy refusing, and
+    // saying so by name would describe the policy to whoever tried it.
+    safeMessage("grant-self-leader", error, "");
+    redirect("/admin?error=grant-failed");
+  }
 
   revalidatePath("/admin");
   redirect("/admin");
@@ -294,7 +307,16 @@ export default async function AdminPage({
                         ? "That is not a job that can be started by hand."
                         : error === "rate-limited"
                           ? "Too many manual runs. A sync is a repair, not a routine — wait an hour."
-                          : error}
+                          : error === "claim-failed"
+                            ? "The ownership claim was refused. Either this platform already has an admin, or something went wrong — check the server log."
+                            : error === "add-clan-failed"
+                              ? "Could not add that clan. Check the server log for why."
+                              : error === "grant-failed"
+                                ? "Could not grant you leader of that clan. You need to be the platform admin or already lead it."
+                                : // T10.8d — the remaining case is dispatchWorkflow's
+                                  // `detail`, which is text this project writes
+                                  // (lib/github.ts), not a database message.
+                                  error}
           </AlertDescription>
         </Alert>
       )}

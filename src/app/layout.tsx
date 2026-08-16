@@ -2,10 +2,34 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 // T5.3 — manifest and theme colour are what make the PWA installable.
+//
+// T10.9 — THE ICONS ARE A PERFORMANCE FIX, not decoration.
+//
+// This project had no favicon at all. That is not a cosmetic gap here, because
+// `[clanTag]` is a dynamic segment at the ROOT of the routing tree — so a
+// browser's automatic request for /favicon.ico matched /[clanTag] with a
+// "clan tag" of "favicon.ico" and rendered the whole (app) layout: session
+// lookup, profile read, clan list, the lot, before failing to find that clan.
+//
+// Every page load fires that request. The dev log showed it plainly —
+// `GET /favicon.ico 200 in 4777ms`, as slow as a real page, running in parallel
+// with the real page and competing with it for the server. Roughly double the
+// work on every navigation, for an icon.
+//
+// public/favicon.ico is served as a static file before routing ever happens, so
+// the request now costs a millisecond. Declaring the icons here as well stops
+// the browser guessing.
 export const metadata: Metadata = {
   title: "ClanBridge",
   description: "Clan management for three Clash of Clans clans.",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
+    ],
+    apple: "/icons/icon-192.png",
+  },
 };
 
 export const viewport: Viewport = {
