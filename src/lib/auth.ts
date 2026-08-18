@@ -38,7 +38,9 @@
 // their first argument.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { headers } from "next/headers";
 import { cache } from "react";
+import { USER_ID_HEADER } from "@/lib/request-headers";
 import type { ClanRole } from "@/types/domain";
 
 /** Thrown when the caller is authenticated but not permitted. Maps to HTTP 403. */
@@ -102,6 +104,23 @@ export interface AuthContext {
 }
 
 /**
+ * The user id middleware validated for this request, if this is a request at all.
+ *
+ * Falls back to null rather than throwing, and the fallback is the point: every
+ * caller of currentUserId() today runs inside a request, but headers() throws
+ * outside one, and a helper that brings down a page because it could not find an
+ * optimisation is worse than the round trip it was avoiding. A null here simply
+ * means the caller pays for getUser(), which is what it did before.
+ */
+async function forwardedUserId(): Promise<string | null> {
+  try {
+    return (await headers()).get(USER_ID_HEADER);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The signed-in user's id, or null.
  *
  * The single most-called function in the product — the layout wants it, the page
@@ -112,6 +131,17 @@ export interface AuthContext {
 export const currentUserId = cache(async function currentUserId(
   supabase: SupabaseClient,
 ): Promise<string | null> {
+  // Middleware has already done this exact work for this exact request, and
+  // getUser() is an HTTPS round trip. Reuse its answer when it is there.
+  //
+  // NOT a weaker check. The id is only present because middleware called
+  // getUser() and Supabase verified the token; forwardedHeaders() writes it
+  // unconditionally, so a browser cannot put one there itself. See
+  // USER_ID_HEADER for why that unconditional write is the whole safety
+  // argument.
+  const forwarded = await forwardedUserId();
+  if (forwarded) return forwarded;
+
   // getUser() revalidates the token with Supabase. getSession() trusts the
   // cookie, which the client controls — never use it for an authorisation check.
   //

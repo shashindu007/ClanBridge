@@ -35,39 +35,70 @@
 
   --radius: 0.625rem;
 
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
+  /* ── Chrome: wood and parchment ───────────────────────────────────────────
+     The game's own furniture — aged paper panels, dark wood, stone-blue
+     ironwork — rather than the slate greys shadcn ships with.
+
+     GOLD IS DELIBERATELY ABSENT, and it is the obvious omission. Gold is the
+     colour a Clash palette reaches for first, and --warning is already amber
+     and already reserved. A gold button beside an amber "sync failed" badge
+     makes them the same colour to the reader, and the badge is the one thing
+     in this product that must never be ignorable. The wood tones carry the
+     identity instead; the ironwork blue carries the actions.
+
+     Homage, not imitation: no Supercell asset, mark or artwork is used here,
+     which is the line T0.12 and T9.8 draw.
+
+     Measured against the new surfaces, not inherited:
+       foreground on background     14.62:1
+       foreground on secondary      13.49:1
+       muted-foreground on bg        5.70:1   (5.26:1 on --muted)
+       secondary-foreground on it   11.69:1
+       primary-foreground on it      6.56:1
+       primary on background         6.26:1   (links)
+       accent-foreground on it       8.30:1
+       ring on background            3.33:1   (focus, >= 3)
+       border on background          1.44:1   (1.52:1 on --card) */
+  --background: oklch(0.972 0.017 85);
+  --foreground: oklch(0.255 0.03 62);
+  --card: oklch(0.991 0.008 85);
+  --card-foreground: oklch(0.255 0.03 62);
+  --popover: oklch(0.991 0.008 85);
+  --popover-foreground: oklch(0.255 0.03 62);
+  /* Ironwork blue. Every button, link and focus ring in the product. */
+  --primary: oklch(0.47 0.105 248);
+  --primary-foreground: oklch(0.988 0.01 85);
+  --secondary: oklch(0.945 0.028 82);
+  --secondary-foreground: oklch(0.3 0.035 60);
+  --muted: oklch(0.945 0.028 82);
+  --muted-foreground: oklch(0.495 0.038 66);
   /* Was byte-identical to --secondary and --muted, which meant every
      `hover:bg-accent` in the app — the clan switcher, ghost and outline
      buttons, table rows — hovered to a grey indistinguishable from not
-     hovering. Now a blue tint, so hover is visible everywhere at once. */
-  --accent: oklch(0.948 0.018 250.6);
-  --accent-foreground: oklch(0.433 0.128 256.5);
+     hovering. Now a deeper tan than the surfaces around it, so hover is
+     visible everywhere at once. */
+  --accent: oklch(0.918 0.046 78);
+  --accent-foreground: oklch(0.37 0.062 60);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
+  --border: oklch(0.855 0.04 78);
+  --input: oklch(0.855 0.04 78);
+  --ring: oklch(0.62 0.095 248);
 
   /* ── Status. Reserved; see the header. ────────────────────────────────────
      -mark  the icon, the dot, the border  (>= 3:1 vs surface, or icon+label)
      -ink   text on the tinted surface     (>= 4.5:1, measured vs that tint)
      -tint  the surface itself, mixed from -mark so one value drives both modes
 
-     measured, mark on #ffffff and ink on its own tint:
-       success  mark 3.35:1   ink 6.56:1
-       warning  mark 1.83:1   ink 6.95:1   ← sub-3:1 BY DESIGN, icon+label only
-       info     mark 4.42:1   ink 6.97:1
+     re-measured on the parchment background, ink on its own tint:
+       success  mark 3.09:1   ink 6.56:1
+       warning  mark 1.69:1   ink 6.95:1   ← sub-3:1 BY DESIGN, icon+label only
+       info     mark 4.08:1   ink 6.97:1
+
+     Every mark lost roughly a tenth of its ratio when the background stopped
+     being #ffffff (3.35 / 1.83 / 4.42 before). Success still clears 3:1 and
+     info still clears 4.5:1; warning was already below 3:1 on purpose. The
+     icon and the label were never optional and are what carry these.
 
      There is deliberately no --destructive-tint. `destructive` already means
      something everywhere in this app and both its variants use --destructive
@@ -80,7 +111,17 @@
   --info: oklch(0.575 0.163 255.5);
   --info-ink: oklch(0.433 0.128 256.5);
 
-  /* Each mark laid over --background at 12%, computed once and written out —
+  /* Each mark laid over WHITE at 12%, computed once and written out.
+
+     Over white, and no longer over --background, which is what this line used
+     to say and what these values used to be. Re-derived over parchment they
+     stop working: a cool mark washed over a warm surface neutralises, and
+     --info-tint came out #dee1df — a grey. A status surface that has taken on
+     the page's own warmth is a status surface the eye no longer separates from
+     the page, which defeats the whole point of it. So they stay cool against a
+     warm background, deliberately, and the ink ratios above are unchanged
+     because ink is measured against its own tint rather than against the page.
+
      NOT `color-mix(...)` at run time, which was tried and cannot be made safe
      here. Lightning CSS wraps every color-mix in `@supports` and, where it is
      unsupported, collapses the token to its FIRST argument: --info-tint became
@@ -108,33 +149,45 @@
 
      Slots 1-3 of the reference categorical palette. Validated as a set, all
      pairs, both modes: worst colour-blind separation ΔE 9.2 light / 9.4 dark
-     (>= 8 target), worst normal-vision ΔE 24.0 / 20.9 (>= 15 floor). Aqua is
-     2.82:1 on white, so it never appears without the clan name beside it. */
+     (>= 8 target), worst normal-vision ΔE 24.0 / 20.9 (>= 15 floor). The hues
+     are unchanged by the wood-and-parchment chrome; only what they sit on
+     moved, so the separations above still hold and only the contrasts shifted:
+     4.08 / 2.95 / 2.60 on parchment, from 4.42 / 3.20 / 2.82 on white. Two of
+     the three are below 3:1 — which is why the clan NAME is always beside the
+     dot, and was already why before. */
   --clan-1: oklch(0.575 0.163 255.5);
   --clan-2: oklch(0.671 0.175 40.6);
   --clan-3: oklch(0.669 0.141 162.1);
 }
 
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.252 0.061 262.8);
-  --accent-foreground: oklch(0.984 0.003 247.858);
+  /* Night wood. The same furniture after dark, measured on it:
+       foreground on background     15.96:1   (14.27:1 on --card)
+       muted-foreground on bg        7.89:1   (6.28:1 on --muted)
+       secondary-foreground on it   12.69:1
+       primary-foreground on it      6.85:1
+       primary on background         7.01:1
+       accent-foreground on it      12.41:1
+       ring on background            4.74:1 */
+  --background: oklch(0.188 0.019 58);
+  --foreground: oklch(0.948 0.016 85);
+  --card: oklch(0.238 0.024 56);
+  --card-foreground: oklch(0.948 0.016 85);
+  --popover: oklch(0.238 0.024 56);
+  --popover-foreground: oklch(0.948 0.016 85);
+  --primary: oklch(0.7 0.098 248);
+  --primary-foreground: oklch(0.2 0.022 58);
+  --secondary: oklch(0.278 0.03 60);
+  --secondary-foreground: oklch(0.948 0.016 85);
+  --muted: oklch(0.278 0.03 60);
+  --muted-foreground: oklch(0.735 0.03 78);
+  --accent: oklch(0.285 0.032 62);
+  --accent-foreground: oklch(0.948 0.016 85);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.6 0.075 248);
 
   /* Same four meanings, re-stepped for the dark surface — not an automatic
      flip. The marks stay put (they clear 3:1 on #020618 already); the inks

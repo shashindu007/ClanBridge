@@ -36,25 +36,41 @@ export const visibleClans = cache(async function visibleClans(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<VisibleClan[]> {
-  const roles = await clanRoles(supabase, userId);
-  if (roles.size === 0) return [];
+  // T10.9 — issued together, not one after the other.
+  //
+  // These used to be sequential because the clans query filtered on
+  // `.in("id", [...roles.keys()])`, so it could not start until the roles had
+  // come back. Two round trips to a database in another region, on every
+  // navigation, to answer a question about two clans.
+  //
+  // R3 IS NOT WEAKENED BY DROPPING THAT FILTER, and it is worth being exact
+  // about why, because "select every clan" is precisely the shape this project
+  // forbids elsewhere. Two things restrict the result and they are independent:
+  // 006's "read own clans" policy is `id in (select auth_clan_ids())`, so the
+  // database returns only this member's clans to this member's session; and the
+  // filter below drops anything the roles map does not vouch for. The filter is
+  // what keeps the guarantee visible in application code — and what keeps the
+  // offline suite honest, since the PGlite stand-in has no RLS to fall back on.
+  const [roles, { data, error }] = await Promise.all([
+    clanRoles(supabase, userId),
+    supabase
+      .from("clans")
+      .select("id, tag, name, badge_url")
+      .is("deleted_at", null)
+      .order("tag"),
+  ]);
 
-  const { data, error } = await supabase
-    .from("clans")
-    .select("id, tag, name, badge_url")
-    .in("id", [...roles.keys()])
-    .is("deleted_at", null)
-    .order("tag");
-
-  if (error || !data) return [];
+  if (error || !data || roles.size === 0) return [];
 
   return (data as Array<{ id: string; tag: string; name: string; badge_url: string | null }>)
+    .filter((c) => roles.has(c.id))
     .map((c) => ({
       id: c.id,
       tag: c.tag,
       name: c.name,
       badgeUrl: c.badge_url,
-      // Non-null by construction: the id came from the roles map's own keys.
+      // Non-null by construction: the filter above kept only ids the roles map
+      // holds.
       role: roles.get(c.id) as ClanRole,
     }));
 });
