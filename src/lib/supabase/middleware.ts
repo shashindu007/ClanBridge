@@ -13,6 +13,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { WRITE_LIMIT, sharedRateLimiter } from "@/lib/rate-limit";
+import { PATHNAME_HEADER, USER_ID_HEADER } from "@/lib/request-headers";
 
 /**
  * Paths reachable without a session. Everything else redirects to /login.
@@ -93,27 +94,23 @@ async function hasWriteBudget(key: string): Promise<boolean> {
 }
 
 /**
- * Header carrying the current path down to Server Components.
- *
- * (app)/layout.tsx needs it for the T3.8 gate: it redirects an unapproved user
- * to /pending, and /pending lives inside (app), so without knowing the current
- * path the layout redirects /pending to /pending forever. `headers()` in a
- * Server Component exposes request headers but not the pathname, so middleware
- * has to put it there.
- */
-export const PATHNAME_HEADER = "x-pathname";
-
-/**
- * A fresh header set carrying PATHNAME_HEADER.
+ * A fresh header set carrying PATHNAME_HEADER and USER_ID_HEADER.
  *
  * Read from `request.headers` at call time rather than from a snapshot, because
  * `request.cookies.set()` mutates the request's cookie header — capturing the
  * headers before that write would send the stale cookie downstream and undo the
  * session refresh.
  */
-function headersWithPathname(request: NextRequest, pathname: string): Headers {
+function forwardedHeaders(
+  request: NextRequest,
+  pathname: string,
+  userId: string | null,
+): Headers {
   const headers = new Headers(request.headers);
   headers.set(PATHNAME_HEADER, pathname);
+  // set-or-delete, never "leave what arrived". See USER_ID_HEADER above.
+  if (userId) headers.set(USER_ID_HEADER, userId);
+  else headers.delete(USER_ID_HEADER);
   return headers;
 }
 
@@ -150,13 +147,27 @@ export async function updateSession(request: NextRequest) {
 
   if (needsNoSession(pathname)) {
     return NextResponse.next({
-      request: { headers: headersWithPathname(request, pathname) },
+      request: { headers: forwardedHeaders(request, pathname, null) },
     });
   }
 
-  let response = NextResponse.next({
-    request: { headers: headersWithPathname(request, pathname) },
-  });
+  // Cookies the session refresh wrote, held until the response is built.
+  //
+  // This used to rebuild `response` inside setAll(). It cannot any more: the
+  // forwarded headers now carry the user id, and the user id is not known until
+  // getUser() has returned — which happens after setAll() has already run. So
+  // the writes are collected here and replayed onto the one response built at
+  // the end.
+  //
+  // The warning at the top of this file still holds and is the reason this is
+  // written out rather than left implicit: the response that is returned MUST
+  // carry these cookies, or the refreshed session is silently discarded and
+  // members are logged out at apparently random intervals.
+  const refreshedCookies: Array<{
+    name: string;
+    value: string;
+    options?: Record<string, unknown>;
+  }> = [];
 
   const supabase = createServerClient(
     requireEnv("NEXT_PUBLIC_SUPABASE_URL", process.env.NEXT_PUBLIC_SUPABASE_URL),
@@ -171,14 +182,12 @@ export async function updateSession(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           for (const { name, value } of cookiesToSet) {
+            // Still written onto the request, so getUser() below and anything
+            // reading cookies downstream sees the refreshed value rather than
+            // the expired one it arrived with.
             request.cookies.set(name, value);
           }
-          response = NextResponse.next({
-            request: { headers: headersWithPathname(request, pathname) },
-          });
-          for (const { name, value, options } of cookiesToSet) {
-            response.cookies.set(name, value, options);
-          }
+          refreshedCookies.push(...cookiesToSet);
         },
       },
     },
@@ -222,5 +231,14 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Built once, here, because this is the first point at which both halves are
+  // known: the refreshed cookies from setAll() above, and the validated user id
+  // that saves the render a second getUser().
+  const response = NextResponse.next({
+    request: { headers: forwardedHeaders(request, pathname, user?.id ?? null) },
+  });
+  for (const { name, value, options } of refreshedCookies) {
+    response.cookies.set(name, value, options);
+  }
   return response;
 }

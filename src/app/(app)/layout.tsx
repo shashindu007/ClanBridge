@@ -23,7 +23,7 @@ import { clanAccent } from "@/lib/clan-accent";
 import { visibleClans } from "@/lib/clans";
 import { isGateExempt, isSetupExempt } from "@/lib/gate";
 import { SignOutButton } from "@/components/sign-out-button";
-import { PATHNAME_HEADER } from "@/lib/supabase/middleware";
+import { PATHNAME_HEADER } from "@/lib/request-headers";
 import { decodeTag } from "@/lib/tags";
 
 // The exempt list and its reasoning live in lib/gate.ts, so they can be tested
@@ -63,7 +63,17 @@ export default async function AppLayout({
 
   const pathname = (await headers()).get(PATHNAME_HEADER) ?? "";
 
-  const profile = await accountProfile(supabase, userId);
+  // T10.9 — the profile and the clan switcher are fetched together.
+  //
+  // They are independent reads, and they used to run one after the other only
+  // because the clans query sat behind the `approved` check below. That saved a
+  // query for the rare unapproved member and cost a round trip for every other
+  // member on every single navigation — the wrong way round. Now both are in
+  // flight at once and an unapproved member simply discards an answer.
+  const [profile, allClans] = await Promise.all([
+    accountProfile(supabase, userId),
+    visibleClans(supabase, userId),
+  ]);
   const approved = profile?.status === "approved";
 
   // T10.5 — setup BEFORE approval, and the order is not arbitrary.
@@ -92,9 +102,10 @@ export default async function AppLayout({
   // the `users` row that accountProfile() above had already fetched, so the
   // parallel pair was one useful query racing a redundant one.
   //
-  // Still not fetched at all while unapproved: there is nothing to show, and
-  // asking would be a query returning nothing on every /pending render.
-  const clans = approved ? await visibleClans(supabase, userId) : [];
+  // Still not SHOWN while unapproved — a /pending render has no switcher — but
+  // the emptying happens here rather than by withholding the query, which is
+  // what lets it be issued alongside the profile above.
+  const clans = approved ? allClans : [];
   const admin = profile?.isPlatformAdmin === true;
 
   // Which clan the switcher should mark as current. Purely cosmetic — the page
