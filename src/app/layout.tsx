@@ -33,7 +33,12 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f172a",
+  // --wood-2, the mid tone of the header rail, in hex because the manifest and
+  // the browser chrome cannot read a CSS custom property. It was slate-900,
+  // left over from the shadcn defaults, which put a cold blue-black band above
+  // a warm wooden header on every installed PWA. If the rail's colour changes,
+  // this is the second place to change it.
+  themeColor: "#412c1f",
 };
 
 export default function RootLayout({
@@ -43,9 +48,20 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>
-        {children}
-        <footer className="border-t px-4 py-4 text-center">
+      <body className="flex min-h-screen flex-col">
+        {/* The page's light and texture. A real element rather than a
+            `body::before`, because body paints an opaque --background and a
+            negative-z pseudo-element would sit behind it and never be seen.
+            Everything it draws is generated — see globals.css on why there is
+            no image here and never will be. */}
+        <div aria-hidden className="cb-backdrop" />
+
+        {/* flex-1 so the footer sits at the bottom of the viewport on a short
+            page instead of half way up it, which is where a page with one
+            sentence on it used to leave the fan content notice. */}
+        <div className="flex-1">{children}</div>
+
+        <footer className="mt-8 border-t px-4 py-4 text-center">
           {/* T9.8 — the exact notice named in Supercell's Fan Content Policy
               ("Insert disclaimers"), recorded at T0.12. Not paraphrased: the
               policy asks for this wording "or a substantially similar

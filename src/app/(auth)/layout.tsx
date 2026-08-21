@@ -25,5 +25,16 @@ export default function AuthLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <div className="mx-auto max-w-md p-8">{children}</div>;
+  // The panel is the whole visual change here, and /login is the page it
+  // matters most on: it is the first thing anybody sees and it was a column of
+  // form fields floating on a flat page. On the textured backdrop it now reads
+  // as a sheet of parchment sitting on a table.
+  //
+  // Still synchronous. Nothing above is a data call and nothing below is
+  // either — see the comment above on why that is worth protecting.
+  return (
+    <div className="mx-auto w-full max-w-md p-6 sm:p-8">
+      <div className="cb-panel rounded-xl border p-6 sm:p-8">{children}</div>
+    </div>
+  );
 }

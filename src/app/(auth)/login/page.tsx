@@ -143,7 +143,27 @@ function LoginForm() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">ClanBridge</h1>
+        {/* The mark, the same shield the app shell and the page backdrop use.
+            The sign-in screen carried no branding at all beyond the word. */}
+        <div
+          className="cb-emblem text-primary size-11 rounded-xl"
+          style={{ "--emblem": "var(--primary)" } as React.CSSProperties}
+        >
+          <svg
+            aria-hidden
+            viewBox="0 0 132 132"
+            className="size-6"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={7}
+            strokeLinejoin="round"
+          >
+            <path d="M66 20 L98 33 v27 c0 21-15 36-32 45-17-9-32-24-32-45V33z" />
+            <path d="M66 33 v59" />
+            <path d="M40 47 h52" />
+          </svg>
+        </div>
+        <h1 className="pt-1 text-2xl font-semibold tracking-tight">ClanBridge</h1>
         <p className="text-muted-foreground text-sm">
           {mode === "signin"
             ? "Sign in with your email and password."

@@ -185,7 +185,7 @@ export default async function ClanGamesPage({
       ) : (
         <>
           {/* ── The month ──────────────────────────────────────────────────── */}
-          <section className="bg-card space-y-4 rounded-lg border p-6">
+          <section className="cb-panel space-y-4 rounded-xl border p-6">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-medium">{monthName(games.season)}</h2>
               {settledBadge(games)}
@@ -233,7 +233,7 @@ export default async function ClanGamesPage({
           </section>
 
           {/* ── The leaderboard ────────────────────────────────────────────── */}
-          <section className="bg-card space-y-4 rounded-lg border p-6">
+          <section className="cb-panel space-y-4 rounded-xl border p-6">
             <h2 className="font-medium">Scores</h2>
 
             {ranked.length === 0 ? (
@@ -281,7 +281,7 @@ export default async function ClanGamesPage({
 
           {/* ── Separately, and deliberately not in the ranking ─────────────── */}
           {unmeasured.length > 0 && (
-            <section className="bg-card space-y-3 rounded-lg border p-6">
+            <section className="cb-panel space-y-3 rounded-xl border p-6">
               <h2 className="flex items-center gap-2 font-medium">
                 <HelpCircle aria-hidden className="text-muted-foreground size-4" />
                 Not measured this month
@@ -310,7 +310,7 @@ export default async function ClanGamesPage({
 
       {/* ── History ────────────────────────────────────────────────────────── */}
       {months.length > 1 && (
-        <section className="bg-card space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-xl border p-6">
           <h2 className="font-medium">Past months</h2>
           <ul className="divide-y">
             {months.map((m) => (

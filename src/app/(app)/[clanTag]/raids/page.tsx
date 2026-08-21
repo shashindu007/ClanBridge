@@ -142,7 +142,7 @@ export default async function RaidsPage({
       ) : (
         <>
           {/* ── The weekend ────────────────────────────────────────────────── */}
-          <section className="bg-card space-y-4 rounded-lg border p-6">
+          <section className="cb-panel space-y-4 rounded-xl border p-6">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-medium">
                 Weekend of {when(season.startTime)}
@@ -204,7 +204,7 @@ export default async function RaidsPage({
 
           {/* ── The chase list, first ──────────────────────────────────────── */}
           {outstanding.length > 0 && (
-            <section className="bg-card space-y-3 rounded-lg border p-6">
+            <section className="cb-panel space-y-3 rounded-xl border p-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="flex items-center gap-2 font-medium">
                   <Target aria-hidden className="text-muted-foreground size-4" />
@@ -242,7 +242,7 @@ export default async function RaidsPage({
           )}
 
           {/* ── Everyone ───────────────────────────────────────────────────── */}
-          <section className="bg-card space-y-4 rounded-lg border p-6">
+          <section className="cb-panel space-y-4 rounded-xl border p-6">
             <h2 className="font-medium">Who raided</h2>
 
             {record.length === 0 ? (
@@ -303,7 +303,7 @@ export default async function RaidsPage({
 
       {/* ── History ────────────────────────────────────────────────────────── */}
       {seasons.length > 0 && (
-        <section className="bg-card space-y-4 rounded-lg border p-6">
+        <section className="cb-panel space-y-4 rounded-xl border p-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="flex items-center gap-2 font-medium">
               <Trophy aria-hidden className="text-muted-foreground size-4" />
