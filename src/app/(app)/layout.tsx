@@ -116,10 +116,40 @@ export default async function AppLayout({
   const showAdminLink = admin || clans.some((c) => c.role === "leader");
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b">
+    // The root layout owns the page height now (it flexes the footer to the
+    // bottom), so a second min-h-screen here would guarantee a scrollbar on
+    // every page: a full viewport of shell, plus the footer underneath it.
+    <div>
+      {/* The rail. A dark wooden beam across the top, which is the one place
+          this app's chrome stops being a document and starts being furniture —
+          see the decorative block in globals.css for why the depth is bought
+          with light and grain rather than with a picture of anything.
+
+          Sticky, because the clan switcher is the control members use most and
+          it was previously scrolled off the top of every long roster. z-30 sits
+          above page content and below any dialog. */}
+      <header className="cb-rail sticky top-0 z-30">
         <nav className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 p-4">
-          <Link href="/" className="font-semibold">
+          <Link
+            href="/"
+            className="text-wood-ink hover:text-wood-ink flex items-center gap-2 font-semibold tracking-tight"
+          >
+            {/* The same shield the backdrop tiles, once, at full strength. The
+                product had no mark of its own anywhere — the word "ClanBridge"
+                in the corner was it. */}
+            <svg
+              aria-hidden
+              viewBox="0 0 132 132"
+              className="size-5 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={7}
+              strokeLinejoin="round"
+            >
+              <path d="M66 20 L98 33 v27 c0 21-15 36-32 45-17-9-32-24-32-45V33z" />
+              <path d="M66 33 v59" />
+              <path d="M40 47 h52" />
+            </svg>
             ClanBridge
           </Link>
 
@@ -138,11 +168,19 @@ export default async function AppLayout({
                     href={`/${encodeURIComponent(clan.tag)}`}
                     aria-current={active ? "page" : undefined}
                     className={
-                      "hover:bg-accent flex items-center gap-1.5 rounded-md px-2 py-1 text-sm transition-colors " +
+                      "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors " +
                       // Which clan you are looking at was previously not shown
                       // at all — three identical links, and the only way to
                       // tell was the URL.
-                      (active ? "bg-accent text-accent-foreground font-medium" : "")
+                      //
+                      // On the rail the current clan is a lit parchment tile
+                      // cut into the wood, and the others are ink on wood. The
+                      // hover state has to carry BOTH colours: bg-accent alone
+                      // would put dim tan text on a light tan chip, which is
+                      // the one combination in this palette that disappears.
+                      (active
+                        ? "bg-accent text-accent-foreground shadow-[inset_0_1px_0_oklch(1_0_0/0.5)] font-medium"
+                        : "text-wood-ink-dim hover:bg-accent hover:text-accent-foreground")
                     }
                     title={`${clan.name} — you are ${clan.role}`}
                   >
@@ -158,7 +196,11 @@ export default async function AppLayout({
             </div>
           )}
 
-          <div className="ml-auto flex items-center gap-3 text-sm">
+          {/* Nav links on the rail. `[&_a]:` rather than a class on each: there
+              are seven of them, they are all the same thing, and the next one
+              someone adds should not have to remember six utility classes to
+              avoid rendering as dark-blue-on-dark-wood. */}
+          <div className="text-wood-ink-dim ml-auto flex items-center gap-3 text-sm [&_a]:transition-colors [&_a:hover]:text-wood-ink [&_button]:transition-colors [&_button:hover]:text-wood-ink">
             {/* Cross-clan, so it lives here rather than under a clan tag: a CWL
                 season is picked across every clan a leader runs (T4B.7). */}
             {clans.some((c) => c.role === "leader" || c.role === "co-leader") && (
@@ -198,7 +240,10 @@ export default async function AppLayout({
                 neither is how "I am on the wrong account" becomes a support
                 conversation. Username first because they chose it, email as the
                 fallback for the moments before setup has run. */}
-            <span className="text-muted-foreground border-l pl-3" title={profile?.email}>
+            <span
+              className="text-wood-ink-muted border-l border-white/15 pl-3"
+              title={profile?.email}
+            >
               {profile?.username ?? profile?.email ?? ""}
             </span>
             <SignOutButton />

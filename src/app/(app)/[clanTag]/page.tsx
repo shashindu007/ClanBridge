@@ -93,20 +93,55 @@ function Stat({
   Icon: typeof Users;
 }) {
   return (
-    <div className="bg-card relative overflow-hidden rounded-lg border p-4">
+    <div
+      // `isolate` is load-bearing: the wash below is an absolutely positioned
+      // child, and a positioned child paints ABOVE the in-flow text beside it.
+      // Pushing it to -z-10 fixes that, but a negative z-index escapes upward
+      // unless something here makes a stacking context.
+      className="cb-panel isolate overflow-hidden rounded-xl border p-4"
+      style={{ "--emblem": tone } as React.CSSProperties}
+    >
+      {/* The wash. A solid fill of the tile’s own hue at 8% opacity, and NOT a
+          `color-mix` — see the block in globals.css about what Lightning CSS
+          does to those. An inline style would escape that particular hazard,
+          since the build never sees it, but it would fail the same way on the
+          same old browsers and for less obvious reasons.
+
+          This is what makes four tiles read as four different things at a
+          glance instead of one grey strip you have to read the labels of. 8%
+          and no more: past about 12% the tint starts competing with the status
+          tints, and a stat tile that looks like a status badge is precisely
+          what the comment at the top of this file forbids. */}
       <span
         aria-hidden
-        className="absolute inset-y-0 left-0 w-1"
-        style={{ background: tone }}
+        className="pointer-events-none absolute inset-0 -z-10 opacity-[0.08]"
+        style={{ background: `linear-gradient(180deg, ${tone} 0%, transparent 62%)` }}
       />
-      <div className="flex items-start justify-between gap-2 pl-2">
+      {/* Fading down rather than a flat bar: a solid full-strength rail down
+          the side of a tile with a soft wash inside it reads as two unrelated
+          decisions that happened to land on the same box. */}
+      <span
+        aria-hidden
+        className="absolute inset-y-0 left-0 w-1.5"
+        style={{ background: `linear-gradient(180deg, ${tone} 0%, transparent 190%)` }}
+      />
+      <div className="flex items-start justify-between gap-2 pl-2.5">
         <div className="min-w-0">
-          <p className="text-muted-foreground text-xs tracking-wide uppercase">{label}</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+          <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+            {label}
+          </p>
+          {/* Still ink, never the tile's colour. A figure rendered in the
+              tile's hue reads as a status the moment one tile is red, and none
+              of these four is ever a status. */}
+          <p className="mt-1.5 text-3xl leading-none font-semibold tabular-nums">
+            {value}
+          </p>
         </div>
-        <Icon aria-hidden className="size-4 shrink-0" style={{ color: tone }} />
+        <span className="cb-emblem size-8 shrink-0 rounded-lg">
+          <Icon aria-hidden className="size-4" />
+        </span>
       </div>
-      {hint && <p className="text-muted-foreground mt-1 pl-2 text-xs">{hint}</p>}
+      {hint && <p className="text-muted-foreground mt-2 pl-2.5 text-xs">{hint}</p>}
     </div>
   );
 }
@@ -126,11 +161,23 @@ function Go({
   return (
     <Link
       href={href}
-      className="hover:bg-accent hover:border-info/30 group flex items-start gap-3 rounded-lg border p-3 transition-colors"
+      className="cb-panel cb-panel-interactive hover:border-primary/35 group flex items-start gap-3 rounded-xl border p-3.5"
     >
-      <Icon aria-hidden className="text-muted-foreground group-hover:text-info mt-0.5 size-4 shrink-0 transition-colors" />
-      <span className="min-w-0">
-        <span className="block text-sm font-medium">{label}</span>
+      {/* The disc is why this grid stopped looking like a list of links. A bare
+          16px glyph on a textured surface is a smudge; the same glyph on a
+          tinted disc is a destination. Ironwork blue, not --info, and the
+          difference matters: --info means "here is something you might want"
+          and thirteen permanent nav tiles are not thirteen notifications. */}
+      <span
+        className="cb-emblem mt-0.5 size-9 shrink-0 rounded-lg transition-colors"
+        style={{ "--emblem": "var(--primary)" } as React.CSSProperties}
+      >
+        <Icon aria-hidden className="size-4.5" />
+      </span>
+      <span className="min-w-0 pt-0.5">
+        <span className="group-hover:text-primary block text-sm font-medium transition-colors">
+          {label}
+        </span>
         <span className="text-muted-foreground block text-xs">{hint}</span>
       </span>
     </Link>
@@ -251,32 +298,59 @@ export default async function ClanDashboardPage({
 
   return (
     <main className="mx-auto max-w-4xl space-y-6 p-8">
-      {/* ── Header, wearing this clan's own colour ─────────────────────────── */}
-      <div className="space-y-2">
-        <div
-          aria-hidden
-          className="h-1.5 w-full rounded-full"
-          style={{ background: accent.color }}
-        />
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
-          <div className="flex items-center gap-3">
-            {clan.badgeUrl && (
-              // Plain img: next/image would need the Supercell asset host added
-              // to next.config.ts, and this is one small badge on one page.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={clan.badgeUrl} alt="" className="h-10 w-10" />
-            )}
-            <h1 className="text-2xl font-semibold tracking-tight">{clan.name}</h1>
+      {/* ── The banner, wearing this clan's own colour ────────────────────────
+          --hero-accent is set here and read by .cb-hero and .cb-hero-stripe in
+          globals.css, so the three clans get three visibly different banners
+          without this file — or that stylesheet — ever naming a clan. The value
+          comes from clanAccent(clan.id); see lib/clan-accent.ts on why it is
+          derived from the id rather than looked up.
+
+          This replaces the flat full-width bar that used to sit above the
+          title. A solid rounded bar spanning the content width is the shape of
+          a progress meter, and it sat directly above a heading with nothing to
+          be the progress OF — so the clan’s colour is now carried by the
+          banner itself and the stripe tapers away rather than terminating. */}
+      <section
+        className="cb-hero rounded-xl border"
+        style={{ "--hero-accent": accent.color } as React.CSSProperties}
+      >
+        {/* No rounding needed: .cb-hero clips it. */}
+        <div aria-hidden className="cb-hero-stripe" />
+        <div className="space-y-3 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3.5">
+              {clan.badgeUrl && (
+                // Plain img: next/image would need the Supercell asset host
+                // added to next.config.ts, and this is one small badge on one
+                // page. It IS the clan's own badge, which the game API serves
+                // for exactly this — not artwork lifted out of the game.
+                //
+                // The ring and the drop shadow are here because the badge now
+                // sits on a tinted banner rather than on flat white, and a
+                // transparent PNG on a gradient reads as a sticker unless
+                // something under it says it is an object.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={clan.badgeUrl}
+                  alt=""
+                  className="size-14 shrink-0 drop-shadow-[0_2px_4px_oklch(0_0_0/0.25)]"
+                />
+              )}
+              <div className="min-w-0">
+                <h1 className="text-3xl font-semibold tracking-tight">{clan.name}</h1>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  <span className="font-mono text-xs">{clan.tag}</span> · you are{" "}
+                  {clan.role}
+                </p>
+              </div>
+            </div>
+            <DataFreshness freshness={fresh} />
           </div>
-          <DataFreshness freshness={fresh} />
         </div>
-        <p className="text-muted-foreground text-sm">
-          <span className="font-mono text-xs">{clan.tag}</span> · you are {clan.role}
-        </p>
-      </div>
+      </section>
 
       {neverSynced ? (
-        <section className="space-y-3 rounded-lg border border-dashed p-6">
+        <section className="space-y-3 rounded-xl border border-dashed p-6">
           <h2 className="font-medium">This clan has never been synced</h2>
           <p className="text-muted-foreground text-sm">
             The clan row exists, but no sync job has read it from the game yet, so
@@ -363,10 +437,15 @@ export default async function ClanDashboardPage({
       )}
 
       {/* ── War, live ──────────────────────────────────────────────────────── */}
-      <section className="bg-card space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-xl border p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-medium">
-            <Swords aria-hidden className="text-muted-foreground size-4" />
+          <h2 className="flex items-center gap-2.5 text-lg font-semibold tracking-tight">
+            <span
+              className="cb-emblem size-8 rounded-lg"
+              style={{ "--emblem": "var(--primary)" } as React.CSSProperties}
+            >
+              <Swords aria-hidden className="size-4" />
+            </span>
             War
           </h2>
           {war && warStateBadge(war)}
@@ -455,10 +534,15 @@ export default async function ClanDashboardPage({
       </section>
 
       {/* ── Announcement ───────────────────────────────────────────────────── */}
-      <section className="bg-card space-y-3 rounded-lg border p-6">
+      <section className="cb-panel space-y-3 rounded-xl border p-6">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-medium">
-            <Megaphone aria-hidden className="text-muted-foreground size-4" />
+          <h2 className="flex items-center gap-2.5 text-lg font-semibold tracking-tight">
+            <span
+              className="cb-emblem size-8 rounded-lg"
+              style={{ "--emblem": "var(--primary)" } as React.CSSProperties}
+            >
+              <Megaphone aria-hidden className="size-4" />
+            </span>
             Latest announcement
           </h2>
           {announcement?.pinned && (
@@ -588,7 +672,7 @@ export default async function ClanDashboardPage({
 
           Raids and Clan Games left this list when Phase 7 landed; both are in
           the nav grid above now. */}
-      <section className="space-y-2 rounded-lg border border-dashed p-6">
+      <section className="space-y-2 rounded-xl border border-dashed p-6">
         <h2 className="text-muted-foreground font-medium">Not built yet</h2>
         <ul className="text-muted-foreground list-inside list-disc text-sm">
           <li>

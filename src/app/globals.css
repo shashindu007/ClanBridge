@@ -264,3 +264,433 @@
     @apply bg-background text-foreground antialiased;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE DECORATIVE LAYER
+
+   Everything below this line is ORNAMENT. None of it means anything, and that
+   is the rule that keeps it from eating the block above: the status colours are
+   still the only things in this stylesheet that carry information, and nothing
+   here is allowed to look like one of them.
+
+   Three constraints shaped it, and all three are worth knowing before editing:
+
+   1. NO SUPERCELL ARTWORK. Not a screenshot, not a troop, not a building, not
+      a ripped texture, not "just the background from the loading screen".
+      T0.12 and T9.8 draw that line and the fan content notice in the root
+      layout is the reason. Every mark here is generated from CSS and one
+      hand-written SVG path — a shield OUTLINE, which is a shape, not an asset.
+      That is why the atmosphere comes from light, depth and material rather
+      than from pictures. It is also the cheaper answer: none of this is a
+      network request, so the whole theme costs about 2KB of CSS.
+
+   2. STILL NO GOLD. The wood-and-parchment block above already argued it: gold
+      is what a Clash palette reaches for first, --warning is already amber, and
+      an amber ornament sitting near an amber "sync failed" badge is how that
+      badge stops being read. The richness here is bought with DEPTH — raised
+      edges, inset highlights, torchlight, shadow — rather than with a new hue.
+      Depth is free; it competes with nothing.
+
+   3. EVERY SURFACE COLOUR IS UNCHANGED. --background, --card, --foreground and
+      the rest are exactly the measured values above, and every ratio in the
+      header comment still holds. The ornaments sit ON those surfaces at low
+      alpha. The one new surface is the header rail, which is dark and carries
+      its own measured pair below.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Shades: the underside of a raised control ────────────────────────────
+     A game button is a physical object — a lit top edge, a body of colour, and
+     a darker plinth it sits on that pressing it moves down onto. These are the
+     plinths, one per button variant, each about two steps darker in lightness
+     than the fill above it.
+
+     Written out rather than derived at run time for the same reason the status
+     tints are: color-mix in a custom property is not safe in this build (see
+     above), and a shade that silently collapses to its first argument is a
+     button with a plinth the same colour as its face — which is a button with
+     no plinth, rendered by a rule that swears it has one. */
+  --primary-shade: oklch(0.355 0.088 248);
+  --secondary-shade: oklch(0.855 0.04 78);
+  --destructive-shade: oklch(0.455 0.196 27.3);
+  --surface-shade: oklch(0.855 0.04 78);
+
+  /* ── Wood: the header rail ────────────────────────────────────────────────
+     The one dark surface in light mode, and it is deliberate. The chrome is
+     furniture; the page is the thing lying on it. A dark rail separates them
+     without a border and gives the parchment somewhere to sit.
+
+     The rail is a GRADIENT, so every ink is measured twice: against --wood-2,
+     the mid tone most of the text sits over, and against --wood-3, the lightest
+     band at the very top, which is the worst case and therefore the one that
+     decides whether a token is allowed:
+                             on --wood-3   on --wood-2
+       --wood-ink               9.75:1       11.83:1
+       --wood-ink-muted         5.28:1        6.41:1
+       --wood-ink-dim           4.57:1        5.55:1   (nav links at rest)
+     All three clear 4.5:1 on the worst band, which is what the dim one exists
+     to prove: it is the lightest ink here and it still passes where the rail is
+     palest. The lit top edge and the grain are both under 1.2:1 against the
+     rail by design — they are texture, and texture you can read as an edge is a
+     border wearing a costume. */
+  --wood-1: oklch(0.255 0.032 52);
+  --wood-2: oklch(0.315 0.038 55);
+  --wood-3: oklch(0.365 0.042 58);
+  --wood-ink: oklch(0.965 0.014 85);
+  --wood-ink-muted: oklch(0.775 0.028 78);
+  --wood-ink-dim: oklch(0.735 0.03 78);
+
+  /* ── Torchlight ───────────────────────────────────────────────────────────
+     Two warm pools in the upper corners and one cool pool low and centre, so
+     the parchment is not a flat fill. All under 10% alpha: the moment a reader
+     can point at where the light stops, it has become a shape on the page
+     instead of the light the page is lit by. */
+  --glow-warm: oklch(0.78 0.11 62 / 0.09);
+  --glow-cool: oklch(0.62 0.09 248 / 0.055);
+}
+
+.dark {
+  --primary-shade: oklch(0.44 0.082 248);
+  --secondary-shade: oklch(0.205 0.024 58);
+  --destructive-shade: oklch(0.48 0.15 22.2);
+  --surface-shade: oklch(0.175 0.018 58);
+
+  /* Night wood sits barely above the night page — the rail separates by grain
+     and by its lit edge rather than by tone, because two near-blacks one step
+     apart is a seam, not a surface. */
+  --wood-1: oklch(0.155 0.016 55);
+  --wood-2: oklch(0.205 0.022 55);
+  --wood-3: oklch(0.255 0.026 58);
+  --wood-ink: oklch(0.948 0.016 85);
+  --wood-ink-muted: oklch(0.735 0.03 78);
+  --wood-ink-dim: oklch(0.7 0.03 78);
+
+  --glow-warm: oklch(0.72 0.13 55 / 0.1);
+  --glow-cool: oklch(0.58 0.12 250 / 0.09);
+}
+
+@theme inline {
+  --color-wood-1: var(--wood-1);
+  --color-wood-2: var(--wood-2);
+  --color-wood-3: var(--wood-3);
+  --color-wood-ink: var(--wood-ink);
+  --color-wood-ink-muted: var(--wood-ink-muted);
+  --color-wood-ink-dim: var(--wood-ink-dim);
+}
+
+@layer components {
+  /* ── The motif ────────────────────────────────────────────────────────────
+     One hand-drawn shield outline, tiled at 132px. An original shape — a
+     shield is a shield, and this one is a bezier nobody owns.
+
+     The opacity took the most fiddling of anything here. At 8% the page reads
+     as wallpapered and the tiling becomes a visible grid, which is worse than
+     no texture at all; below 3% it vanishes on a bright screen and you have
+     paid a data URI for nothing. 4.5% is where it registers as surface rather
+     than as pattern.
+
+     Not a custom property, because a url() token carrying an SVG full of
+     quotes and percent-signs is exactly the kind of value a CSS minifier is
+     entitled to re-encode. Here it is written where it is used and nothing
+     downstream has to preserve it through a var(). */
+  .cb-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: -10;
+    pointer-events: none;
+    background:
+      radial-gradient(72rem 40rem at 12% -8%, var(--glow-warm), transparent 60%),
+      radial-gradient(60rem 34rem at 92% -4%, var(--glow-warm), transparent 62%),
+      radial-gradient(80rem 46rem at 50% 108%, var(--glow-cool), transparent 64%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='132' height='132' viewBox='0 0 132 132'%3E%3Cg fill='none' stroke='%233b2a1c' stroke-opacity='0.045' stroke-width='2'%3E%3Cpath d='M66 20 L98 33 v27 c0 21-15 36-32 45-17-9-32-24-32-45V33z'/%3E%3Cpath d='M66 33 v59'/%3E%3Cpath d='M40 47 h52'/%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  .dark .cb-backdrop {
+    background:
+      radial-gradient(72rem 40rem at 12% -8%, var(--glow-warm), transparent 60%),
+      radial-gradient(60rem 34rem at 92% -4%, var(--glow-warm), transparent 62%),
+      radial-gradient(80rem 46rem at 50% 108%, var(--glow-cool), transparent 64%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='132' height='132' viewBox='0 0 132 132'%3E%3Cg fill='none' stroke='%23ffe9c9' stroke-opacity='0.05' stroke-width='2'%3E%3Cpath d='M66 20 L98 33 v27 c0 21-15 36-32 45-17-9-32-24-32-45V33z'/%3E%3Cpath d='M66 33 v59'/%3E%3Cpath d='M40 47 h52'/%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  /* ── Rail: the header ─────────────────────────────────────────────────── */
+  .cb-rail {
+    background:
+      /* Grain. Irregular on purpose, so the repeat does not land on a rhythm
+         the eye can count — a regular one reads as corduroy. */
+      repeating-linear-gradient(
+        90deg,
+        oklch(1 0 0 / 0.018) 0 1px,
+        transparent 1px 7px,
+        oklch(0 0 0 / 0.022) 7px 8px,
+        transparent 8px 23px
+      ),
+      linear-gradient(180deg, var(--wood-3) 0%, var(--wood-2) 42%, var(--wood-1) 100%);
+    /* The lit top edge, and the shadow the rail casts down onto the page.
+       Together they are what makes it read as a beam rather than a strip of
+       colour that happens to be at the top. */
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.14),
+      inset 0 -1px 0 oklch(0 0 0 / 0.35),
+      0 10px 26px -14px oklch(0 0 0 / 0.55);
+  }
+
+  /* ── Panel: any card, section or tile ─────────────────────────────────────
+     A sheet of parchment with a lit top edge, resting on the page. The
+     gradient is a two-stop nothing — 3.5% over the top third — and it does
+     more than it looks: a perfectly flat card on a textured page reads as a
+     hole cut in the page rather than as something lying on it. */
+  .cb-panel {
+    position: relative;
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.035) 0%, transparent 38%),
+      var(--card);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.55),
+      0 1px 2px oklch(0 0 0 / 0.05),
+      0 8px 22px -16px oklch(0 0 0 / 0.35);
+  }
+
+  .dark .cb-panel {
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.06),
+      0 1px 2px oklch(0 0 0 / 0.3),
+      0 10px 26px -18px oklch(0 0 0 / 0.7);
+  }
+
+  /* A panel you can click. The lift is 1px and the shadow roughly doubles —
+     enough to feel, small enough that a grid of twelve does not jump about
+     when the pointer crosses it. */
+  .cb-panel-interactive {
+    transition:
+      transform 140ms ease,
+      box-shadow 140ms ease,
+      border-color 140ms ease,
+      background-color 140ms ease;
+  }
+
+  .cb-panel-interactive:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.6),
+      0 2px 4px oklch(0 0 0 / 0.06),
+      0 14px 28px -18px oklch(0 0 0 / 0.45);
+  }
+
+  .cb-panel-interactive:active {
+    transform: translateY(0);
+  }
+
+  /* ── Hero: the banner behind a page title ─────────────────────────────────
+     Takes its hue from --hero-accent, set inline by whatever knows it — on the
+     dashboard that is the clan's own derived colour, so the three clans get
+     three different banners without a lookup table (see lib/clan-accent.ts).
+     Falls back to the ironwork blue, so a page that sets nothing still gets a
+     banner rather than a grey box.
+
+     ────────────────────────────────────────────────────────────────────────────
+     THERE IS NO color-mix BELOW, AND THE FIRST DRAFT OF THIS BLOCK WAS FULL
+     OF IT. The warning in the tint block above turns out to apply just as
+     hard to ordinary declarations as to custom properties, which was not
+     obvious until the compiled CSS was actually read back. Lightning CSS emits
+     the property TWICE — a literal fallback, then the real value inside
+     `@supports (color: color-mix(in lab, red, red))` — and the fallback it
+     picks is the first argument AT FULL STRENGTH. So
+
+       .cb-emblem { color: var(--emblem);
+                    background: color-mix(in srgb, var(--emblem) 13%, transparent) }
+
+     compiled to a fallback of `background: var(--emblem)` underneath a rule
+     that also sets `color: var(--emblem)`: an icon the exact colour of the
+     disc behind it, which is no icon at all, on every browser older than
+     roughly mid-2023.
+
+     So every tint here is built the way it would have been before color-mix
+     existed — a solid fill of the hue on a pseudo-element, with `opacity`
+     carrying the strength. Opacity needs no @supports and composites
+     identically. It costs one pseudo-element per tinted surface, and buys a
+     worst case of "slightly different shade" instead of "invisible".
+     ──────────────────────────────────────────────────────────────────────────── */
+  .cb-hero {
+    position: relative;
+    /* A stacking context, so the z-index:-1 pseudo-elements below stay inside
+       this banner rather than sliding behind the page itself. `position:
+       relative` on its own does not make one. */
+    isolation: isolate;
+    overflow: hidden;
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.045) 0%, transparent 40%),
+      var(--card);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.55),
+      0 10px 30px -20px oklch(0 0 0 / 0.45);
+  }
+
+  /* The two pools of the clan's own colour. z-index -1 paints them above this
+     element's background and below its text, which is the entire reason they
+     are a pseudo-element rather than one more background layer. */
+  .cb-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(
+        38rem 18rem at 8% -30%,
+        var(--hero-accent, var(--primary)),
+        transparent 70%
+      ),
+      radial-gradient(
+        28rem 16rem at 96% 130%,
+        var(--hero-accent, var(--primary)),
+        transparent 72%
+      );
+    opacity: 0.19;
+  }
+
+  /* The crest, quietly, in the corner the text does not reach. */
+  .cb-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='132' height='132' viewBox='0 0 132 132'%3E%3Cg fill='none' stroke='%233b2a1c' stroke-opacity='0.07' stroke-width='2'%3E%3Cpath d='M66 20 L98 33 v27 c0 21-15 36-32 45-17-9-32-24-32-45V33z'/%3E%3Cpath d='M66 33 v59'/%3E%3Cpath d='M40 47 h52'/%3E%3C/g%3E%3C/svg%3E");
+    background-position: right -22px top -30px;
+    background-repeat: no-repeat;
+    background-size: 200px 200px;
+    pointer-events: none;
+  }
+
+  .dark .cb-hero {
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.07),
+      0 12px 34px -22px oklch(0 0 0 / 0.8);
+  }
+
+  .dark .cb-hero::after {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='132' height='132' viewBox='0 0 132 132'%3E%3Cg fill='none' stroke='%23ffe9c9' stroke-opacity='0.08' stroke-width='2'%3E%3Cpath d='M66 20 L98 33 v27 c0 21-15 36-32 45-17-9-32-24-32-45V33z'/%3E%3Cpath d='M66 33 v59'/%3E%3Cpath d='M40 47 h52'/%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  /* The stripe along the top of the hero — this clan's colour, fading out.
+     Replaces the flat full-width bar the dashboard used to carry above its
+     title, which read as a progress meter that never moved. */
+  .cb-hero-stripe {
+    height: 4px;
+    /* Solid at the left, gone by the right. The old midpoint was a color-mix
+       at 55%; a plain stop at 52% of the way across does the same thing to the
+       eye, because a gradient already interpolates alpha for you. */
+    background: linear-gradient(
+      90deg,
+      var(--hero-accent, var(--primary)) 0%,
+      var(--hero-accent, var(--primary)) 22%,
+      transparent 92%
+    );
+  }
+
+  /* ── Emblem: the disc an icon sits in ─────────────────────────────────────
+     Hue from --emblem, set inline. A tinted disc rather than a bare glyph,
+     because a 16px lucide icon alone on a textured surface disappears — and
+     the disc is what lets the icon stay small enough not to compete with the
+     number beside it. */
+  .cb-emblem {
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--emblem, var(--primary));
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.35);
+  }
+
+  /* ::before is the 13% fill, ::after is the 26% ring. Two pseudo-elements
+     rather than one, because `opacity` applies to the whole element and the
+     ring has to be twice the strength of the fill to read as an edge at all.
+     `border-radius: inherit` keeps both in whatever shape the caller asked for
+     — these are used as squircles on the stat tiles and as discs elsewhere. */
+  .cb-emblem::before,
+  .cb-emblem::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  .cb-emblem::before {
+    background: var(--emblem, var(--primary));
+    opacity: 0.13;
+  }
+
+  .cb-emblem::after {
+    box-shadow: inset 0 0 0 1px var(--emblem, var(--primary));
+    opacity: 0.26;
+  }
+
+  /* ── Raised: the game-button treatment ────────────────────────────────────
+     A lit top edge, a body, and a plinth underneath. Pressing moves the face
+     down onto the plinth and takes the plinth away, which is the entire
+     illusion — a button that only changes colour on :active feels like a link
+     that got fatter.
+
+     --raise-shade is the plinth and every variant sets its own; a variant that
+     sets none gets `transparent` and degrades to a flat button rather than to
+     a black bar under it. The 2px of travel is also why the drop shadow has to
+     go on press: a face that moves down while its shadow stays put reads as
+     the shadow having come unstuck.
+
+     THE PLINTH GOES IN --tw-shadow, NOT ONLY IN box-shadow, and that is the
+     one non-obvious line in this file. Tailwind's focus ring is not an
+     `outline` — `focus-visible:ring-[3px]` compiles to a box-shadow, and it
+     composes the whole stack in one declaration:
+
+       box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
+                   var(--tw-ring-offset-shadow), var(--tw-ring-shadow),
+                   var(--tw-shadow)
+
+     That declaration is in the UTILITIES layer and this rule is in COMPONENTS,
+     so it wins outright: writing only `box-shadow` here means every button
+     goes FLAT the moment it is focused from the keyboard, and pops back when
+     focus leaves. A control that loses its depth exactly when a keyboard user
+     arrives at it is the wrong way round.
+
+     Feeding --tw-shadow instead puts the plinth inside the stack Tailwind is
+     already composing, so ring and depth render together. --tw-shadow is
+     registered `syntax: "*"; inherits: false`, so an arbitrary shadow list is
+     legal in it and it does not leak into child elements. box-shadow is still
+     written underneath for the case where no ring utility is present on the
+     element at all and nothing composes the stack. */
+  .cb-raised {
+    --tw-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.22), 0 2px 0 0 var(--raise-shade, transparent),
+      0 5px 12px -6px oklch(0 0 0 / 0.4);
+    box-shadow: var(--tw-shadow);
+    transition:
+      transform 90ms ease,
+      box-shadow 90ms ease,
+      background-color 140ms ease,
+      filter 140ms ease;
+  }
+
+  .cb-raised:active:not(:disabled) {
+    transform: translateY(2px);
+    --tw-shadow:
+      inset 0 1px 2px oklch(0 0 0 / 0.25), 0 0 0 0 var(--raise-shade, transparent);
+    box-shadow: var(--tw-shadow);
+  }
+
+  /* Nobody asked the interface to move. Respect that — the depth stays, since
+     depth is not motion, and only the travel goes. */
+  @media (prefers-reduced-motion: reduce) {
+    .cb-panel-interactive,
+    .cb-raised {
+      transition-property: box-shadow, border-color, background-color, filter;
+    }
+
+    .cb-panel-interactive:hover,
+    .cb-raised:active:not(:disabled) {
+      transform: none;
+    }
+  }
+}

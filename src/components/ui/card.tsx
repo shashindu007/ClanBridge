@@ -7,7 +7,11 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card"
       className={cn(
-        "flex flex-col gap-6 rounded-xl border bg-card py-6 text-card-foreground shadow-sm",
+        // `cb-panel` replaces `shadow-sm` rather than joining it, and it has to:
+        // `shadow-sm` is a utility and sets both --tw-shadow and box-shadow, so
+        // leaving it here would win the cascade over the components layer and
+        // the panel would render with the flat shadcn shadow. See globals.css.
+        "cb-panel flex flex-col gap-6 rounded-xl border bg-card py-6 text-card-foreground",
         className
       )}
       {...props}
