@@ -194,7 +194,7 @@ export default async function MemberDirectoryPage({
           because it is the reason a leader opened this page, but deliberately
           worded as a prompt to look rather than a verdict. */}
       {attention.length > 0 && (
-        <section className="space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-lg border p-6">
           <h2 className="font-medium">Worth a look — {attention.length}</h2>
           <ul className="space-y-3">
             {attention.map((flag) => {
@@ -226,7 +226,7 @@ export default async function MemberDirectoryPage({
       )}
 
       {rows.length === 0 ? (
-        <section className="space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-lg border p-6">
           <h2 className="font-medium">No members recorded yet</h2>
           <p className="text-muted-foreground text-sm">
             The member list arrives with <code className="text-xs">sync:clans</code>,
@@ -235,7 +235,7 @@ export default async function MemberDirectoryPage({
           </p>
         </section>
       ) : (
-        <section className="rounded-lg border">
+        <section className="cb-panel rounded-lg border">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>

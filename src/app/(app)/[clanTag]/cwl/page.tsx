@@ -10,6 +10,7 @@
 
 import Link from "next/link";
 import { DataFreshness } from "@/components/data-freshness";
+import { LocalTime } from "@/components/local-time";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -20,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { requireClanByTag } from "@/lib/clans";
+import { cwlPhase, nextCwlWindow } from "@/lib/coc-time";
 import { createClient } from "@/lib/supabase/server";
 import { seasonsForClan, warsInSeason } from "@/repositories/cwl";
 import { latestRun } from "@/repositories/sync-log";
@@ -53,6 +55,13 @@ export default async function CwlSeasonListPage({
     })),
   );
 
+  // T4.4. Only ever read by the empty state below — once there are rows, the
+  // seasons themselves are the answer and an inferred date has nothing to add
+  // (R12: the plan is compared to reality, never substituted for it).
+  const now = new Date();
+  const next = nextCwlWindow(now);
+  const phase = cwlPhase(now);
+
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-8">
       <div className="space-y-2">
@@ -66,12 +75,32 @@ export default async function CwlSeasonListPage({
       </div>
 
       {rows.length === 0 ? (
-        <section className="space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-lg border p-6">
           <h2 className="font-medium">No CWL seasons recorded yet</h2>
           <p className="text-muted-foreground text-sm">
             CWL runs for about a week at the start of each month. For the rest of
             the month there is nothing to show, and that is normal — this page
             fills in on its own once the season starts and the sync job runs.
+          </p>
+          {/* T4.4 — the date the API never supplies.
+              An empty page that says WHEN it will stop being empty answers the
+              question the reader actually arrived with. Worded as the usual
+              calendar rather than a promise: see cwlWindow() in lib/coc-time.ts
+              on why the guess is safe here and why it is never written down. */}
+          <p className="text-muted-foreground text-sm">
+            {phase
+              ? "A league is running right now, so this page should fill in within two hours of the sync job's next run."
+              : null}
+            {!phase && (
+              <>
+                The next one usually opens for signup around{" "}
+                <LocalTime iso={next.signupOpens.toISOString()} style="date" />,
+                with war days from about{" "}
+                <LocalTime iso={next.warsStart.toISOString()} style="date" />. The
+                game does not publish these dates, so they are the usual calendar
+                rather than a promise.
+              </>
+            )}
           </p>
           <p className="text-muted-foreground text-sm">
             If a CWL season has been and gone and this is still empty, the sync

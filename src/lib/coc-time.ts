@@ -170,6 +170,127 @@ export function isDuringClanGames(now: Date): boolean {
   return now >= start && now < end;
 }
 
+// ---------------------------------------------------------------------------
+// T4.4 — when the next Clan War League starts
+// ---------------------------------------------------------------------------
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE API PUBLISHES NO CWL START DATE EITHER, so this comes from the calendar
+ * for the same reason the Clan Games window above does. /clanwarleague/group
+ * describes a league that has ALREADY begun and 404s the rest of the month —
+ * there is no "next season" field anywhere on the clan, the player or the
+ * league endpoints.
+ *
+ * THE RISK IS THE OPPOSITE WAY ROUND FROM CLAN GAMES, and that difference is
+ * the whole reason these constants are ordinary rather than deliberately
+ * conservative.
+ *
+ * Nothing syncs off this window. scripts/sync/cwl.ts already runs every two
+ * hours regardless of the date and exits cleanly when there is no league group
+ * (R10), so it finds the season on its own within two hours of the season
+ * existing, whatever this file believes. Clan Games cannot work that way — its
+ * score has to be differenced between two snapshots taken at the right moments,
+ * so a window that is a day late loses a month of points permanently.
+ *
+ * This one is a DISPLAY VALUE. Being wrong by a day tells a leader "signup
+ * opens tomorrow" on the day it opened, which is recoverable the moment they
+ * open the game, and costs no data at all. So it is stated as an approximation
+ * everywhere it renders — "around the 1st" — and never as a promise.
+ *
+ * R11 IS NOT AT RISK. cwlWindow() is pure and nothing writes its result
+ * anywhere: not to cwl_seasons, not to any column beside a sync-written one. A
+ * derived display value is neither a game fact nor a human decision, and it
+ * stays out of the tables that hold those. This is also why it is not a
+ * leader-entered date — see the Clan Games header above, which argues it in
+ * full.
+ *
+ * R12 APPLIES AT THE CALL SITE, not here. Callers compare this window to what
+ * cwl_seasons actually holds and let reality win: once a season row exists for
+ * the month, CWL has started and the guess is irrelevant. The plan is compared
+ * to reality, never substituted for it.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+const CWL_SIGNUP_OPENS_ON = 1;
+const CWL_SIGNUP_DAYS = 2;
+const CWL_WAR_DAYS = 7;
+const CWL_HOUR_UTC = 8;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export interface CwlWindow {
+  /** 'YYYY-MM' — the same natural key cwl_seasons uses, so callers can compare. */
+  season: string;
+  /** Signup opens; the roster has to be picked between here and `warsStart`. */
+  signupOpens: Date;
+  /** The first war day. */
+  warsStart: Date;
+  /** After this the season is over and its data starts disappearing. */
+  warsEnd: Date;
+}
+
+/** 'YYYY-MM' for a date, in UTC. The shape normaliseCwlSeason produces. */
+export function cwlSeason(date: Date): string {
+  return date.toISOString().slice(0, 7);
+}
+
+/**
+ * The CWL window for whatever month `now` falls in.
+ *
+ * Always returns one, like clanGamesWindow — "when does the next one start" is
+ * worth answering during the three weeks when the answer is "not yet", and a
+ * function returning null then would leave the page with nothing to say.
+ */
+export function cwlWindow(now: Date): CwlWindow {
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+
+  const signupOpens = new Date(
+    Date.UTC(year, month, CWL_SIGNUP_OPENS_ON, CWL_HOUR_UTC, 0, 0),
+  );
+  const warsStart = new Date(signupOpens.getTime() + CWL_SIGNUP_DAYS * DAY_MS);
+
+  return {
+    season: cwlSeason(signupOpens),
+    signupOpens,
+    warsStart,
+    warsEnd: new Date(warsStart.getTime() + CWL_WAR_DAYS * DAY_MS),
+  };
+}
+
+/**
+ * The next window that has not finished — this month's, or next month's.
+ *
+ * "Next" deliberately includes one already running: a member asking when CWL
+ * starts, during CWL, wants to be told it has started, not handed a date four
+ * weeks away. Callers separate the two with {@link cwlPhase}.
+ *
+ * Date.UTC normalises month 12 to January of the following year, so December
+ * needs no special case — asserted in the test anyway, because that is exactly
+ * the kind of thing a later refactor breaks silently.
+ */
+export function nextCwlWindow(now: Date): CwlWindow {
+  const thisMonth = cwlWindow(now);
+  if (now < thisMonth.warsEnd) return thisMonth;
+
+  return cwlWindow(
+    new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, CWL_SIGNUP_OPENS_ON)),
+  );
+}
+
+/**
+ * Which part of CWL is running right now, if any.
+ *
+ * `"signup"` is the phase that matters: it is the only one where a leader can
+ * still change who is in, and it is two days out of thirty.
+ */
+export function cwlPhase(now: Date): "signup" | "wars" | null {
+  const { signupOpens, warsStart, warsEnd } = cwlWindow(now);
+  if (now >= signupOpens && now < warsStart) return "signup";
+  if (now >= warsStart && now < warsEnd) return "wars";
+  return null;
+}
+
 /**
  * Which snapshot, if any, today's run should take.
  *

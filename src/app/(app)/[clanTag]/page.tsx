@@ -29,12 +29,7 @@ import Link from "next/link";
 import {
   BellRing,
   CalendarDays,
-  Castle,
-  ClipboardList,
   Flame,
-  Gamepad2,
-  Layers,
-  LayoutGrid,
   Megaphone,
   Search,
   Shield,
@@ -47,11 +42,20 @@ import {
   Vote,
 } from "lucide-react";
 import { DataFreshness } from "@/components/data-freshness";
+import { LocalTime } from "@/components/local-time";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { clanAccent } from "@/lib/clan-accent";
+import {
+  cardLabelOf,
+  cardsInGroup,
+  CLAN_GROUPS,
+  sectionHref,
+  type ClanSection,
+} from "@/lib/clan-nav";
 import { requireClanByTag } from "@/lib/clans";
+import { cwlPhase, nextCwlWindow } from "@/lib/coc-time";
 import { createClient } from "@/lib/supabase/server";
 import { clanDetail, currentMemberCount, latestAnnouncement } from "@/repositories/clans";
 import { seasonsForClan } from "@/repositories/cwl";
@@ -184,6 +188,18 @@ function Go({
   );
 }
 
+/** A destination from lib/clan-nav.ts, as a card. */
+function GoTo({ base, section }: { base: string; section: ClanSection }) {
+  return (
+    <Go
+      href={sectionHref(base, section)}
+      label={cardLabelOf(section)}
+      hint={section.hint}
+      Icon={section.icon}
+    />
+  );
+}
+
 /**
  * The war's state, in the reserved palette.
  *
@@ -287,6 +303,20 @@ export default async function ClanDashboardPage({
   const poll = openWarAvailabilityPoll(polls);
   const pollCounts = poll ? await countsForPoll(supabase, poll.id) : [];
   const answered = pollCounts.reduce((total, c) => total + c.votes, 0);
+
+  // ── T4.4 — when the next CWL is, which the API never says ─────────────────
+  //
+  // R12: the calendar is the PLAN and cwl_seasons is REALITY, and reality wins.
+  // If a season row already exists for the month the window names, this clan is
+  // in CWL and the sync has proved it — so the page links to the season instead
+  // of telling a member it starts in four days. The inference only speaks where
+  // there is nothing to check it against.
+  //
+  // Nothing here is persisted; see the header of cwlWindow() in lib/coc-time.ts.
+  const now = new Date();
+  const cwlNext = nextCwlWindow(now);
+  const phase = cwlPhase(now);
+  const cwlSeasonRow = seasons.find((s) => s.season === cwlNext.season) ?? null;
 
   // Both numbers, when they disagree. See currentMemberCount's comment: the gap
   // is the interesting part, so showing only one of them would hide the signal.
@@ -573,114 +603,141 @@ export default async function ClanDashboardPage({
         )}
       </section>
 
-      {/* ── Where to go ────────────────────────────────────────────────────── */}
-      <section className="space-y-3">
+      {/* ── Clan War League, next or now (T4.4) ──────────────────────────────
+          This replaces the "Next CWL start date" line on the "Not built yet"
+          list that used to close this page. That list also claimed the base
+          layout library was unbuilt, three sections below a grid that linked
+          to it — a panel describing the product to itself goes stale the first
+          time nobody remembers to edit it, and this one had.
+
+          CWL is the reason this project exists: the API deletes a season's data
+          when it ends and it cannot be recovered from anywhere. Missing signup
+          is therefore not a missed feature, it is a month that never happened. */}
+      <section className="cb-panel space-y-3 rounded-xl border p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2.5 text-lg font-semibold tracking-tight">
+            <span
+              className="cb-emblem size-8 rounded-lg"
+              style={{ "--emblem": "var(--primary)" } as React.CSSProperties}
+            >
+              <Trophy aria-hidden className="size-4" />
+            </span>
+            Clan War League
+          </h2>
+          {phase === "signup" && (
+            <Badge variant="info">
+              <CalendarDays aria-hidden />
+              signup open
+            </Badge>
+          )}
+          {phase === "wars" && (
+            <Badge variant="warning">
+              <Swords aria-hidden />
+              war days
+            </Badge>
+          )}
+        </div>
+
+        {cwlSeasonRow ? (
+          // Reality. The sync has found the league group, so there is nothing
+          // left to infer and the calendar has no business being on screen.
+          <div className="space-y-3">
+            <p className="text-muted-foreground text-sm">
+              {cwlNext.season} is running
+              {cwlSeasonRow.league ? ` in ${cwlSeasonRow.league}` : ""}. Stars,
+              attacks and who has missed a day are all on the season page.
+            </p>
+            <Button asChild size="sm">
+              <Link href={`${href}/cwl/${encodeURIComponent(cwlSeasonRow.season)}`}>
+                Open {cwlSeasonRow.season}
+              </Link>
+            </Button>
+          </div>
+        ) : phase === "signup" ? (
+          <div className="space-y-3">
+            <p className="text-muted-foreground text-sm">
+              Signup is open until roughly{" "}
+              <LocalTime iso={cwlNext.warsStart.toISOString()} style="date" />.
+              Whoever is in the roster when it closes is in for all seven wars,
+              so this is the one window where it can still be changed.
+            </p>
+            <Button asChild size="sm">
+              <Link href={`${href}/cwl/roster`}>Pick the roster</Link>
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* Deliberately vague. Supercell has moved the schedule by a day
+                before, and nothing in the API confirms the date — a guess worded
+                as a promise is worse than one worded as a guess, because the
+                member stops trusting the rest of the page with it. */}
+            <p className="text-muted-foreground text-sm">
+              The next league usually opens for signup around{" "}
+              <LocalTime iso={cwlNext.signupOpens.toISOString()} style="date" />,
+              with the seven war days following two days later. The game does not
+              publish the date, so this is the usual calendar rather than a
+              promise.
+            </p>
+            <Button asChild size="sm" variant="outline">
+              <Link href={`${href}/cwl`}>Past seasons</Link>
+            </Button>
+          </div>
+        )}
+      </section>
+
+      {/* ── Where to go ──────────────────────────────────────────────────────
+          Four labelled clusters, not one flat run of thirteen. The flat version
+          put four separate war pages between Members and Clan Games in no
+          order anyone could state, and a member looking for "where do I say I
+          am available" had to read all thirteen to find out it was called
+          "War lineup".
+
+          Every card comes from lib/clan-nav.ts, which is also what the rail's
+          tab strip and /guide read. Adding a destination in one place now puts
+          it in all three; before, the tab strip did not exist and the hints
+          lived only here. */}
+      <section className="space-y-5">
         <h2 className="text-muted-foreground text-xs tracking-wide uppercase">
           Go to
         </h2>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          <Go
-            href={`${href}/members`}
-            label="Members"
-            hint="Donations, ratios, who has gone quiet"
-            Icon={Users}
-          />
-          <Go
-            href={`${href}/war`}
-            label="War board"
-            hint="Targets, the chase list, both rosters"
-            Icon={Swords}
-          />
-          <Go
-            href={`${href}/war/lineup`}
-            label="War lineup"
-            hint="Pick who is in before declaring"
-            Icon={ClipboardList}
-          />
-          <Go
-            href={`${href}/war/history`}
-            label="War history"
-            hint="Every past war and its result"
-            Icon={Layers}
-          />
-          {/* T6.9 / T6.10. Was reachable only from the war sub-headers and a
-              player profile, which made the one report answering "did they do
-              what they were told" the hardest page in the app to find. */}
-          <Go
-            href={`${href}/war/report`}
-            label="War report"
-            hint="Contribution, and plan versus reality"
-            Icon={Target}
-          />
-          <Go
-            href={`${href}/cwl`}
-            label="Clan War League"
-            hint="Seasons, stars and bonuses"
-            Icon={Trophy}
-          />
-          <Go
-            href={`${href}/cwl/roster`}
-            label="CWL lineup"
-            hint="The roster for this season"
-            Icon={ClipboardList}
-          />
-          <Go
-            href={`${href}/raids`}
-            label="Raid weekends"
-            hint="Medals, loot, and who still has attacks"
-            Icon={Castle}
-          />
-          <Go
-            href={`${href}/games`}
-            label="Clan Games"
-            hint="Points per member, month by month"
-            Icon={Gamepad2}
-          />
-          <Go
-            href={`${href}/polls`}
-            label="Polls"
-            hint="Ask, answer, and chase the quiet ones"
-            Icon={Vote}
-          />
-          <Go
-            href={`${href}/notices`}
-            label="Announcements"
-            hint="What leadership has posted"
-            Icon={Megaphone}
-          />
-          {/* T8.4 — the library needs a way in, and the dashboard is the only
-              page every member already opens. */}
-          <Go
-            href={`${href}/layouts`}
-            label="Base layouts"
-            hint="Shared bases, ranked by votes"
-            Icon={LayoutGrid}
-          />
-          <Go
-            href="/search"
-            label="Search all clans"
-            hint="Find a player across the three"
-            Icon={Search}
-          />
+
+        <div className="grid gap-x-6 gap-y-5 lg:grid-cols-2">
+          {CLAN_GROUPS.map((group) => (
+            <div key={group.id} className="space-y-2">
+              <h3 className="text-muted-foreground flex items-center gap-2 text-xs font-medium tracking-wide uppercase">
+                {group.label}
+                {/* The rule finishes the heading across the column. Without it
+                    a short heading over a two-card cluster reads as a card
+                    label that lost its card. */}
+                <span aria-hidden className="bg-border h-px flex-1" />
+              </h3>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                {cardsInGroup(group.id).map((section) => (
+                  <GoTo key={section.path} base={href} section={section} />
+                ))}
+
+                {/* Cross-clan, so it is not in the clan nav data — every path
+                    there is relative to this clan's tag, and this one is not
+                    under a tag at all. It sits in "Talk and share" because
+                    finding somebody is what a member comes here to do.
+
+                    "Find a player across the three" was hardcoded, while
+                    /search itself renders "Across N of your clans". Two clans
+                    exist today, not three; the number does not belong in copy
+                    for the same reason lib/clan-accent.ts derives a hue rather
+                    than listing the clans. */}
+                {group.id === "share" && (
+                  <Go
+                    href="/search"
+                    label="Search all clans"
+                    hint="Find a player in any of your clans"
+                    Icon={Search}
+                  />
+                )}
+              </div>
+            </div>
+          ))}
         </div>
-      </section>
-
-      {/* Named rather than omitted, so the page states what it does not yet know
-          instead of implying nothing is missing. Deliberately the only
-          uncoloured block on the page — it must not compete with the sections
-          above it, which are about things that actually happened.
-
-          Raids and Clan Games left this list when Phase 7 landed; both are in
-          the nav grid above now. */}
-      <section className="space-y-2 rounded-xl border border-dashed p-6">
-        <h2 className="text-muted-foreground font-medium">Not built yet</h2>
-        <ul className="text-muted-foreground list-inside list-disc text-sm">
-          <li>
-            Next CWL start date — the API publishes none, so it has to be inferred
-            from the season calendar (T4.4)
-          </li>
-          <li>Base layout library (Phase 8)</li>
-        </ul>
       </section>
     </main>
   );

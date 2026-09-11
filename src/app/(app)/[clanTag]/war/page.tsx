@@ -163,7 +163,7 @@ export default async function WarBoardPage({
     return (
       <main className="mx-auto max-w-4xl space-y-6 p-8">
         <BoardHeader clanName={clan.name} base={base} runs={runs} />
-        <section className="space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-lg border p-6">
           <h2 className="font-medium">No war recorded</h2>
           {/* T9.10 — not being at war is the ordinary state, so this says what
               to do rather than apologising for an empty page. */}
@@ -221,7 +221,7 @@ export default async function WarBoardPage({
       )}
 
       {/* ── Scoreboard ───────────────────────────────────────────────────── */}
-      <section className="space-y-3 rounded-lg border p-6">
+      <section className="cb-panel space-y-3 rounded-lg border p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">
             {clan.name} vs {war.opponentName ?? "unknown"}
@@ -251,7 +251,7 @@ export default async function WarBoardPage({
       </section>
 
       {/* ── T6.3 — the list that is the point ────────────────────────────── */}
-      <section className="space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">
             Attacks not used{" "}
@@ -296,7 +296,7 @@ export default async function WarBoardPage({
 
       {/* ── T6.4, the member's half: claim a free base ───────────────────── */}
       {!leadership && myRecord.length > 0 && !ended && (
-        <section className="space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-lg border p-6">
           <h2 className="font-medium">Your target</h2>
           {myRecord.map((m) => (
             <div key={m.playerId} className="space-y-2">
@@ -364,7 +364,7 @@ export default async function WarBoardPage({
       )}
 
       {/* ── T6.5 — the plan and the outcome, adjacent and never merged ───── */}
-      <section className="space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
         <h2 className="font-medium">Our roster</h2>
 
         <div className="overflow-x-auto">
@@ -493,7 +493,7 @@ export default async function WarBoardPage({
       </section>
 
       {/* ── T6.3 — the other roster ──────────────────────────────────────── */}
-      <section className="space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
         <h2 className="font-medium">{war.opponentName ?? "The opposition"}</h2>
 
         {opponents.length === 0 && (

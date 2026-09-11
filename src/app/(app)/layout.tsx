@@ -17,9 +17,11 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { Menu } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { accountProfile, currentUserId, needsAccountSetup } from "@/lib/auth";
 import { clanAccent } from "@/lib/clan-accent";
+import { activeNav, CLAN_SECTIONS, sectionHref } from "@/lib/clan-nav";
 import { visibleClans } from "@/lib/clans";
 import { isGateExempt, isSetupExempt } from "@/lib/gate";
 import { SignOutButton } from "@/components/sign-out-button";
@@ -47,6 +49,15 @@ function currentClanTag(pathname: string): string | null {
     return null;
   }
 }
+
+// Both nav rows use the clan switcher's own two states, deliberately: the
+// current tab is a lit parchment tile cut into the wood, everything else is ink
+// on wood. The hover has to carry BOTH colours — bg-accent alone puts dim tan
+// text on a light tan chip, which is the one combination in this palette that
+// disappears.
+const TAB_ACTIVE =
+  "bg-accent text-accent-foreground shadow-[inset_0_1px_0_oklch(1_0_0/0.5)] font-medium";
+const TAB_IDLE = "text-wood-ink-dim hover:bg-accent hover:text-accent-foreground";
 
 export default async function AppLayout({
   children,
@@ -114,6 +125,70 @@ export default async function AppLayout({
   // /roster, /settings) simply matches nothing and no link is highlighted.
   const current = currentClanTag(pathname);
   const showAdminLink = admin || clans.some((c) => c.role === "leader");
+  const showLeadershipLinks = clans.some(
+    (c) => c.role === "leader" || c.role === "co-leader",
+  );
+
+  // The section tabs. Null on /admin, /roster, /settings and every other route
+  // outside a clan, which is exactly when there are no sections to show.
+  //
+  // Rendered HERE rather than from a [clanTag]/layout.tsx, which is where this
+  // started. Inside the same sticky <header> the strip needs no magic offset to
+  // sit under the rail — a nested layout would have had to guess the rail's
+  // height, and the rail's height is whatever its contents wrap to. It also puts
+  // both nav surfaces in one file, so the clan switcher and the section tabs
+  // agree about their states by construction rather than by discipline.
+  //
+  // GATED ON THE TAG BEING ONE OF THIS USER'S CLANS, not merely on it being
+  // tag-SHAPED. activeNav() answers "does this path look like a clan route",
+  // which is the right question for a matcher and the wrong one here: a layout
+  // renders around a page that calls notFound(), so /%23NOTMYCLAN would 404 in
+  // the content area under a full set of tabs for a clan the member cannot
+  // open. Nothing leaks — requireClanByTag still 404s every page and RLS is
+  // underneath it — but a nav for a clan that is not yours is a nav whose links
+  // all 404, and the same visibleClans() list that builds the switcher above is
+  // already in hand.
+  const inClan = current !== null && clans.some((c) => c.tag === current);
+  const nav = inClan ? activeNav(pathname) : null;
+  const clanBase = inClan ? `/${encodeURIComponent(current)}` : null;
+
+  // Written once and rendered twice — as a row on a wide screen, and inside the
+  // disclosure on a phone. Two copies would be two places to add the next link
+  // to, and the one that gets forgotten is the phone.
+  const secondaryLinks = (
+    <>
+      {/* Cross-clan, so it lives here rather than under a clan tag: a CWL
+          season is picked across every clan a leader runs (T4B.7). */}
+      {showLeadershipLinks && (
+        <>
+          <Link href="/roster" className="hover:underline">
+            Rosters
+          </Link>
+          {/* T9.1 — objective O3, and it needs a way in. Leadership only: it
+              lists every member of every clan with the reasons they were
+              flagged, which is a leader's view of the family, not a member's
+              view of their own clan. */}
+          <Link href="/report" className="hover:underline">
+            Participation
+          </Link>
+        </>
+      )}
+      {showAdminLink && (
+        <Link href="/admin" className="hover:underline">
+          Admin
+        </Link>
+      )}
+      <Link href="/settings/notifications" className="hover:underline">
+        Notifications
+      </Link>
+      <Link href="/settings/account" className="hover:underline">
+        Account
+      </Link>
+      <Link href="/guide" className="hover:underline">
+        Help
+      </Link>
+    </>
+  );
 
   return (
     // The root layout owns the page height now (it flexes the footer to the
@@ -129,7 +204,7 @@ export default async function AppLayout({
           it was previously scrolled off the top of every long roster. z-30 sits
           above page content and below any dialog. */}
       <header className="cb-rail sticky top-0 z-30">
-        <nav className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 p-4">
+        <nav className="mx-auto flex max-w-5xl items-center gap-x-4 gap-y-2 px-4 py-3">
           <Link
             href="/"
             className="text-wood-ink hover:text-wood-ink flex items-center gap-2 font-semibold tracking-tight"
@@ -154,7 +229,11 @@ export default async function AppLayout({
           </Link>
 
           {clans.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1">
+            // Scrolls rather than wraps. The rail is sticky and sits above every
+            // page, so a wrapping rail is vertical space taken from the content
+            // on the narrowest screens — which, given manifest.json declares
+            // this app portrait and standalone, is most of them.
+            <div className="cb-scroll-x flex min-w-0 shrink items-center gap-1">
               {clans.map((clan) => {
                 // The dot is this clan's own colour, derived from its id — see
                 // lib/clan-accent.ts on why there is no lookup table. It is
@@ -168,7 +247,7 @@ export default async function AppLayout({
                     href={`/${encodeURIComponent(clan.tag)}`}
                     aria-current={active ? "page" : undefined}
                     className={
-                      "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors " +
+                      "flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors " +
                       // Which clan you are looking at was previously not shown
                       // at all — three identical links, and the only way to
                       // tell was the URL.
@@ -199,38 +278,13 @@ export default async function AppLayout({
           {/* Nav links on the rail. `[&_a]:` rather than a class on each: there
               are seven of them, they are all the same thing, and the next one
               someone adds should not have to remember six utility classes to
-              avoid rendering as dark-blue-on-dark-wood. */}
-          <div className="text-wood-ink-dim ml-auto flex items-center gap-3 text-sm [&_a]:transition-colors [&_a:hover]:text-wood-ink [&_button]:transition-colors [&_button:hover]:text-wood-ink">
-            {/* Cross-clan, so it lives here rather than under a clan tag: a CWL
-                season is picked across every clan a leader runs (T4B.7). */}
-            {clans.some((c) => c.role === "leader" || c.role === "co-leader") && (
-              <>
-                <Link href="/roster" className="hover:underline">
-                  Rosters
-                </Link>
-                {/* T9.1 — objective O3, and it needs a way in. Leadership only:
-                    it lists every member of every clan with the reasons they
-                    were flagged, which is a leader's view of the family, not a
-                    member's view of their own clan. */}
-                <Link href="/report" className="hover:underline">
-                  Participation
-                </Link>
-              </>
-            )}
-            {showAdminLink && (
-              <Link href="/admin" className="hover:underline">
-                Admin
-              </Link>
-            )}
-            <Link href="/settings/notifications" className="hover:underline">
-              Notifications
-            </Link>
-            <Link href="/settings/account" className="hover:underline">
-              Account
-            </Link>
-            <Link href="/guide" className="hover:underline">
-              Help
-            </Link>
+              avoid rendering as dark-blue-on-dark-wood.
+
+              Hidden below `sm`, where the same seven items plus a username used
+              to wrap the rail into a four-row block on every page. See the
+              disclosure below. */}
+          <div className="text-wood-ink-dim ml-auto hidden items-center gap-3 text-sm sm:flex [&_a]:transition-colors [&_a:hover]:text-wood-ink [&_button]:transition-colors [&_button:hover]:text-wood-ink">
+            {secondaryLinks}
 
             {/* T10.3 — who you are, then the way out.
 
@@ -248,7 +302,104 @@ export default async function AppLayout({
             </span>
             <SignOutButton />
           </div>
+
+          {/* The same links on a phone, behind a disclosure.
+
+              A native <details>, not a dropdown. This app is server-rendered
+              throughout, there is no dropdown-menu primitive in components/ui to
+              reach for, and a menu built out of useState would be the first
+              client component in the shell — hydration on every page for a list
+              of six links. <details> opens with no JavaScript at all, is
+              keyboard-operable and screen-reader-announced for free, and cannot
+              break the way the sign-out form deliberately cannot break.
+
+              It is placed after the switcher in the DOM so tab order still
+              reaches the clan pills first, which are what members actually
+              use. */}
+          <details className="group relative ml-auto shrink-0 sm:hidden">
+            <summary
+              className="text-wood-ink-dim hover:text-wood-ink flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1 text-sm transition-colors [&::-webkit-details-marker]:hidden"
+              aria-label="Menu"
+            >
+              <Menu aria-hidden className="size-4" />
+              More
+            </summary>
+            <div className="cb-panel absolute right-0 z-40 mt-2 flex w-56 flex-col gap-1 rounded-lg border p-2 text-sm [&_a]:rounded-md [&_a]:px-2 [&_a]:py-1.5 [&_a:hover]:bg-accent [&_button]:rounded-md [&_button]:px-2 [&_button]:py-1.5 [&_button]:text-left [&_button:hover]:bg-accent">
+              {secondaryLinks}
+              <span
+                className="text-muted-foreground mt-1 border-t px-2 pt-2 text-xs"
+                title={profile?.email}
+              >
+                {profile?.username ?? profile?.email ?? ""}
+              </span>
+              <SignOutButton />
+            </div>
+          </details>
         </nav>
+
+        {/* ── The section tabs ──────────────────────────────────────────────
+            Thirteen destinations used to be reachable from the clan dashboard
+            and nowhere else, so moving from the member directory to the war
+            board meant the Back button. Everything here comes from
+            lib/clan-nav.ts, which is also what the dashboard grid and /guide
+            read, so a destination is described once.
+
+            The `title` is the hint, verbatim. It costs nothing and it is the
+            whole plain-language layer for a member who has not learned the
+            product yet. */}
+        {nav && clanBase && (
+          <div className="border-t border-white/10">
+            <div className="mx-auto max-w-5xl px-4">
+              <div className="cb-scroll-x flex items-center gap-1 py-1.5">
+                {CLAN_SECTIONS.map((section) => {
+                  const active = nav.section.path === section.path;
+                  return (
+                    <Link
+                      key={section.path}
+                      href={sectionHref(clanBase, section)}
+                      aria-current={active ? "page" : undefined}
+                      title={section.hint}
+                      className={
+                        "flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors " +
+                        (active ? TAB_ACTIVE : TAB_IDLE)
+                      }
+                    >
+                      <section.icon aria-hidden className="size-3.5" />
+                      {section.label}
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {/* The second row, only where there is one. Underline rather than
+                  another parchment tile: two identical treatments stacked reads
+                  as two peer rows, and these are subordinate to the one above. */}
+              {nav.section.children && (
+                <div className="cb-scroll-x flex items-center gap-3 border-t border-white/10 py-1.5">
+                  {nav.section.children.map((child) => {
+                    const active = nav.child?.path === child.path;
+                    return (
+                      <Link
+                        key={child.path}
+                        href={sectionHref(clanBase, child)}
+                        aria-current={active ? "page" : undefined}
+                        title={child.hint}
+                        className={
+                          "shrink-0 rounded-sm px-1 py-0.5 text-xs transition-colors " +
+                          (active
+                            ? "text-wood-ink font-medium underline decoration-2 underline-offset-4"
+                            : "text-wood-ink-dim hover:text-wood-ink")
+                        }
+                      >
+                        {child.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </header>
 
       {children}

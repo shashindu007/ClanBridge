@@ -5,9 +5,13 @@ import {
   InvalidCocTimeError,
   clanGamesPhase,
   clanGamesWindow,
+  cwlPhase,
+  cwlSeason,
+  cwlWindow,
   formatCocTime,
   gamesSeason,
   isDuringClanGames,
+  nextCwlWindow,
   parseCocTime,
   parseCocTimeOrNull,
 } from "./coc-time";
@@ -227,5 +231,94 @@ describe("clanGamesPhase", () => {
     }
     // The opening day is 'start' and never 'end'.
     expect(clanGamesPhase(at("2026-08-22T12:00:00Z"))).toBe("start");
+  });
+});
+
+// T4.4 — the inferred CWL window.
+//
+// Unlike the Clan Games window above, nothing SYNCS off this one — sync/cwl.ts
+// runs every two hours regardless of the date and finds the season on its own.
+// It drives copy, so the failures it can produce are wrong sentences rather than
+// lost data. These tests pin the boundaries anyway, because "starts around the
+// 1st" turning into "started three weeks ago" is the kind of wrongness a member
+// stops trusting the whole page over.
+
+describe("cwlWindow", () => {
+  it("opens signup on the 1st at 08:00 UTC", () => {
+    const w = cwlWindow(new Date("2026-09-14T00:00:00Z"));
+    expect(w.signupOpens.toISOString()).toBe("2026-09-01T08:00:00.000Z");
+  });
+
+  it("runs two days of signup, then seven of wars", () => {
+    const w = cwlWindow(new Date("2026-09-14T00:00:00Z"));
+    expect(w.warsStart.toISOString()).toBe("2026-09-03T08:00:00.000Z");
+    expect(w.warsEnd.toISOString()).toBe("2026-09-10T08:00:00.000Z");
+  });
+
+  // The season string is the natural key of cwl_seasons, which is what lets a
+  // caller compare this guess against the rows that actually exist (R12). The
+  // first real-data bug in this project was a season arriving as a full date
+  // where every layer expected 'YYYY-MM'; this must not reintroduce the shape.
+  it("keys the window by 'YYYY-MM', matching cwl_seasons", () => {
+    expect(cwlWindow(new Date("2026-09-14T00:00:00Z")).season).toBe("2026-09");
+    expect(cwlSeason(new Date("2026-01-31T23:59:59Z"))).toBe("2026-01");
+  });
+
+  it("answers for a month it is nowhere near, rather than returning nothing", () => {
+    // The three weeks in four when no CWL is running is precisely when the
+    // question "when is the next one" gets asked.
+    const w = cwlWindow(new Date("2026-09-25T12:00:00Z"));
+    expect(w.season).toBe("2026-09");
+  });
+
+  it("handles a 31-day month and a February without drifting", () => {
+    expect(cwlWindow(new Date("2026-02-15T00:00:00Z")).warsEnd.toISOString()).toBe(
+      "2026-02-10T08:00:00.000Z",
+    );
+    expect(cwlWindow(new Date("2026-12-15T00:00:00Z")).signupOpens.toISOString()).toBe(
+      "2026-12-01T08:00:00.000Z",
+    );
+  });
+});
+
+describe("cwlPhase", () => {
+  it.each([
+    { iso: "2026-09-01T07:59:00Z", phase: null, why: "an hour before signup opens" },
+    { iso: "2026-09-01T08:00:00Z", phase: "signup", why: "the instant signup opens" },
+    { iso: "2026-09-02T12:00:00Z", phase: "signup", why: "mid-signup" },
+    { iso: "2026-09-03T07:59:00Z", phase: "signup", why: "the last minute of signup" },
+    { iso: "2026-09-03T08:00:00Z", phase: "wars", why: "the first war day" },
+    { iso: "2026-09-09T23:00:00Z", phase: "wars", why: "the last war day" },
+    { iso: "2026-09-10T08:00:00Z", phase: null, why: "the instant the season ends" },
+    { iso: "2026-09-22T08:00:00Z", phase: null, why: "Clan Games week, not CWL" },
+  ])("$iso is $phase — $why", ({ iso, phase }) => {
+    expect(cwlPhase(new Date(iso))).toBe(phase);
+  });
+});
+
+describe("nextCwlWindow", () => {
+  // "Next" includes one already running. A member asking during CWL wants to be
+  // told it has started, not handed a date four weeks out.
+  it("returns the running season while it is running", () => {
+    expect(nextCwlWindow(new Date("2026-09-05T00:00:00Z")).season).toBe("2026-09");
+  });
+
+  it("returns this month's while it is still ahead", () => {
+    expect(nextCwlWindow(new Date("2026-09-01T00:00:00Z")).season).toBe("2026-09");
+  });
+
+  it("rolls to next month once the season has ended", () => {
+    const w = nextCwlWindow(new Date("2026-09-20T00:00:00Z"));
+    expect(w.season).toBe("2026-10");
+    expect(w.signupOpens.toISOString()).toBe("2026-10-01T08:00:00.000Z");
+  });
+
+  // Date.UTC normalises month 12 to the following January. Asserted because a
+  // refactor to explicit month arithmetic would break exactly this and nothing
+  // else, once a year.
+  it("rolls December into January of the next year", () => {
+    const w = nextCwlWindow(new Date("2026-12-28T00:00:00Z"));
+    expect(w.season).toBe("2027-01");
+    expect(w.signupOpens.toISOString()).toBe("2027-01-01T08:00:00.000Z");
   });
 });

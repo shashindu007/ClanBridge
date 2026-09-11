@@ -17,6 +17,7 @@
 
 import Link from "next/link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { cardLabelOf, cardsInGroup, CLAN_GROUPS } from "@/lib/clan-nav";
 
 export const metadata = {
   title: "Guide — ClanBridge",
@@ -209,6 +210,56 @@ export default function MemberGuidePage() {
             profile showing their real record over months.
           </li>
         </ul>
+      </section>
+
+      {/* ── The page map ────────────────────────────────────────────────────
+          This guide explained how to get IN and then stopped, which left a new
+          member signed in, approved, notified — and looking at thirteen
+          destinations with no idea which one answers their question.
+
+          Built from lib/clan-nav.ts, the same data the rail's tab strip and the
+          dashboard grid read. The hints below are the hints on those cards,
+          verbatim, because they are the same sentence and a second copy written
+          here would be a second copy to forget to update.
+
+          No clan tag, so the names are listed rather than linked: this page is
+          gate-exempt and a member reading it while waiting for approval has no
+          clan to link into yet. */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-medium">What each page is for</h2>
+        <p className="text-muted-foreground text-sm">
+          Everything below sits under whichever clan you are looking at — the
+          names on the dark bar at the top. Switch clans there; the same pages
+          follow.
+        </p>
+
+        <div className="space-y-5">
+          {CLAN_GROUPS.map((group) => (
+            <div key={group.id} className="space-y-2">
+              <h3 className="font-medium">{group.label}</h3>
+              <p className="text-muted-foreground text-sm">{group.blurb}</p>
+              <dl className="divide-border divide-y rounded-lg border">
+                {cardsInGroup(group.id).map((section) => (
+                  <div
+                    key={section.path}
+                    className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-4 py-2.5"
+                  >
+                    <dt className="flex items-center gap-2 text-sm font-medium">
+                      <section.icon
+                        aria-hidden
+                        className="text-muted-foreground size-3.5 shrink-0"
+                      />
+                      {cardLabelOf(section)}
+                    </dt>
+                    <dd className="text-muted-foreground text-sm">
+                      {section.hint}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="space-y-2 border-t pt-6">
