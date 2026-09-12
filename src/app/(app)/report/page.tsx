@@ -128,7 +128,7 @@ export default async function CrossClanReportPage() {
       {rows.length === 0 ? (
         // T9.10 — clans exist but no members have synced yet. Day one of a fresh
         // install, and the fix is a sync rather than anything on this page.
-        <section className="rounded-lg border p-6">
+        <section className="cb-panel rounded-lg border p-6">
           <p className="text-muted-foreground text-sm">
             No members have been synced yet. Once <code>sync:clans</code> has run,
             everybody appears here.

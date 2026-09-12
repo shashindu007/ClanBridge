@@ -435,6 +435,32 @@
       0 10px 26px -14px oklch(0 0 0 / 0.55);
   }
 
+  /* ── A row that scrolls sideways instead of wrapping ──────────────────────
+     The rail is sticky and sits above every page, so anything that wraps up
+     there is vertical space taken from the content on exactly the screens with
+     least of it — and manifest.json declares this app `standalone` and
+     `portrait`, so a phone is the target rather than an edge case. The clan
+     switcher and both tab rows use this.
+
+     `scrollbar-width: none` and the WebKit pseudo-element together, because
+     neither is universal yet: a visible scrollbar under a 28px row of chips is
+     taller than the chips.
+
+     `overscroll-behavior-x: contain` is the one that is not cosmetic. Without
+     it, swiping past the end of the tab strip is handed to the browser as a
+     horizontal overscroll, which an installed PWA reads as a back gesture —
+     so overshooting the last tab navigates away from the page. */
+  .cb-scroll-x {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .cb-scroll-x::-webkit-scrollbar {
+    display: none;
+  }
+
   /* ── Panel: any card, section or tile ─────────────────────────────────────
      A sheet of parchment with a lit top edge, resting on the page. The
      gradient is a two-stop nothing — 3.5% over the top third — and it does

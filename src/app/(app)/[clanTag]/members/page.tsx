@@ -194,7 +194,7 @@ export default async function MemberDirectoryPage({
           because it is the reason a leader opened this page, but deliberately
           worded as a prompt to look rather than a verdict. */}
       {attention.length > 0 && (
-        <section className="space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-lg border p-6">
           <h2 className="font-medium">Worth a look — {attention.length}</h2>
           <ul className="space-y-3">
             {attention.map((flag) => {
@@ -216,17 +216,24 @@ export default async function MemberDirectoryPage({
               );
             })}
           </ul>
+          {/* Worded for a reader who has never used this before. The previous
+              version said "every line above is a proxy, not a fact", which is
+              exactly right and says nothing to someone who does not already
+              know what a proxy measurement is — and the people most likely to
+              act on this list are the ones least likely to know. The caveat is
+              the important part of the section, so it may not be the part that
+              needs a second reading. */}
           <p className="text-muted-foreground text-xs">
-            Every line above is a proxy, not a fact. &ldquo;Quiet&rdquo; means two
-            counters did not move — a member on holiday and a member who has quit
-            look identical from here. Ask before acting; nothing in this system
-            acts on its own.
+            These are hints, not facts. All &ldquo;quiet&rdquo; means is that two
+            numbers stopped moving, so someone away on holiday looks exactly the
+            same here as someone who has quit. Talk to them before you do
+            anything — this app never removes or changes anyone by itself.
           </p>
         </section>
       )}
 
       {rows.length === 0 ? (
-        <section className="space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-lg border p-6">
           <h2 className="font-medium">No members recorded yet</h2>
           <p className="text-muted-foreground text-sm">
             The member list arrives with <code className="text-xs">sync:clans</code>,
@@ -235,7 +242,7 @@ export default async function MemberDirectoryPage({
           </p>
         </section>
       ) : (
-        <section className="rounded-lg border">
+        <section className="cb-panel rounded-lg border">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -315,23 +322,55 @@ export default async function MemberDirectoryPage({
         </section>
       )}
 
-      <section className="text-muted-foreground space-y-2 rounded-lg border border-dashed p-6 text-sm">
-        <p>
-          <strong className="text-foreground">Ratio</strong> is given ÷ received
-          for the current season, shown in red below {LOW_RATIO_THRESHOLD}. It is
-          blank for anyone who has received nothing — that is an undefined ratio,
-          not a perfect one.
-        </p>
-        <p>
-          <strong className="text-foreground">Last seen</strong> is the last time
-          this member&rsquo;s donations or trophies changed, which is a floor
-          rather than a login time: someone who plays daily without donating or
-          moving trophies looks idle. It reaches back{" "}
-          {coveredDays > 0 ? `${coveredDays} days` : "as far as the snapshots go"};
-          older activity shows as a bound, not a date. A member is listed above as
-          worth a look after {QUIET_DAYS} quiet days. Advisory only — never a
-          reason on its own to remove anyone (T3B.5).
-        </p>
+      {/* ── What the two awkward columns actually mean ──────────────────────
+          Rewritten in plain words. The previous version was accurate and
+          compressed into terms that assume the reader already knows them —
+          "a floor rather than a login time", "a bound, not a date", "an
+          undefined ratio", and a task ID. Every one of those is a sentence a
+          new member has to decode before they can use the table above it, and
+          the whole point of this block is to stop the table being misread.
+
+          Nothing in the MEANING changed: last seen is still a lower bound, the
+          blank ratio is still undefined rather than perfect, and the list is
+          still advisory (T3B.5). Only the wording did. */}
+      <section className="text-muted-foreground space-y-4 rounded-lg border border-dashed p-6 text-sm">
+        <div className="space-y-1">
+          <p className="text-foreground font-medium">What &ldquo;Ratio&rdquo; means</p>
+          <p>
+            How many troops someone gave for each one they got. 1.0 means they
+            gave back exactly what they took; below {LOW_RATIO_THRESHOLD} shows in
+            red. It stays blank for anyone who has not received anything yet,
+            because there is nothing to divide by — blank is not a perfect score.
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-foreground font-medium">What &ldquo;Last seen&rdquo; means</p>
+          <p>
+            The last time this member&rsquo;s donations or trophies changed.{" "}
+            <strong className="text-foreground">It is not a login time</strong>,
+            and this is the part that catches people out: someone who plays every
+            single day without donating or moving trophies still looks inactive
+            here. Read it as &ldquo;at least this long ago&rdquo;, never as
+            &ldquo;exactly then&rdquo;.
+          </p>
+          <p>
+            {coveredDays > 0
+              ? `Only the last ${coveredDays} days are kept, so anything older shows as "more than ${coveredDays} days" instead of a date.`
+              : "Only recent days are kept, so older activity shows as a rough bound instead of a date."}
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-foreground font-medium">
+            What &ldquo;Worth a look&rdquo; means
+          </p>
+          <p>
+            {QUIET_DAYS} days with no change to either of those numbers. It is a
+            nudge to go and ask someone how they are getting on — not a verdict,
+            and never on its own a reason to remove anyone.
+          </p>
+        </div>
       </section>
     </main>
   );

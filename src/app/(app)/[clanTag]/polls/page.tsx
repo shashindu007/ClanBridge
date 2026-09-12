@@ -75,7 +75,7 @@ export default async function PollsPage({
       </div>
 
       {polls.length === 0 ? (
-        <section className="space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-lg border p-6">
           <h2 className="font-medium">No polls yet</h2>
           <p className="text-muted-foreground text-sm">
             {isLeadership(clan.role)

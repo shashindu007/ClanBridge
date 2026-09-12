@@ -17,36 +17,28 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { Activity, ClipboardList } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { accountProfile, currentUserId, needsAccountSetup } from "@/lib/auth";
 import { clanAccent } from "@/lib/clan-accent";
 import { visibleClans } from "@/lib/clans";
 import { isGateExempt, isSetupExempt } from "@/lib/gate";
-import { SignOutButton } from "@/components/sign-out-button";
+import { AccountMenu } from "@/components/account-menu";
+import {
+  ClanSectionTabs,
+  ClanSwitcher,
+  type RailClan,
+} from "@/components/clan-nav-rail";
 import { PATHNAME_HEADER } from "@/lib/request-headers";
-import { decodeTag } from "@/lib/tags";
 
 // The exempt list and its reasoning live in lib/gate.ts, so they can be tested
 // without rendering this layout. Its absence of "/admin" was a bootstrap
 // deadlock that no test caught.
 
-/**
- * The clan tag in the first path segment, if there is one.
- *
- * Cosmetic only. Never throws: decodeTag rejects anything that is not a tag,
- * and every non-clan route under (app) — /admin, /roster, /guide,
- * /settings/notifications — hits exactly that path. A highlighted nav link is
- * not worth a 500 on the shell that wraps every page in the app.
- */
-function currentClanTag(pathname: string): string | null {
-  const segment = pathname.split("/").filter(Boolean)[0];
-  if (!segment) return null;
-  try {
-    return decodeTag(segment);
-  } catch {
-    return null;
-  }
-}
+// The pathname is still read here, but ONLY for the two redirects below. The
+// nav's own active state cannot come from it: a layout is not re-rendered on a
+// client-side navigation, so this value is stale from the second page onwards.
+// See components/clan-nav-rail.tsx, which subscribes to the router instead.
 
 export default async function AppLayout({
   children,
@@ -108,12 +100,22 @@ export default async function AppLayout({
   const clans = approved ? allClans : [];
   const admin = profile?.isPlatformAdmin === true;
 
-  // Which clan the switcher should mark as current. Purely cosmetic — the page
-  // itself resolves the tag through requireClanByTag, which is what actually
-  // decides who may see what. A segment that is not a tag at all (/admin,
-  // /roster, /settings) simply matches nothing and no link is highlighted.
-  const current = currentClanTag(pathname);
   const showAdminLink = admin || clans.some((c) => c.role === "leader");
+  const showLeadershipLinks = clans.some(
+    (c) => c.role === "leader" || c.role === "co-leader",
+  );
+
+  // Flattened for the rail, which is a Client Component and therefore receives
+  // only serialisable values. The accent is resolved HERE rather than there so
+  // the "a clan's hue is derived from its id, never looked up" rule stays in one
+  // place (R3, lib/clan-accent.ts) instead of being restated on the client.
+  const railClans: RailClan[] = clans.map((clan) => ({
+    id: clan.id,
+    tag: clan.tag,
+    name: clan.name,
+    role: clan.role,
+    color: clanAccent(clan.id).color,
+  }));
 
   return (
     // The root layout owns the page height now (it flexes the footer to the
@@ -129,10 +131,16 @@ export default async function AppLayout({
           it was previously scrolled off the top of every long roster. z-30 sits
           above page content and below any dialog. */}
       <header className="cb-rail sticky top-0 z-30">
-        <nav className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 p-4">
+        <nav className="mx-auto flex max-w-5xl items-center gap-x-4 gap-y-2 px-4 py-3">
+          {/* shrink-0 so the brand never compresses, and the wordmark drops
+              below `sm` where the space it costs is space the clan switcher
+              needs. The shield stays at every width — it is the only mark this
+              product has, and a header with no mark at all reads as a page
+              rather than an app. */}
           <Link
             href="/"
-            className="text-wood-ink hover:text-wood-ink flex items-center gap-2 font-semibold tracking-tight"
+            className="text-wood-ink hover:text-wood-ink flex shrink-0 items-center gap-2 font-semibold tracking-tight"
+            title="ClanBridge — go to your first clan"
           >
             {/* The same shield the backdrop tiles, once, at full strength. The
                 product had no mark of its own anywhere — the word "ClanBridge"
@@ -150,105 +158,68 @@ export default async function AppLayout({
               <path d="M66 33 v59" />
               <path d="M40 47 h52" />
             </svg>
-            ClanBridge
+            <span className="hidden sm:inline">ClanBridge</span>
           </Link>
 
-          {clans.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1">
-              {clans.map((clan) => {
-                // The dot is this clan's own colour, derived from its id — see
-                // lib/clan-accent.ts on why there is no lookup table. It is
-                // never the only thing distinguishing them: the name is right
-                // beside it, which is the mitigation the aqua slot needs.
-                const accent = clanAccent(clan.id);
-                const active = current === clan.tag;
-                return (
-                  <Link
-                    key={clan.id}
-                    href={`/${encodeURIComponent(clan.tag)}`}
-                    aria-current={active ? "page" : undefined}
-                    className={
-                      "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors " +
-                      // Which clan you are looking at was previously not shown
-                      // at all — three identical links, and the only way to
-                      // tell was the URL.
-                      //
-                      // On the rail the current clan is a lit parchment tile
-                      // cut into the wood, and the others are ink on wood. The
-                      // hover state has to carry BOTH colours: bg-accent alone
-                      // would put dim tan text on a light tan chip, which is
-                      // the one combination in this palette that disappears.
-                      (active
-                        ? "bg-accent text-accent-foreground shadow-[inset_0_1px_0_oklch(1_0_0/0.5)] font-medium"
-                        : "text-wood-ink-dim hover:bg-accent hover:text-accent-foreground")
-                    }
-                    title={`${clan.name} — you are ${clan.role}`}
-                  >
-                    <span
-                      aria-hidden
-                      className="size-2 shrink-0 rounded-full"
-                      style={{ background: accent.color }}
-                    />
-                    {clan.name}
-                  </Link>
-                );
-              })}
+          <ClanSwitcher clans={railClans} />
+
+          {/* ── Leadership destinations ──────────────────────────────────
+              Cross-clan, so they live here rather than under a clan tag: a CWL
+              season is picked across every clan a leader runs (T4B.7), and
+              /report lists every member of every clan with the reasons they
+              were flagged — a leader's view of the family, not a member's view
+              of their own clan (T9.1, objective O3).
+
+              These two are DESTINATIONS, not settings, which is why they stay
+              on the rail rather than going in the account menu with Admin and
+              Notifications. They carry icons for the same reason the section
+              tabs below do: a row of same-weight words is a row you have to
+              read all of.
+
+              Below `md` they collapse into the menu, which always holds the
+              complete list — see account-menu.tsx. */}
+          {showLeadershipLinks && (
+            <div className="text-wood-ink-dim ml-auto hidden shrink-0 items-center gap-1 text-sm md:flex">
+              <Link
+                href="/roster"
+                className="hover:bg-accent hover:text-accent-foreground flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors"
+                title="Pick the CWL roster across every clan you run"
+              >
+                <ClipboardList aria-hidden className="size-4" />
+                Rosters
+              </Link>
+              <Link
+                href="/report"
+                className="hover:bg-accent hover:text-accent-foreground flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors"
+                title="Who across all your clans has stopped turning up"
+              >
+                <Activity aria-hidden className="size-4" />
+                Participation
+              </Link>
             </div>
           )}
 
-          {/* Nav links on the rail. `[&_a]:` rather than a class on each: there
-              are seven of them, they are all the same thing, and the next one
-              someone adds should not have to remember six utility classes to
-              avoid rendering as dark-blue-on-dark-wood. */}
-          <div className="text-wood-ink-dim ml-auto flex items-center gap-3 text-sm [&_a]:transition-colors [&_a:hover]:text-wood-ink [&_button]:transition-colors [&_button:hover]:text-wood-ink">
-            {/* Cross-clan, so it lives here rather than under a clan tag: a CWL
-                season is picked across every clan a leader runs (T4B.7). */}
-            {clans.some((c) => c.role === "leader" || c.role === "co-leader") && (
-              <>
-                <Link href="/roster" className="hover:underline">
-                  Rosters
-                </Link>
-                {/* T9.1 — objective O3, and it needs a way in. Leadership only:
-                    it lists every member of every clan with the reasons they
-                    were flagged, which is a leader's view of the family, not a
-                    member's view of their own clan. */}
-                <Link href="/report" className="hover:underline">
-                  Participation
-                </Link>
-              </>
-            )}
-            {showAdminLink && (
-              <Link href="/admin" className="hover:underline">
-                Admin
-              </Link>
-            )}
-            <Link href="/settings/notifications" className="hover:underline">
-              Notifications
-            </Link>
-            <Link href="/settings/account" className="hover:underline">
-              Account
-            </Link>
-            <Link href="/guide" className="hover:underline">
-              Help
-            </Link>
+          {/* T10.3 — who you are, then the way out.
 
-            {/* T10.3 — who you are, then the way out.
+              The identity is not decoration. The bug that prompted all of T10
+              was a member with two accounts who could not tell which one they
+              were signed in as and had no way to change it; a shell that shows
+              neither is how "I am on the wrong account" becomes a support
+              conversation.
 
-                The identity is not decoration. The bug that prompted all of this
-                was a member with two accounts who could not tell which one they
-                were signed in as and had no way to change it; a shell that shows
-                neither is how "I am on the wrong account" becomes a support
-                conversation. Username first because they chose it, email as the
-                fallback for the moments before setup has run. */}
-            <span
-              className="text-wood-ink-muted border-l border-white/15 pl-3"
-              title={profile?.email}
-            >
-              {profile?.username ?? profile?.email ?? ""}
-            </span>
-            <SignOutButton />
+              `ml-auto` here as well as on the block above, so the menu still
+              sits hard right for a member with no leadership links at all. */}
+          <div className="ml-auto shrink-0">
+            <AccountMenu
+              username={profile?.username ?? null}
+              email={profile?.email ?? null}
+              showAdmin={showAdminLink}
+              showLeadership={showLeadershipLinks}
+            />
           </div>
         </nav>
+
+        <ClanSectionTabs clans={railClans} />
       </header>
 
       {children}

@@ -28,15 +28,19 @@ import { requireClanByTag, visibleClans } from "@/lib/clans";
 import { currentUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { decodeTag, InvalidTagError } from "@/lib/tags";
+import { gamesForPlayer } from "@/repositories/clan-games";
 import { playerSeasonHistory } from "@/repositories/cwl";
 import { clanMovement, snapshotHistory } from "@/repositories/members";
+import { seasonsForPlayer } from "@/repositories/raids";
 import {
   attacksForWar,
   membersOfWar,
   targetsForWar,
   warsForClan,
 } from "@/repositories/war";
+import { playerGamesSummary } from "@/services/clan-games";
 import { donationRatio, donationSeasons, lastActivityAt } from "@/services/members";
+import { playerRaidSummary } from "@/services/raids";
 import { warContribution } from "@/services/war";
 import { DISPLAY_ZONE } from "@/lib/display-time";
 
@@ -116,13 +120,22 @@ export default async function PlayerProfilePage({
 
   if (!player) notFound();
 
+  // T7.3 and T7.5 join the same batch rather than adding round trips of their
+  // own. Both read the clan's own season list first and then one filtered query,
+  // so they are two more reads in a batch that already issues four.
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
-  const [history, snapshots, movement, userId] = await Promise.all([
-    playerSeasonHistory(supabase, clan.id, player.id),
-    snapshotHistory(supabase, clan.id, player.id, since),
-    clanMovement(supabase, player.id),
-    currentUserId(supabase),
-  ]);
+  const [history, snapshots, movement, userId, raidHistory, gamesHistory] =
+    await Promise.all([
+      playerSeasonHistory(supabase, clan.id, player.id),
+      snapshotHistory(supabase, clan.id, player.id, since),
+      clanMovement(supabase, player.id),
+      currentUserId(supabase),
+      seasonsForPlayer(supabase, clan.id, player.id),
+      gamesForPlayer(supabase, clan.id, player.id),
+    ]);
+
+  const raids = playerRaidSummary(raidHistory);
+  const games = playerGamesSummary(gamesHistory);
 
   const seasons = donationSeasons(snapshots);
   const lastSeen = lastActivityAt(snapshots);
@@ -183,7 +196,7 @@ export default async function PlayerProfilePage({
         </p>
       </div>
 
-      <section className="space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Clan War League</h2>
           {history.length > 0 && (
@@ -252,7 +265,7 @@ export default async function PlayerProfilePage({
           Each row is a completed month's FINAL cumulative reading, not a sum of
           deltas; see the header of services/members.ts for why that distinction
           decides whether these numbers are right. */}
-      <section className="space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Donations</h2>
           <p className="text-muted-foreground text-sm">
@@ -311,7 +324,7 @@ export default async function PlayerProfilePage({
           across clans, because "where has this player been" is the question.
           RLS still limits the answer to clans the reader belongs to. */}
       {movementRows.length > 1 && (
-        <section className="space-y-4 rounded-lg border p-6">
+        <section className="cb-panel space-y-4 rounded-lg border p-6">
           <h2 className="font-medium">Clan movement</h2>
           <Table>
             <TableHeader>
@@ -347,7 +360,7 @@ export default async function PlayerProfilePage({
           once. Repeating that work per profile would make O4's thirty seconds a
           promise this page could not keep, so the headline numbers are computed
           here from one pass and the detail is a link. */}
-      <section className="space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Clan war</h2>
           <Link
@@ -412,14 +425,111 @@ export default async function PlayerProfilePage({
         )}
       </section>
 
-      {/* Named rather than omitted, so the page states what it does not yet know
-          instead of implying this is the member's whole record. */}
-      <section className="space-y-2 rounded-lg border border-dashed p-6">
-        <h2 className="text-muted-foreground font-medium">Not built yet</h2>
-        <ul className="text-muted-foreground list-inside list-disc text-sm">
-          <li>Raid Weekend participation (T7.3)</li>
-          <li>Clan Games points (T7.5)</li>
-        </ul>
+      {/* ── T7.3 — Raid Weekends ─────────────────────────────────────────────
+          This section and the one below it replaced a dashed "Not built yet"
+          box naming T7.3 and T7.5. Both were built in Phase 7 and both were
+          tested; playerRaidSummary and playerGamesSummary simply had no caller,
+          so the page went on saying they did not exist. The box was the last
+          thing a leader read on the profile.
+
+          `weekendsAvailable` is the denominator that makes the rest mean
+          anything — see playerRaidSummary, which counts the weekends they sat
+          out ON PURPOSE. "3 raids" is a different conversation depending on
+          whether there have been four weekends or fourteen. */}
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-medium">Raid weekends</h2>
+          <Link
+            className="text-sm underline"
+            href={`/${encodeURIComponent(clan.tag)}/raids`}
+          >
+            all weekends
+          </Link>
+        </div>
+
+        {raids.weekendsAvailable === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            No raid weekends recorded for {clan.name} yet. The first one appears
+            after a weekend has been and the sync has run.
+          </p>
+        ) : (
+          <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
+            <div>
+              <p className="text-2xl font-semibold tabular-nums">
+                {raids.weekendsRaided}
+                <span className="text-muted-foreground text-base">
+                  {" "}
+                  of {raids.weekendsAvailable}
+                </span>
+              </p>
+              <p className="text-muted-foreground text-xs">
+                weekends they took part in
+              </p>
+            </div>
+            <div>
+              <p className="text-lg font-medium tabular-nums">{raids.attacksUsed}</p>
+              <p className="text-muted-foreground text-xs">attacks used</p>
+            </div>
+            <div>
+              <p className="text-lg font-medium tabular-nums">
+                {raids.totalLoot.toLocaleString("en-GB")}
+              </p>
+              <p className="text-muted-foreground text-xs">capital loot</p>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* ── T7.5 — Clan Games ────────────────────────────────────────────────
+          The average divides by months MEASURED, never by months available —
+          see playerGamesSummary. A member who joined last month must not be
+          scored against a year they were not here for. Both numbers are shown
+          so the gap between them stays visible. */}
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-medium">Clan Games</h2>
+          <Link
+            className="text-sm underline"
+            href={`/${encodeURIComponent(clan.tag)}/games`}
+          >
+            every month
+          </Link>
+        </div>
+
+        {games.monthsAvailable === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            No Clan Games months recorded for {clan.name} yet. The game publishes
+            nothing about Clan Games, so a month only appears once the sync has
+            taken both its snapshots — the 22nd and the 28th.
+          </p>
+        ) : games.monthsScored === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            Nothing scored across {games.monthsAvailable} month
+            {games.monthsAvailable === 1 ? "" : "s"}. That can mean they earned no
+            points, or that they were not snapshotted at the start of a period —
+            the months page keeps the two apart.
+          </p>
+        ) : (
+          <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
+            <div>
+              <p className="text-2xl font-semibold tabular-nums">
+                {games.totalPoints.toLocaleString("en-GB")}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                points across {games.monthsScored} measured month
+                {games.monthsScored === 1 ? "" : "s"}
+                {games.monthsAvailable !== games.monthsScored &&
+                  ` of ${games.monthsAvailable}`}
+              </p>
+            </div>
+            <div>
+              <p className="text-lg font-medium tabular-nums">
+                {games.averagePoints?.toLocaleString("en-GB") ?? "—"}
+              </p>
+              <p className="text-muted-foreground text-xs">average a month</p>
+            </div>
+          </div>
+        )}
       </section>
     </main>
   );

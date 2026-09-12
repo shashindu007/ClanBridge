@@ -30,7 +30,13 @@ four auth-adjacent security findings.
 **Every phase in this document is now complete except T9.4 (restore test) and
 the deployment-side half of T9.3.** Both need something outside the codebase: a
 scratch Supabase project to restore into, and a Vercel deployment to inspect.
-Phase 8 is placeholders that name their own task ID.
+
+**The line that used to close this paragraph — "Phase 8 is placeholders that name
+their own task ID" — was wrong, and sat three lines under the sentence declaring
+Phase 8 complete.** It is corrected here because it was not only a doc error: the
+dashboard carried the same claim in a "Not built yet" panel, three sections below
+a nav grid that linked to the working library. A ledger contradicting itself
+inside one paragraph is how that panel survived being read.
 
 **Phase 10 was not planned; it came from the member using the product.** He has
 two accounts and could not switch between them, because there was no sign-out
@@ -230,6 +236,45 @@ be made safe: Lightning CSS wraps it in `@supports` and, where unsupported,
 collapses the token to its first argument — `--info-tint` became `--info` at full
 strength, putting the ink on it at 1.84:1 — and a literal fallback written ahead
 of it is discarded as a duplicate declaration.
+
+**Thirty-three pages had one door, and it was the dashboard.** There was no
+`[clanTag]` layout and no shared nav anywhere, so the thirteen-card "Go to" grid
+on the clan dashboard was the only route into any section — open `/members` and
+the way to the war board was the browser's Back button. The grid itself was flat
+and unordered: four separate war pages scattered between Members, Polls and Clan
+Games, with "War lineup" the name a member had to already know to find the page
+where they say they are available.
+
+The destinations now live in `lib/clan-nav.ts` as data, and three surfaces read
+it — a tab strip on the rail, the dashboard grid (regrouped into four labelled
+clusters), and a new "What each page is for" map on `/guide`. The one-line hint
+per destination is the product's plain-language layer for somebody on their first
+day, and **it existing in exactly one place is the point**: it previously lived
+only in the dashboard's JSX, where a member had to already be on the dashboard to
+read it, and where the "Not built yet" panel twenty lines below it had drifted
+into claiming Phase 8 was unbuilt.
+
+**The tab strip renders from `(app)/layout.tsx`, not from a `[clanTag]/layout.tsx`** —
+which is where it started. Inside the rail's own sticky `<header>` it needs no
+offset; a nested layout would have had to guess the rail's height, and the rail's
+height is whatever its contents wrap to. It also puts both nav surfaces in one
+file, so the clan switcher and the section tabs agree by construction.
+
+**The rail had no responsive handling at all**, while `manifest.json` declares
+the app `standalone` and `portrait` — a phone. Logo, clan pills, six links, a
+username and a sign-out button all `flex-wrap`ped into a four-row block above
+every page on a 390px screen. The secondary links now sit behind a native
+`<details>` below `sm`: no client component, no hydration, and nothing to fail in
+the one part of the shell that also holds the way out.
+
+**T7.3 and T7.5 were built, tested, and rendered nowhere.** `playerRaidSummary`,
+`playerGamesSummary`, `seasonsForPlayer` and `gamesForPlayer` all existed with
+tests and had no caller outside those tests, while the player profile closed with
+a dashed panel naming both as unbuilt. This is the same failure as the Phase 8
+line above and worth stating as a class: **a panel that describes the product to
+itself is a second source of truth about the product, and it goes stale the first
+time nobody remembers to edit it.** Both panels are now deleted rather than
+corrected — the sections they promised exist, so there is nothing left to list.
 
 **Phase 7 caught the discard bug in advance, for the first time.** 019, 020 and
 026 each found data the API had already sent and the schema had nowhere to hold,
@@ -996,6 +1041,27 @@ planned route to its task.
 
 - [x] **T4.4 — Season overview page**
   `/[clanTag]/cwl` — day-by-day results, stars, position.
+
+  **The next start date is now built too, and it was the last real entry on the
+  dashboard's "Not built yet" list.** The API publishes no CWL start date
+  anywhere — `/clanwarleague/group` describes a league that has already begun and
+  404s the rest of the month — so `cwlWindow()`, `nextCwlWindow()` and
+  `cwlPhase()` in `lib/coc-time.ts` infer it from the calendar, alongside the
+  Clan Games window that solved the same problem for T7.4.
+
+  **The risk runs the opposite way from Clan Games, which is what makes the
+  simpler constants correct here.** Nothing syncs off this window: `sync-cwl.ts`
+  runs every two hours regardless of the date and finds the season on its own
+  within two hours of it existing (R10). It is a display value. Being a day out
+  tells a leader "signup opens tomorrow" on the morning it opened — recoverable
+  the moment they open the game — where being a day late for Clan Games loses a
+  month of points permanently.
+
+  **R11 and R12 both hold.** Nothing persists the inference: it is never written
+  to `cwl_seasons` or to any column beside a sync-written one, so the table's
+  provenance stays answerable. And both call sites compare it to reality rather
+  than substituting for it — once a `cwl_seasons` row exists for the month, the
+  season page is the answer and the guess is not shown at all.
 
 - [x] **T4.5 — Day detail page**
   Roster, each attack with stars and destruction, and a clear list of who has not attacked.

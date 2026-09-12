@@ -11,25 +11,31 @@ API when the season ends and cannot ever be recovered. Everything else is second
 
 ## Status
 
-Phases 1, 2, 3 and 3B are complete. Phase 4 (CWL) is complete except bonus
-recording (T4.7) and the logbook import (T4.10). Everything from Phase 4B onward
-is still a labelled placeholder — each stub names the task ID that fills it.
+**Every phase in IMPLEMENTATION.md is complete** except T9.4 (the restore test)
+and the deployment half of T9.3 — both of which need something outside this
+repository: a scratch Supabase project to restore into, and a Vercel deployment
+to inspect.
 
-`IMPLEMENTATION.md` carries the per-task ledger. Three things are worth knowing
-before you touch anything:
+This section previously said phases 1, 2, 3 and 3B were done and "everything from
+Phase 4B onward is still a labelled placeholder", and that no sync job had run
+against the live API. Both had been untrue for some time. `IMPLEMENTATION.md`
+carries the per-task ledger and is the file to trust.
 
-- **The fixtures in `fixtures/` are synthetic, not captured.** The suite passes
-  against shapes written by hand to match the schemas, which means the schemas are
-  documented rather than verified. Capturing real ones is T2.1 and it can only be
-  done for `cwlgroup`/`cwlwar` during CWL week — the first week of the month.
-- **Upstash is not configured** (T0.9), so `/api/verify` throws in production by
-  design rather than rate limiting with a per-instance counter that limits nothing.
-- **No sync job has been run against the live API yet.** The workflows are written;
-  none has had a green run.
+What is worth knowing before you touch anything:
+
+- **The application has run against real data since 2026-08-09**, and the
+  fixtures in `fixtures/` are real captures rather than the synthetic shapes they
+  started as (T2.1).
+- **Two clans exist, not three** — `DH CWL ONLY` and `DH v2`, and the second is a
+  test clan. Adding the rest is deferred by choice; they go in at `/admin`.
+  Anywhere the docs say "three clans", read it as intent rather than state.
 - **Migration 030 is not applied to the live database yet**, and until it is,
   `src/types/database.ts` is stale for `users`. Apply it and re-run
   `npm run types:db`. Two dashboard settings go with it — see the T10 block in
   IMPLEMENTATION.md.
+- **Upstash functional verification is still outstanding** (T0.9). The
+  credentials are in `.env.local` and `getRateLimiter()` only throws under
+  `NODE_ENV=production`, so local development was never blocked by it.
 
 ## Signing in
 
