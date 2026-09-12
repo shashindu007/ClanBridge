@@ -89,7 +89,7 @@ async function submit(formData: FormData) {
   }
 
   revalidatePath(back);
-  redirect(`${back}/${result.id}`);
+  redirect(`${back}/${result.id}?ok=poll-opened`);
 }
 
 export default async function CreatePollPage({

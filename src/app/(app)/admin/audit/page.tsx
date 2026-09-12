@@ -61,7 +61,7 @@ export default async function AdminAuditPage({
   // Nothing to show, and the reason matters. A co-leader here has not hit a bug.
   if (leaderOf.length === 0) {
     return (
-      <main className="mx-auto max-w-3xl space-y-4 p-8">
+      <main className="mx-auto max-w-7xl space-y-4 p-8">
         <h1 className="text-2xl font-semibold tracking-tight">Audit log</h1>
         <section className="space-y-2 rounded-lg border p-6">
           <h2 className="font-medium">Leaders only</h2>

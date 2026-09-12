@@ -57,7 +57,7 @@ async function decide(formData: FormData) {
   }
 
   revalidatePath("/admin/members");
-  redirect("/admin/members");
+  redirect("/admin/members?ok=member-updated");
 }
 
 export default async function AdminMembersPage({

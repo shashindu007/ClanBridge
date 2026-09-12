@@ -30,7 +30,6 @@ import {
 } from "@/lib/account";
 import { isUniqueViolation, safeMessage } from "@/lib/errors";
 import { SignOutButton } from "@/components/sign-out-button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,16 +43,14 @@ function fail(message: string): never {
 }
 
 function done(message: string): never {
-  redirect(`${PATH}?saved=${encodeURIComponent(message)}`);
+  // `?ok=`, and the value is a whole sentence rather than a code. That is
+  // the pass-through lib/feedback.ts documents: messageFor() returns an
+  // unrecognised value unchanged, which is exactly right for a message this
+  // project wrote.
+  redirect(`${PATH}?ok=${encodeURIComponent(message)}`);
 }
 
-export default async function AccountSettingsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string; saved?: string }>;
-}) {
-  const { error, saved } = await searchParams;
-
+export default async function AccountSettingsPage() {
   const supabase = await createClient();
   const userId = await currentUserId(supabase);
   if (!userId) redirect("/login");
@@ -130,19 +127,9 @@ export default async function AccountSettingsPage({
         </p>
       </div>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Not saved</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {saved && (
-        <Alert>
-          <AlertTitle>Saved</AlertTitle>
-          <AlertDescription>{saved}</AlertDescription>
-        </Alert>
-      )}
+      {/* Both alerts that were here are now the toast — see
+          components/toaster.tsx. This page redirects a whole SENTENCE rather
+          than a code, which messageFor() passes through unchanged. */}
 
       <section className="space-y-4 rounded-lg border p-6">
         <div className="space-y-1">

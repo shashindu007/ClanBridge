@@ -85,38 +85,59 @@ export function ClanSwitcher({ clans }: { clans: RailClan[] }) {
   if (clans.length === 0) return null;
 
   return (
-    <div
-      className="cb-scroll-x flex min-w-0 shrink items-center gap-1"
-      aria-label="Switch clan"
-      role="navigation"
-    >
-      {clans.map((clan) => {
-        const active = current === clan.tag;
-        return (
-          <Link
-            key={clan.id}
-            ref={active ? activeRef : undefined}
-            href={`/${encodeURIComponent(clan.tag)}`}
-            aria-current={active ? "page" : undefined}
-            className={
-              "flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[0.9375rem] transition-colors " +
-              (active ? ACTIVE : IDLE)
-            }
-            title={`${clan.name} — you are ${clan.role}`}
-          >
-            {/* This clan's own colour, derived from its id — see
-                lib/clan-accent.ts on why there is no lookup table. It is never
-                the only thing distinguishing them: the name is right beside it,
-                which is the mitigation the aqua slot needs. */}
-            <span
-              aria-hidden
-              className="size-2 shrink-0 rounded-full"
-              style={{ background: clan.color }}
-            />
-            {clan.name}
-          </Link>
-        );
-      })}
+    // A recess cut into the beam, with the pills inside it. See `.cb-well` in
+    // globals.css: which clan you are looking at is the most consequential
+    // state on any page here, and it used to render as three links at the same
+    // weight as "Rosters" and "Participation" sitting beside them.
+    <div className="cb-well flex min-w-0 shrink items-center gap-1.5 rounded-lg py-1 pr-1 pl-2">
+      {/* The word is for the member who has not worked out yet that these are
+          clans rather than sections. Hidden on a phone, where the space is
+          worth more than the label and the coloured dots already group them. */}
+      <span
+        aria-hidden
+        className="text-wood-ink-muted hidden shrink-0 text-[0.6875rem] font-semibold tracking-widest uppercase sm:inline"
+      >
+        Clan
+      </span>
+      <div
+        className="cb-scroll-x flex min-w-0 shrink items-center gap-1"
+        aria-label="Switch clan"
+        role="navigation"
+      >
+        {clans.map((clan) => {
+          const active = current === clan.tag;
+          return (
+            <Link
+              key={clan.id}
+              ref={active ? activeRef : undefined}
+              href={`/${encodeURIComponent(clan.tag)}`}
+              aria-current={active ? "page" : undefined}
+              className={
+                "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-[0.9375rem] transition-colors " +
+                // Bolder as well as lit. Weight survives a glance from across a
+                // desk where a background tint does not, and this is the one
+                // pill a member has to find without reading all of them.
+                (active ? `${ACTIVE} font-semibold` : IDLE)
+              }
+              title={`${clan.name} — you are ${clan.role}`}
+            >
+              {/* This clan's own colour, derived from its id — see
+                  lib/clan-accent.ts on why there is no lookup table. It is
+                  never the only thing distinguishing them: the name is right
+                  beside it, which is the mitigation the aqua slot needs. */}
+              <span
+                aria-hidden
+                className={
+                  "shrink-0 rounded-full transition-all " +
+                  (active ? "size-2.5" : "size-2")
+                }
+                style={{ background: clan.color }}
+              />
+              {clan.name}
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -143,7 +164,7 @@ export function ClanSectionTabs({ clans }: { clans: RailClan[] }) {
 
   return (
     <div className="border-t border-white/10">
-      <div className="mx-auto max-w-5xl px-4">
+      <div className="mx-auto max-w-7xl px-4">
         {/* The `title` is the destination's own hint, verbatim from
             lib/clan-nav.ts. It costs nothing and it is the whole plain-language
             layer for a member who has not learned the product yet. */}

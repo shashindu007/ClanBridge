@@ -327,7 +327,7 @@ export default async function ClanDashboardPage({
       : undefined;
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-8">
+    <main className="mx-auto max-w-6xl space-y-6 p-8">
       {/* ── The banner, wearing this clan's own colour ────────────────────────
           --hero-accent is set here and read by .cb-hero and .cb-hero-stripe in
           globals.css, so the three clans get three visibly different banners

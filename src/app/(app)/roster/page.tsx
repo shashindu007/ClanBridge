@@ -54,7 +54,7 @@ async function startSeason(formData: FormData) {
   }
 
   revalidatePath("/roster");
-  redirect(`/roster/${season}`);
+  redirect(`/roster/${season}?ok=roster-started`);
 }
 
 export default async function RosterSeasonsPage({

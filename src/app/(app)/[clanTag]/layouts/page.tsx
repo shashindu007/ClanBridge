@@ -75,12 +75,16 @@ async function act(formData: FormData) {
   const here = `/${encodeURIComponent(clan.tag)}/layouts`;
 
   let result: { error?: string } = {};
+  let done = "";
   if (action === "vote") {
     result = await voteForLayout(supabase, layoutId);
+    done = "voted";
   } else if (action === "unvote") {
     result = await unvoteLayout(supabase, layoutId);
+    done = "unvoted";
   } else if (action === "remove") {
     result = await removeLayout(supabase, clan.id, layoutId);
+    done = "layout-removed";
   } else {
     redirect(`${here}?error=unknown-action`);
   }
@@ -88,7 +92,7 @@ async function act(formData: FormData) {
   if (result.error) redirect(`${here}?error=${encodeURIComponent(result.error)}`);
 
   revalidatePath(here);
-  redirect(here);
+  redirect(`${here}?ok=${done}`);
 }
 
 function LayoutCard({
@@ -216,7 +220,7 @@ export default async function LayoutsPage({
   }
 
   return (
-    <main className="mx-auto max-w-5xl space-y-8 p-8">
+    <main className="mx-auto max-w-7xl space-y-8 p-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">Base layouts</h1>

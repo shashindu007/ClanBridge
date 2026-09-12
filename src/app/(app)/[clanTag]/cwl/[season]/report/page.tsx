@@ -86,7 +86,7 @@ async function bonusAction(formData: FormData) {
   if (result.error) redirect(`${here}?error=${encodeURIComponent(result.error)}`);
 
   revalidatePath(here);
-  redirect(here);
+  redirect(`${here}?ok=bonus-awarded`);
 }
 
 export default async function CwlSeasonReportPage({

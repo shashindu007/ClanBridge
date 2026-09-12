@@ -72,7 +72,7 @@ async function submitAnswer(formData: FormData) {
   if (error) redirect(`${here}?error=${encodeURIComponent(error)}`);
 
   revalidatePath(here);
-  redirect(here);
+  redirect(`${here}?ok=poll-answered`);
 }
 
 async function submitClose(formData: FormData) {
@@ -88,7 +88,7 @@ async function submitClose(formData: FormData) {
   if (error) redirect(`${here}?error=${encodeURIComponent(error)}`);
 
   revalidatePath(here);
-  redirect(here);
+  redirect(`${here}?ok=poll-closed`);
 }
 
 /**

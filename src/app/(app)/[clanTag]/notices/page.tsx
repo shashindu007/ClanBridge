@@ -111,7 +111,7 @@ export default async function NoticesPage({
 
     revalidatePath(base);
     revalidatePath(`/${encodeURIComponent(clan.tag)}`); // the dashboard shows the latest
-    redirect(base);
+    redirect(`${base}?ok=notice-posted`);
   }
 
   async function removeNotice(formData: FormData) {
@@ -130,7 +130,7 @@ export default async function NoticesPage({
 
     revalidatePath(base);
     revalidatePath(`/${encodeURIComponent(clan.tag)}`);
-    redirect(base);
+    redirect(`${base}?ok=notice-removed`);
   }
 
   async function togglePin(formData: FormData) {
@@ -152,7 +152,7 @@ export default async function NoticesPage({
 
     revalidatePath(base);
     revalidatePath(`/${encodeURIComponent(clan.tag)}`);
-    redirect(base);
+    redirect(`${base}?ok=notice-pinned`);
   }
 
   return (

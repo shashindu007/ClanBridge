@@ -63,19 +63,34 @@ async function mutate(formData: FormData) {
   const here = `/roster/${encodeURIComponent(season)}`;
 
   let result: { error?: string } = {};
-  if (action === "add") result = await addToRoster(supabase, rosterId, playerId, userId);
-  else if (action === "remove") result = await removeFromRoster(supabase, rosterId, playerId);
-  else if (action === "publish") result = await publishRoster(supabase, rosterId);
-  else if (action === "unpublish") result = await unpublishRoster(supabase, rosterId);
-  else redirect(`${here}?error=unknown-action`);
+  // The code the toast shows on the way back out. Paired with the call rather
+  // than derived from `action` afterwards, so adding a fifth action here cannot
+  // silently inherit the fourth one's wording.
+  let done = "";
+  if (action === "add") {
+    result = await addToRoster(supabase, rosterId, playerId, userId);
+    done = "roster-added";
+  } else if (action === "remove") {
+    result = await removeFromRoster(supabase, rosterId, playerId);
+    done = "roster-dropped";
+  } else if (action === "publish") {
+    result = await publishRoster(supabase, rosterId);
+    done = "roster-published";
+  } else if (action === "unpublish") {
+    result = await unpublishRoster(supabase, rosterId);
+    done = "roster-unpublished";
+  } else {
+    redirect(`${here}?error=unknown-action`);
+  }
 
   // The double-booking guard's message names the clashing clan, so it is passed
   // through verbatim. "Already in the Clan B roster" is actionable; a generic
   // "constraint violation" sends the leader hunting through three rosters.
+  // lib/feedback.ts shows an unrecognised code as itself for exactly this.
   if (result.error) redirect(`${here}?error=${encodeURIComponent(result.error)}`);
 
   revalidatePath(here);
-  redirect(here);
+  redirect(`${here}?ok=${done}`);
 }
 
 interface PoolPlayer {
@@ -216,7 +231,7 @@ export default async function RosterBuilderPage({
   const clanById = new Map<string, VisibleClan>(clans.map((c) => [c.id, c]));
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 p-8">
+    <main className="mx-auto max-w-7xl space-y-6 p-8">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">CWL {season}</h1>
         <p className="text-muted-foreground text-sm">

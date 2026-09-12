@@ -115,14 +115,19 @@ async function mutate(formData: FormData) {
   }
 
   let result: { error?: string } = {};
+  let done = "";
   if (action === "assign") {
     result = await assignTarget(supabase, warId, playerId, position, note);
+    done = "target-assigned";
   } else if (action === "clear") {
     result = await clearTarget(supabase, warId, playerId);
+    done = "target-cleared";
   } else if (action === "claim") {
     result = await claimTarget(supabase, warId, position, note);
+    done = "target-claimed";
   } else if (action === "release") {
     result = await releaseTarget(supabase, warId);
+    done = "target-released";
   } else {
     redirect(`${here}&error=unknown-action`);
   }
@@ -133,7 +138,9 @@ async function mutate(formData: FormData) {
   if (result.error) redirect(`${here}&error=${encodeURIComponent(result.error)}`);
 
   revalidatePath(here);
-  redirect(here);
+  // `&`, not `?` — `here` already carries the war id. Getting this wrong makes
+  // a second query string that silently drops the war being looked at.
+  redirect(`${here}&ok=${done}`);
 }
 
 export default async function WarBoardPage({

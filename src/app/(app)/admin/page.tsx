@@ -65,7 +65,7 @@ async function claimOwnership() {
   }
 
   revalidatePath("/admin");
-  redirect("/admin");
+  redirect("/admin?ok=clan-added");
 }
 
 async function addClan(formData: FormData) {
@@ -213,12 +213,7 @@ function RunRow({ run, clanNames }: { run: SyncRunRecord; clanNames: Map<string,
   );
 }
 
-export default async function AdminPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string; ok?: string }>;
-}) {
-  const { error, ok } = await searchParams;
+export default async function AdminPage() {
   const supabase = await createClient();
 
   const userId = await currentUserId(supabase);
@@ -290,50 +285,16 @@ export default async function AdminPage({
         </p>
       </div>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>That did not work</AlertTitle>
-          <AlertDescription>
-            {error === "bad-tag"
-              ? "That is not a valid clan tag. Tags start with # and never contain the letter O — what looks like an O is a zero."
-              : error === "duplicate"
-                ? "That clan has already been added."
-                : error === "not-owner"
-                  ? "This account is not the configured owner. Set OWNER_EMAIL to the address you sign in with."
-                  : error === "no-name"
-                    ? "Give the clan a name."
-                    : error === "forbidden"
-                      ? "You do not have permission to do that."
-                      : error === "unknown-job"
-                        ? "That is not a job that can be started by hand."
-                        : error === "rate-limited"
-                          ? "Too many manual runs. A sync is a repair, not a routine — wait an hour."
-                          : error === "claim-failed"
-                            ? "The ownership claim was refused. Either this platform already has an admin, or something went wrong — check the server log."
-                            : error === "add-clan-failed"
-                              ? "Could not add that clan. Check the server log for why."
-                              : error === "grant-failed"
-                                ? "Could not grant you leader of that clan. You need to be the platform admin or already lead it."
-                                : // T10.8d — the remaining case is dispatchWorkflow's
-                                  // `detail`, which is text this project writes
-                                  // (lib/github.ts), not a database message.
-                                  error}
-          </AlertDescription>
-        </Alert>
-      )}
+      {/* The error ternary that used to live here — ten branches deep,
+          translating `bad-tag`, `duplicate`, `rate-limited` and the rest — moved
+          to lib/feedback.ts, where the toast and every other page read the same
+          wording. A failure toast stays until it is dismissed, so nothing is
+          lost by it no longer being inline.
 
-      {ok === "dispatched" && (
-        <Alert>
-          {/* Deliberately not "sync complete". GitHub returns 204 to say it
-              ACCEPTED the request, not that the job ran — the real answer lands
-              in the history below, minutes later. */}
-          <AlertTitle>Asked GitHub to run it</AlertTitle>
-          <AlertDescription>
-            The run takes a minute or two to start. It will appear in the history
-            below when it finishes.
-          </AlertDescription>
-        </Alert>
-      )}
+          The "asked GitHub to run it" note went the same way. It was careful to
+          say ACCEPTED rather than complete — GitHub's 204 means it took the
+          request, not that the job ran — and that distinction survives in the
+          wording of `dispatched`. */}
 
       {failed.length > 0 && (
         <Alert variant="destructive">

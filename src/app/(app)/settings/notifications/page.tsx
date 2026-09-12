@@ -111,7 +111,9 @@ export default async function NotificationSettingsPage() {
     }
 
     revalidatePath(PATH);
-    redirect(`${PATH}?saved=1`);
+    // Was `?saved=1`, which nothing on this page ever rendered — the
+    // member pressed Save and got no acknowledgement at all. Now a toast.
+    redirect(`${PATH}?ok=notifications-saved`);
   }
 
   return (

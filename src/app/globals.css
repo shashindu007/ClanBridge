@@ -260,6 +260,33 @@
     @apply border-border outline-ring/50;
   }
 
+  /* ── The type scale, set once ───────────────────────────────────────────
+     16px was Tailwind's default and nothing here had ever overridden it,
+     which made every size in the product a step smaller than it should be
+     for a page people read on a phone, at night, at speed.
+
+     A PERCENTAGE, NOT A PIXEL VALUE, and the distinction is the whole point.
+     A reader who has raised their browser's font size has done so because
+     they need it; `font-size: 18px` would throw that setting away and hand
+     them 18px whatever they asked for. 112.5% multiplies what they chose, so
+     someone running a 20px default gets 22.5px rather than a downgrade. That
+     is the difference between an accessibility fix and an accessibility
+     regression, and it costs nothing to get right.
+
+     Everything in this project sizes in rem — Tailwind's spacing, radii and
+     max-widths included — so this scales text, padding, gaps and container
+     widths together. Nothing is left behind at the old size looking cramped
+     next to what grew, which is the usual failure of bumping font sizes by
+     hand across a codebase.
+
+     The dense tables absorb it by scrolling: members, roster, report,
+     cwl/[season], games, search and admin each already sit in an
+     `overflow-x-auto` wrapper, so the worst case here is a sideways scroll
+     rather than a broken row. */
+  html {
+    font-size: 112.5%; /* 16px -> 18px, before the reader's own preference */
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
   }
@@ -459,6 +486,24 @@
 
   .cb-scroll-x::-webkit-scrollbar {
     display: none;
+  }
+
+  /* ── A well cut into the wood ──────────────────────────────────────────
+     The inverse of `.cb-raised`: instead of a lit top edge and a plinth
+     below, the light falls on the BOTTOM edge and the shadow sits at the top,
+     which is what the eye reads as a recess rather than a button.
+
+     It exists for one control — the clan switcher. Which clan you are looking
+     at is the most consequential piece of state on any page in this product,
+     and it was rendering as three or four links at the same weight as
+     "Rosters" and "Participation" beside them. A recess groups them into one
+     object and says "these belong together and they are a choice", before
+     anybody reads a word of it. */
+  .cb-well {
+    background: oklch(0 0 0 / 0.18);
+    box-shadow:
+      inset 0 1px 2px oklch(0 0 0 / 0.35),
+      inset 0 -1px 0 oklch(1 0 0 / 0.07);
   }
 
   /* ── Panel: any card, section or tile ─────────────────────────────────────

@@ -14,6 +14,7 @@
 // never from a hardcoded list of three clans. Hardcoding it is precisely how a
 // leader of clan A is handed a working link into clan B (T3.7).
 
+import { Suspense } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -24,6 +25,7 @@ import { clanAccent } from "@/lib/clan-accent";
 import { visibleClans } from "@/lib/clans";
 import { isGateExempt, isSetupExempt } from "@/lib/gate";
 import { AccountMenu } from "@/components/account-menu";
+import { Toaster } from "@/components/toaster";
 import {
   ClanSectionTabs,
   ClanSwitcher,
@@ -131,7 +133,7 @@ export default async function AppLayout({
           it was previously scrolled off the top of every long roster. z-30 sits
           above page content and below any dialog. */}
       <header className="cb-rail sticky top-0 z-30">
-        <nav className="mx-auto flex max-w-5xl items-center gap-x-4 gap-y-2 px-4 py-3">
+        <nav className="mx-auto flex max-w-7xl items-center gap-x-4 gap-y-2 px-4 py-3">
           {/* shrink-0 so the brand never compresses, and the wordmark drops
               below `sm` where the space it costs is space the clan switcher
               needs. The shield stays at every width — it is the only mark this
@@ -252,6 +254,13 @@ export default async function AppLayout({
       </header>
 
       {children}
+
+      {/* Mounted once for the whole authenticated app. It renders nothing until
+          an action redirects with ?ok= or ?error=, but the live region itself
+          has to exist beforehand — see the component. */}
+      <Suspense fallback={null}>
+        <Toaster />
+      </Suspense>
     </div>
   );
 }

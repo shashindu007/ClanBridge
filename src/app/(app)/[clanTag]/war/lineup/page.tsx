@@ -115,7 +115,11 @@ async function mutate(formData: FormData) {
   if (result.error) redirect(`${here}?error=${encodeURIComponent(result.error)}`);
 
   revalidatePath(here);
-  redirect(lineupId ? `${here}?lineup=${encodeURIComponent(lineupId)}` : here);
+  redirect(
+    lineupId
+      ? `${here}?lineup=${encodeURIComponent(lineupId)}&ok=lineup-saved`
+      : `${here}?ok=lineup-saved`,
+  );
 }
 
 export default async function WarLineupPage({

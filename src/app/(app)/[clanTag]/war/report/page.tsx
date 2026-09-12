@@ -88,7 +88,7 @@ export default async function WarReportPage({
 
   if (wars.length === 0) {
     return (
-      <main className="mx-auto max-w-4xl space-y-6 p-8">
+      <main className="mx-auto max-w-7xl space-y-6 p-8">
         <ReportHeader clanName={clan.name} base={base} />
         <section className="space-y-3 rounded-lg border p-6">
           <h2 className="font-medium">No wars to report on yet</h2>
