@@ -19,7 +19,7 @@ import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requireClanByTag } from "@/lib/clans";
@@ -72,7 +72,7 @@ async function submitAnswer(formData: FormData) {
   if (error) redirect(`${here}?error=${encodeURIComponent(error)}`);
 
   revalidatePath(here);
-  redirect(here);
+  redirect(`${here}?ok=poll-answered`);
 }
 
 async function submitClose(formData: FormData) {
@@ -88,7 +88,7 @@ async function submitClose(formData: FormData) {
   if (error) redirect(`${here}?error=${encodeURIComponent(error)}`);
 
   revalidatePath(here);
-  redirect(here);
+  redirect(`${here}?ok=poll-closed`);
 }
 
 /**
@@ -314,9 +314,9 @@ export default async function PollDetailPage({
                 />
               </div>
 
-              <Button type="submit" size="sm">
+              <SubmitButton size="sm">
                 {existing ? "Change my answer" : "Submit"}
-              </Button>
+              </SubmitButton>
             </form>
           );
         })
@@ -384,9 +384,9 @@ export default async function PollDetailPage({
                   <form action={remindNonResponders} className="flex items-center gap-3">
                     <input type="hidden" name="clanTag" value={clanTag} />
                     <input type="hidden" name="pollId" value={pollId} />
-                    <Button type="submit" variant="outline" size="sm">
+                    <SubmitButton variant="outline" size="sm">
                       Remind these {breakdown.notAnswered.length}
-                    </Button>
+                    </SubmitButton>
                     <span className="text-muted-foreground text-xs">
                       Only members who have turned notifications on can be reached.
                     </span>
@@ -426,9 +426,9 @@ export default async function PollDetailPage({
             <form action={submitClose}>
               <input type="hidden" name="clanTag" value={clanTag} />
               <input type="hidden" name="pollId" value={poll.id} />
-              <Button type="submit" variant="outline" size="sm">
+              <SubmitButton variant="outline" size="sm">
                 Close this poll now
-              </Button>
+              </SubmitButton>
             </form>
           )}
         </>

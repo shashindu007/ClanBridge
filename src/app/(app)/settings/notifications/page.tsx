@@ -19,7 +19,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { currentUserId } from "@/lib/auth";
 import { PushToggle } from "@/components/push-toggle";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { Label } from "@/components/ui/label";
 
 export const dynamic = "force-dynamic";
@@ -111,7 +111,9 @@ export default async function NotificationSettingsPage() {
     }
 
     revalidatePath(PATH);
-    redirect(`${PATH}?saved=1`);
+    // Was `?saved=1`, which nothing on this page ever rendered — the
+    // member pressed Save and got no acknowledgement at all. Now a toast.
+    redirect(`${PATH}?ok=notifications-saved`);
   }
 
   return (
@@ -163,7 +165,7 @@ export default async function NotificationSettingsPage() {
             </div>
           ))}
 
-          <Button type="submit">Save</Button>
+          <SubmitButton>Save</SubmitButton>
         </form>
       </section>
     </main>

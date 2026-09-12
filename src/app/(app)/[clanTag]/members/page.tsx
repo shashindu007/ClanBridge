@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { requireClanByTag } from "@/lib/clans";
 import { createClient } from "@/lib/supabase/server";
-import { playerSeasonHistory } from "@/repositories/cwl";
+import { seasonHistoryForClan } from "@/repositories/cwl";
 import { latestSnapshots, membersForClan, recentSnapshots } from "@/repositories/members";
 import { latestRun } from "@/repositories/sync-log";
 import { freshness } from "@/services/freshness";
@@ -93,26 +93,33 @@ export default async function MemberDirectoryPage({
     ),
   }));
 
-  // T3B.5. CWL participation is per player, so this is one pass over the roster
-  // rather than a single query — acceptable at ≤50 members and no worse than the
-  // profile page already does. Departed members are excluded from the list even
-  // when the toggle shows them in the table: "needs attention" means someone a
-  // leader might act on, and someone who has already left is not that.
+  // T3B.5. One read for the whole clan, then the participation totals come out
+  // of a map.
+  //
+  // This used to be a Promise.all of playerSeasonHistory() per member, with a
+  // comment reasoning "acceptable at <= 50 members" — which would have been
+  // right if each call were one query. Each was about thirty-one: that function
+  // walked the clan's entire CWL tree and filtered to one player afterwards. So
+  // fifty members were fifteen hundred queries, concurrent rather than few, all
+  // fetching identical rows.
+  //
+  // Departed members are excluded from the list even when the toggle shows them
+  // in the table: "needs attention" means someone a leader might act on, and
+  // someone who has already left is not that.
+  const cwlHistory = await seasonHistoryForClan(supabase, clan.id);
   const attention = needsAttention(
-    await Promise.all(
-      rows
-        .filter(({ member }) => !member.leftAt)
-        .map(async ({ member, activity }) => {
-          const seasons = await playerSeasonHistory(supabase, clan.id, member.playerId);
-          return {
-            playerId: member.playerId,
-            name: member.name,
-            activity,
-            warsRostered: seasons.reduce((n, s) => n + s.warsRostered, 0),
-            attacksUsed: seasons.reduce((n, s) => n + s.attacksUsed, 0),
-          };
-        }),
-    ),
+    rows
+      .filter(({ member }) => !member.leftAt)
+      .map(({ member, activity }) => {
+        const seasons = cwlHistory.get(member.playerId) ?? [];
+        return {
+          playerId: member.playerId,
+          name: member.name,
+          activity,
+          warsRostered: seasons.reduce((n, s) => n + s.warsRostered, 0),
+          attacksUsed: seasons.reduce((n, s) => n + s.attacksUsed, 0),
+        };
+      }),
     now,
   );
 
@@ -169,7 +176,7 @@ export default async function MemberDirectoryPage({
   };
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 p-8">
+    <main className="mx-auto max-w-7xl space-y-6 p-8">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">Members</h1>

@@ -13,7 +13,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,7 +54,7 @@ async function startSeason(formData: FormData) {
   }
 
   revalidatePath("/roster");
-  redirect(`/roster/${season}`);
+  redirect(`/roster/${season}?ok=roster-started`);
 }
 
 export default async function RosterSeasonsPage({
@@ -122,7 +122,7 @@ export default async function RosterSeasonsPage({
                 className="w-40"
               />
             </div>
-            <Button type="submit">Start</Button>
+            <SubmitButton>Start</SubmitButton>
           </div>
         </form>
       )}

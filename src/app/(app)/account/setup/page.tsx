@@ -28,7 +28,7 @@ import {
 } from "@/lib/account";
 import { isUniqueViolation, safeMessage } from "@/lib/errors";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -186,9 +186,9 @@ export default async function AccountSetupPage({
           />
         </div>
 
-        <Button type="submit" className="w-full">
+        <SubmitButton className="w-full">
           Save and continue
-        </Button>
+        </SubmitButton>
       </form>
 
       <p className="text-muted-foreground text-xs">

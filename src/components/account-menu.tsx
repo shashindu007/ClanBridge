@@ -31,7 +31,6 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import {
   Activity,
-  Bell,
   ChevronDown,
   CircleHelp,
   CircleUser,
@@ -50,7 +49,7 @@ export interface AccountMenuProps {
 }
 
 const ITEM =
-  "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground";
+  "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.9375rem] transition-colors hover:bg-accent hover:text-accent-foreground";
 
 export function AccountMenu({
   username,
@@ -102,7 +101,7 @@ export function AccountMenu({
         // The control says WHOSE account it is. The bug that started T10 was a
         // member with two accounts who could not tell which one they were signed
         // in as, so the name is the label rather than a generic avatar.
-        className="text-wood-ink-dim hover:text-wood-ink flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1 text-sm transition-colors group-open:bg-white/10 group-open:text-wood-ink [&::-webkit-details-marker]:hidden"
+        className="text-wood-ink-dim hover:text-wood-ink flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1.5 text-[0.9375rem] transition-colors group-open:bg-white/10 group-open:text-wood-ink [&::-webkit-details-marker]:hidden"
         aria-label={`Account and settings for ${label}`}
         title={email ?? undefined}
       >
@@ -147,10 +146,6 @@ export function AccountMenu({
             Admin
           </Link>
         )}
-        <Link href="/settings/notifications" className={ITEM}>
-          <Bell aria-hidden className="text-muted-foreground size-4" />
-          Notifications
-        </Link>
         <Link href="/settings/account" className={ITEM}>
           <UserCog aria-hidden className="text-muted-foreground size-4" />
           Account

@@ -157,14 +157,19 @@ export default async function PlayerProfilePage({
   // uses. Computed with the shared derivation rather than a second query, so
   // the two pages cannot disagree about what "missed" means.
   const recentWars = await warsForClan(supabase, clan.id, WAR_WINDOW);
-  const perWar = [];
-  for (const war of recentWars) {
-    perWar.push({
-      members: await membersOfWar(supabase, war.id),
-      attacks: await attacksForWar(supabase, war.id),
-      targets: await targetsForWar(supabase, war.id),
-    });
-  }
+  // Ten wars at three sequential reads each was thirty round trips to a database
+  // in another region, on a page whose whole objective (O4) is thirty seconds.
+  // All of them now go at once.
+  const perWar = await Promise.all(
+    recentWars.map(async (war) => {
+      const [members, attacks, targets] = await Promise.all([
+        membersOfWar(supabase, war.id),
+        attacksForWar(supabase, war.id),
+        targetsForWar(supabase, war.id),
+      ]);
+      return { members, attacks, targets };
+    }),
+  );
   const warRecordForPlayer =
     warContribution(perWar).find((c) => c.playerId === player.id) ?? null;
 

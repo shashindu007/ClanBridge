@@ -20,7 +20,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { currentUserId } from "@/lib/auth";
 import { safeMessage } from "@/lib/errors";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +57,7 @@ async function decide(formData: FormData) {
   }
 
   revalidatePath("/admin/members");
-  redirect("/admin/members");
+  redirect("/admin/members?ok=member-updated");
 }
 
 export default async function AdminMembersPage({
@@ -146,16 +146,16 @@ export default async function AdminMembersPage({
                 <form action={decide}>
                   <input type="hidden" name="userId" value={user.id} />
                   <input type="hidden" name="action" value="approve" />
-                  <Button type="submit" size="sm" disabled={!user.requested_clan_id}>
+                  <SubmitButton size="sm" disabled={!user.requested_clan_id}>
                     Approve
-                  </Button>
+                  </SubmitButton>
                 </form>
                 <form action={decide}>
                   <input type="hidden" name="userId" value={user.id} />
                   <input type="hidden" name="action" value="reject" />
-                  <Button type="submit" size="sm" variant="outline">
+                  <SubmitButton size="sm" variant="outline">
                     Decline
-                  </Button>
+                  </SubmitButton>
                 </form>
               </div>
             </li>

@@ -32,25 +32,50 @@ const buttonVariants = cva(
         destructive:
           "cb-raised [--raise-shade:var(--destructive-shade)] bg-destructive text-white hover:brightness-110 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
         outline:
-          "cb-raised [--raise-shade:var(--surface-shade)] border bg-card hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          // `border-2`-weight without the width: a full-strength border rather
+          // than the 60%-opacity default, so the four clan chips on every
+          // roster row read as pressable rather than as table decoration.
+          "cb-raised [--raise-shade:var(--surface-shade)] border border-border bg-card hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
           "cb-raised [--raise-shade:var(--secondary-shade)] bg-secondary text-secondary-foreground hover:bg-secondary/80",
         // No plinth: there is no body to raise. A ghost button is a hover
         // target, and giving it depth at rest would make every toolbar look
         // like a row of solid buttons someone forgot to fill in.
+        // A RESTING APPEARANCE, which this variant did not have.
+        //
+        // It was `hover:bg-accent` and nothing else, so at rest a ghost button
+        // was literally indistinguishable from a line of text — no border, no
+        // fill, no affordance of any kind. "Drop" on the roster panels is this
+        // variant, and members could not tell it was a control until the
+        // pointer happened to cross it. On a touch screen there IS no hover, so
+        // it never announced itself at all.
+        //
+        // A hairline border and the faintest wash is enough: it still reads as
+        // the quiet option next to `outline` and `default`, which is the job,
+        // while being visibly a button. Still no plinth — see the header; there
+        // is no body here to raise.
         ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
+          "border border-border/60 bg-foreground/[0.03] hover:bg-accent hover:text-accent-foreground hover:border-border dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
       },
+      // Heights up one step across the board, for fingers.
+      //
+      // `xs` was h-6 — 24px, and with the root type scale now at 112.5% it is
+      // 27px. The WCAG target-size guidance is 44px, and `xs` is the size used
+      // for every clan-assign chip and every Drop on the roster builder: the
+      // densest, most-tapped controls in the product were also the smallest.
+      // These land near 31/40/45/49px once the root scale is applied, so
+      // `default` and `lg` clear the guideline and the two compact sizes stop
+      // being unusable on a phone.
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-        icon: "size-9",
-        "icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-8",
-        "icon-lg": "size-10",
+        default: "h-10 px-4 py-2 has-[>svg]:px-3",
+        xs: "h-7 gap-1 rounded-md px-2.5 text-xs has-[>svg]:px-2 [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-9 gap-1.5 rounded-md px-3.5 has-[>svg]:px-3",
+        lg: "h-11 rounded-md px-6 has-[>svg]:px-4",
+        icon: "size-10",
+        "icon-xs": "size-7 rounded-md [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm": "size-9",
+        "icon-lg": "size-11",
       },
     },
     defaultVariants: {

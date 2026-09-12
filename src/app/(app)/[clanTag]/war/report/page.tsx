@@ -88,7 +88,7 @@ export default async function WarReportPage({
 
   if (wars.length === 0) {
     return (
-      <main className="mx-auto max-w-4xl space-y-6 p-8">
+      <main className="mx-auto max-w-7xl space-y-6 p-8">
         <ReportHeader clanName={clan.name} base={base} />
         <section className="space-y-3 rounded-lg border p-6">
           <h2 className="font-medium">No wars to report on yet</h2>
@@ -113,14 +113,21 @@ export default async function WarReportPage({
     targets: WarTargetRow[];
   }> = [];
 
-  for (const war of wars) {
-    loaded.push({
-      war,
-      members: await membersOfWar(supabase, war.id),
-      attacks: await attacksForWar(supabase, war.id),
-      targets: await targetsForWar(supabase, war.id),
-    });
-  }
+  // Every war's three reads in flight together, rather than a war at a time.
+  // WAR_WINDOW wars at three sequential queries each was 3N round trips before
+  // the first row could render; it is now three waves regardless of N.
+  loaded.push(
+    ...(await Promise.all(
+      wars.map(async (war) => {
+        const [members, attacks, targets] = await Promise.all([
+          membersOfWar(supabase, war.id),
+          attacksForWar(supabase, war.id),
+          targetsForWar(supabase, war.id),
+        ]);
+        return { war, members, attacks, targets };
+      }),
+    )),
+  );
 
   const contribution = warContribution(loaded);
 

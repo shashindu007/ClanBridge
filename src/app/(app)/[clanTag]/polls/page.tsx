@@ -49,11 +49,15 @@ export default async function PollsPage({
   // Answered means answered for EVERY account this member owns. Someone with two
   // villages has two answers to give, and treating one as done would drop the
   // reminder while an account is still outstanding.
-  const answeredCount = new Map<string, number>();
-  for (const poll of polls) {
-    const responses = await responsesForPoll(supabase, poll.id);
-    answeredCount.set(poll.id, responses.filter((r) => myPlayerIds.has(r.playerId)).length);
-  }
+  const allResponses = await Promise.all(
+    polls.map((poll) => responsesForPoll(supabase, poll.id)),
+  );
+  const answeredCount = new Map<string, number>(
+    polls.map((poll, index) => [
+      poll.id,
+      allResponses[index]!.filter((r) => myPlayerIds.has(r.playerId)).length,
+    ]),
+  );
 
   const open = polls.filter((p) => isOpen(p));
   const closed = polls.filter((p) => !isOpen(p));

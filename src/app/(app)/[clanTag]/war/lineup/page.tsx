@@ -34,6 +34,7 @@ import { revalidatePath } from "next/cache";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { currentUserId } from "@/lib/auth";
 import { requireClanByTag } from "@/lib/clans";
 import { createClient } from "@/lib/supabase/server";
@@ -114,7 +115,11 @@ async function mutate(formData: FormData) {
   if (result.error) redirect(`${here}?error=${encodeURIComponent(result.error)}`);
 
   revalidatePath(here);
-  redirect(lineupId ? `${here}?lineup=${encodeURIComponent(lineupId)}` : here);
+  redirect(
+    lineupId
+      ? `${here}?lineup=${encodeURIComponent(lineupId)}&ok=lineup-saved`
+      : `${here}?ok=lineup-saved`,
+  );
 }
 
 export default async function WarLineupPage({
@@ -351,9 +356,9 @@ export default async function WarLineupPage({
                 ))}
               </select>
             </label>
-            <Button type="submit" size="sm">
+            <SubmitButton size="sm">
               Start a lineup
-            </Button>
+            </SubmitButton>
           </form>
         </section>
       ) : (
@@ -379,14 +384,13 @@ export default async function WarLineupPage({
                     name="action"
                     value={selected.status === "published" ? "unpublish" : "publish"}
                   />
-                  <Button
-                    type="submit"
-                    size="sm"
+                  <SubmitButton
+                                        size="sm"
                     variant={selected.status === "published" ? "outline" : "default"}
                     disabled={selected.status !== "published" && picked.length === 0}
                   >
                     {selected.status === "published" ? "Back to draft" : "Publish to members"}
-                  </Button>
+                  </SubmitButton>
                 </form>
               </div>
             </div>
@@ -410,9 +414,9 @@ export default async function WarLineupPage({
                       <input type="hidden" name="action" value="remove" />
                       <input type="hidden" name="lineupId" value={selected.id} />
                       <input type="hidden" name="playerId" value={m.playerId} />
-                      <Button type="submit" size="xs" variant="ghost">
+                      <SubmitButton size="xs" variant="ghost">
                         Drop
-                      </Button>
+                      </SubmitButton>
                     </form>
                   </li>
                 ))}
@@ -440,9 +444,9 @@ export default async function WarLineupPage({
                 <span className="text-muted-foreground text-sm">
                   Was this lineup for the war against {war.opponentName ?? "the current opponent"}?
                 </span>
-                <Button type="submit" size="xs" variant="outline">
+                <SubmitButton size="xs" variant="outline">
                   Link it
-                </Button>
+                </SubmitButton>
               </form>
             )}
 
@@ -521,9 +525,9 @@ export default async function WarLineupPage({
                             <input type="hidden" name="action" value="add" />
                             <input type="hidden" name="lineupId" value={selected.id} />
                             <input type="hidden" name="playerId" value={m.playerId} />
-                            <Button type="submit" size="xs" variant="outline">
+                            <SubmitButton size="xs" variant="outline">
                               Pick
-                            </Button>
+                            </SubmitButton>
                           </form>
                         </td>
                       </tr>

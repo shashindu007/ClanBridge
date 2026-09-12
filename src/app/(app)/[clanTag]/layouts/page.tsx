@@ -24,6 +24,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { currentUserId } from "@/lib/auth";
 import { requireClanByTag } from "@/lib/clans";
@@ -74,12 +75,16 @@ async function act(formData: FormData) {
   const here = `/${encodeURIComponent(clan.tag)}/layouts`;
 
   let result: { error?: string } = {};
+  let done = "";
   if (action === "vote") {
     result = await voteForLayout(supabase, layoutId);
+    done = "voted";
   } else if (action === "unvote") {
     result = await unvoteLayout(supabase, layoutId);
+    done = "unvoted";
   } else if (action === "remove") {
     result = await removeLayout(supabase, clan.id, layoutId);
+    done = "layout-removed";
   } else {
     redirect(`${here}?error=unknown-action`);
   }
@@ -87,7 +92,7 @@ async function act(formData: FormData) {
   if (result.error) redirect(`${here}?error=${encodeURIComponent(result.error)}`);
 
   revalidatePath(here);
-  redirect(here);
+  redirect(`${here}?ok=${done}`);
 }
 
 function LayoutCard({
@@ -148,9 +153,9 @@ function LayoutCard({
           <input type="hidden" name="clanTag" value={clanTag} />
           <input type="hidden" name="layoutId" value={layout.id} />
           <input type="hidden" name="action" value={layout.votedByMe ? "unvote" : "vote"} />
-          <Button type="submit" size="sm" variant={layout.votedByMe ? "secondary" : "outline"}>
+          <SubmitButton size="sm" variant={layout.votedByMe ? "secondary" : "outline"}>
             {layout.votedByMe ? "Voted" : "Vote"}
-          </Button>
+          </SubmitButton>
         </form>
 
         {canRemove && (
@@ -158,9 +163,9 @@ function LayoutCard({
             <input type="hidden" name="clanTag" value={clanTag} />
             <input type="hidden" name="layoutId" value={layout.id} />
             <input type="hidden" name="action" value="remove" />
-            <Button type="submit" size="sm" variant="ghost">
+            <SubmitButton size="sm" variant="ghost">
               Remove
-            </Button>
+            </SubmitButton>
           </form>
         )}
       </div>
@@ -215,7 +220,7 @@ export default async function LayoutsPage({
   }
 
   return (
-    <main className="mx-auto max-w-5xl space-y-8 p-8">
+    <main className="mx-auto max-w-7xl space-y-8 p-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">Base layouts</h1>

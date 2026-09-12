@@ -20,12 +20,12 @@ import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { currentUserId } from "@/lib/auth";
 import { visibleClans, type VisibleClan } from "@/lib/clans";
 import { createClient } from "@/lib/supabase/server";
 import { membersForClan } from "@/repositories/members";
-import { playerSeasonHistory } from "@/repositories/cwl";
+import { seasonHistoryForClan } from "@/repositories/cwl";
 import {
   optionsForPoll,
   pollsForClan,
@@ -63,19 +63,34 @@ async function mutate(formData: FormData) {
   const here = `/roster/${encodeURIComponent(season)}`;
 
   let result: { error?: string } = {};
-  if (action === "add") result = await addToRoster(supabase, rosterId, playerId, userId);
-  else if (action === "remove") result = await removeFromRoster(supabase, rosterId, playerId);
-  else if (action === "publish") result = await publishRoster(supabase, rosterId);
-  else if (action === "unpublish") result = await unpublishRoster(supabase, rosterId);
-  else redirect(`${here}?error=unknown-action`);
+  // The code the toast shows on the way back out. Paired with the call rather
+  // than derived from `action` afterwards, so adding a fifth action here cannot
+  // silently inherit the fourth one's wording.
+  let done = "";
+  if (action === "add") {
+    result = await addToRoster(supabase, rosterId, playerId, userId);
+    done = "roster-added";
+  } else if (action === "remove") {
+    result = await removeFromRoster(supabase, rosterId, playerId);
+    done = "roster-dropped";
+  } else if (action === "publish") {
+    result = await publishRoster(supabase, rosterId);
+    done = "roster-published";
+  } else if (action === "unpublish") {
+    result = await unpublishRoster(supabase, rosterId);
+    done = "roster-unpublished";
+  } else {
+    redirect(`${here}?error=unknown-action`);
+  }
 
   // The double-booking guard's message names the clashing clan, so it is passed
   // through verbatim. "Already in the Clan B roster" is actionable; a generic
   // "constraint violation" sends the leader hunting through three rosters.
+  // lib/feedback.ts shows an unrecognised code as itself for exactly this.
   if (result.error) redirect(`${here}?error=${encodeURIComponent(result.error)}`);
 
   revalidatePath(here);
-  redirect(here);
+  redirect(`${here}?ok=${done}`);
 }
 
 interface PoolPlayer {
@@ -122,10 +137,12 @@ export default async function RosterBuilderPage({
   // Every player across every clan the leader runs, with the four things that
   // decide a slot. Assembled here rather than in SQL because it spans three
   // tables that have no join path PostgREST can express.
-  const rosterMembers = new Map<string, RosterMember[]>();
-  for (const roster of rosters) {
-    rosterMembers.set(roster.id, await membersOfRoster(supabase, roster.id));
-  }
+  const memberLists = await Promise.all(
+    rosters.map((roster) => membersOfRoster(supabase, roster.id)),
+  );
+  const rosterMembers = new Map<string, RosterMember[]>(
+    rosters.map((roster, index) => [roster.id, memberLists[index]!]),
+  );
 
   const assignment = new Map<string, string>(); // playerId -> rosterId
   for (const [rosterId, members] of rosterMembers) {
@@ -149,11 +166,39 @@ export default async function RosterBuilderPage({
     optionLabel = new Map(options.map((o) => [o.id, o.label]));
   }
 
+  // ── THE READ THAT MADE THIS PAGE SLOW ────────────────────────────────────
+  //
+  // This was a loop inside a loop: for each clan, for each member, await one
+  // playerSeasonHistory(). That function walked the clan's ENTIRE CWL tree to
+  // answer for one player — seasons, every war in each, then each war's roster
+  // and attacks, filtering to the player in JavaScript afterwards — so it was
+  // about thirty-one round trips EACH. Eighty-one players in the pool meant on
+  // the order of two and a half thousand queries, issued one after another,
+  // before this page could render a single row.
+  //
+  // Every one of them fetched the same data. Which wars a clan played and who
+  // attacked in them does not depend on the player being asked about.
+  //
+  // Now: two reads per clan, every clan in flight at once, and the history for
+  // all of that clan's players arrives in one map. The cost is bounded by the
+  // clan's WARS rather than by the size of the pool, so a bigger family of
+  // clans no longer makes it quadratic.
+  const perClan = await Promise.all(
+    leads.map(async (clan) => {
+      const [members, history] = await Promise.all([
+        membersForClan(supabase, clan.id),
+        seasonHistoryForClan(supabase, clan.id),
+      ]);
+      return { clan, members, history };
+    }),
+  );
+
   const pool: PoolPlayer[] = [];
-  for (const clan of leads) {
-    for (const member of await membersForClan(supabase, clan.id)) {
-      const history = await playerSeasonHistory(supabase, clan.id, member.playerId);
-      const previous = history[0] ?? null;
+  for (const { clan, members, history } of perClan) {
+    for (const member of members) {
+      // Newest season first, so [0] is the member's last CWL — the same value
+      // this page has always shown in the "Last CWL" column.
+      const previous = (history.get(member.playerId) ?? [])[0] ?? null;
       const answer = answers.get(member.playerId);
       pool.push({
         playerId: member.playerId,
@@ -186,7 +231,7 @@ export default async function RosterBuilderPage({
   const clanById = new Map<string, VisibleClan>(clans.map((c) => [c.id, c]));
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 p-8">
+    <main className="mx-auto max-w-7xl space-y-6 p-8">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">CWL {season}</h1>
         <p className="text-muted-foreground text-sm">
@@ -322,9 +367,13 @@ export default async function RosterBuilderPage({
                               <input type="hidden" name="action" value="add" />
                               <input type="hidden" name="rosterId" value={roster.id} />
                               <input type="hidden" name="playerId" value={p.playerId} />
-                              <Button type="submit" size="xs" variant="outline">
+                              {/* Each button owns its own one-field form, so
+                                  useFormStatus inside SubmitButton reports only
+                                  THIS assignment as pending — the other eighty
+                                  rows stay live while one is written. */}
+                              <SubmitButton size="xs" variant="outline">
                                 {clanById.get(roster.clanId)?.name ?? "Add"}
-                              </Button>
+                              </SubmitButton>
                             </form>
                           ))}
                         </div>
@@ -387,9 +436,9 @@ export default async function RosterBuilderPage({
                   <input type="hidden" name="action" value="remove" />
                   <input type="hidden" name="rosterId" value={roster.id} />
                   <input type="hidden" name="playerId" value={m.playerId} />
-                  <Button type="submit" size="xs" variant="ghost">
+                  <SubmitButton size="xs" variant="ghost" pendingLabel="Dropping">
                     Drop
-                  </Button>
+                  </SubmitButton>
                 </form>
               </li>
             ))}
@@ -404,15 +453,15 @@ export default async function RosterBuilderPage({
           <input type="hidden" name="season" value={season} />
           <input type="hidden" name="action" value={published ? "unpublish" : "publish"} />
           <input type="hidden" name="rosterId" value={roster.id} />
-          <Button
-            type="submit"
+          <SubmitButton
             size="sm"
             variant={published ? "outline" : "default"}
             className="w-full"
             disabled={!published && members.length === 0}
+            pendingLabel={published ? "Returning to draft" : "Publishing"}
           >
             {published ? "Back to draft" : "Publish to members"}
-          </Button>
+          </SubmitButton>
         </form>
       </section>
     );
