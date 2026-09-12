@@ -99,7 +99,7 @@ export function ClanSwitcher({ clans }: { clans: RailClan[] }) {
             href={`/${encodeURIComponent(clan.tag)}`}
             aria-current={active ? "page" : undefined}
             className={
-              "flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors " +
+              "flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[0.9375rem] transition-colors " +
               (active ? ACTIVE : IDLE)
             }
             title={`${clan.name} — you are ${clan.role}`}
@@ -161,11 +161,11 @@ export function ClanSectionTabs({ clans }: { clans: RailClan[] }) {
                 aria-current={active ? "page" : undefined}
                 title={section.hint}
                 className={
-                  "flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors " +
+                  "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-[0.9375rem] transition-colors " +
                   (active ? ACTIVE : IDLE)
                 }
               >
-                <section.icon aria-hidden className="size-3.5" />
+                <section.icon aria-hidden className="size-4" />
                 {section.label}
               </Link>
             );
@@ -186,7 +186,7 @@ export function ClanSectionTabs({ clans }: { clans: RailClan[] }) {
                   aria-current={active ? "page" : undefined}
                   title={child.hint}
                   className={
-                    "shrink-0 rounded-sm px-1 py-0.5 text-xs transition-colors " +
+                    "shrink-0 rounded-sm px-1 py-0.5 text-[0.8125rem] transition-colors " +
                     (active
                       ? "text-wood-ink font-medium underline decoration-2 underline-offset-4"
                       : "text-wood-ink-dim hover:text-wood-ink")

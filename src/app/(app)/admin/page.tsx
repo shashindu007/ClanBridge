@@ -30,6 +30,7 @@ import { ago, freshness } from "@/services/freshness";
 import { DISPATCHABLE, dispatchConfig, dispatchWorkflow, isDispatchable } from "@/lib/github";
 import { SYNC_TRIGGER_LIMIT, sharedRateLimiter } from "@/lib/rate-limit";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -361,7 +362,7 @@ export default async function AdminPage({
             happen once, and only from the address in <code>OWNER_EMAIL</code>.
           </p>
           <form action={claimOwnership}>
-            <Button type="submit">Claim ownership</Button>
+            <SubmitButton>Claim ownership</SubmitButton>
           </form>
         </section>
       )}
@@ -391,7 +392,7 @@ export default async function AdminPage({
               <Label htmlFor="name">Name (placeholder)</Label>
               <Input id="name" name="name" required placeholder="Clan name" />
             </div>
-            <Button type="submit">Add</Button>
+            <SubmitButton>Add</SubmitButton>
           </form>
         </section>
       )}
@@ -424,9 +425,9 @@ export default async function AdminPage({
                   admin && (
                     <form action={grantSelfLeader}>
                       <input type="hidden" name="clanId" value={clan.id} />
-                      <Button type="submit" variant="outline" size="sm">
+                      <SubmitButton variant="outline" size="sm">
                         Make me leader
-                      </Button>
+                      </SubmitButton>
                     </form>
                   )
                 )}
@@ -453,9 +454,9 @@ export default async function AdminPage({
             {(Object.keys(DISPATCHABLE) as Array<keyof typeof DISPATCHABLE>).map((job) => (
               <form key={job} action={triggerSync}>
                 <input type="hidden" name="job" value={job} />
-                <Button type="submit" variant="outline" size="sm">
+                <SubmitButton variant="outline" size="sm">
                   {job}
-                </Button>
+                </SubmitButton>
               </form>
             ))}
           </div>

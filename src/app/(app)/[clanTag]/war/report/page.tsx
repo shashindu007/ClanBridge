@@ -113,14 +113,21 @@ export default async function WarReportPage({
     targets: WarTargetRow[];
   }> = [];
 
-  for (const war of wars) {
-    loaded.push({
-      war,
-      members: await membersOfWar(supabase, war.id),
-      attacks: await attacksForWar(supabase, war.id),
-      targets: await targetsForWar(supabase, war.id),
-    });
-  }
+  // Every war's three reads in flight together, rather than a war at a time.
+  // WAR_WINDOW wars at three sequential queries each was 3N round trips before
+  // the first row could render; it is now three waves regardless of N.
+  loaded.push(
+    ...(await Promise.all(
+      wars.map(async (war) => {
+        const [members, attacks, targets] = await Promise.all([
+          membersOfWar(supabase, war.id),
+          attacksForWar(supabase, war.id),
+          targetsForWar(supabase, war.id),
+        ]);
+        return { war, members, attacks, targets };
+      }),
+    )),
+  );
 
   const contribution = warContribution(loaded);
 

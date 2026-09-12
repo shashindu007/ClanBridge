@@ -17,7 +17,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Activity, ClipboardList } from "lucide-react";
+import { Activity, Bell, ClipboardList } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { accountProfile, currentUserId, needsAccountSetup } from "@/lib/auth";
 import { clanAccent } from "@/lib/clan-accent";
@@ -139,7 +139,7 @@ export default async function AppLayout({
               rather than an app. */}
           <Link
             href="/"
-            className="text-wood-ink hover:text-wood-ink flex shrink-0 items-center gap-2 font-semibold tracking-tight"
+            className="text-wood-ink hover:text-wood-ink flex shrink-0 items-center gap-2 text-[1.0625rem] font-semibold tracking-tight"
             title="ClanBridge — go to your first clan"
           >
             {/* The same shield the backdrop tiles, once, at full strength. The
@@ -148,7 +148,7 @@ export default async function AppLayout({
             <svg
               aria-hidden
               viewBox="0 0 132 132"
-              className="size-5 shrink-0"
+              className="size-5.5 shrink-0"
               fill="none"
               stroke="currentColor"
               strokeWidth={7}
@@ -163,6 +163,14 @@ export default async function AppLayout({
 
           <ClanSwitcher clans={railClans} />
 
+          {/* Everything after the clan switcher, aligned as one group.
+
+              ml-auto lives HERE rather than on whichever child happens to come
+              first, because that child is conditional: the leadership links are
+              leader-only and hidden below md, so putting the margin on them
+              left an ordinary member's controls sitting against the clan
+              switcher instead of hard right. */}
+          <div className="text-wood-ink-dim ml-auto flex shrink-0 items-center gap-1 text-[0.9375rem]">
           {/* ── Leadership destinations ──────────────────────────────────
               Cross-clan, so they live here rather than under a clan tag: a CWL
               season is picked across every clan a leader runs (T4B.7), and
@@ -179,7 +187,7 @@ export default async function AppLayout({
               Below `md` they collapse into the menu, which always holds the
               complete list — see account-menu.tsx. */}
           {showLeadershipLinks && (
-            <div className="text-wood-ink-dim ml-auto hidden shrink-0 items-center gap-1 text-sm md:flex">
+            <div className="text-wood-ink-dim hidden shrink-0 items-center gap-1 md:flex">
               <Link
                 href="/roster"
                 className="hover:bg-accent hover:text-accent-foreground flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors"
@@ -199,6 +207,25 @@ export default async function AppLayout({
             </div>
           )}
 
+          {/* ── Notifications, promoted out of the menu ──────────────────
+              A member checking whether anything has been posted for them should
+              not have to open an account menu to find out. It is the one item
+              in that group that is READ rather than configured, and the one a
+              member opens repeatedly rather than once.
+
+              Icon-only below `sm`, where the label is the part that costs width
+              and the bell is already unambiguous. aria-label carries the name in
+              both cases, so the control is never nameless to a screen reader. */}
+          <Link
+            href="/settings/notifications"
+            aria-label="Notifications"
+            title="What this app sends you, and on which devices"
+            className="text-wood-ink-dim hover:bg-accent hover:text-accent-foreground flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 transition-colors"
+          >
+            <Bell aria-hidden className="size-4" />
+            <span className="hidden sm:inline">Notifications</span>
+          </Link>
+
           {/* T10.3 — who you are, then the way out.
 
               The identity is not decoration. The bug that prompted all of T10
@@ -209,7 +236,7 @@ export default async function AppLayout({
 
               `ml-auto` here as well as on the block above, so the menu still
               sits hard right for a member with no leadership links at all. */}
-          <div className="ml-auto shrink-0">
+          <div className="shrink-0">
             <AccountMenu
               username={profile?.username ?? null}
               email={profile?.email ?? null}
@@ -217,6 +244,8 @@ export default async function AppLayout({
               showLeadership={showLeadershipLinks}
             />
           </div>
+          </div>
+
         </nav>
 
         <ClanSectionTabs clans={railClans} />

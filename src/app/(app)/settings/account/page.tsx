@@ -31,7 +31,7 @@ import {
 import { isUniqueViolation, safeMessage } from "@/lib/errors";
 import { SignOutButton } from "@/components/sign-out-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -166,7 +166,7 @@ export default async function AccountSettingsPage({
               3–20 characters: lowercase letters, numbers and underscores.
             </p>
           </div>
-          <Button type="submit">Save username</Button>
+          <SubmitButton>Save username</SubmitButton>
         </form>
       </section>
 
@@ -206,7 +206,7 @@ export default async function AccountSettingsPage({
               minLength={PASSWORD_MIN_LENGTH}
             />
           </div>
-          <Button type="submit">Change password</Button>
+          <SubmitButton>Change password</SubmitButton>
         </form>
       </section>
 

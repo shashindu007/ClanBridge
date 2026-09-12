@@ -17,6 +17,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requireClanByTag } from "@/lib/clans";
@@ -230,7 +231,7 @@ export default async function CreatePollPage({
         </div>
 
         <div className="flex gap-3">
-          <Button type="submit">Open the poll</Button>
+          <SubmitButton>Open the poll</SubmitButton>
           <Button asChild variant="outline">
             <Link href={back}>Cancel</Link>
           </Button>

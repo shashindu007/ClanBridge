@@ -30,6 +30,7 @@ import { revalidatePath } from "next/cache";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { DataFreshness } from "@/components/data-freshness";
 import { currentUserId } from "@/lib/auth";
 import { requireClanByTag } from "@/lib/clans";
@@ -317,9 +318,9 @@ export default async function WarBoardPage({
                       <input type="hidden" name="clanTag" value={clan.tag} />
                       <input type="hidden" name="warId" value={war.id} />
                       <input type="hidden" name="action" value="release" />
-                      <Button type="submit" size="xs" variant="ghost">
+                      <SubmitButton size="xs" variant="ghost">
                         Give it back
-                      </Button>
+                      </SubmitButton>
                     </form>
                   )}
                 </div>
@@ -349,9 +350,9 @@ export default async function WarBoardPage({
                         ))}
                     </select>
                   </label>
-                  <Button type="submit" size="sm">
+                  <SubmitButton size="sm">
                     Claim it
-                  </Button>
+                  </SubmitButton>
                 </form>
               )}
             </div>
@@ -459,9 +460,9 @@ export default async function WarBoardPage({
                               </option>
                             ))}
                           </select>
-                          <Button type="submit" size="xs" variant="outline">
+                          <SubmitButton size="xs" variant="outline">
                             Set
-                          </Button>
+                          </SubmitButton>
                         </form>
                         {m.target && (
                           <form action={mutate}>
@@ -469,9 +470,9 @@ export default async function WarBoardPage({
                             <input type="hidden" name="warId" value={war.id} />
                             <input type="hidden" name="action" value="clear" />
                             <input type="hidden" name="playerId" value={m.playerId} />
-                            <Button type="submit" size="xs" variant="ghost">
+                            <SubmitButton size="xs" variant="ghost">
                               Clear
-                            </Button>
+                            </SubmitButton>
                           </form>
                         )}
                       </div>

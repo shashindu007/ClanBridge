@@ -23,7 +23,7 @@ import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -301,9 +301,9 @@ export default async function CwlSeasonReportPage({
                     <input type="hidden" name="seasonId" value={seasonRow.id} />
                     <input type="hidden" name="playerId" value={a.playerId} />
                     <input type="hidden" name="action" value="withdraw" />
-                    <Button type="submit" size="xs" variant="ghost">
+                    <SubmitButton size="xs" variant="ghost">
                       Withdraw
-                    </Button>
+                    </SubmitButton>
                   </form>
                 </li>
               ))}
@@ -348,9 +348,9 @@ export default async function CwlSeasonReportPage({
                         className="w-40"
                         aria-label={`Note for ${c.name}`}
                       />
-                      <Button type="submit" size="xs">
+                      <SubmitButton size="xs">
                         Award
-                      </Button>
+                      </SubmitButton>
                     </form>
                   </li>
                 ))}

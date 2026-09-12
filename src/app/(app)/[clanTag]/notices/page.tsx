@@ -20,7 +20,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -203,7 +203,7 @@ export default async function NoticesPage({
             Pin to the top
           </label>
 
-          <Button type="submit">Post</Button>
+          <SubmitButton>Post</SubmitButton>
         </form>
       )}
 
@@ -242,16 +242,16 @@ export default async function NoticesPage({
                         name="pinned"
                         value={notice.pinned ? "0" : "1"}
                       />
-                      <Button type="submit" variant="outline" size="sm">
+                      <SubmitButton variant="outline" size="sm">
                         {notice.pinned ? "Unpin" : "Pin"}
-                      </Button>
+                      </SubmitButton>
                     </form>
 
                     <form action={removeNotice}>
                       <input type="hidden" name="id" value={notice.id} />
-                      <Button type="submit" variant="outline" size="sm">
+                      <SubmitButton variant="outline" size="sm">
                         Remove
-                      </Button>
+                      </SubmitButton>
                     </form>
                   </>
                 )}

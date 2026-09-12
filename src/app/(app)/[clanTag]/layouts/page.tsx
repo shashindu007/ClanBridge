@@ -24,6 +24,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { currentUserId } from "@/lib/auth";
 import { requireClanByTag } from "@/lib/clans";
@@ -148,9 +149,9 @@ function LayoutCard({
           <input type="hidden" name="clanTag" value={clanTag} />
           <input type="hidden" name="layoutId" value={layout.id} />
           <input type="hidden" name="action" value={layout.votedByMe ? "unvote" : "vote"} />
-          <Button type="submit" size="sm" variant={layout.votedByMe ? "secondary" : "outline"}>
+          <SubmitButton size="sm" variant={layout.votedByMe ? "secondary" : "outline"}>
             {layout.votedByMe ? "Voted" : "Vote"}
-          </Button>
+          </SubmitButton>
         </form>
 
         {canRemove && (
@@ -158,9 +159,9 @@ function LayoutCard({
             <input type="hidden" name="clanTag" value={clanTag} />
             <input type="hidden" name="layoutId" value={layout.id} />
             <input type="hidden" name="action" value="remove" />
-            <Button type="submit" size="sm" variant="ghost">
+            <SubmitButton size="sm" variant="ghost">
               Remove
-            </Button>
+            </SubmitButton>
           </form>
         )}
       </div>
