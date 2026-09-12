@@ -7,6 +7,16 @@ import tsconfigPaths from "vite-tsconfig-paths";
 // Phase 1 touches the DOM, and jsdom would only slow the suite down.
 export default defineConfig({
   plugins: [tsconfigPaths()],
+
+  // JSX for the component tests.
+  //
+  // tsconfig.json sets `"jsx": "preserve"` because Next compiles JSX itself, and
+  // esbuild reads that and falls back to the CLASSIC runtime — which needs
+  // `React` in scope and throws "React is not defined" on every component this
+  // suite renders. Next has used the automatic runtime since 11; this only tells
+  // the test transform the same thing the app build already knows.
+  esbuild: { jsx: "automatic" },
+
   test: {
     environment: "node",
     include: ["src/**/*.test.ts", "scripts/**/*.test.ts", "test/**/*.test.ts"],

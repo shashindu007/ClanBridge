@@ -11,14 +11,29 @@
 //
 // POST, because /auth/sign-out refuses GET. See that route on why.
 
-export function SignOutButton({ className = "" }: { className?: string }) {
+export function SignOutButton({
+  className = "",
+  children,
+}: {
+  className?: string;
+  /**
+   * Defaults to the words "Sign out". Passed in by the account menu, which
+   * needs an icon beside the label and styles the row itself.
+   *
+   * The underline is the DEFAULT rather than unconditional, because in the menu
+   * this sits in a column of links that are not underlined and an odd one out
+   * reads as a different kind of control. Callers passing children own the
+   * appearance; callers passing none get what they always got.
+   */
+  children?: React.ReactNode;
+}) {
   return (
     <form action="/auth/sign-out" method="post" className="contents">
       <button
         type="submit"
-        className={`hover:underline ${className}`.trim()}
+        className={(children ? className : `hover:underline ${className}`).trim()}
       >
-        Sign out
+        {children ?? "Sign out"}
       </button>
     </form>
   );

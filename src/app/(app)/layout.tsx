@@ -17,18 +17,18 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Menu } from "lucide-react";
+import { Activity, ClipboardList } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { accountProfile, currentUserId, needsAccountSetup } from "@/lib/auth";
 import { clanAccent } from "@/lib/clan-accent";
 import { visibleClans } from "@/lib/clans";
 import { isGateExempt, isSetupExempt } from "@/lib/gate";
+import { AccountMenu } from "@/components/account-menu";
 import {
   ClanSectionTabs,
   ClanSwitcher,
   type RailClan,
 } from "@/components/clan-nav-rail";
-import { SignOutButton } from "@/components/sign-out-button";
 import { PATHNAME_HEADER } from "@/lib/request-headers";
 
 // The exempt list and its reasoning live in lib/gate.ts, so they can be tested
@@ -117,44 +117,6 @@ export default async function AppLayout({
     color: clanAccent(clan.id).color,
   }));
 
-  // Written once and rendered twice — as a row on a wide screen, and inside the
-  // disclosure on a phone. Two copies would be two places to add the next link
-  // to, and the one that gets forgotten is the phone.
-  const secondaryLinks = (
-    <>
-      {/* Cross-clan, so it lives here rather than under a clan tag: a CWL
-          season is picked across every clan a leader runs (T4B.7). */}
-      {showLeadershipLinks && (
-        <>
-          <Link href="/roster" className="hover:underline">
-            Rosters
-          </Link>
-          {/* T9.1 — objective O3, and it needs a way in. Leadership only: it
-              lists every member of every clan with the reasons they were
-              flagged, which is a leader's view of the family, not a member's
-              view of their own clan. */}
-          <Link href="/report" className="hover:underline">
-            Participation
-          </Link>
-        </>
-      )}
-      {showAdminLink && (
-        <Link href="/admin" className="hover:underline">
-          Admin
-        </Link>
-      )}
-      <Link href="/settings/notifications" className="hover:underline">
-        Notifications
-      </Link>
-      <Link href="/settings/account" className="hover:underline">
-        Account
-      </Link>
-      <Link href="/guide" className="hover:underline">
-        Help
-      </Link>
-    </>
-  );
-
   return (
     // The root layout owns the page height now (it flexes the footer to the
     // bottom), so a second min-h-screen here would guarantee a scrollbar on
@@ -170,9 +132,15 @@ export default async function AppLayout({
           above page content and below any dialog. */}
       <header className="cb-rail sticky top-0 z-30">
         <nav className="mx-auto flex max-w-5xl items-center gap-x-4 gap-y-2 px-4 py-3">
+          {/* shrink-0 so the brand never compresses, and the wordmark drops
+              below `sm` where the space it costs is space the clan switcher
+              needs. The shield stays at every width — it is the only mark this
+              product has, and a header with no mark at all reads as a page
+              rather than an app. */}
           <Link
             href="/"
-            className="text-wood-ink hover:text-wood-ink flex items-center gap-2 font-semibold tracking-tight"
+            className="text-wood-ink hover:text-wood-ink flex shrink-0 items-center gap-2 font-semibold tracking-tight"
+            title="ClanBridge — go to your first clan"
           >
             {/* The same shield the backdrop tiles, once, at full strength. The
                 product had no mark of its own anywhere — the word "ClanBridge"
@@ -190,71 +158,65 @@ export default async function AppLayout({
               <path d="M66 33 v59" />
               <path d="M40 47 h52" />
             </svg>
-            ClanBridge
+            <span className="hidden sm:inline">ClanBridge</span>
           </Link>
 
           <ClanSwitcher clans={railClans} />
 
-          {/* Nav links on the rail. `[&_a]:` rather than a class on each: there
-              are seven of them, they are all the same thing, and the next one
-              someone adds should not have to remember six utility classes to
-              avoid rendering as dark-blue-on-dark-wood.
+          {/* ── Leadership destinations ──────────────────────────────────
+              Cross-clan, so they live here rather than under a clan tag: a CWL
+              season is picked across every clan a leader runs (T4B.7), and
+              /report lists every member of every clan with the reasons they
+              were flagged — a leader's view of the family, not a member's view
+              of their own clan (T9.1, objective O3).
 
-              Hidden below `sm`, where the same seven items plus a username used
-              to wrap the rail into a four-row block on every page. See the
-              disclosure below. */}
-          <div className="text-wood-ink-dim ml-auto hidden items-center gap-3 text-sm sm:flex [&_a]:transition-colors [&_a:hover]:text-wood-ink [&_button]:transition-colors [&_button:hover]:text-wood-ink">
-            {secondaryLinks}
+              These two are DESTINATIONS, not settings, which is why they stay
+              on the rail rather than going in the account menu with Admin and
+              Notifications. They carry icons for the same reason the section
+              tabs below do: a row of same-weight words is a row you have to
+              read all of.
 
-            {/* T10.3 — who you are, then the way out.
-
-                The identity is not decoration. The bug that prompted all of this
-                was a member with two accounts who could not tell which one they
-                were signed in as and had no way to change it; a shell that shows
-                neither is how "I am on the wrong account" becomes a support
-                conversation. Username first because they chose it, email as the
-                fallback for the moments before setup has run. */}
-            <span
-              className="text-wood-ink-muted border-l border-white/15 pl-3"
-              title={profile?.email}
-            >
-              {profile?.username ?? profile?.email ?? ""}
-            </span>
-            <SignOutButton />
-          </div>
-
-          {/* The same links on a phone, behind a disclosure.
-
-              A native <details>, not a dropdown. This app is server-rendered
-              throughout, there is no dropdown-menu primitive in components/ui to
-              reach for, and a menu built out of useState would be the first
-              client component in the shell — hydration on every page for a list
-              of six links. <details> opens with no JavaScript at all, is
-              keyboard-operable and screen-reader-announced for free, and cannot
-              break the way the sign-out form deliberately cannot break.
-
-              It is placed after the switcher in the DOM so tab order still
-              reaches the clan pills first, which are what members actually
-              use. */}
-          <details className="group relative ml-auto shrink-0 sm:hidden">
-            <summary
-              className="text-wood-ink-dim hover:text-wood-ink flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1 text-sm transition-colors [&::-webkit-details-marker]:hidden"
-              aria-label="Menu"
-            >
-              <Menu aria-hidden className="size-4" />
-              More
-            </summary>
-            <div className="cb-panel absolute right-0 z-40 mt-2 flex w-56 flex-col gap-1 rounded-lg border p-2 text-sm [&_a]:rounded-md [&_a]:px-2 [&_a]:py-1.5 [&_a:hover]:bg-accent [&_button]:rounded-md [&_button]:px-2 [&_button]:py-1.5 [&_button]:text-left [&_button:hover]:bg-accent">
-              {secondaryLinks}
-              <span
-                className="text-muted-foreground mt-1 border-t px-2 pt-2 text-xs"
-                title={profile?.email}
+              Below `md` they collapse into the menu, which always holds the
+              complete list — see account-menu.tsx. */}
+          {showLeadershipLinks && (
+            <div className="text-wood-ink-dim ml-auto hidden shrink-0 items-center gap-1 text-sm md:flex">
+              <Link
+                href="/roster"
+                className="hover:bg-accent hover:text-accent-foreground flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors"
+                title="Pick the CWL roster across every clan you run"
               >
-                {profile?.username ?? profile?.email ?? ""}
-              </span>
-              <SignOutButton />
+                <ClipboardList aria-hidden className="size-4" />
+                Rosters
+              </Link>
+              <Link
+                href="/report"
+                className="hover:bg-accent hover:text-accent-foreground flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors"
+                title="Who across all your clans has stopped turning up"
+              >
+                <Activity aria-hidden className="size-4" />
+                Participation
+              </Link>
             </div>
-          </details>
+          )}
+
+          {/* T10.3 — who you are, then the way out.
+
+              The identity is not decoration. The bug that prompted all of T10
+              was a member with two accounts who could not tell which one they
+              were signed in as and had no way to change it; a shell that shows
+              neither is how "I am on the wrong account" becomes a support
+              conversation.
+
+              `ml-auto` here as well as on the block above, so the menu still
+              sits hard right for a member with no leadership links at all. */}
+          <div className="ml-auto shrink-0">
+            <AccountMenu
+              username={profile?.username ?? null}
+              email={profile?.email ?? null}
+              showAdmin={showAdminLink}
+              showLeadership={showLeadershipLinks}
+            />
+          </div>
         </nav>
 
         <ClanSectionTabs clans={railClans} />

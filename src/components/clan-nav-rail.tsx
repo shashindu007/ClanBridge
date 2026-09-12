@@ -35,6 +35,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { activeNav, CLAN_SECTIONS, currentClanTag, sectionHref } from "@/lib/clan-nav";
 
 /** One clan, flattened to what the rail needs. Serialisable — it crosses the RSC boundary. */
@@ -65,6 +66,22 @@ const IDLE = "text-wood-ink-dim hover:bg-accent hover:text-accent-foreground";
  */
 export function ClanSwitcher({ clans }: { clans: RailClan[] }) {
   const current = currentClanTag(usePathname());
+  const activeRef = useRef<HTMLAnchorElement>(null);
+
+  // Drag the current clan into view.
+  //
+  // THE ONE PILL THAT MUST NEVER BE HIDDEN IS THE ONE THAT WAS. A fourth clan
+  // pushed the row past the space it had, and because the pills are in tag
+  // order rather than in any order that puts the current one first, the clan the
+  // member was actually looking at clipped off the right-hand edge — leaving a
+  // switcher showing three clans they were NOT in.
+  //
+  // "nearest" so a pill already on screen is left alone: scrolling the rail on
+  // every navigation when nothing needed moving is its own kind of wrong.
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [current]);
+
   if (clans.length === 0) return null;
 
   return (
@@ -78,6 +95,7 @@ export function ClanSwitcher({ clans }: { clans: RailClan[] }) {
         return (
           <Link
             key={clan.id}
+            ref={active ? activeRef : undefined}
             href={`/${encodeURIComponent(clan.tag)}`}
             aria-current={active ? "page" : undefined}
             className={
