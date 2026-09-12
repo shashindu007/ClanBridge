@@ -18,6 +18,7 @@ import {
   cardsInGroup,
   CLAN_GROUPS,
   CLAN_SECTIONS,
+  currentClanTag,
   pathWithinClan,
   sectionHref,
 } from "@/lib/clan-nav";
@@ -173,6 +174,49 @@ describe("the map itself", () => {
         const childActive = activeNav(`${TAG}${child.path}`);
         expect(childActive?.child?.path, child.path).toBe(child.path);
       }
+    }
+  });
+});
+
+// The stale-rail bug.
+//
+// The rail read the path from the middleware header, which is correct on a full
+// page load and stale on every soft navigation after it — a layout is not
+// re-rendered when only a child segment changes. Picking "DH CWL ONLY" left
+// "Dark Heaven" lit, and worse, left every section tab pointing back into the
+// clan the member had just left.
+//
+// The fix moved the read to usePathname(). These tests cover the part that is
+// still pure: the two callers do not agree on an encoding, so the parser has to
+// accept whichever one it is handed.
+describe("currentClanTag", () => {
+  it("reads the percent-encoded spelling the middleware header carries", () => {
+    expect(currentClanTag("/%232G8YQYRGJ")).toBe("#2G8YQYRGJ");
+    expect(currentClanTag("/%232G8YQYRGJ/members")).toBe("#2G8YQYRGJ");
+  });
+
+  // usePathname() and the request header make each other no promises about
+  // encoding, and normaliseTag accepts "%23", "#" and a bare tag alike. The rail
+  // compares the result against clan.tag, which is always "#XXXX" — so all three
+  // spellings have to arrive there identically or the highlight silently never
+  // matches, which is the exact failure being fixed.
+  it("reads the decoded spelling identically", () => {
+    expect(currentClanTag("/#2G8YQYRGJ")).toBe("#2G8YQYRGJ");
+    expect(currentClanTag("/#2G8YQYRGJ/war/lineup")).toBe("#2G8YQYRGJ");
+  });
+
+  it("agrees with the tag on a clan row, which is what the comparison needs", () => {
+    const tag = "#2G8YQYRGJ";
+    expect(currentClanTag(`/${encodeURIComponent(tag)}`)).toBe(tag);
+  });
+
+  it("distinguishes two clans rather than matching the first", () => {
+    expect(currentClanTag("/%232G8YQYRGJ")).not.toBe(currentClanTag("/%232PP0JCCL"));
+  });
+
+  it("returns null off a clan route rather than throwing", () => {
+    for (const path of ["/admin", "/roster", "/report", "/guide", "/", ""]) {
+      expect(currentClanTag(path)).toBeNull();
     }
   });
 });

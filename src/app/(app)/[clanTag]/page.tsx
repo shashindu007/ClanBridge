@@ -398,29 +398,44 @@ export default async function ClanDashboardPage({
         </section>
       ) : (
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Every tile now carries a line saying what its number IS. Three of
+              the four had none, which left a first-time reader four large
+              figures and four two-word labels — "CWL SEASONS 2" tells somebody
+              who has never used this app nothing at all, and it happens to be
+              the number that explains why the app exists. */}
           <Stat
             label="Members"
             value={String(reported ?? held)}
-            hint={memberHint}
+            hint={memberHint ?? "people in the clan right now"}
             tone="var(--info)"
             Icon={Users}
           />
           <Stat
             label="Clan level"
             value={detail?.level ? String(detail.level) : "—"}
+            hint="rises as the clan finishes wars and games"
             tone="var(--clan-2)"
             Icon={TrendingUp}
           />
           <Stat
             label="War league"
             value={detail?.warLeague ?? "—"}
+            hint="the tier this clan is placed in each CWL"
             tone="var(--success)"
             Icon={Swords}
           />
           <Stat
             label="CWL seasons"
             value={String(seasons.length)}
-            hint={seasons.length ? `latest ${seasons[0]!.season}` : "none captured yet"}
+            // The one number on this page worth explaining twice. Clash deletes
+            // a league season when it ends and it can never be fetched again —
+            // this count is the whole reason the project exists, and it read as
+            // a bare "2" next to three ordinary game statistics.
+            hint={
+              seasons.length
+                ? `saved here for good — newest ${seasons[0]!.season}`
+                : "none saved yet — the game deletes its own"
+            }
             tone="var(--clan-3)"
             Icon={Trophy}
           />
@@ -697,9 +712,21 @@ export default async function ClanDashboardPage({
           it in all three; before, the tab strip did not exist and the hints
           lived only here. */}
       <section className="space-y-5">
-        <h2 className="text-muted-foreground text-xs tracking-wide uppercase">
-          Go to
-        </h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-muted-foreground text-xs tracking-wide uppercase">
+            Go to
+          </h2>
+          {/* The bridge for somebody on their first day. /guide now carries a
+              map of what every one of these pages is for, built from the same
+              lib/clan-nav.ts data as the cards below — but a member has no
+              reason to guess that "Help" in the corner contains it. */}
+          <Link
+            href="/guide"
+            className="text-muted-foreground hover:text-primary text-xs underline underline-offset-2 transition-colors"
+          >
+            New here? What each page is for
+          </Link>
+        </div>
 
         <div className="grid gap-x-6 gap-y-5 lg:grid-cols-2">
           {CLAN_GROUPS.map((group) => (

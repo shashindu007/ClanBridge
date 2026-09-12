@@ -326,6 +326,29 @@ export function pathWithinClan(pathname: string): string | null {
   return segments.length === 1 ? "" : `/${segments.slice(1).join("/")}`;
 }
 
+/**
+ * The clan tag in the first path segment, if there is one.
+ *
+ * Cosmetic only. Never throws: decodeTag rejects anything that is not a tag,
+ * and every non-clan route under (app) — /admin, /roster, /guide,
+ * /settings/notifications — hits exactly that path. A highlighted nav link is
+ * not worth a 500 on the shell that wraps every page in the app.
+ *
+ * Works on both the encoded and the decoded spelling. decodeURIComponent leaves
+ * a literal "#" alone, so "%232PP0JCCL" and "#2PP0JCCL" both arrive at the same
+ * tag — which matters because usePathname() and the middleware header do not
+ * promise each other's encoding.
+ */
+export function currentClanTag(pathname: string): string | null {
+  const segment = pathname.split("/").filter(Boolean)[0];
+  if (!segment) return null;
+  try {
+    return decodeTag(segment);
+  } catch {
+    return null;
+  }
+}
+
 export interface ActiveNav {
   /** The top-level tab to light. */
   section: ClanSection;
