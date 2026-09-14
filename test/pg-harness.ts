@@ -62,6 +62,10 @@ export const PHASE1_MIGRATIONS = [
   // header that its policies are the one part of Phase 8 the suite cannot reach.
   "028_base_layouts.sql",
   "030_account_credentials.sql", // T10.1 username + password_set_at, and the setup gate reads both
+  // T11.1 auth_owned_player_ids() + a SELECT policy on players that is filtered
+  // by owner rather than by clan. Read its header before touching it: the R3
+  // argument is the whole file.
+  "031_own_players_policy.sql",
 ] as const;
 
 /**
