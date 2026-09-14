@@ -239,11 +239,17 @@ export default async function AppLayout({
               `ml-auto` here as well as on the block above, so the menu still
               sits hard right for a member with no leadership links at all. */}
           <div className="shrink-0">
+            {/* T11.10 — a BOOLEAN, not a URL. Signing the picture here would add
+                a Storage round trip to every navigation, which is the cost T10.9
+                spent this phase's predecessor removing from this file. The menu
+                points at /account/avatar instead, which the browser caches for
+                the life of the signature. */}
             <AccountMenu
               username={profile?.username ?? null}
               email={profile?.email ?? null}
               showAdmin={showAdminLink}
               showLeadership={showLeadershipLinks}
+              hasAvatar={Boolean(profile?.avatarPath)}
             />
           </div>
           </div>
