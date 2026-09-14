@@ -99,6 +99,9 @@ export const PHASE1_MIGRATIONS = [
  */
 export const LIVE_ONLY_MIGRATIONS = [
   "029_layouts_storage.sql", // T8.1 the layouts bucket and its storage.objects policies
+  // T11.5 the avatars bucket. Owner-scoped rather than clan-scoped, private, and
+  // JPEG-only; its public-schema half (users.avatar_path) is 034 and IS tested.
+  "035_avatars_storage.sql",
 ] as const;
 
 /**
