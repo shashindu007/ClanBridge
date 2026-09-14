@@ -22,6 +22,7 @@ const CLAN_A = "aaaaaaaa-0000-4000-8000-0000000000aa";
 const CLAN_B = "bbbbbbbb-0000-4000-8000-0000000000bb";
 
 const PLAYER_A = "#2PP0JCCL"; // in clan A
+const PLAYER_B = "#2PP0JCCY"; // in clan B — the second base, for T11.2
 const PLAYER_GONE = "#2PP0JCCP"; // in clan A but left_at set
 const PLAYER_NONE = "#2PP0JCCU"; // exists, but belongs to no clan
 
@@ -76,6 +77,7 @@ describe("016/017 — verification and approval", () => {
       -- Game facts, as scripts/sync/clans.ts would have written them.
       insert into players (clan_id, tag, name) values
         ('${CLAN_A}', '${PLAYER_A}', 'Member A'),
+        ('${CLAN_B}', '${PLAYER_B}', 'Member A alt'),
         (null,        '${PLAYER_NONE}', 'Outsider');
 
       insert into players (clan_id, tag, name, left_at) values
@@ -180,6 +182,80 @@ describe("016/017 — verification and approval", () => {
     it("refuses an anonymous caller", async () => {
       await h.asAnon();
       await expect(h.db.query("select link_verified_player($1)", [PLAYER_A])).rejects.toThrow();
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // T11.2 / migration 032 — a second base, and the queue entry it must not move.
+  //
+  // requested_clan_id names the ONE clan whose leader was asked. 016 wrote it
+  // unconditionally, which was right while an account had one base and wrong the
+  // moment Phase 11 made a second one ordinary. The first test below is the
+  // regression guard on T3.3: the fix must not stop a FIRST link routing anybody.
+  // ─────────────────────────────────────────────────────────────────────────
+  describe("a second base does not re-route the first (032)", () => {
+    async function requestedClan(user: string): Promise<string | null> {
+      await h.asSuperuser();
+      const row = await h.db.query<{ requested_clan_id: string | null }>(
+        `select requested_clan_id from users where id = $1`,
+        [user],
+      );
+      return row.rows[0]!.requested_clan_id;
+    }
+
+    it("still routes a first link to that clan's leader", async () => {
+      // The guard on the fix itself. If this fails, T3.8's queue is empty for
+      // every new member and nobody can be approved at all.
+      await h.asUser(MEMBER_A);
+      expect(await link(h, PLAYER_A)).toMatchObject({ ok: true });
+      expect(await requestedClan(MEMBER_A)).toBe(CLAN_A);
+    });
+
+    it("keeps a pending applicant in the queue of the leader already asked", async () => {
+      await h.asUser(MEMBER_A);
+      await link(h, PLAYER_A); // main, in clan A — routes to clan A's leader
+      await link(h, PLAYER_B); // alt, in clan B — must NOT move the queue entry
+
+      // First tag wins. Before 032 this was CLAN_B, and the leader of clan A —
+      // who was already looking at this applicant — lost them with no signal.
+      expect(await requestedClan(MEMBER_A)).toBe(CLAN_A);
+    });
+
+    it("links the second base regardless, and audits it", async () => {
+      await h.asUser(MEMBER_A);
+      await link(h, PLAYER_A);
+      expect(await link(h, PLAYER_B)).toMatchObject({ ok: true });
+
+      await h.asSuperuser();
+      // Both villages are theirs and both are verified — the point of the
+      // feature. Only the routing column is held still.
+      expect(await count(h, "players", `user_id = '${MEMBER_A}' and verified`)).toBe(2);
+      // Still one audit row per link, so adding a base stays an auditable event
+      // even though it moves nothing on `users`.
+      expect(await count(h, "audit_log", `action = 'verify'`)).toBe(2);
+    });
+
+    it("does not redress an approved account as an applicant", async () => {
+      // LEADER_A is approved and holds a role in clan A. Their requested_clan_id
+      // is history. Verifying a base in clan B must leave it alone — otherwise
+      // they appear in clan B's pending queue, visible to a leader there and
+      // actionable by nobody, since approve_account() requires 'pending'.
+      expect(await requestedClan(LEADER_A)).toBeNull();
+
+      await h.asUser(LEADER_A);
+      expect(await link(h, PLAYER_B)).toMatchObject({ ok: true });
+
+      expect(await requestedClan(LEADER_A)).toBeNull();
+      expect(await count(h, "players", `user_id = '${LEADER_A}' and verified`)).toBe(1);
+    });
+
+    it("leaves the guard trigger's refusal of a direct write intact", async () => {
+      // 032 changed the function, not the trigger. A member must still be unable
+      // to nominate themselves into a clan they have no account in.
+      await h.asUser(MEMBER_A);
+      await expect(
+        h.db.query(`update users set requested_clan_id = '${CLAN_B}' where id = '${MEMBER_A}'`),
+      ).rejects.toThrow();
     });
   });
 

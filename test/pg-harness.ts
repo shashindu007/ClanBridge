@@ -66,6 +66,10 @@ export const PHASE1_MIGRATIONS = [
   // by owner rather than by clan. Read its header before touching it: the R3
   // argument is the whole file.
   "031_own_players_policy.sql",
+  // T11.2 link_verified_player() again, so a second base neither re-routes a
+  // pending applicant nor redresses an approved account as one. Must follow 016,
+  // which it replaces, and 013, whose status column it now reads.
+  "032_link_verified_player_v2.sql",
 ] as const;
 
 /**
