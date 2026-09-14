@@ -414,4 +414,85 @@ describe("Phase 11 — a member's own bases (031, 033)", () => {
       expect(res.rows.map((r) => r.role)).toEqual([]);
     });
   });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // T11.4 — users.avatar_path.
+  //
+  // The column is owner-writable for free via 015's "own profile update", so
+  // what is worth testing is the shape constraint and the fact that 016's guard
+  // trigger was not accidentally widened to cover it.
+  // ─────────────────────────────────────────────────────────────────────────
+  describe("034 — users.avatar_path", () => {
+    const VALID = `${OWNER}/${BASE_IN_A}.jpg`;
+
+    async function setPath(value: string | null) {
+      return h.db.query(`update users set avatar_path = $1 where id = $2`, [value, OWNER]);
+    }
+
+    async function storedPath(): Promise<string | null> {
+      await h.asSuperuser();
+      const res = await h.db.query<{ avatar_path: string | null }>(
+        `select avatar_path from users where id = $1`,
+        [OWNER],
+      );
+      return res.rows[0]!.avatar_path;
+    }
+
+    it("lets a member set and clear their own picture with no new policy", async () => {
+      await h.asUser(OWNER);
+      await setPath(VALID);
+      expect(await storedPath()).toBe(VALID);
+
+      // Clearing is a null, not a delete — the Storage object stays (R4).
+      await h.asUser(OWNER);
+      await setPath(null);
+      expect(await storedPath()).toBeNull();
+    });
+
+    it("refuses anything that is not <uuid>/<uuid>.jpg", async () => {
+      await h.asUser(OWNER);
+      for (const bad of [
+        "https://example.com/a.jpg", // a URL, which the name avatar_path forbids
+        "a.jpg", // no leading segment for the storage policy to check
+        "../secrets/a.jpg", // traversal
+        `${OWNER}/${BASE_IN_A}.png`, // the bucket allows image/jpeg only
+      ]) {
+        await expect(setPath(bad), bad).rejects.toThrow(/avatar_path/);
+      }
+      expect(await storedPath()).toBeNull();
+    });
+
+    it("does not let a member write another member's picture", async () => {
+      await h.asUser(OWNER);
+      await setPath(VALID);
+
+      // No error: "own profile update" filters the row out rather than raising.
+      // The assertion is that nothing changed.
+      await h.asUser(OTHER_A);
+      await h.db.query(`update users set avatar_path = null where id = '${OWNER}'`);
+
+      expect(await storedPath()).toBe(VALID);
+    });
+
+    it("leaves the guard trigger covering exactly the three columns it did", async () => {
+      // The deliberate hole: avatar_path is NOT guarded, so the setup and
+      // settings actions can write it. Adding it to the trigger would block the
+      // only thing that legitimately writes it — 030's argument about
+      // password_set_at, restated because this is where it would be undone.
+      await h.asUser(OWNER);
+      await setPath(VALID); // not guarded: succeeds
+
+      // 'rejected' rather than 'approved': the trigger fires on a CHANGE, and
+      // OWNER is already approved, so writing the value it already holds is a
+      // no-op the guard rightly ignores.
+      await h.asUser(OWNER);
+      await expect(
+        h.db.query(`update users set status = 'rejected' where id = '${OWNER}'`),
+      ).rejects.toThrow(/status is set by approve_account/);
+      await h.asUser(OWNER);
+      await expect(
+        h.db.query(`update users set is_platform_admin = true where id = '${OWNER}'`),
+      ).rejects.toThrow(/is_platform_admin cannot be set directly/);
+    });
+  });
 });

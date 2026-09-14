@@ -73,6 +73,9 @@ export const PHASE1_MIGRATIONS = [
   // T11.3 the member's own label for one of their villages. Must follow 031,
   // whose auth_owned_player_ids() every one of its policies calls.
   "033_player_nicknames.sql",
+  // T11.4 users.avatar_path — a path in the private avatars bucket, not a URL.
+  // The bucket itself is 035, which is live-only; this half is plain DDL.
+  "034_user_avatar.sql",
 ] as const;
 
 /**
