@@ -10,12 +10,20 @@
 // then shows up as a visible row rather than as an absence, which is the one
 // failure mode an isolation test can silently miss.
 //
-// Also worth more than the rest: auth_owned_player_ids() IS DEFINER AND MUST
-// STAY OWNER-SCOPED. 031's own policy depends on it, and so will 033's
-// player_nicknames policies — so a bug in it is a bug in both, and its tests
-// live here rather than beside whichever caller was written first.
+// Three more things here are worth more than the rest:
 //
-// T11.3 extends this file with the nickname table's policies and privileges.
+//   1. auth_owned_player_ids() IS DEFINER AND MUST STAY OWNER-SCOPED. Both 031's
+//      policy on `players` and all three of 033's on player_nicknames call it,
+//      so a bug in it is a bug in both.
+//
+//   2. A MEMBER NAMES THEIR OWN BASE AND NOBODY ELSE'S. A refused INSERT raises;
+//      a refused UPDATE silently filters the row out, which is how UPDATE works
+//      under RLS. The assertion for the second kind is that nothing changed.
+//
+//   3. THE SYNC ROLE CANNOT WRITE player_nicknames (R11). 014 set a default
+//      privilege granting service_role insert and update on every table created
+//      after it, so the REVOKE in 033 is the operative line and this is the test
+//      that catches its absence. 024's header records the same finding.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createHarness, type Harness } from "./pg-harness";
@@ -39,7 +47,7 @@ const OTHER_BASE = "66666666-0000-4000-8000-00000000001c";
 /** Somebody else's village in clan B. Invisible to OWNER entirely. */
 const STRANGER_BASE = "77777777-0000-4000-8000-00000000001d";
 
-describe("Phase 11 — a member's own bases (031)", () => {
+describe("Phase 11 — a member's own bases (031, 033)", () => {
   let h: Harness;
 
   beforeAll(async () => {
@@ -54,6 +62,7 @@ describe("Phase 11 — a member's own bases (031)", () => {
     await h.asSuperuser();
     await h.db.exec(`
       delete from audit_log;
+      delete from player_nicknames;
       delete from member_snapshots;
       delete from wars;
       delete from players;
@@ -223,6 +232,186 @@ describe("Phase 11 — a member's own bases (031)", () => {
       await expect(h.db.query(`select t from auth_owned_player_ids() t`)).rejects.toThrow(
         /permission denied/i,
       );
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // T11.3 — the member's own label for one of their villages.
+  // ─────────────────────────────────────────────────────────────────────────
+  describe("033 — player_nicknames", () => {
+    /** The stored row for a base, tombstone included. Read as superuser. */
+    async function stored(
+      player: string,
+    ): Promise<{ nickname: string; set_by: string; deleted: boolean } | null> {
+      await h.asSuperuser();
+      const res = await h.db.query<{
+        nickname: string;
+        set_by: string;
+        deleted_at: string | null;
+      }>(`select nickname, set_by, deleted_at from player_nicknames where player_id = $1`, [
+        player,
+      ]);
+      const row = res.rows[0];
+      return row
+        ? { nickname: row.nickname, set_by: row.set_by, deleted: row.deleted_at !== null }
+        : null;
+    }
+
+    /** The upsert the Server Action issues. One statement, per 033's index note. */
+    async function setNickname(player: string, nickname: string, by: string) {
+      return h.db.query(
+        `insert into player_nicknames (player_id, nickname, set_by, deleted_at)
+         values ($1, $2, $3, null)
+         on conflict (player_id) do update
+           set nickname = excluded.nickname,
+               set_by = excluded.set_by,
+               deleted_at = null`,
+        [player, nickname, by],
+      );
+    }
+
+    it("lets a member name a base they own", async () => {
+      await h.asUser(OWNER);
+      await setNickname(BASE_IN_A, "main", OWNER);
+      expect(await stored(BASE_IN_A)).toEqual({
+        nickname: "main",
+        set_by: OWNER,
+        deleted: false,
+      });
+    });
+
+    it("lets a member name a base in a clan they have no role in", async () => {
+      // The point of doing this owner-scoped rather than clan-scoped: the base
+      // 031 exists for is exactly the one most in need of a label.
+      await h.asUser(OWNER);
+      await setNickname(BASE_IN_B, "alt", OWNER);
+      expect(await stored(BASE_IN_B)).toMatchObject({ nickname: "alt" });
+    });
+
+    it("renames in one statement, and the upsert is idempotent", async () => {
+      await h.asUser(OWNER);
+      await setNickname(BASE_IN_A, "main", OWNER);
+      await setNickname(BASE_IN_A, "main", OWNER); // pressing Save twice
+      await setNickname(BASE_IN_A, "the good one", OWNER);
+
+      expect(await stored(BASE_IN_A)).toMatchObject({ nickname: "the good one" });
+      await h.asSuperuser();
+      expect(await visible("player_nicknames")).toBe(1);
+    });
+
+    it("revives a cleared nickname in one statement (R4)", async () => {
+      // Why the unique index is FULL and not partial. The tombstone occupies the
+      // slot, so the same upsert that sets a first nickname also un-clears one.
+      await h.asUser(OWNER);
+      await setNickname(BASE_IN_A, "main", OWNER);
+
+      await h.asUser(OWNER);
+      await h.db.query(
+        `update player_nicknames set deleted_at = now() where player_id = $1`,
+        [BASE_IN_A],
+      );
+      expect(await stored(BASE_IN_A)).toMatchObject({ deleted: true });
+
+      await h.asUser(OWNER);
+      await setNickname(BASE_IN_A, "main again", OWNER);
+      expect(await stored(BASE_IN_A)).toEqual({
+        nickname: "main again",
+        set_by: OWNER,
+        deleted: false,
+      });
+    });
+
+    it("refuses a nickname on somebody else's base", async () => {
+      // OWNER can SEE OTHER_BASE — it is in clan A, which they belong to — so
+      // this is the case where read access and write access must come apart.
+      await h.asUser(OWNER);
+      await expect(setNickname(OTHER_BASE, "not mine", OWNER)).rejects.toThrow(
+        /row-level security/i,
+      );
+      expect(await stored(OTHER_BASE)).toBeNull();
+    });
+
+    it("refuses a nickname on a base it cannot even see", async () => {
+      await h.asUser(OWNER);
+      await expect(setNickname(STRANGER_BASE, "nope", OWNER)).rejects.toThrow(
+        /row-level security/i,
+      );
+    });
+
+    it("refuses to attribute a label to another member", async () => {
+      // set_by = auth.uid() on both write policies. Without it a member could
+      // write a row claiming their clanmate named the base.
+      await h.asUser(OWNER);
+      await expect(setNickname(BASE_IN_A, "main", OTHER_A)).rejects.toThrow(
+        /row-level security/i,
+      );
+    });
+
+    it("does not let one member rename another's nickname", async () => {
+      await h.asUser(OWNER);
+      await setNickname(BASE_IN_A, "main", OWNER);
+
+      // No error: UPDATE under RLS filters the row out rather than raising. The
+      // assertion is that nothing changed.
+      await h.asUser(OTHER_A);
+      await h.db.query(`update player_nicknames set nickname = 'hijacked'`);
+
+      expect(await stored(BASE_IN_A)).toMatchObject({ nickname: "main" });
+    });
+
+    it("does not show one member another's nickname", async () => {
+      await h.asUser(OWNER);
+      await setNickname(BASE_IN_A, "main", OWNER);
+
+      // OTHER_A is in the same clan and can read the player row. The label is
+      // still private — deliberately, see 033's header.
+      await h.asUser(OTHER_A);
+      expect(await visible("player_nicknames")).toBe(0);
+
+      await h.asAnon();
+      expect(await visible("player_nicknames")).toBe(0);
+    });
+
+    it("rejects a shapeless nickname at the constraint", async () => {
+      // Paired with nicknameProblem() in src/lib/nickname.ts. The constraint is
+      // what is actually enforced; the TypeScript is what produces a sentence.
+      await h.asUser(OWNER);
+      for (const bad of ["", " padded ", "x".repeat(25), "two\nlines"]) {
+        await expect(
+          setNickname(BASE_IN_A, bad, OWNER),
+          JSON.stringify(bad),
+        ).rejects.toThrow(/player_nicknames_shape/);
+      }
+    });
+
+    // R11 as a privilege. 014's default privilege is why the REVOKE in 033 is
+    // the operative line, and this is the test that catches its absence.
+    it("lets the sync role read but never write (R11)", async () => {
+      await h.asSuperuser();
+      const res = await h.db.query<{ sel: boolean; ins: boolean; upd: boolean }>(
+        `select has_table_privilege('service_role', 'player_nicknames', 'select') as sel,
+                has_table_privilege('service_role', 'player_nicknames', 'insert') as ins,
+                has_table_privilege('service_role', 'player_nicknames', 'update') as upd`,
+      );
+      expect(res.rows[0]!.sel, "select").toBe(true);
+      expect(res.rows[0]!.ins, "insert").toBe(false);
+      expect(res.rows[0]!.upd, "update").toBe(false);
+    });
+
+    // migrations.test.ts asserts this globally across every table; restating it
+    // here costs nothing and localises the failure to this migration. `postgres`
+    // is excluded for the same reason it is there: it owns the table and holds
+    // every privilege implicitly, so the question is only about the roles a
+    // request can actually arrive as.
+    it("grants no end-user role a delete (R4)", async () => {
+      await h.asSuperuser();
+      const res = await h.db.query<{ role: string }>(
+        `select grantee as role from information_schema.role_table_grants
+          where table_name = 'player_nicknames'
+            and privilege_type = 'DELETE'
+            and grantee in ('anon', 'authenticated', 'service_role')`,
+      );
+      expect(res.rows.map((r) => r.role)).toEqual([]);
     });
   });
 });

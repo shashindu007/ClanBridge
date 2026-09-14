@@ -70,6 +70,9 @@ export const PHASE1_MIGRATIONS = [
   // pending applicant nor redresses an approved account as one. Must follow 016,
   // which it replaces, and 013, whose status column it now reads.
   "032_link_verified_player_v2.sql",
+  // T11.3 the member's own label for one of their villages. Must follow 031,
+  // whose auth_owned_player_ids() every one of its policies calls.
+  "033_player_nicknames.sql",
 ] as const;
 
 /**
@@ -255,6 +258,7 @@ export const PHASE1_TABLES = [
   "cwl_wars",
   "member_snapshots",
   "notification_preferences",
+  "player_nicknames",
   "players",
   "poll_options",
   "poll_responses",
