@@ -38,6 +38,7 @@ import {
   setNickname,
   type OwnedBase,
 } from "@/repositories/account-bases";
+import { AvatarForm } from "@/components/avatar-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,9 @@ import { Label } from "@/components/ui/label";
 export const dynamic = "force-dynamic";
 
 const PATH = "/account";
+
+/** An hour, matching [clanTag]/layouts. Long enough to read a page, short enough. */
+const SIGNED_URL_TTL = 60 * 60;
 
 function fail(message: string): never {
   redirect(`${PATH}?error=${encodeURIComponent(message)}`);
@@ -72,6 +76,85 @@ export default async function AccountPage() {
   ]);
 
   const clanNames = new Map(clans.map((c) => [c.id, c.name]));
+
+  // The bucket is private, so an address is a signed URL minted here and good for
+  // an hour. The column holds a PATH — 034's header explains why it is named
+  // avatar_path and not avatar_url, and this is the line that makes the
+  // distinction concrete.
+  //
+  // Signed on THIS page only, never in the shell. A Storage round trip on every
+  // navigation is the exact cost T10.9 spent a phase removing; T11.10 gives the
+  // rail its own route instead.
+  let avatarUrl: string | null = null;
+  if (profile?.avatarPath) {
+    const { data } = await supabase.storage
+      .from("avatars")
+      .createSignedUrl(profile.avatarPath, SIGNED_URL_TTL);
+    avatarUrl = data?.signedUrl ?? null;
+  }
+
+  /**
+   * Point the account at a picture already sitting in the bucket.
+   *
+   * The path is re-validated here rather than trusted, because a Server Action is
+   * independently addressable and cannot assume anything about what called it —
+   * the same argument layouts/upload/page.tsx makes. 035's policy would refuse to
+   * SIGN a path outside the member's own folder anyway, so the check is about
+   * failing at the write instead of storing a value that renders as a permanently
+   * broken image.
+   */
+  async function saveAvatar(input: { avatarPath: string }): Promise<{ error?: string }> {
+    "use server";
+
+    const supabase = await createClient();
+    const userId = await currentUserId(supabase);
+    if (!userId) redirect("/login");
+
+    if (!input.avatarPath.startsWith(`${userId}/`)) {
+      return { error: "That picture does not belong to this account." };
+    }
+
+    const { error } = await supabase
+      .from("users")
+      .update({ avatar_path: input.avatarPath })
+      .eq("id", userId);
+
+    if (error) {
+      return {
+        error: safeMessage("account save avatar", error, "Could not save that picture."),
+      };
+    }
+
+    // "layout", because T11.10 puts the picture in the shell on every page — a
+    // change that only took effect here would look like it did not save.
+    revalidatePath("/", "layout");
+    return {};
+  }
+
+  /**
+   * Remove the picture.
+   *
+   * Sets the column to null; the OBJECT STAYS (R4, and 035 defines no delete
+   * policy, so a hard delete would fail anyway). The cost is one orphaned ~40 KB
+   * object, which is the trade 029 and 035 both already accept.
+   */
+  async function removeAvatar() {
+    "use server";
+
+    const supabase = await createClient();
+    const userId = await currentUserId(supabase);
+    if (!userId) redirect("/login");
+
+    const { error } = await supabase
+      .from("users")
+      .update({ avatar_path: null })
+      .eq("id", userId);
+
+    if (error) fail(safeMessage("account remove avatar", error, "Could not remove that picture."));
+
+    revalidatePath("/", "layout");
+    done("Picture removed.");
+  }
 
   /**
    * Set or clear the label on one of the member's own bases.
@@ -136,6 +219,47 @@ export default async function AccountPage() {
           .
         </p>
       </div>
+
+      <section className="space-y-4 rounded-lg border p-6">
+        <div className="space-y-1">
+          <h2 className="font-medium">Profile picture</h2>
+          <p className="text-muted-foreground text-sm">
+            One picture for the account, not one per base. Only you can see it —
+            your clanmates cannot.
+          </p>
+        </div>
+
+        {avatarUrl && (
+          <div className="flex items-center gap-4">
+            {/* A raw img, and the reason is the layouts page's verbatim:
+                next/image cannot optimise a signed URL that expires, and proxying
+                it through the optimiser would cache a member's photograph on a
+                public CDN path. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={avatarUrl}
+              alt="Your profile picture"
+              className="size-24 rounded-full border object-cover"
+            />
+            <form action={removeAvatar}>
+              <SubmitButton variant="outline" size="sm">
+                Remove picture
+              </SubmitButton>
+            </form>
+          </div>
+        )}
+
+        {/* Absent rather than broken when the path is set but signing failed —
+            which is what a member who hand-wrote a path into the column sees, and
+            is the deliberate hole 034's header records. */}
+        {profile?.avatarPath && !avatarUrl && (
+          <p className="text-muted-foreground text-sm">
+            Your picture could not be loaded. Pick a new one below.
+          </p>
+        )}
+
+        <AvatarForm userId={userId} save={saveAvatar} />
+      </section>
 
       <section className="space-y-4 rounded-lg border p-6">
         <div className="space-y-1">
