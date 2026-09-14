@@ -32,6 +32,21 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ClanRole } from "@/types/domain";
 
 /**
+ * What a write here reports back.
+ *
+ * The error is handed over UNWRAPPED rather than as `error.message`, which is how
+ * layouts.ts does it and is the one thing not copied from there. lib/errors.ts's
+ * safeMessage() and isUniqueViolation() both read a `{ message }` shape, and that
+ * is the whole point of T10.8d: the raw PostgREST text goes to the server log and
+ * the member gets a sentence. Flattening to a string here would force the caller
+ * to choose between logging nothing and showing the member
+ * `new row violates row-level security policy for table "player_nicknames"`.
+ */
+export interface WriteResult {
+  error?: { message?: unknown } | null;
+}
+
+/**
  * One village a member owns.
  *
  * `clanId` is nullable and `nickname` is optional, and both nulls carry meaning
@@ -151,7 +166,7 @@ export async function setNickname(
   playerId: string,
   userId: string,
   nickname: string,
-): Promise<{ error?: string }> {
+): Promise<WriteResult> {
   const { error } = await supabase.from("player_nicknames").upsert(
     {
       player_id: playerId,
@@ -162,7 +177,7 @@ export async function setNickname(
     { onConflict: "player_id" },
   );
 
-  return error ? { error: error.message } : {};
+  return { error };
 }
 
 /**
@@ -178,12 +193,12 @@ export async function setNickname(
 export async function clearNickname(
   supabase: SupabaseClient,
   playerId: string,
-): Promise<{ error?: string }> {
+): Promise<WriteResult> {
   const { error } = await supabase
     .from("player_nicknames")
     .update({ deleted_at: new Date().toISOString() })
     .eq("player_id", playerId)
     .is("deleted_at", null);
 
-  return error ? { error: error.message } : {};
+  return { error };
 }
