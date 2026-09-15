@@ -116,3 +116,36 @@ describe("T10.5 — the setup gate", () => {
     expect([...SETUP_EXEMPT]).toEqual(["/account/setup"]);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T11.8 — /account's position between the two gates.
+//
+// Both halves in one case, because it is one decision and either half alone is
+// wrong. Before Phase 11 /account had no page of its own and its presence in
+// GATE_EXEMPT existed only to stop the approval gate bouncing a member off
+// /account/setup. It now carries the dashboard, which makes this pair
+// load-bearing rather than incidental.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("T11.8 — /account is reachable before approval, but not before setup", () => {
+  it("lets a pending member reach it, because linking a base is how they stop being pending", () => {
+    // A member waiting for approval is exactly who most needs to add a village:
+    // link_verified_player() is what puts them in a leader's queue at all. This
+    // is also why the dashboard is not at /settings/profile, which is behind the
+    // approval gate.
+    expect(isGateExempt("/account")).toBe(true);
+  });
+
+  it("still sends a brand-new account to /account/setup first", () => {
+    // NOT setup-exempt. An account with no username would otherwise land on a
+    // page that greets it by a name it has not chosen, and the compulsory setup
+    // step T10.5 exists to enforce would be skippable by typing a URL.
+    expect(isSetupExempt("/account")).toBe(false);
+  });
+
+  it("covers the report pages underneath it", () => {
+    // Segment matching, so /account/bases/[tag] (T11.12) inherits both answers
+    // and needs no entry of its own.
+    expect(isGateExempt("/account/bases/%232PP0JCCL")).toBe(true);
+    expect(isSetupExempt("/account/bases/%232PP0JCCL")).toBe(false);
+  });
+});

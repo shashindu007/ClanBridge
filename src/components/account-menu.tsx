@@ -31,13 +31,14 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import {
   Activity,
+  Castle,
   ChevronDown,
   CircleHelp,
   CircleUser,
   ClipboardList,
+  KeyRound,
   LogOut,
   ShieldCheck,
-  UserCog,
 } from "lucide-react";
 import { SignOutButton } from "@/components/sign-out-button";
 
@@ -46,6 +47,15 @@ export interface AccountMenuProps {
   email: string | null;
   showAdmin: boolean;
   showLeadership: boolean;
+  /**
+   * T11.10 — whether to render the picture at all.
+   *
+   * A boolean rather than a URL, deliberately. The shell must not mint a signed
+   * URL on every navigation (see /account/avatar/route.ts), so the src is a fixed
+   * path and this only decides whether to ask for it. Asking unconditionally
+   * would put a 404 in the console of every member who has not set a picture.
+   */
+  hasAvatar?: boolean;
 }
 
 const ITEM =
@@ -56,6 +66,7 @@ export function AccountMenu({
   email,
   showAdmin,
   showLeadership,
+  hasAvatar = false,
 }: AccountMenuProps) {
   const ref = useRef<HTMLDetailsElement>(null);
   const pathname = usePathname();
@@ -105,7 +116,25 @@ export function AccountMenu({
         aria-label={`Account and settings for ${label}`}
         title={email ?? undefined}
       >
-        <CircleUser aria-hidden className="size-4 shrink-0" />
+        {/* T11.10 — the picture goes BESIDE the name, never instead of it. The
+            bug that started T10 was a member who could not tell which of two
+            accounts they were signed in as, and two accounts belonging to the
+            same person tend to carry the same face. So the avatar replaces the
+            generic icon and nothing else.
+
+            A raw img: the src is this app's own route, which 302s to a signed
+            URL, and next/image cannot optimise a redirect to an expiring URL. */}
+        {hasAvatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src="/account/avatar"
+            alt=""
+            aria-hidden
+            className="size-5 shrink-0 rounded-full object-cover"
+          />
+        ) : (
+          <CircleUser aria-hidden className="size-4 shrink-0" />
+        )}
         <span className="max-w-[9rem] truncate">{label}</span>
         <ChevronDown
           aria-hidden
@@ -146,9 +175,19 @@ export function AccountMenu({
             Admin
           </Link>
         )}
+        {/* T11.8 — the member's own villages and their picture. Above the
+            credentials entry because it is the one of the two they open more than
+            once. */}
+        <Link href="/account" className={ITEM}>
+          <Castle aria-hidden className="text-muted-foreground size-4" />
+          My bases
+        </Link>
+        {/* Renamed from "Account". Two items a word apart — "Account" and "My
+            bases" — is a menu a member has to guess at, and "Account" never
+            described that page anyway: it changes a username and a password. */}
         <Link href="/settings/account" className={ITEM}>
-          <UserCog aria-hidden className="text-muted-foreground size-4" />
-          Account
+          <KeyRound aria-hidden className="text-muted-foreground size-4" />
+          Sign-in and password
         </Link>
         <Link href="/guide" className={ITEM}>
           <CircleHelp aria-hidden className="text-muted-foreground size-4" />

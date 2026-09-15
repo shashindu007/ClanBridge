@@ -203,19 +203,28 @@ export interface AccountProfile {
   passwordSetAt: string | null;
   /** T3.5 — the one platform-level capability (015). */
   isPlatformAdmin: boolean;
+  /**
+   * T11.4 — a path inside the private `avatars` bucket, or null. NOT a URL: the
+   * bucket is private, so an address is a signed URL minted per request. Nothing
+   * in the shell signs it on every navigation — see /account/avatar (T11.10).
+   */
+  avatarPath: string | null;
 }
 
 /**
  * The member's own profile row.
  *
  * ONE QUERY, deliberately. (app)/layout.tsx runs on every navigation in the
- * product and needs all five of these columns — the approval gate needs
+ * product and needs all six of these columns — the approval gate needs
  * `status`, the T10.5 setup gate needs `username` and `password_set_at`, the nav
  * shows the identity so a member with two accounts can tell which one they are
- * on, and the Admin link needs `is_platform_admin`. Five helpers each doing
- * their own select would be five round trips to a free-tier database in another
- * region, added to every page load. The layout's own comment already makes this
- * argument about two.
+ * on, the Admin link needs `is_platform_admin`, and T11.4's picture needs
+ * `avatar_path`. Six helpers each doing their own select would be six round trips
+ * to a free-tier database in another region, added to every page load. The
+ * layout's own comment already makes this argument about two.
+ *
+ * T11.4 adding a column here rather than a second read is the whole reason it is
+ * cheap: this query is already issued and already awaited on every page.
  *
  * Returns null when there is no row, which is a real state: /auth/callback
  * creates the profile and it can fail. The caller must treat null as "not
@@ -227,7 +236,7 @@ export const accountProfile = cache(async function accountProfile(
 ): Promise<AccountProfile | null> {
   const { data, error } = await supabase
     .from("users")
-    .select("status, email, username, password_set_at, is_platform_admin")
+    .select("status, email, username, password_set_at, is_platform_admin, avatar_path")
     .eq("id", userId)
     .is("deleted_at", null);
 
@@ -239,6 +248,7 @@ export const accountProfile = cache(async function accountProfile(
     username: string | null;
     password_set_at: string | null;
     is_platform_admin: boolean | null;
+    avatar_path: string | null;
   };
 
   return {
@@ -247,6 +257,7 @@ export const accountProfile = cache(async function accountProfile(
     username: row.username,
     passwordSetAt: row.password_set_at,
     isPlatformAdmin: row.is_platform_admin === true,
+    avatarPath: row.avatar_path,
   };
 });
 
