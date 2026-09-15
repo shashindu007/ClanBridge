@@ -14,7 +14,8 @@ API when the season ends and cannot ever be recovered. Everything else is second
 **Every phase in IMPLEMENTATION.md is complete** except T9.4 (the restore test)
 and the deployment half of T9.3 — both of which need something outside this
 repository: a scratch Supabase project to restore into, and a Vercel deployment
-to inspect.
+to inspect. **Phase 11B is the one block that is scoped rather than built**, and
+every box in it is unticked.
 
 This section previously said phases 1, 2, 3 and 3B were done and "everything from
 Phase 4B onward is still a labelled placeholder", and that no sync job had run
@@ -29,10 +30,15 @@ What is worth knowing before you touch anything:
 - **Two clans exist, not three** — `DH CWL ONLY` and `DH v2`, and the second is a
   test clan. Adding the rest is deferred by choice; they go in at `/admin`.
   Anywhere the docs say "three clans", read it as intent rather than state.
-- **Migration 030 is not applied to the live database yet**, and until it is,
-  `src/types/database.ts` is stale for `users`. Apply it and re-run
-  `npm run types:db`. Two dashboard settings go with it — see the T10 block in
-  IMPLEMENTATION.md.
+- **Migrations 030 to 035 are not applied to the live database yet**, and until
+  they are, `src/types/database.ts` is stale for `users`. Run
+  `npm run migrations:apply` — which covers the live-only files too — then
+  `npm run types:db`. Two dashboard settings go with 030 (see the T10 block in
+  IMPLEMENTATION.md), and 035 creates a Storage bucket worth confirming by eye,
+  because the test suite cannot reach a bucket policy.
+  **If you apply by pasting `supabase/apply-all.sql` instead, 029 and 035 are not
+  in it** — that bundle is built from the PGlite-testable list only, and both
+  Storage migrations have to be run separately.
 - **Upstash functional verification is still outstanding** (T0.9). The
   credentials are in `.env.local` and `getRateLimiter()` only throws under
   `NODE_ENV=production`, so local development was never blocked by it.
@@ -52,8 +58,21 @@ There is a **Sign out** button in the shell. Before Phase 10 there was not — n
 with two accounts was stuck on whichever one they last opened a link with. That is
 what the password is for: switching accounts should not require an inbox.
 
-Forgotten password: sign up with a link again, then Settings → Account. There is
-no separate reset flow, deliberately.
+Forgotten password: sign up with a link again, then **Sign-in and password** in the
+account menu. There is no separate reset flow, deliberately.
+
+## Your bases
+
+One account can own several villages, and since Phase 11 the product says so.
+**My bases** in the account menu lists every village you have verified, lets you
+name each one so two near-identical in-game names are tellable apart, holds one
+profile picture for the account, and links to a report per village. Adding another
+is the same in-game API token flow as the first.
+
+A village in a clan you hold no role in is still listed — it is yours — but it has
+no report, because everything a report reads is filtered by clan and that filter was
+deliberately not widened. The page says so, and cannot name the clan, for the same
+reason. `Architecture.md` §7.4 has the whole model.
 
 ## Running it
 

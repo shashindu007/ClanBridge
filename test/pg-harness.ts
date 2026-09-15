@@ -62,6 +62,20 @@ export const PHASE1_MIGRATIONS = [
   // header that its policies are the one part of Phase 8 the suite cannot reach.
   "028_base_layouts.sql",
   "030_account_credentials.sql", // T10.1 username + password_set_at, and the setup gate reads both
+  // T11.1 auth_owned_player_ids() + a SELECT policy on players that is filtered
+  // by owner rather than by clan. Read its header before touching it: the R3
+  // argument is the whole file.
+  "031_own_players_policy.sql",
+  // T11.2 link_verified_player() again, so a second base neither re-routes a
+  // pending applicant nor redresses an approved account as one. Must follow 016,
+  // which it replaces, and 013, whose status column it now reads.
+  "032_link_verified_player_v2.sql",
+  // T11.3 the member's own label for one of their villages. Must follow 031,
+  // whose auth_owned_player_ids() every one of its policies calls.
+  "033_player_nicknames.sql",
+  // T11.4 users.avatar_path — a path in the private avatars bucket, not a URL.
+  // The bucket itself is 035, which is live-only; this half is plain DDL.
+  "034_user_avatar.sql",
 ] as const;
 
 /**
@@ -85,6 +99,9 @@ export const PHASE1_MIGRATIONS = [
  */
 export const LIVE_ONLY_MIGRATIONS = [
   "029_layouts_storage.sql", // T8.1 the layouts bucket and its storage.objects policies
+  // T11.5 the avatars bucket. Owner-scoped rather than clan-scoped, private, and
+  // JPEG-only; its public-schema half (users.avatar_path) is 034 and IS tested.
+  "035_avatars_storage.sql",
 ] as const;
 
 /**
@@ -247,6 +264,7 @@ export const PHASE1_TABLES = [
   "cwl_wars",
   "member_snapshots",
   "notification_preferences",
+  "player_nicknames",
   "players",
   "poll_options",
   "poll_responses",

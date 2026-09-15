@@ -25,11 +25,64 @@ T4.1–T4.8 · **Phase 4B entire** · **Phase 5 entire** ·
 **Phase 9 except T9.4** — T9.1, T9.2, T9.5, T9.6, T9.7, T9.8, T9.9 done; T9.3
 and T9.10 done apart from the parts that wait on a deployment ·
 **Phase 10 entire** — sign-out, password sign-in, the compulsory setup step, and
-four auth-adjacent security findings.
+four auth-adjacent security findings ·
+**Phase 11 entire** — a member's own villages, in one place, with a report each.
 
 **Every phase in this document is now complete except T9.4 (restore test) and
 the deployment-side half of T9.3.** Both need something outside the codebase: a
 scratch Supabase project to restore into, and a Vercel deployment to inspect.
+**Phase 11B is planned and not built** — it is the only block here whose tasks are
+all unticked, and it is scoped rather than started.
+
+**Phase 11 came from the product being unable to say something the schema had
+always known.** `Architecture.md` §7.1 has claimed since the first draft that "a
+member may own more than one player account, and accounts may sit in different
+clans" — and `players.user_id` has accepted several tags since 001, and
+`link_verified_player()` has written them since T3.3. So a member with two
+villages already HAD two linked rows. What they did not have was any page that
+listed them, any way to tell two near-identically-named bases apart, or any link
+to `/verify` once their account was approved.
+
+**The worse half was a write whose result the writer could not read.** `players`
+had exactly one SELECT policy, `clan_id in (select auth_clan_ids())`. A member
+approved into clan A who verified a second village sitting in clan B had that
+row's `user_id` set to their own id by a definer function — and was then forbidden
+to read it. They proved ownership with an in-game token and the outcome was
+invisible to them. That is the same defect class as the null-`clan_id` audit row
+this document records under the definer-function rule: writing rows nobody can
+read is worse than not writing them. Migration 031 closes it with a second,
+owner-filtered policy, and its header carries the R3 argument at length because
+the unfiltered axis is clan and the next reader will flag the file.
+
+**A second bug fell out of looking.** `link_verified_player()` rewrote
+`users.requested_clan_id` unconditionally, which ran exactly once while an account
+had one base. Adding a second re-routed a still-pending applicant out of the queue
+of the leader who had already been asked, silently, and redressed an approved
+account as an applicant in a clan it was never approved into. 032 fixes it
+forward with two clauses on one statement; the tests were confirmed to have teeth
+by building a harness without 032 and watching the old behaviour appear.
+
+**What did NOT change: who can see a clan's data.** 031 widens `players` and
+nothing else. `member_snapshots`, `wars`, `cwl_*`, `war_*`, `clans` and
+`clan_roles` all keep their clan filter, so a village in a clan the member holds
+no role in is readable as a tag, a name and a town hall level — and not even the
+clan's NAME. That is why `/account/bases/[tag]` has an honest degraded state
+instead of six panels each saying "no data", and the degraded copy cannot name the
+clan because the app genuinely cannot.
+
+**One assumption in the plan turned out to be wrong, and the comments that
+recorded it are corrected rather than left.** The report panels were expected to be
+untestable — `vitest.config.ts` includes `.ts` only and there is no jsdom — but
+`src/components/toaster.test.ts` already renders a `.tsx` component from a `.ts`
+file with `renderToStaticMarkup`, and the extracted sections have no state and no
+effects. There are now 22 tests over them.
+
+**The `src/types/database.ts` note below is now three migrations further out of
+date, and the reason it type-checks anyway is worth stating once properly:**
+`src/lib/supabase/server.ts` and `client.ts` call `createServerClient` /
+`createBrowserClient` with **no `Database` generic**, and nothing imports the
+generated file except its own generator. So it is not load-bearing today, which is
+a reason to regenerate it rather than a reason to relax.
 
 **The line that used to close this paragraph — "Phase 8 is placeholders that name
 their own task ID" — was wrong, and sat three lines under the sentence declaring
@@ -544,9 +597,27 @@ clanbridge/
 │       │                                     assign/clear_war_target(). Supersedes 012
 │       ├── 025_war_target_claim.sql   T6.4   the member claim 024 had no path for
 │       ├── 026_war_opponent.sql       T6.3   the other roster, discarded until now
-│       └── 027_raid_detail.sql        T7.1/T7.4  raid rewards + attack limits,
-│                                             clan_games.settled_at. Written BEFORE
-│                                             the sync, unlike 019/020/026
+│       ├── 027_raid_detail.sql        T7.1/T7.4  raid rewards + attack limits,
+│       │                                     clan_games.settled_at. Written BEFORE
+│       │                                     the sync, unlike 019/020/026
+│       ├── 028_base_layouts.sql       T8.1/T8.5  layout writes, one vote per member
+│       ├── 029_layouts_storage.sql    T8.1   the layouts BUCKET. LIVE-ONLY: touches
+│       │                                     `storage`, which PGlite has not, so the
+│       │                                     suite cannot reach its policies
+│       ├── 030_account_credentials.sql T10.1 username + password_set_at. No password
+│       │                                     column, ever
+│       ├── 031_own_players_policy.sql T11.1  auth_owned_player_ids() + a SELECT policy
+│       │                                     on players filtered by OWNER, not clan.
+│       │                                     Read its R3 argument before touching it
+│       ├── 032_link_verified_player_v2.sql T11.2 the routing write, now first-tag-wins
+│       │                                     and pending-only. Replaces 016's function
+│       ├── 033_player_nicknames.sql   T11.3  the member's label for their own base.
+│       │                                     Full unique index, not partial — ON
+│       │                                     CONFLICT cannot infer a partial one
+│       ├── 034_user_avatar.sql        T11.4  users.avatar_path — a PATH, not a URL
+│       └── 035_avatars_storage.sql    T11.5  the avatars BUCKET. LIVE-ONLY like 029,
+│                                             and absent from apply-all.sql for the
+│                                             same reason: the bundle is PHASE1 only
 │
 ├── test/                    QA — runs the migrations against real Postgres (PGlite)
 │   ├── pg-harness.ts        boots PGlite
@@ -580,6 +651,13 @@ clanbridge/
     │   │   │   ├── layouts/           T8.2-8.4
     │   │   │   └── notices/           T5.1
     │   │   ├── settings/notifications/  T5.5 + T5.9  device on/off, and kinds
+    │   │   ├── settings/account/      T10.7  username + password, after setup
+    │   │   ├── account/setup/         T10.5  compulsory, once, before the gate
+    │   │   ├── account/page.tsx       T11.8  ★ your picture and your villages
+    │   │   ├── account/bases/[tag]/   T11.12 the report for one of YOUR bases —
+    │   │   │                                 authorised by ownership, not by clan
+    │   │   ├── account/avatar/route.ts T11.10 signs the CALLER'S OWN path. No id
+    │   │   │                                 parameter, so there is no IDOR
     │   │   └── admin/                 T9.2, T9.6
     │   └── api/
     │       ├── verify/route.ts            T3.3
@@ -588,6 +666,9 @@ clanbridge/
     ├── components/
     │   ├── push-toggle.tsx  T5.5  asks permission on a click, never on load
     │   ├── data-freshness.tsx  T4.8
+    │   ├── avatar-form.tsx  T11.9   compresses in the browser, Storage before DB
+    │   ├── player-report-sections.tsx  T11.11  the six panels, shared by the two
+    │   │                            pages that show them (+ .test.ts, 22 cases)
     │   └── ui/              shadcn copies land here
     │
     ├── integration/         R7 — raw API shapes stop here
@@ -604,9 +685,16 @@ clanbridge/
     │   ├── rate-limit.ts    T3.3, T9.7
     │   ├── push.ts          T5.6   notifyClan / notifyUsers, 410 → soft delete
     │   ├── audit.ts         R4
+    │   ├── gate.ts          T3.8/T10.5  the two exempt lists (+ .test.ts)
+    │   ├── account.ts       T10   username + password rules (+ .test.ts)
+    │   ├── nickname.ts      T11.3  base-label rules, paired with 033's constraint
+    │   ├── layout-image.ts  T8.2   magic-byte sniffing, canvas resize, EXIF gone
+    │   ├── avatar-image.ts  T11.7  imports those primitives, keeps its own tuning
     │   └── utils.ts         cn() for shadcn
     │
     ├── repositories/        T4.3 onward — every query filters by clan (R3)
+    │   ├── account-bases.ts    T11.6  the ONE file filtered by owner, not clan
+    │   └── player-report.ts    T11.11 the seven reads behind a village's report
     ├── services/            derived values: missed attacks, donation deltas
     └── types/
         ├── database.ts      generated from Supabase
@@ -2076,6 +2164,434 @@ before.
 
 ---
 
+# Phase 11 — Your bases, and what each of them is
+
+*A member owns villages, not one village, and until now the product had nowhere to say so.*
+
+`Architecture.md` §7.1 has promised this since the first draft: "a member may own
+more than one player account, and accounts may sit in different clans. The model
+supports this from the start." That has been true of the schema and false of the
+product for ten phases. §0 above records how the gap was found and what was broken
+underneath it; this block is the work.
+
+Read Phase 11 in the order it is written. Every migration lands before the page
+that needs it, and 031 lands first because two later files call the helper it
+defines.
+
+- [x] **T11.1 — Let a member read every base they own** — `supabase/migrations/031_own_players_policy.sql`
+  `auth_owned_player_ids()`, mirroring 006's `auth_clan_ids()`, plus a second
+  permissive SELECT policy on `players` using `user_id = auth.uid()`.
+  **Done when:** a member of clan A who owns a village in clan B reads both
+  villages, and still reads ZERO rows of `clans`, `clan_roles`,
+  `member_snapshots` and `wars` for clan B.
+
+  **The R3 argument belongs in the migration header, in full, because the
+  unfiltered axis is clan and the next reader will flag the file.** R3's substance
+  is that a member must not see another clan's data; this returns only rows whose
+  `user_id` is the caller, so the replacement filter is strictly NARROWER than the
+  clan filter would have been. Permissive SELECT policies are OR-ed, so it only
+  ever adds rows and 006's policy is untouched. `clanMovement()` in
+  `repositories/members.ts` is the existing precedent and says the same thing in
+  its own words — "NOT filtered to one clan, that is the point".
+  **Rejected:** widening 006's policy to a join through `clan_roles`, so that
+  owning a village in a clan implies reading that clan's players. That grows the
+  CLAN set, which is the R3 violation this is not, and would hand a member the
+  full roster of a clan nobody approved them into.
+  `test/account-bases.test.ts` seeds two clans with identically shaped rows, so a
+  leak shows up as a visible row rather than as an absence.
+
+- [x] **T11.2 — Stop a second base re-routing the first one's approval** — `supabase/migrations/032_link_verified_player_v2.sql`
+  `create or replace` of 016's function with two clauses added to one statement:
+  `status = 'pending'` and `requested_clan_id is null`.
+  **Done when:** linking a second village moves nothing on `users`, and a FIRST
+  link still routes the applicant to that clan's leader.
+
+  016 is untouched — a migration that has been applied is never edited (§4), and
+  017/018 are the precedent for replacing a function forward. Each clause prevents
+  a distinct failure: without `requested_clan_id is null` a still-pending member
+  vanishes out of the queue of the leader already asked, silently; without
+  `status = 'pending'` an approved account is redressed as an applicant in a clan
+  it was never approved into, visible to a leader there and actionable by nobody,
+  because `approve_account()` requires 'pending' and can never run twice.
+  **The tests were confirmed to have teeth** by building a harness without 032 and
+  watching the old behaviour appear — the same technique `migrations.test.ts`
+  uses in *"the isolation tests have teeth"*.
+  **Deliberately not fixed:** a pending member routed to the wrong clan cannot
+  re-route themselves. Self-service re-routing is exactly the escalation 016's
+  guard trigger closed, and re-opening it through this function gives the same
+  capability by another door. **Deliberately absent:** any "primary base". Nothing
+  in Phase 11 needs one; the shape if it is ever wanted is
+  `users.primary_player_id`, owner-writable for free like `username`, and NOT a
+  flag on `player_nicknames`.
+
+- [x] **T11.3 — A member names their own base** — `supabase/migrations/033_player_nicknames.sql`
+  A human-decision table (R11) with plain owner policies through
+  `auth_owned_player_ids()`, and `revoke insert, update … from service_role`.
+
+  **A table, not a column on `players`.** `players` is a game fact written only by
+  sync jobs, and a session has SELECT on it and nothing else — 016 ships a
+  verification query asserting `has_table_privilege('authenticated','players','update')`
+  is FALSE. The rejected version is a `nickname` column plus an update policy
+  narrowed by WITH CHECK, which hands a session write access to the game-fact table
+  and then trusts an expression to keep it away from `name`, `clan_id` and
+  `th_level`.
+  **Plain policies, not a definer function**, per the recorded exception: rows a
+  member owns with no clan use plain policies, because `audit_log`'s read policy is
+  `clan_id in (select auth_leader_clan_ids())` and `null in (...)` is never true.
+  023's `notification_preferences` is the precedent. The header works through
+  denormalising a `clan_id` to make the audit row readable and rejects it — a
+  base's clan CHANGES, so a copy is either stale or maintained by a sync job
+  writing a human-decision table, which is the R11 bug itself.
+  **Recorded hole:** nickname changes are not audited.
+  **The unique index is FULL where 023's and 028's are partial**, and this is the
+  load-bearing detail. ON CONFLICT cannot infer a partial index, so a partial one
+  forces the two-statement dance 028 hides inside a definer function (028:173-175
+  says so) — and from a Server Action that is a race the index then rejects when a
+  member presses Save twice. Full, so setting a nickname is one idempotent upsert
+  that also revives a cleared one.
+  **`revoke … from service_role` is the operative line, not the narrow grant beside
+  it.** 014 set `alter default privileges … grant select, insert, update on tables
+  to service_role`, so every table created after it is BORN writable by the sync
+  jobs. 024 records the same finding after a test caught it.
+
+- [x] **T11.4 — One profile picture per account** — `supabase/migrations/034_user_avatar.sql`, `src/lib/auth.ts`
+  `users.avatar_path`, and a sixth column on the read `(app)/layout.tsx` already
+  issues on every navigation.
+
+  **Per account, not per base**, and that is a decision: a member with three
+  villages is still one person, and a face repeated three times down a list carries
+  no information. What distinguishes the villages is T11.3's label.
+  **Named `avatar_path`, not `avatar_url`.** `base_layouts.image_url` holds a path
+  and is named url, and the cost is a paragraph at the top of
+  `[clanTag]/layouts/page.tsx` explaining that its `image_url` is not a URL.
+  Fixing forward means not repeating the name.
+  No policy, which is 030's answer for 030's reason, restated in the migration
+  because the next reader will look for one. The check constraint is SHAPE, not
+  authorisation — it stops a full URL or a traversal being stored at all; the
+  authorisation is 035's storage policy, enforced where the bytes are.
+  `accountProfile()` grows a column rather than gaining a second read, which is the
+  whole reason it is cheap.
+
+- [x] **T11.5 — The avatars bucket** — `supabase/migrations/035_avatars_storage.sql`
+  Private, 100 KB, `image/jpeg` only, paths `<user_id>/<uuid>.jpg`, SELECT and
+  INSERT policies only. **LIVE-ONLY**, like 029.
+
+  **THE POLICIES ARE NOT COVERED BY THE TEST SUITE** — PGlite has no `storage`
+  schema — so the migration says so in its own header and carries a written-out
+  verification block, exactly as 029 does. It is also absent from
+  `supabase/apply-all.sql`, because that bundle is built from `PHASE1_MIGRATIONS`
+  only; `npm run migrations:apply` covers both lists.
+  Three differences from 029, each argued in the header so none reads as an
+  oversight: the size limit is DERIVED from T11.7's 40 KB target rather than
+  copied; the mime list is JPEG alone because `compressAvatar()` always re-encodes;
+  and there is **no UPDATE policy**, because the object name is a fresh uuid every
+  time, so changing a picture is an insert plus a pointer move.
+  **Rejected:** a fixed `<user_id>/avatar.jpg` with `upsert: true`. It needs that
+  UPDATE policy *and* can serve a stale body from an already-signed URL, which a
+  member cannot tell apart from a failed upload.
+  **Recorded hole:** reads are owner-only. Showing avatars to clanmates needs a
+  policy letting one member sign another's object, which is a real disclosure
+  surface and its own decision — 030's argument about usernames.
+
+- [x] **T11.6 — The reads and writes behind "my bases"** — `src/repositories/account-bases.ts`, `src/lib/nickname.ts`
+  `basesForUser`, `setNickname`, `clearNickname`, and the validator paired with
+  033's constraint.
+
+  **This is the one repository in the directory filtered by OWNER rather than by
+  clan, and its header says so at length so nobody "fixes" it.** The subject is
+  "the villages this member proved they own", which is not a clan-shaped question.
+  The explicit `.eq("user_id", userId)` is still the mechanism; 031's policy is the
+  net.
+  Two flat queries in parallel rather than a PostgREST embed, because `README.md`
+  says repository code avoids embeds (the PGlite shim has none) and the pair costs
+  nothing — the reads are independent, so wall-clock it is one round trip. The
+  nicknames read needs NO filter at all, which is the part worth noticing: 033's
+  policy is already owner-scoped, so an unfiltered select returns exactly this
+  member's labels. Its one predicate is `deleted_at`, and that is R4, not
+  authorisation.
+  `lib/nickname.ts` pairs with 033 the way `lib/account.ts` pairs with 030 — the
+  constraint is enforced, this produces a sentence. **One difference from
+  `account.ts`, stated there:** an empty submission means "clear it", not "too
+  short", because a member who blanked the box did not make a mistake.
+  Writes hand back the UNWRAPPED error rather than `error.message`, which is the
+  one thing not copied from `layouts.ts`: `safeMessage()` and `isUniqueViolation()`
+  both read a `{ message }` shape, and flattening forces the caller to choose
+  between logging nothing and showing a member the RLS text.
+
+- [x] **T11.7 — Avatar compression, in the browser** — `src/lib/avatar-image.ts`
+  Imports `sniffImageType`, `fitWithin` and `ImageRejected` from
+  `layout-image.ts`; adds `AVATAR_EDGE`, `AVATAR_TARGET_BYTES`, `squareCrop()`,
+  `avatarPath()`, `compressAvatar()`.
+
+  **Share the primitives, not the tuning.** The magic-byte allow-list is the
+  security-relevant half of both pipelines, and two copies is one copy that gets a
+  new format added and one that does not — there is a test asserting this module
+  does not re-export its own `sniffImageType`, so the sharing cannot quietly become
+  duplication. The NUMBERS are separate because the pictures are: a base layout
+  stays legible enough to copy a placement off (1280px, 300 KB); an avatar renders
+  at 32px in the rail (256px, 40 KB) and is square, which layouts never are.
+  **Rejected:** threading the constants through an options bag. `upload-form.tsx`
+  reads them and 029's bucket limit is derived from one, so moving them to the call
+  site means the next caller invents a third pair and no file owns the answer.
+  `squareCrop` is CENTRED. A top-anchored crop is what naive implementations do
+  because it usually catches a face in a portrait photograph, and it cuts the head
+  off every landscape one. There is no face detection here and should not be.
+  `compressAvatar()` is untestable in `environment: "node"` — no jsdom, no canvas —
+  so everything decidable without a browser is pure and tested, which is this
+  repo's stated rule for `upload-form.tsx`.
+
+- [x] **T11.8 — `/account`: who you are, and which bases are yours** — `(app)/account/page.tsx`, `src/lib/gate.test.ts`
+  The dashboard: username and email, the picture, the list of villages with an
+  inline label form each, and a link to add another.
+
+  **At `/account` rather than `/settings/profile` because `/account` is in
+  `GATE_EXEMPT` and `/settings` is not.** A PENDING member is exactly who most
+  needs to add a base — linking one is what puts them in a leader's queue at all —
+  so putting this under `/settings` would make it unreachable until after the thing
+  it helps accomplish. Deliberately NOT in `SETUP_EXEMPT`, so a brand-new account
+  still chooses a username first. `lib/gate.test.ts` now asserts both halves as one
+  case, because that pair went from incidental to load-bearing.
+  Structurally `settings/account/page.tsx`: `force-dynamic`, a module-level `PATH`,
+  `fail()`/`done()`, inline server actions that re-acquire and re-validate, and a
+  whole SENTENCE through `?ok=` which `messageFor()` passes through unchanged — so
+  `lib/feedback.ts` needs no new codes.
+  **The degraded row cannot name the clan, and says so rather than papering over
+  it.** `clans` RLS returns no row for a clan the member holds no role in, so the
+  app genuinely cannot name it, and that it cannot is the honest signal.
+
+- [x] **T11.9 — Uploading the picture** — `src/components/avatar-form.tsx`, `(app)/account/page.tsx`
+  Compress on pick, Storage first, pointer second.
+
+  **The order is not the obvious one**, and it is `upload-form.tsx`'s argument
+  verbatim: writing the pointer first leaves the column naming an object that does
+  not exist if the upload fails, which renders as a broken image with nothing to
+  distinguish it from a bug. This way the failure mode is an orphaned 40 KB object.
+  Compression on PICK matters more here than for a layout, because the centred
+  crop is a decision made FOR the member and they should get to look at it.
+  The file input accepts all three types `sniffImageType` knows while the bucket
+  allows `image/jpeg` alone — the asymmetry is deliberate and both ends say so.
+  The server action re-validates that the path starts with the caller's own id: a
+  Server Action is independently addressable and cannot assume what called it.
+
+- [x] **T11.10 — The picture in the rail** — `(app)/account/avatar/route.ts`, `src/components/account-menu.tsx`, `(app)/layout.tsx`
+  A GET route that signs the CALLER'S OWN `avatar_path` and 302s to it, with
+  `Cache-Control: private`.
+
+  **There is no id parameter, and that is the security design rather than an
+  omission.** The usual shape — `/avatar?user=<id>` with a permission check — is
+  one forgotten check away from serving any member's photograph to any other.
+  035's policy is the second layer underneath.
+  **Rejected:** minting the signed URL in `(app)/layout.tsx`. That adds a Storage
+  round trip to every navigation in the product to render a 32-pixel circle, which
+  is exactly the cost T10.9 spent a phase removing from that file. The menu takes a
+  BOOLEAN and points at a fixed path instead. `max-age` is deliberately a minute
+  under the signature TTL, so a cached redirect can never outlive what it names.
+  **Also rejected:** a public bucket, which needs no route and serves every face to
+  anyone who ever sees a URL.
+  The picture goes BESIDE the name, replacing the generic icon and nothing else —
+  `account-menu.tsx` already argues that the name must stay the label, and two
+  accounts belonging to one person tend to carry the same face. "Account" is
+  renamed **"Sign-in and password"**, which is what that page does; "Account" and
+  "My bases" a line apart is a menu you have to guess at.
+
+- [x] **T11.11 — Extract the report so two pages cannot drift** — `src/repositories/player-report.ts`, `src/components/player-report-sections.tsx`, `[clanTag]/player/[tag]/page.tsx`
+  The seven reads and the six panels, lifted out of the profile page unchanged.
+  **Done when:** `/[clanTag]/player/[tag]` renders what it rendered before.
+
+  Two copies of a six-read batch and five derivations is two pages that eventually
+  disagree about what "missed" means — the failure this document keeps recording,
+  most recently as a "Not built yet" panel three sections below a working link.
+  `WAR_WINDOW`'s own comment, *"the same window /war/report uses, so the two pages
+  never show different totals"*, becomes MORE true with a third caller, and that is
+  the argument for moving it.
+  A **repository** because it is queries; `services/README.md` draws the line at
+  "anything that is a calculation rather than a query", and the calculations stay
+  where they were. **Not** in `members.ts`, which would double in size while
+  importing five sibling repositories. `clanId` stays an explicit parameter so R3 is
+  visible at every call site.
+  **Rejected:** redirecting `/account/bases/[tag]` to the profile page. It works
+  only for bases in clans the member has a role in, so the degraded case becomes a
+  redirect that 404s, and it loses the "my base" framing, which is the feature.
+  **The plan assumed this was untestable and the plan was wrong.**
+  `vitest.config.ts` includes `.ts` only and there is no jsdom, which reads like
+  "no component tests" — but `components/toaster.test.ts` already renders a `.tsx`
+  component from a `.ts` file with `renderToStaticMarkup`, and these sections have
+  no state and no effects. 22 tests now cover every panel, every empty state, the
+  movement table's more-than-one-clan rule, the newest-month-first ordering, and
+  that an empty report renders SENTENCES rather than a plausible-looking "0 of 0".
+  The comments that recorded the wrong assumption are corrected rather than left.
+
+- [x] **T11.12 — The per-base report a member can reach without a clan role** — `(app)/account/bases/[tag]/page.tsx`
+  The same report, authorised by ownership.
+
+  **Authorisation is `basesForUser()`, NOT `requireClanByTag()`, and that is the
+  whole point.** `requireClanByTag()` answers "is this one of the clans you hold a
+  role in", which would 404 exactly the village this page exists to show. 404
+  rather than 403 for a tag the member does not own, matching
+  `requireClanByTag()`'s recorded reasoning: the candidate list is already
+  caller-restricted, so a distinguishable "forbidden" would confirm which tags are
+  real.
+  **The degraded branch is ONE panel, not six empty ones.** Everything a report
+  reads is still clan-filtered — 031 deliberately did not widen that — so for a
+  village outside the member's clans there is genuinely nothing to read, and six
+  sections each saying "no data" is the shape that let a dashed "Not built yet" box
+  survive a whole phase unread. The report's seven queries live in a child
+  component so the degraded path never issues them at all.
+
+- [x] **T11.13 — Adding a second base from inside the app** — `(auth)/verify/page.tsx`, `(app)/pending/page.tsx`, `src/components/account-menu.tsx`
+  `/verify` reads `?next=` through `safeNext()`; `/pending` redirects an approved
+  member to `/account`.
+
+  `safeNext()` returns `"/"` rather than null for anything it rejects, so the
+  fallback is spelled out: a bare `safeNext(...) ?? "/pending"` would send every
+  first-time member to the dashboard and let the gate bounce them — the same page
+  via two redirects and a wrong-looking URL.
+  **`/pending` redirecting is a fix, not a feature.** Nothing sent an approved
+  member there before Phase 11; `/verify`'s Continue did, and the member landed on
+  a page headed "Waiting for approval" immediately after successfully adding a
+  base, which reads as the second base having un-approved them. A redirect rather
+  than an inline "you are approved" panel: a page whose `<h1>` says the opposite
+  cannot be patched into saying it without reading as a bug. The layout's gate
+  cannot do this, because `/pending` is in `GATE_EXEMPT` precisely so an unapproved
+  member can reach it, and exemption is not direction-aware.
+  **Rejected:** moving `/verify` into `(app)`. It is gate-exempt but NOT
+  setup-exempt, so moving it puts a brand-new account's first action behind
+  `/account/setup` — reordering the most fragile path in the product to add a
+  feature. **Also rejected:** a second in-app form, which means two copies of the
+  anti-phishing warning that `(auth)/verify/page.tsx` says IS the page.
+  Rate limiting is untouched at 5/hour/user. A member adding four villages in one
+  sitting spends four of five, which is fine and should not be raised.
+
+- [x] **T11.14 — Write Phase 11 down** — `IMPLEMENTATION.md`, `Architecture.md`
+  This block, the §0 ledger entry, the §5 tree, and the §5B rows.
+
+  Also corrects the §5 tree, which stopped at migration 027 while 028, 029 and 030
+  existed — and states plainly why `src/types/database.ts` being stale does not
+  break `typecheck` (no `Database` generic is passed to either Supabase client, and
+  nothing imports the generated file), because "it type-checks anyway" is a fact
+  worth knowing and a bad reason to leave it.
+  `Architecture.md` gains **§7.4 The multi-base identity model**, hooked off §7.1's
+  ten-phase-old promise, so the next reader finds the reasoning beside the identity
+  diagram rather than only in a migration header. §1B's human-decision table list
+  gains `player_nicknames`, because that list is where a reader checks R11.
+  One thing noted rather than fixed: **Phase 10's heading is `##` where every other
+  phase block is `#`.** Phase 11 and 11B use `#`, matching Phases 0–9. Changing
+  Phase 10's would renumber nothing and alter no content, but it would put a
+  cosmetic edit to a finished block in a commit about something else, and the
+  inconsistency is more useful recorded than quietly tidied.
+
+**Outstanding after Phase 11, all of it needing something outside the repo:**
+
+- **Apply 031–035 to the live database**, then re-run `npm run types:db` — which
+  clears 030's outstanding item at the same time. `npm run migrations:apply`
+  covers both lists. **If the `apply-all.sql` paste path is used instead, 035 is
+  not in it** and must be run separately.
+- **Confirm the `avatars` bucket** in the Supabase dashboard after 035: private,
+  100 KB, `image/jpeg`, and exactly the two policies. The suite cannot reach any of
+  that.
+- **Walk the manual script once against a real member with two villages.** The
+  cross-clan case is the one no test can stand in for, because it needs a village
+  in a clan the member holds no role in — and the assertion that matters is that
+  the row shows a tag and a town hall level and **no clan name**.
+
+---
+
+# Phase 11B — How far along each base actually is
+
+*Planned, not built. Every box here is unticked and that is the current state, not an omission.*
+
+Phase 11 answers "what has this village DONE" from data the product already had.
+This one answers "how far along is it" — hero, troop and spell levels, what has
+been upgraded lately, and which group is behind — which is the half members
+actually compare with each other, and the reason clash.ninja exists.
+
+**The data is one endpoint away and the endpoint is already wired.**
+`playerEndpoint()`, `playerSchema` and `mapPlayer()` all exist, and
+`scripts/sync/clan-games.ts` already calls `/players/{tag}` once per member per
+run, so the per-player loop is a proven shape with a known rate cost.
+`fixtures/player.json` is a real scrubbed capture carrying 81 troops, 8 heroes
+with equipment, 18 spells and 54 achievements — none of which `playerSchema`
+currently reads. So T11B.1 is verifiable offline with **zero API calls**.
+
+- [ ] **T11B.1 — Capture what the player endpoint already sends** — `src/integration/coc-schemas.ts`
+  `unitSchema`, `heroEquipmentSchema`, `heroSchema`, and `troops`/`heroes`/`spells`
+  on `playerSchema` as `z.array(...).default([])`, plus `attackWins`,
+  `defenseWins`, `builderHallLevel`, `builderBaseTrophies`, `bestTrophies`.
+  `.default([])` for the reason `achievements` has it — a TH3 account with no
+  heroes must be `[]`, not `undefined`, or every consumer needs a null check.
+  `looseObject` throughout so a hero added in the next game update does not fail
+  the capture gate. **Do not tighten `league`:** the fixture carries `leagueTier`
+  and no `league` key, and the field is already nullable-tolerant.
+
+- [ ] **T11B.2 — Map it without letting a raw name out** — `src/integration/mappers/index.ts`, `src/types/domain.ts`
+  R7. `builderHallLevel → bhLevel`; `village` and `maxLevel` pass through
+  unrenamed because they are already clean, and the mapper must not decide which
+  village a later service cares about.
+
+- [ ] **T11B.3 — A daily progression snapshot** — `supabase/migrations/036_player_progress.sql`
+  One row per player per day, levels as `jsonb` maps, `unique (player_id, captured_day)`.
+
+  **A tall table is rejected on arithmetic:** one row per unit is ~107 × 50 × 365 ≈
+  2 M rows a year against a 500 MB tier, which is the same calculation 007 uses to
+  justify hourly bucketing. `at time zone 'UTC'` in the generated column is
+  required, not decorative — 007 explains that `date_trunc` over a `timestamptz` is
+  not immutable and Postgres refuses it.
+  **The `*_max` maps stored alongside `*_levels` are the non-obvious part and the
+  header must say so.** "Rushed" is level-against-maximum AT THE TIME OF CAPTURE,
+  and Supercell raises maxima every update — so storing only levels means every
+  historical row silently re-scores itself against today's maxima, and a base that
+  was maxed in March reads as rushed in June. Nothing would report it; both numbers
+  are plausible. That is the same class of bug as `writeStart()`'s
+  `ignoreDuplicates` note in `scripts/sync/clan-games.ts`.
+  R5: `on conflict do nothing`. RLS: the clan policy **and** a second one through
+  `auth_owned_player_ids()`, which is what makes a cross-clan base's progress
+  visible and inherits 031's R3 argument. No update and no delete grant to anybody
+  — append-only enforced as a privilege, not a convention.
+
+- [ ] **T11B.4 — The players sync** — `scripts/sync/players.ts`, `scripts/sync/shared.ts`, `package.json`
+  `clan-games.ts`'s loop, including its per-member `CocNotFoundError` skip so one
+  departed member does not fail the run. `runSyncJob("players", …)` gives R9 for
+  free. R1/R2 — Actions only. Cost is one call per member per run, ≈100 a day.
+  **The test injects a PGlite client** (the discriminator is `options.client`, not
+  the env var) and runs twice asserting zero new rows, because
+  `assertNotFixtureSync()` refuses a fixtures-backed sync run outright unless
+  `ALLOW_FIXTURE_SYNC=true`. It must also state that **every fixture player is the
+  same player** — `coc-client.ts` maps all `/players/*` to one file — so 50 members
+  produce 50 identical rows, which is what makes the idempotency assertion
+  meaningful and is not real variety.
+
+- [ ] **T11B.5 — Put it on a schedule and watch it** — `.github/workflows/sync-players.yml`, `scripts/sync/health.ts`, `src/services/freshness.ts`, `test/cwl-services.test.ts`
+  Daily, **its own workflow** — not a third step in `sync-raids.yml`, which already
+  carries two jobs, because a failure in the first hides the third.
+  **THREE lists must change in the same commit**, and the suite will not catch a
+  partial edit: `health.ts`'s `WATCHED`, `STALE_AFTER_MS["players"] = 36h`, and the
+  MIRRORED `WATCHED` array plus its interval table in `test/cwl-services.test.ts`.
+  That test copies the list rather than importing it, because `health.ts` builds an
+  admin Supabase client at import time — so the tripwire this document credits with
+  catching T6.2's unwatched sync is weaker than it reads.
+
+- [ ] **T11B.6 — What "rushed" means, as a pure function** — `src/services/progress.ts`
+  `completion()`, `groupCompletion()`, `rushScore()`, `upgradesSince()`.
+  **The API's `maxLevel` is already this player's TH-relative maximum**, so
+  completion is TH-relative for free — that is the whole argument for this being
+  pure with no embedded game data. **Rejected:** a hard-coded TH → max-level table,
+  which is wrong the day Supercell ships an update and is exactly the game
+  knowledge R1 and R7 keep out of this codebase.
+  **Returns a breakdown, never a verdict**, following `needsAttention()`'s rule —
+  "ADVISORY ONLY… never automate a decision about a person". "Rushed" is a word
+  members use about each other; the page shows WHICH GROUP is behind, not a label.
+
+- [ ] **T11B.7 — Show it on the report** — `src/repositories/player-progress.ts`, `src/components/player-report-sections.tsx`
+  `progressHistory()` ascending, matching `snapshotHistory()`'s reasoning, and a
+  seventh section — last, with an empty state naming `sync:players` the way the
+  other six name theirs. Both pages get it at once, which is what T11.11 was for.
+
+- [ ] **T11B.8 — Write Phase 11B down** — `IMPLEMENTATION.md`, `Architecture.md`
+  Including the new game-fact table in `Architecture.md` §1B's table, which is
+  where a reader looks to check R11.
+
+---
+
 ## 5B. Coverage check
 
 Every requirement traced to the tasks that deliver it. Use this to confirm nothing was dropped.
@@ -2083,7 +2599,10 @@ Every requirement traced to the tasks that deliver it. Use this to confirm nothi
 | Requirement | Module | Tasks |
 |---|---|---|
 | Identity, verification, roles | M1 | T3.1–T3.9 |
+| **A member's own villages, in one place** | **M1** | **T11.1–T11.14** |
 | Clan directory, donations, activity | M2 | T2.9, T3B.1–T3B.6 |
+| **Per-base report, reachable by its owner** | **M2** | **T11.11, T11.12** |
+| Upgrade progress and rushed-base advice | M2 | T11B.1–T11B.8 — **planned, not built** |
 | CWL tracking and history | M3 | T4.1–T4.8 |
 | **Polls before CWL and war** | **M10** | **T4B.1–T4B.5, T6.7** |
 | **Leader selects the roster per clan** | **M10** | **T4B.6–T4B.10, T6.8** |
@@ -2111,10 +2630,19 @@ Every requirement traced to the tasks that deliver it. Use this to confirm nothi
 | O1 | CWL captured automatically | T4.1, T4.2 |
 | O2 | Logbook eliminated — **forward-looking only** | T4.1–T4.8 (T4.10 dropped) |
 | O3 | Single view across three clans | T9.1, T3B.6 |
-| O4 | Any member's six-month history in 30 seconds | **T3B.4** |
+| O4 | Any member's six-month history in 30 seconds | **T3B.4**, T11.11, T11.12 |
 | O5 | Base layouts searchable | T8.4 |
 | O6 | Zero recurring cost | Section 3 |
-| O7 | Member data protected | T3.7, T3.8, T9.3 |
+| O7 | Member data protected | T3.7, T3.8, T9.3, **T11.1** |
+
+Two of those additions want a sentence each. **O4** gains T11.11 and T11.12 because
+extracting the report is what makes the same thirty-second promise hold on a second
+surface — a member asking it about their own village, rather than only a leader
+asking it about somebody else's. **O7** gains T11.1 because widening a SELECT
+policy is precisely the kind of change that objective exists to have an opinion
+about, and the answer is that it narrows rather than widens: the filter it adds is
+`user_id = auth.uid()`, and `test/account-bases.test.ts` asserts that every other
+table still returns zero rows for a clan the member was never approved into.
 
 ---
 

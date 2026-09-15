@@ -7,7 +7,7 @@
 -- BEGIN/COMMIT means a failure anywhere rolls the entire thing back, so you
 -- cannot end up with a half-applied schema.
 --
--- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql
+-- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql
 --
 -- Two numbers are absent, retired rather than reused so that apply order
 -- stays equal to numeric order: 009 (cwl_signups, superseded by Phase 4B)
@@ -4657,6 +4657,601 @@ create unique index users_username_key
 -- harms nobody but them: the Sign in button then fails for their account and
 -- they are back on the magic link. Adding it to the guard trigger would block
 -- the setup action itself, which is the only thing that legitimately writes it.
+-- ---------------------------------------------------------------------------
+
+-- ========================================================================
+-- 031_own_players_policy.sql
+-- ========================================================================
+
+-- T11.1 — A member can read every base they own.
+--
+-- READ THE R3 ARGUMENT BELOW BEFORE CHANGING ANYTHING IN THIS FILE. It adds a
+-- SELECT policy that is not filtered by clan, which is the exact shape R3 exists
+-- to forbid. It is deliberate, and the reasoning is written out here rather than
+-- in a commit message so that the next reader — human or assistant — finds it
+-- attached to the policy instead of flagging the file and reverting it.
+--
+--
+-- THE BUG THIS CLOSES
+--
+-- 016's link_verified_player() writes players.user_id for any number of tags,
+-- so one account owning several villages has always worked at this level. But
+-- `players` has exactly one SELECT policy, 006's
+--
+--     using (clan_id in (select auth_clan_ids()))
+--
+-- and auth_clan_ids() reads clan_roles. A member approved into clan A who then
+-- verifies a second village sitting in clan B has that row's user_id set to
+-- their own id, and is then forbidden to read it. They proved ownership with an
+-- in-game token and the result of that write is invisible to them.
+--
+-- A write whose result cannot be read by the person who caused it is the same
+-- defect class as the null-clan_id audit row recorded in IMPLEMENTATION.md's
+-- note on definer functions: "writing rows nobody can read is worse than not
+-- writing them." This is that, one table over.
+--
+--
+-- WHY THIS IS NOT AN R3 VIOLATION
+--
+-- R3's substance is that a member must not see ANOTHER CLAN'S DATA. The policy
+-- below returns only rows whose user_id is the caller — villages the caller
+-- personally proved they own with an in-game API token (R8, T3.3). No row about
+-- another person becomes visible to anybody.
+--
+-- The axis left unfiltered is clan; the filter that replaces it, user_id =
+-- auth.uid(), is strictly NARROWER than the clan filter would have been, not
+-- wider. A member of a fifty-person clan can read fifty players rows under
+-- 006's policy and one or two under this one.
+--
+-- The codebase already names this exception in the other direction, and says so
+-- in those words. repositories/members.ts's clanMovement() is "NOT filtered to
+-- one clan — that is the point", and [clanTag]/player/[tag]/page.tsx calls it
+-- "the deliberate exception". That read is unfiltered by clan and filtered by
+-- player_id. This one is unfiltered by clan and filtered by user_id. Same
+-- shape, one layer lower.
+--
+-- Two more properties keep the blast radius small:
+--
+--   Permissive SELECT policies are OR-ed by Postgres, so this only ever ADDS
+--   rows. 006's "read own clan players" is untouched, and nothing that relied
+--   on it changes behaviour.
+--
+--   It reaches `players` and nothing else. member_snapshots, wars, cwl_*,
+--   war_*, base_layouts, clan_roles and clans all keep clan_id in (select
+--   auth_clan_ids()). So a village in a clan the member holds no role in is
+--   visible as a tag, a name and a town hall level, and nothing more — no
+--   donations, no war history, not even the clan's NAME. That is precisely the
+--   degraded state /account/bases/[tag] renders (T11.12), and it is why that
+--   state is the honest design rather than a user-experience compromise.
+--
+-- REJECTED ALTERNATIVE: widening 006's policy to a join through clan_roles so
+-- that owning a village in a clan implies reading that clan's players. That
+-- grows the CLAN set, which is the R3 violation this is not. It would hand a
+-- member the full roster of a clan nobody approved them into.
+--
+-- R3's discipline stays visible in application code regardless: basesForUser()
+-- (T11.6) filters .eq("user_id", userId) explicitly. The policy is the net, as
+-- 006's header insists — not a substitute for the filter.
+
+
+-- ---------------------------------------------------------------------------
+-- Which players does the current user own?
+--
+-- The mirror of 006's auth_clan_ids(), and security definer for the same
+-- reason: the function reads `players`, and the policy below is itself a policy
+-- ON `players`. Running as the definer bypasses RLS inside the body, which is
+-- what stops that becoming infinite recursion — and it also means T11.3's
+-- player_nicknames policies can call this without depending on which of
+-- `players`' two SELECT policies happens to match.
+--
+-- set search_path = '' with fully qualified names, against a search_path
+-- hijack, exactly as every other definer function in this schema does.
+--
+-- deleted_at is null, and NOT left_at is null. A member who left a clan still
+-- owns the village — that is what T3.9 added left_at to record — and their own
+-- history is the thing they are most likely to come here to read.
+-- ---------------------------------------------------------------------------
+create or replace function auth_owned_player_ids()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select id
+  from public.players
+  where user_id = auth.uid()
+    and deleted_at is null
+$$;
+
+revoke execute on function auth_owned_player_ids() from public;
+grant execute on function auth_owned_player_ids() to authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- The policy itself.
+--
+-- `to authenticated` so the anon role matches nothing, as every policy in 006
+-- is. auth.uid() is null without a session, and `user_id = null` is never true,
+-- so an anonymous request would read zero rows even without that clause — but
+-- stating the role is the convention here and it makes the intent legible.
+--
+-- No new grant is needed: 006 already issued `grant select on all tables in
+-- schema public to anon, authenticated`, and 014 set the default privilege for
+-- tables added later. A grant is not access; RLS still decides which rows come
+-- back.
+-- ---------------------------------------------------------------------------
+create policy "read own players" on players
+  for select to authenticated
+  using (user_id = auth.uid());
+
+
+-- ---------------------------------------------------------------------------
+-- No insert, update or delete policy on `players`, and there must never be one.
+--
+-- 016's header explains it at length: `players` holds GAME FACTS (R11), written
+-- only by scripts/sync/ under the service role. The only member-initiated write
+-- is link_verified_player(), a security definer function, precisely so that the
+-- session itself keeps no write privilege. 016 documents a verification query
+-- asserting has_table_privilege('authenticated', 'players', 'update') is FALSE.
+-- That stays true after this file: a SELECT policy grants no writes.
+--
+-- The per-base nickname a member sets is a HUMAN DECISION and therefore lives
+-- in its own table — see 033_player_nicknames.sql.
+-- ---------------------------------------------------------------------------
+
+
+-- ---------------------------------------------------------------------------
+-- Sanity check after applying. As a member of clan A who owns a village in
+-- clan B, with a session:
+--
+--   select count(*) from players;                 -- their own villages + clan A's roster
+--   select count(*) from clans;                   -- clan A only, NOT clan B
+--   select count(*) from clan_roles;              -- clan A only
+--   select count(*) from member_snapshots;        -- clan A only
+--
+-- If the second query returns clan B, something else has been widened and this
+-- file is not the cause. test/account-bases.test.ts asserts all four.
+-- ---------------------------------------------------------------------------
+
+-- ========================================================================
+-- 032_link_verified_player_v2.sql
+-- ========================================================================
+
+-- T11.2 — Verifying a second base must not re-route the first one's approval.
+--
+-- 016 is untouched. A migration that has been applied is never edited (§4), so
+-- this replaces the function forward, the way 017 and 018 each replaced
+-- approve_account(). Read 016's header first: everything it says about why this
+-- is a definer function and why `players` stays select-only for a session is
+-- still true, and none of it changes here.
+--
+--
+-- THE BUG
+--
+-- 016 ends its write path with, unconditionally:
+--
+--     update public.users
+--     set requested_clan_id = v_clan_id
+--     where id = auth.uid() and deleted_at is null;
+--
+-- That was right when an account had one base, because it ran exactly once.
+-- Phase 11 makes a second base an ordinary thing to add (Architecture.md §7.1
+-- has said since the first draft that a member may own more than one player
+-- account and that they may sit in different clans), and then it runs again —
+-- overwriting a column whose whole purpose is to name the ONE clan whose leader
+-- has been asked to approve this account.
+--
+-- Two distinct failures fall out of that, and each of the two new conditions
+-- below prevents one of them.
+--
+--   requested_clan_id is null  —  A STILL-PENDING MEMBER IS SILENTLY RE-ROUTED.
+--     They verify their main in clan A, and the leader of clan A now sees them
+--     in the queue (013's "leaders read pending applicants to their clans"
+--     filters on this column). They then verify their alt in clan B. The column
+--     moves to clan B, they vanish out of clan A's queue, and the leader who
+--     was already looking at them has no idea. Nothing reports it. First tag
+--     wins is the only rule here that does not need a person to notice
+--     something disappeared.
+--
+--   status = 'pending'  —  AN APPROVED ACCOUNT IS MADE TO LOOK LIKE AN
+--     APPLICANT. For an approved account this column is history: approve_account()
+--     requires status = 'pending' (018) and so can never run a second time, and
+--     nothing else reads it. Rewriting it puts an already-approved member into
+--     the pending queue of a leader of a clan they were never approved into —
+--     visible to that leader, actionable by nobody, and impossible to explain
+--     from the UI.
+--
+-- Both are `and` clauses on one statement rather than an `if` around it, so the
+-- function's shape, its return contract and its audit row are all unchanged. The
+-- audit row is still written on every link, which is what keeps a second base
+-- an auditable event even though it moves no column on `users`.
+--
+--
+-- WHAT IS DELIBERATELY NOT FIXED HERE
+--
+-- A pending member routed to the wrong clan cannot re-route themselves. That is
+-- deliberate, not an oversight: self-service re-routing is exactly the
+-- escalation 016's guard trigger was added to close, and re-opening it through
+-- this function would hand back the same capability by a different door. With
+-- one leader across the family the cost today is a message in game.
+--
+-- There is also NO "primary base" notion, and Phase 11 does not need one. The
+-- dashboard lists every base with no privileged first, and "which clan am I
+-- approved into" is answered by clan_roles, not by a base. If a default is ever
+-- wanted the shape is a users.primary_player_id column — owner-writable for
+-- free, like username in 030 — and not a flag on player_nicknames, which would
+-- need a per-account partial unique index and a rule for what happens when the
+-- primary base leaves the family.
+
+
+create or replace function link_verified_player(p_tag text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_player_id uuid;
+  v_clan_id   uuid;
+  v_owner     uuid;
+begin
+  if auth.uid() is null then
+    return jsonb_build_object('ok', false, 'reason', 'no_session');
+  end if;
+
+  if p_tag is null then
+    return jsonb_build_object('ok', false, 'reason', 'not_a_member');
+  end if;
+
+  -- clan_id is not null, so a player kept for history after leaving all three
+  -- clans (T3.9 sets left_at) cannot be used to gain access. left_at is checked
+  -- too: a departed member must be re-approved rather than walking back in.
+  select id, clan_id, user_id
+    into v_player_id, v_clan_id, v_owner
+  from public.players
+  where tag = p_tag
+    and deleted_at is null
+    and left_at is null
+    and clan_id is not null;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'not_a_member');
+  end if;
+
+  -- Tag theft. The token proved the CALLER owns this game account, so a row
+  -- already pointing at somebody else means either an account changed hands or
+  -- an attempt to take over a teammate's profile. Neither is resolvable here —
+  -- it raises so /api/verify can surface it and a leader can look into it.
+  --
+  -- Re-verifying a tag the CALLER already owns is not theft and falls through:
+  -- the token rotates every time it is viewed in game, so a member re-running
+  -- verification on their own base is an ordinary thing to do, and the update
+  -- below is idempotent for them.
+  if v_owner is not null and v_owner <> auth.uid() then
+    raise exception 'player already linked to another account';
+  end if;
+
+  perform set_config('clanbridge.bootstrap', 'on', true);
+
+  update public.players
+  set verified = true,
+      user_id  = auth.uid()
+  where id = v_player_id;
+
+  -- THIS is what puts the applicant in front of the right leader. 013's
+  -- "leaders read pending applicants to their clans" policy filters on
+  -- requested_clan_id, and 016's guard trigger refuses a direct write to it — so
+  -- this function is still the only way it can ever be set, and a member cannot
+  -- nominate themselves into a clan they have no account in.
+  --
+  -- T11.2 — the two clauses after `deleted_at is null` are the whole of this
+  -- migration. See the header: the first keeps a pending applicant in the queue
+  -- of the leader already asked, the second stops an approved account being
+  -- redressed as an applicant. Everything else in this function is 016's.
+  update public.users
+  set requested_clan_id = v_clan_id
+  where id = auth.uid()
+    and deleted_at is null
+    and status = 'pending'
+    and requested_clan_id is null;
+
+  insert into public.audit_log (user_id, clan_id, action, entity, entity_id, after)
+  values (auth.uid(), v_clan_id, 'verify', 'players', v_player_id,
+          jsonb_build_object('verified', true, 'tag', p_tag));
+
+  return jsonb_build_object(
+    'ok', true,
+    'player_id', v_player_id,
+    'clan_id', v_clan_id);
+end;
+$$;
+
+-- Re-stated because create or replace does not re-run 016's grants if the
+-- signature ever changes, and because a reader of this file should not have to
+-- open 016 to learn who may call it.
+revoke execute on function link_verified_player(text) from public;
+grant execute on function link_verified_player(text) to authenticated;
+
+comment on function link_verified_player(text) is
+  'T3.3/T11.2 - links a verified player tag to auth.uid(). Routes the account to '
+  'that clan''s leader for approval on the FIRST link only, so adding a second '
+  'base neither re-routes a pending applicant nor redresses an approved account '
+  'as one. The only write path to players from a session (R11).';
+
+-- ========================================================================
+-- 033_player_nicknames.sql
+-- ========================================================================
+
+-- T11.3 — A member names their own base.
+--
+-- A member with two villages sees two rows that differ only by tag and town hall
+-- level. The in-game names are often near-identical ("Shashi" and "Shashi2"),
+-- and the tag is the thing nobody remembers. So the member gets to write a label
+-- on each: "main", "alt", "the rushed one".
+--
+--
+-- WHY THIS IS A TABLE AND NOT A COLUMN ON `players`
+--
+-- R11. `players` holds GAME FACTS, written only by scripts/sync/, and a session
+-- has SELECT on it and nothing else — 016's header explains why at length, and
+-- 016 ships a verification query asserting that
+-- has_table_privilege('authenticated', 'players', 'update') is FALSE. A nickname
+-- is the opposite kind of data: a HUMAN DECISION, written only through the
+-- application, never touched by a job. The two kinds live in separate tables
+-- with exactly one writer each, which is the whole of R11.
+--
+-- The rejected version is a `nickname` column on `players` plus an update policy
+-- with a WITH CHECK narrowing it to one column. That hands a session write
+-- access to the game-fact table and then relies on an expression to keep it away
+-- from name, clan_id and th_level. 016 already refused that trade for
+-- verification, which needed two columns rather than one.
+--
+--
+-- WHY PLAIN POLICIES AND NOT A DEFINER FUNCTION
+--
+-- The audited-write convention in src/repositories/README.md is for writes with
+-- a clan. This one has no clan, and the recorded exception applies: rows a
+-- member owns, with no clan, use plain policies, because audit_log's read policy
+-- is `clan_id in (select auth_leader_clan_ids())` and `null in (...)` is never
+-- true. Writing rows nobody can read is worse than not writing them. 023's
+-- notification_preferences is the precedent and this table follows it exactly.
+--
+-- WOULD A DENORMALISED clan_id MAKE THE AUDIT ROW READABLE? Yes, and it is still
+-- the wrong trade, for three reasons in descending order of weight:
+--
+--   1. A base's clan CHANGES. That is what players.clan_id and left_at exist
+--      for. A clan_id copied onto a human-decision row is either stale, or kept
+--      fresh by a sync job writing a human-decision table — which is precisely
+--      the R11 bug. There is no third option.
+--   2. audit_log earns its value by being short. Its other entries are
+--      approvals, bonus awards and target assignments. "A member renamed their
+--      own base from main to alt" is noise in that log.
+--   3. The base may sit in a clan with NO leader on this platform — the
+--      cross-clan case this whole feature exists for (031) — so the audit row
+--      would be unreadable anyway.
+--
+-- RECORDED HOLE: nickname changes are not audited. Nobody but the owner can read
+-- or write one, so the blast radius is a label on their own village. If it ever
+-- matters, the fix is widening audit_log's read policy — not a clan_id here.
+
+
+-- ---------------------------------------------------------------------------
+-- player_nicknames
+--
+-- set_by, NOT user_id, and the distinction is load-bearing. Ownership lives on
+-- players.user_id and is the single source of truth; this column records who
+-- wrote the label. A second copy of ownership is a second thing that can be
+-- wrong, and 016 raises rather than reassigning a linked base, so the copy could
+-- only ever drift away from the truth.
+--
+-- The check constraint pairs with nicknameProblem() in src/lib/nickname.ts. The
+-- constraint is the one that is actually enforced; the TypeScript is the one
+-- that produces a sentence a member can act on. src/lib/account.ts's header
+-- states that division and this follows it.
+--
+-- 24 characters because it sits beside an in-game name in a list, and the game
+-- itself caps a player name at 15. Anything longer is a sentence, not a label.
+-- ---------------------------------------------------------------------------
+create table player_nicknames (
+  id         uuid primary key default gen_random_uuid(),
+  player_id  uuid not null references players (id) on delete restrict,
+  nickname   text not null,
+  set_by     uuid not null references users (id) on delete restrict,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz,
+  deleted_at timestamptz,
+
+  constraint player_nicknames_shape check (
+    nickname = btrim(nickname)
+    and char_length(nickname) between 1 and 24
+    and nickname !~ '[\n\r\t]'
+  )
+);
+
+-- ---------------------------------------------------------------------------
+-- ONE NICKNAME PER BASE, AND THE INDEX IS FULL RATHER THAN PARTIAL.
+--
+-- This is the opposite of base_layout_votes (028) and notification_preferences
+-- (023), which both use `where deleted_at is null`, so it needs justifying.
+--
+-- A partial unique index cannot be inferred by ON CONFLICT unless the statement
+-- names the predicate, and an INSERT has no WHERE to name it with. 028 hit
+-- exactly this and worked around it with two statements inside a definer
+-- function, saying so at its lines 173-175. There is no definer function here to
+-- hide two statements inside, and two statements issued from a Server Action is
+-- a race that the unique index would then reject — the member sees a constraint
+-- violation for pressing Save twice.
+--
+-- With a FULL index, setting a nickname is one idempotent statement that also
+-- revives a cleared one:
+--
+--     upsert({ player_id, nickname, set_by, deleted_at: null },
+--            { onConflict: "player_id" })
+--
+-- and clearing it is `update ... set deleted_at = now()` (R4 — the row stays).
+-- The cost is that the tombstone occupies the slot, which is exactly what makes
+-- the revival possible. There is one row per base for the life of the base and
+-- its history is the row's own updated_at, not a pile of superseded rows.
+-- ---------------------------------------------------------------------------
+create unique index player_nicknames_player_key on player_nicknames (player_id);
+
+create trigger player_nicknames_set_updated_at
+  before update on player_nicknames
+  for each row execute function set_updated_at();
+
+
+-- ---------------------------------------------------------------------------
+-- RLS. Owner-scoped through 031's auth_owned_player_ids(), never by clan.
+--
+-- A nickname is private to the member who wrote it. Clanmates do not see it, and
+-- that is deliberate rather than unfinished: showing one member's label for
+-- their own village to the rest of the clan is a separate decision with its own
+-- disclosure question, and 030 makes the identical argument about not widening
+-- username visibility. Recorded as a hole, not half-closed.
+--
+-- `set_by = auth.uid()` on both write policies, so a member cannot attribute a
+-- label to somebody else. The player_id clause already restricts which base;
+-- this restricts who the row claims wrote it.
+-- ---------------------------------------------------------------------------
+alter table player_nicknames enable row level security;
+
+create policy "read own base nicknames" on player_nicknames
+  for select to authenticated
+  using (player_id in (select auth_owned_player_ids()));
+
+create policy "name your own base" on player_nicknames
+  for insert to authenticated
+  with check (
+    player_id in (select auth_owned_player_ids())
+    and set_by = auth.uid()
+  );
+
+create policy "rename your own base" on player_nicknames
+  for update to authenticated
+  using (player_id in (select auth_owned_player_ids()))
+  with check (
+    player_id in (select auth_owned_player_ids())
+    and set_by = auth.uid()
+  );
+
+-- No delete policy. R4, and migrations.test.ts asserts globally that no table
+-- anywhere has one.
+
+
+-- ---------------------------------------------------------------------------
+-- R11 AS A PRIVILEGE, NOT A COMMENT.
+--
+-- THE REVOKE BELOW IS THE OPERATIVE LINE AND IT IS NOT REDUNDANT. 014 issued
+--
+--     alter default privileges in schema public
+--       grant select, insert, update on tables to service_role;
+--
+-- so every table created after it is BORN WRITABLE by the sync jobs. Granting
+-- only select here would change nothing at all — the default privilege has
+-- already been applied by the time this statement runs. 024 records the same
+-- finding in its own words, having been written in the belief that a narrow
+-- grant was a narrow permission; a test caught it.
+--
+-- Still readable by service_role, deliberately: a future job that needs to know
+-- what a member called their base (a notification addressed to "your alt", say)
+-- can read it, and the read grant is also what keeps migrations.test.ts's "can
+-- read every table" assertion true.
+-- ---------------------------------------------------------------------------
+grant select, insert, update on player_nicknames to authenticated;  -- never delete (R4)
+grant select on player_nicknames to service_role;
+revoke insert, update on player_nicknames from service_role;
+
+comment on table player_nicknames is
+  'T11.3 - the member''s own label for one of their villages, so an account with '
+  'two bases can tell them apart. A HUMAN DECISION (R11): written only through '
+  'the application by the owner, never by a sync job. Defaults to nothing, and '
+  'the UI falls back to players.name.';
+
+-- ========================================================================
+-- 034_user_avatar.sql
+-- ========================================================================
+
+-- T11.4 — One profile picture per account.
+--
+-- The shell has always labelled a member by their username, and 030 added that
+-- handle so somebody with two accounts could tell which one they were signed in
+-- as. A picture is the same problem one step further: it is the thing a member
+-- recognises before they have read anything.
+--
+-- PER ACCOUNT, NOT PER BASE, and that is a decision rather than a simplification.
+-- A member with three villages is still one person, and a face repeated three
+-- times down a list carries no information. What distinguishes the villages is
+-- the label in 033; what distinguishes the ACCOUNT is this.
+--
+-- The column holds a PATH inside the `avatars` Storage bucket, never a URL. The
+-- bucket is private, so a usable address is a signed URL minted per request and
+-- valid for an hour — storing one would mean storing something that stops
+-- working. 035 creates the bucket and its policies.
+--
+-- NAMED avatar_path, NOT avatar_url, on purpose. base_layouts.image_url holds a
+-- path and is named url, and the consequence is that
+-- [clanTag]/layouts/page.tsx has to open with a paragraph explaining that its
+-- image_url is not a URL. Fixing forward means not repeating the name. If both
+-- ever need to be read together, this is the one that is telling the truth.
+
+alter table users
+  add column avatar_path text
+    check (avatar_path is null or avatar_path ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}\.jpg$');
+
+comment on column users.avatar_path is
+  'Object path inside the private `avatars` bucket (035), NOT a URL - the bucket '
+  'is private, so an address is a signed URL minted per request. Shaped '
+  '<user_id>/<uuid>.jpg, and the leading segment is load-bearing: the storage '
+  'policies check (storage.foldername(name))[1] against auth.uid(). One picture '
+  'per account, never per base; the per-base label is player_nicknames (033).';
+
+
+-- ---------------------------------------------------------------------------
+-- No policy, and that is correct — the same answer 030 gives, for the same
+-- reason, restated because the next reader will look for one and not find it.
+--
+-- 015 granted `insert, update on users to authenticated` and added "own profile
+-- update" (using/with check id = auth.uid()). 016's guard trigger
+-- (guard_user_privilege_columns) raises only for is_platform_admin, status and
+-- requested_clan_id. So this column is writable by its owner and by nobody else,
+-- which is exactly the rule wanted, and adding a policy for it would be adding a
+-- second expression that has to agree with the first.
+--
+-- The SELECT side is not widened either. An avatar_path is visible to the member
+-- themselves, the platform admin, and a leader reading their own pending
+-- applicants — the three reads 006/013/015 already allow. Showing a member's
+-- picture to their clanmates is a SEPARATE decision, and a bigger one than
+-- showing a handle: it needs a storage read policy letting one member sign
+-- another member's object, which is a real disclosure surface. 035 therefore
+-- keeps the bucket owner-only. Recorded as a hole, not half-closed.
+--
+-- ONE DELIBERATE HOLE, in 030's exact shape. A member can write any
+-- correctly-shaped string into their own avatar_path, including a path belonging
+-- to another user. It buys them nothing: the signed URL is minted under THEIR
+-- session, and 035's storage policy refuses to sign a path whose first segment
+-- is not their own id. The only outcome is a broken image on their own page.
+-- Adding the column to the guard trigger would block the action that
+-- legitimately writes it, which is 030's identical argument about
+-- password_set_at.
+--
+-- The check constraint is shape, not authorisation. It exists so a malformed
+-- value fails at the write rather than becoming a broken image discovered later,
+-- and because a column that can hold anything eventually holds a full URL. The
+-- authorisation is the storage policy, and it is enforced where the bytes are.
+-- ---------------------------------------------------------------------------
+
+
+-- ---------------------------------------------------------------------------
+-- Sanity check after applying:
+--
+--   select avatar_path from users where id = auth.uid();
+--
+--   -- refused by the constraint, all four:
+--   update users set avatar_path = 'https://example.com/a.jpg' where id = auth.uid();
+--   update users set avatar_path = 'a.jpg'                     where id = auth.uid();
+--   update users set avatar_path = '../secrets/a.jpg'          where id = auth.uid();
+--   update users set avatar_path = '<uuid>/<uuid>.png'         where id = auth.uid();
 -- ---------------------------------------------------------------------------
 
 commit;

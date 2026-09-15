@@ -70,7 +70,13 @@ cwl_roster_members  id, roster_id, player_id, position, added_by
 
 war_lineups         id, war_id, clan_id, status, created_by, published_at
 war_lineup_members  id, lineup_id, player_id, added_by
+
+player_nicknames    id, player_id, nickname, set_by
 ```
+
+`player_nicknames` is the smallest table here and the one most worth reading as an example of the rule. A village's `name` is a game fact the clan sync overwrites every hour; the label its owner gives it is a human decision that nothing but the owner may write. Putting the second on `players` would mean granting a session write access to a game-fact table and then trusting a WITH CHECK expression to keep it away from `name`, `clan_id` and `th_level` — so it gets its own table instead, and `players` stays select-only for every session. See §7.4.
+
+It also carries no `clan_id`, unlike everything above it, and that absence is deliberate rather than an oversight: a village's clan **changes**, so a copy here would be either stale or maintained by a sync job writing a human-decision table, which is the exact bug this section exists to prevent.
 
 `polls.scope` is `clan` or `family`. A CWL availability poll uses `family` scope, because the leader decides across all three clans at once and needs one pool of responses rather than three separate ones.
 
@@ -348,7 +354,7 @@ A sync job that treats "not in war" as an error will spend most of the month rep
   clan_roles       role within each clan
 ```
 
-A member may own more than one player account, and accounts may sit in different clans. The model supports this from the start because in a three-clan family it is common.
+A member may own more than one player account, and accounts may sit in different clans. The model supports this from the start because in a three-clan family it is common. **The product did not, until Phase 11 — see §7.4.**
 
 ### 7.2 Player verification
 
@@ -389,6 +395,38 @@ using (
 Every table carrying clan data gets an equivalent policy. Sync jobs use the service role key, which bypasses RLS by design — that is correct, because jobs are not acting on behalf of any user.
 
 **Test this deliberately.** Sign in as an ordinary member of clan one, then request clan two's data by editing the URL directly. If anything comes back, there is a hole. Repeat this test after every phase.
+
+### 7.4 The multi-base identity model
+
+§7.1 has promised since the first draft that one account may own several villages in several clans. The schema always allowed it — `players.user_id` is nullable and not unique, only `players.tag` is — and `link_verified_player()` has set it on every verified tag since T3.3. What was missing was everything above the schema, and one thing inside it.
+
+**One account, many villages, and the two kinds of name.** A village's `name` is a GAME FACT, written only by the clan sync. A member's label for it is a HUMAN DECISION and lives in its own table, `player_nicknames`, written only by its owner (§1B is the rule this follows; `players` is select-only for a session, which is why verification itself goes through a definer function). The UI falls back to `players.name` when there is no label, so the feature costs nothing for the member with one village.
+
+**The picture is per ACCOUNT; the label is per VILLAGE.** A member with three villages is still one person, and a face repeated three times down a list carries no information. So `users.avatar_path` is singular, and it holds a path inside a private bucket rather than a URL — the bucket serves nothing without a signed URL minted per request, and the object path leads with the owner's id so the storage policy can check it the way the layouts bucket checks a clan id.
+
+**`players` has two SELECT policies, and the second one is filtered by owner rather than by clan.**
+
+```sql
+create policy "read own clan players" on players      -- 006
+  for select to authenticated using (clan_id in (select auth_clan_ids()));
+
+create policy "read own players" on players          -- 031
+  for select to authenticated using (user_id = auth.uid());
+```
+
+The second exists because without it the product wrote a row the writer could not read: a member who verified a village in a clan they hold no role in had `user_id` set to their own id by a definer function, and was then denied the row. **This does not weaken R3**, and the reasoning is worth having beside the diagram rather than only in the migration:
+
+- The unfiltered axis is clan; the filter that replaces it is strictly *narrower*. It returns only villages the caller personally proved they own with an in-game token. No row about another person becomes visible to anybody.
+- Permissive SELECT policies are OR-ed, so it only ever adds rows. 006's policy is untouched.
+- **It reaches `players` and nothing else.** `member_snapshots`, `wars`, `cwl_*`, `war_*`, `clans` and `clan_roles` all keep `clan_id in (select auth_clan_ids())`.
+
+That last point is the load-bearing one, and it has a visible consequence rather than being a technicality. A village in a clan the member holds no role in is readable as a tag, a name and a town hall level — and *not even the clan's name*. So its report page states what is missing and why, in one panel, and cannot name the clan it is in. Widening `clans` to fix the wording would be widening clan access to improve a sentence.
+
+The precedent for a deliberately non-clan-filtered read is older than this: `clanMovement()` answers "where has this player been" and its own comment says it is "NOT filtered to one clan — that is the point". That one is filtered by `player_id`; this one by `user_id`. Same shape, one layer lower. In both cases the application query still states the filter explicitly and RLS is the net, in the relation §7.3 describes.
+
+**Approval is still per clan, and a second village does not grant one.** `approve_account()` requires `status = 'pending'`, so it runs once per account and inserts exactly one `clan_roles` row. Linking a village in a second clan therefore gives no role there, by design — a leader of that clan still decides. `users.requested_clan_id` names the one clan whose leader was asked, and since Phase 11 the first tag wins: linking a second village neither re-routes a pending applicant out of a queue somebody is already looking at, nor redresses an approved account as an applicant somewhere it was never approved.
+
+**There is no "primary base".** Nothing needs one: a member's villages are listed with none privileged, and "which clan am I approved into" is answered by `clan_roles`. If one is ever wanted the shape is a `users.primary_player_id` column — one row per account, owner-writable like `username` — and not a flag on `player_nicknames`, which would need a per-account partial unique index and a rule for what happens when the primary village leaves the family.
 
 ---
 

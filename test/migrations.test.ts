@@ -58,6 +58,13 @@ async function seedFixtures(h: Harness) {
       ('${PLAYER_A}', '${CLAN_A}', '${USER_A}', '#PY0LQGRJ', 'Player A', 15),
       ('${PLAYER_B}', '${CLAN_B}', '${USER_B}', '#C2V89UGL', 'Player B', 14);
 
+    -- T11.3. One per clan, like everything else here: "has fixture data present"
+    -- and "can read every table" both iterate PHASE1_TABLES asserting a row
+    -- exists, so a new table with no seed row fails both.
+    insert into player_nicknames (player_id, nickname, set_by) values
+      ('${PLAYER_A}', 'main', '${USER_A}'),
+      ('${PLAYER_B}', 'alt',  '${USER_B}');
+
     insert into cwl_seasons (id, clan_id, season, league) values
       ('11111111-0000-4000-8000-000000000001', '${CLAN_A}', '2026-07', 'Crystal I'),
       ('22222222-0000-4000-8000-000000000001', '${CLAN_B}', '2026-07', 'Gold II');
@@ -288,11 +295,16 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
     //   notification_preferences     023, a member sets their own toggles (T5.9)
     //   war_lineups, ..._members     024, leadership plans a war lineup (T6.8)
     //   base_layouts                 028, any member uploads a layout (T8.3)
+    //   player_nicknames             033, a member labels their own base (T11.3)
     //
-    // The two from 023 are the only entries here whose subject and actor are the
-    // same person, which is why they are plain policies rather than the audited
-    // definer functions 021 and 022 argued for: neither row affects anyone else,
-    // and neither has a clan_id to record an audit entry against.
+    // The two from 023 and the one from 033 are the only entries here whose
+    // subject and actor are the same person, which is why they are plain policies
+    // rather than the audited definer functions 021 and 022 argued for: no such
+    // row affects anyone else, and none has a clan_id to record an audit entry
+    // against. 033's header works through the tempting fix — denormalising a
+    // clan_id so the audit row becomes readable — and rejects it, because a
+    // base's clan changes and a copy is either stale or maintained by a sync job
+    // writing a human-decision table.
     //
     // Notably ABSENT and meant to stay absent: players and every cwl_* and war_*
     // GAME-FACT table (R11 — written only by sync jobs), including war_members,
@@ -317,6 +329,7 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
       "cwl_roster_members",
       "cwl_rosters",
       "notification_preferences",
+      "player_nicknames",
       "poll_options",
       "poll_responses",
       "polls",
