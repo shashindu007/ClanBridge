@@ -32,6 +32,7 @@ import { accountProfile, clanRoles, currentUserId } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
 import { baseLabel, nicknameProblem, normaliseNickname } from "@/lib/nickname";
 import { safeMessage } from "@/lib/errors";
+import { encodeTag } from "@/lib/tags";
 import {
   basesForUser,
   clearNickname,
@@ -364,7 +365,17 @@ function BaseRow({
         {base.leftAt && <Badge variant="outline">left the clan</Badge>}
       </div>
 
-      {!inClan && (
+      {inClan ? (
+        // T11.12. The tag is encoded here rather than in the route, because a tag
+        // is #2PP0JCCL and an unencoded hash would be read as a fragment — the
+        // same reason every clan link in this app goes through encodeTag.
+        <Link
+          href={`/account/bases/${encodeTag(base.tag)}`}
+          className="text-sm underline underline-offset-2"
+        >
+          Report for this base →
+        </Link>
+      ) : (
         <p className="text-muted-foreground text-sm">
           {base.clanId
             ? // Cannot name the clan — see the note above this component.
