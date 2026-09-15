@@ -15,8 +15,10 @@
 
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { safeNext } from "@/lib/safe-next";
 import { isValidTag } from "@/lib/tags";
 import { SignOutButton } from "@/components/sign-out-button";
 import { Button } from "@/components/ui/button";
@@ -26,7 +28,25 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type Status = "idle" | "sending" | "done" | "error";
 
-export default function VerifyPage() {
+function VerifyForm() {
+  const params = useSearchParams();
+
+  // T11.13 — where Continue goes once a tag is linked.
+  //
+  // /pending is right for the member this page was written for: a first-time
+  // account, mid-signup, whose next step is waiting for a leader. It is wrong for
+  // an approved member adding a second village, who would land on a page titled
+  // "Waiting for approval" — so /account sends them back with ?next=.
+  //
+  // Through safeNext() because this arrives in a URL anyone can write, and the
+  // same guard the magic link uses applies here. Note it returns "/" rather than
+  // null for anything it rejects, so the fallback has to be spelled out: a bare
+  // `safeNext(...) ?? "/pending"` would silently send every first-time member to
+  // the dashboard, which the gate then bounces to /pending anyway — right
+  // destination, two redirects and a wrong-looking URL on the way.
+  const requested = safeNext(params.get("next"));
+  const continueTo = requested === "/" ? "/pending" : requested;
+
   const [tag, setTag] = useState("");
   const [token, setToken] = useState("");
   const [status, setStatus] = useState<Status>("idle");
@@ -82,7 +102,7 @@ export default function VerifyPage() {
           <AlertDescription>{message}</AlertDescription>
         </Alert>
         <Button asChild variant="outline" className="w-full">
-          <Link href="/pending">Continue</Link>
+          <Link href={continueTo}>Continue</Link>
         </Button>
       </div>
     );
@@ -196,5 +216,16 @@ export default function VerifyPage() {
         Wrong account? <SignOutButton />
       </div>
     </div>
+  );
+}
+
+// useSearchParams() opts the subtree into client-side rendering, which Next
+// requires a Suspense boundary for during prerender — the same wrapper
+// (auth)/login/page.tsx needs, for the same reason.
+export default function VerifyPage() {
+  return (
+    <Suspense fallback={<p className="text-muted-foreground text-sm">Loading…</p>}>
+      <VerifyForm />
+    </Suspense>
   );
 }

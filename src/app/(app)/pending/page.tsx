@@ -13,6 +13,7 @@
 // that waiting feels like a queue rather than a bug.
 
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { currentUserId } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,20 @@ export default async function PendingApprovalPage() {
   const row = data?.[0] as
     | { status: string; requested_clan_id: string | null }
     | undefined;
+
+  // T11.13 — an approved member has no business here, and before Phase 11 nothing
+  // sent one. /verify's Continue button did: an approved member adding a second
+  // village landed on a page headed "Waiting for approval", which reads as the
+  // second base having un-approved them.
+  //
+  // A redirect rather than an inline "you are approved" panel. A page whose <h1>
+  // is "Waiting for approval" cannot be made to say the opposite without reading
+  // as a bug, and /account is where the village they just linked now appears.
+  //
+  // The gate in (app)/layout.tsx cannot do this: /pending is in GATE_EXEMPT
+  // precisely so an unapproved member can reach it, and exemption is not
+  // direction-aware.
+  if (row?.status === "approved") redirect("/account");
 
   const rejected = row?.status === "rejected";
   const verified = Boolean(row?.requested_clan_id);
