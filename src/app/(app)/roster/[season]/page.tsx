@@ -25,7 +25,7 @@ import { currentUserId } from "@/lib/auth";
 import { visibleClans, type VisibleClan } from "@/lib/clans";
 import { createClient } from "@/lib/supabase/server";
 import { membersForClan } from "@/repositories/members";
-import { seasonHistoryForClan } from "@/repositories/cwl";
+import { familyCwlHistory } from "@/repositories/cwl";
 import {
   optionsForPoll,
   pollsForClan,
@@ -104,6 +104,8 @@ interface PoolPlayer {
   answerNote: string | null;
   lastSeasonAttacks: number | null;
   lastSeasonMissed: number | null;
+  /** T11C.4 — the clan that last CWL was played in, which may not be clanName. */
+  lastSeasonClanName: string | null;
   assignedTo: string | null;
 }
 
@@ -179,25 +181,28 @@ export default async function RosterBuilderPage({
   // Every one of them fetched the same data. Which wars a clan played and who
   // attacked in them does not depend on the player being asked about.
   //
-  // Now: two reads per clan, every clan in flight at once, and the history for
-  // all of that clan's players arrives in one map. The cost is bounded by the
-  // clan's WARS rather than by the size of the pool, so a bigger family of
-  // clans no longer makes it quadratic.
+  // Then it became two reads per clan: each clan's CWL tree walked once, the
+  // history for all of its players in one map.
+  //
+  // T11C.4 — and now ONE read for the whole pool, from every clan in the family.
+  // The per-clan history answered "what did this member play HERE", which for
+  // this family is usually nothing: members play CWL in DH CWL ONLY and live
+  // elsewhere, so the Last CWL column read "—" for exactly the players a leader
+  // most needs a record for. familyCwlHistory() (037) returns each member's
+  // seasons from every platform clan, after the member lists are known.
   const perClan = await Promise.all(
-    leads.map(async (clan) => {
-      const [members, history] = await Promise.all([
-        membersForClan(supabase, clan.id),
-        seasonHistoryForClan(supabase, clan.id),
-      ]);
-      return { clan, members, history };
-    }),
+    leads.map(async (clan) => ({ clan, members: await membersForClan(supabase, clan.id) })),
+  );
+  const history = await familyCwlHistory(
+    supabase,
+    perClan.flatMap(({ members }) => members.map((m) => m.playerId)),
   );
 
   const pool: PoolPlayer[] = [];
-  for (const { clan, members, history } of perClan) {
+  for (const { clan, members } of perClan) {
     for (const member of members) {
-      // Newest season first, so [0] is the member's last CWL — the same value
-      // this page has always shown in the "Last CWL" column.
+      // Newest season first across every clan, so [0] is the member's last CWL
+      // wherever it was played.
       const previous = (history.get(member.playerId) ?? [])[0] ?? null;
       const answer = answers.get(member.playerId);
       pool.push({
@@ -211,6 +216,7 @@ export default async function RosterBuilderPage({
         answerNote: answer?.note ?? null,
         lastSeasonAttacks: previous ? previous.attacksUsed : null,
         lastSeasonMissed: previous ? previous.warsRostered - previous.attacksUsed : null,
+        lastSeasonClanName: previous ? previous.clanName : null,
         assignedTo: assignment.get(member.playerId) ?? null,
       });
     }
@@ -347,6 +353,14 @@ export default async function RosterBuilderPage({
                             <span className="text-destructive">
                               {" "}
                               / {p.lastSeasonMissed} missed
+                            </span>
+                          )}
+                          {/* Named only when it was not the member's own clan —
+                              "played it in DH CWL ONLY" is the context a leader
+                              needs; the member's own clan is already on the row. */}
+                          {p.lastSeasonClanName && p.lastSeasonClanName !== p.clanName && (
+                            <span className="text-muted-foreground block text-xs">
+                              in {p.lastSeasonClanName}
                             </span>
                           )}
                         </>
