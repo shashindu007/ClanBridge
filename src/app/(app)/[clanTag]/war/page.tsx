@@ -43,6 +43,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { DataFreshness } from "@/components/data-freshness";
 import { TownHall } from "@/components/lineup-parts";
 import { PageHeader } from "@/components/page-header";
+import { Stars, Stat } from "@/components/stars";
 import { currentUserId } from "@/lib/auth";
 import { requireClanByTag } from "@/lib/clans";
 import { createClient } from "@/lib/supabase/server";
@@ -618,26 +619,6 @@ export default async function WarBoardPage({
         </div>
       </section>
     </main>
-  );
-}
-
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="space-y-1">
-      <p className="text-muted-foreground text-xs font-medium uppercase">{label}</p>
-      <p className="text-2xl font-semibold tabular-nums">{value}</p>
-      {hint && <p className="text-muted-foreground text-xs">{hint}</p>}
-    </div>
-  );
-}
-
-/** Three stars, filled to the count, with the number for screen readers. */
-function Stars({ stars }: { stars: number }) {
-  return (
-    <span aria-label={`${stars} star${stars === 1 ? "" : "s"}`} className="text-warning-ink whitespace-nowrap">
-      {"★".repeat(stars)}
-      <span className="text-muted-foreground">{"☆".repeat(Math.max(0, 3 - stars))}</span>
-    </span>
   );
 }
 
