@@ -462,3 +462,32 @@ describe("mapPlayer", () => {
     expect(player).not.toHaveProperty("achievements");
   });
 });
+
+describe("playerSchema — base progress (T11B.1)", () => {
+  const api = playerSchema.parse(fixture("player.json"));
+
+  it("reads every unit list the fixture carries", () => {
+    expect(api.heroes.length).toBeGreaterThan(0);
+    expect(api.heroEquipment.length).toBeGreaterThan(0);
+    expect(api.troops.length).toBeGreaterThan(0);
+    expect(api.spells.length).toBeGreaterThan(0);
+    expect(api.builderHallLevel).toBeTypeOf("number");
+  });
+
+  // The fact T11B's original plan got wrong, pinned so it cannot be re-assumed.
+  // A TH17 account is not maxed at 110, so maxLevel is the game's ceiling rather
+  // than this Town Hall's cap.
+  it("maxLevel is the game maximum, not the Town Hall cap", () => {
+    const king = api.heroes.find((h) => h.name === "Barbarian King")!;
+    expect(api.townHallLevel).toBe(17);
+    expect(king.maxLevel).toBeGreaterThan(king.level);
+  });
+
+  it("defaults every unit list to [] for an account that has none", () => {
+    const bare = playerSchema.parse({ tag: "#2PP0JCCL", name: "x" });
+    expect(bare.troops).toEqual([]);
+    expect(bare.heroes).toEqual([]);
+    expect(bare.heroEquipment).toEqual([]);
+    expect(bare.spells).toEqual([]);
+  });
+});
