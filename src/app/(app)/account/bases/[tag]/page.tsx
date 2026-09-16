@@ -29,7 +29,7 @@
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Castle } from "lucide-react";
 import { PlayerReportSections, dayLabel } from "@/components/player-report-sections";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ import { clanRoles, currentUserId } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
 import { baseLabel } from "@/lib/nickname";
 import { createClient } from "@/lib/supabase/server";
-import { decodeTag, InvalidTagError } from "@/lib/tags";
+import { decodeTag, encodeTag, InvalidTagError } from "@/lib/tags";
 import { basesForUser } from "@/repositories/account-bases";
 import { playerReport } from "@/repositories/player-report";
 
@@ -97,6 +97,14 @@ export default async function OwnBaseReportPage({
             {base.clanRole && <Badge variant="secondary">{base.clanRole}</Badge>}
             {base.verified && <Badge variant="outline">verified</Badge>}
             {base.leftAt && <Badge variant="destructive">left the clan</Badge>}
+            {/* T11B.10 — outside the reportable branch on purpose: details are
+                readable by ownership, so a base with no report still has them. */}
+            <Button asChild size="sm" className="ml-auto">
+              <Link href={`/account/bases/${encodeTag(base.tag)}/details`}>
+                <Castle aria-hidden />
+                Base details
+              </Link>
+            </Button>
           </div>
           <p className="text-muted-foreground text-sm">
             {/* The in-game name stays visible whenever a label overrides it, so a

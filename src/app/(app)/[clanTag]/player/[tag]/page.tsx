@@ -22,15 +22,17 @@
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Castle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   PlayerReportSections,
   dayLabel,
 } from "@/components/player-report-sections";
 import { requireClanByTag, visibleClans } from "@/lib/clans";
-import { currentUserId } from "@/lib/auth";
+import { currentUserId, hasRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { decodeTag, InvalidTagError } from "@/lib/tags";
+import { decodeTag, encodeTag, InvalidTagError } from "@/lib/tags";
 import { playerReport } from "@/repositories/player-report";
 
 export const dynamic = "force-dynamic";
@@ -104,6 +106,16 @@ export default async function PlayerProfilePage({
           {player.clan_role && <Badge variant="secondary">{player.clan_role}</Badge>}
           {player.verified && <Badge variant="outline">verified</Badge>}
           {player.left_at && <Badge variant="destructive">left the clan</Badge>}
+          {/* T11B.10 — leadership only, matching the details page's own gate, so
+              nobody is shown a button that leads to a 404. */}
+          {hasRole(clan.role, "co-leader") && (
+            <Button asChild size="sm" className="ml-auto">
+              <Link href={`/${encodedTag}/player/${encodeTag(player.tag)}/details`}>
+                <Castle aria-hidden />
+                Base details
+              </Link>
+            </Button>
+          )}
         </div>
         <p className="text-muted-foreground text-sm">
           <span className="font-mono text-xs">{player.tag}</span>
