@@ -11,12 +11,18 @@
 // are. So this page works for every base on /account, which is why its button
 // there is shown for all of them.
 //
+// T11B.12 — the owner, and only the owner, can also paste their in-game village
+// export for buildings, walls and timers. Parsed in the browser and never stored;
+// see components/village-export-paste.tsx. Not on the leader's page: it is the
+// member's own game data, and nothing about it passes through this server.
+//
 // R1 — every read is PostgreSQL.
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { BaseDetails, villageParam } from "@/components/base-details";
+import { VillageExportPaste } from "@/components/village-export-paste";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { currentUserId } from "@/lib/auth";
@@ -88,6 +94,8 @@ export default async function OwnBaseDetailsPage({
           </p>
         </div>
       </div>
+
+      <VillageExportPaste tag={base.tag} label={label} />
 
       <BaseDetails
         progress={progress}
