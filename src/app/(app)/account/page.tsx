@@ -26,7 +26,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { Plus } from "lucide-react";
+import { Castle, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { accountProfile, clanRoles, currentUserId } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
@@ -365,13 +365,23 @@ function BaseRow({
         {base.leftAt && <Badge variant="outline">left the clan</Badge>}
       </div>
 
+      {/* T11B.10. Shown for EVERY base, not only those with a report: progress
+          is readable by ownership alone (036), so a village outside the member's
+          clans still has details even when it has no report. */}
+      <Button asChild size="sm">
+        <Link href={`/account/bases/${encodeTag(base.tag)}/details`}>
+          <Castle aria-hidden />
+          Base details
+        </Link>
+      </Button>
+
       {inClan ? (
         // T11.12. The tag is encoded here rather than in the route, because a tag
         // is #2PP0JCCL and an unencoded hash would be read as a fragment — the
         // same reason every clan link in this app goes through encodeTag.
         <Link
           href={`/account/bases/${encodeTag(base.tag)}`}
-          className="text-sm underline underline-offset-2"
+          className="block text-sm underline underline-offset-2"
         >
           Report for this base →
         </Link>

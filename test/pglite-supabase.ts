@@ -22,6 +22,12 @@ function literal(value: unknown): string {
   if (value === null || value === undefined) return "null";
   if (typeof value === "number") return String(value);
   if (typeof value === "boolean") return String(value);
+  // T11B.5 — a jsonb column (player_progress.units). supabase-js sends the body
+  // as JSON, so an array arrives as an array; String() would store
+  // "[object Object]". Dates are left to the String() path below, unchanged.
+  if (Array.isArray(value) || (typeof value === "object" && !(value instanceof Date))) {
+    return `'${JSON.stringify(value).replace(/'/g, "''")}'`;
+  }
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
@@ -39,6 +45,13 @@ export function createPgliteSupabase(db: PGlite): SupabaseClient {
         },
         is(column: string, _value: null) {
           filters.push(`${column} is null`);
+          return builder;
+        },
+        // T11B.5 — scripts/sync/players.ts reads owned villages with
+        // `.not("user_id", "is", null)`. Only that form is supported.
+        not(column: string, operator: "is", _value: null) {
+          if (operator !== "is") throw new Error(`shim: .not() supports "is" only, got ${operator}`);
+          filters.push(`${column} is not null`);
           return builder;
         },
         in(column: string, values: unknown[]) {

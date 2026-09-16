@@ -36,7 +36,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export type JobType = "clans" | "cwl" | "war" | "raids" | "clan-games" | "backup";
+export type JobType = "clans" | "cwl" | "war" | "raids" | "clan-games" | "players" | "backup";
 
 /**
  * Thrown by a job to record an ordinary non-event.

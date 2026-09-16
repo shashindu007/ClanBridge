@@ -233,12 +233,55 @@ export const achievementSchema = z.looseObject({
   village: z.string().optional(),
 });
 
+/**
+ * 'home' | 'builderBase'. Kept a string rather than an enum: a third village
+ * (the Clan Capital already exists outside this endpoint) must not fail a sync.
+ */
+const village = z.string().optional();
+
+/**
+ * One troop, spell, pet or siege machine (T11B.1).
+ *
+ * `maxLevel` is the unit's ABSOLUTE maximum in the current game, NOT the cap for
+ * this player's Town Hall — the TH17 fixture carries heroes at 100/110 and pets
+ * at 10/15. Anything that means "maxed for their Town Hall" has to come from
+ * src/data/game/, never from this field.
+ *
+ * Pets and siege machines arrive in `troops` with nothing to tell them apart
+ * from an Archer. That grouping is game data too.
+ */
+export const unitSchema = z.looseObject({
+  name: z.string(),
+  level: z.number(),
+  maxLevel: z.number(),
+  village,
+  /** Present only on super troops, and only true while one is boosted. */
+  superTroopIsActive: z.boolean().optional(),
+});
+
+export const heroEquipmentSchema = z.looseObject({
+  name: z.string(),
+  level: z.number(),
+  maxLevel: z.number(),
+  village,
+});
+
+export const heroSchema = unitSchema.extend({
+  /** What the hero is currently wearing — a subset of `heroEquipment`. */
+  equipment: z.array(heroEquipmentSchema).optional(),
+});
+
 export const playerSchema = z.looseObject({
   tag,
   name: z.string(),
   townHallLevel: z.number().optional(),
+  builderHallLevel: z.number().optional(),
   expLevel: z.number().optional(),
   trophies: z.number().optional(),
+  bestTrophies: z.number().optional(),
+  builderBaseTrophies: z.number().optional(),
+  attackWins: z.number().optional(),
+  defenseWins: z.number().optional(),
   warStars: z.number().optional(),
   donations: z.number().optional(),
   donationsReceived: z.number().optional(),
@@ -260,6 +303,13 @@ export const playerSchema = z.looseObject({
   // T7.4 derives Clan Games scores by differencing the "Games Champion"
   // achievement between two snapshots — the API exposes no per-season score.
   achievements: z.array(achievementSchema).default([]),
+  // T11B.1 — base progress. `.default([])` for the reason `achievements` has it:
+  // a TH3 account with no heroes must be [], not undefined, or every consumer
+  // needs a null check.
+  troops: z.array(unitSchema).default([]),
+  heroes: z.array(heroSchema).default([]),
+  heroEquipment: z.array(heroEquipmentSchema).default([]),
+  spells: z.array(unitSchema).default([]),
 });
 
 // ---------------------------------------------------------------------------
@@ -285,4 +335,5 @@ export type ApiCwlGroup = z.infer<typeof cwlGroupSchema>;
 export type ApiRaidSeasons = z.infer<typeof raidSeasonsSchema>;
 export type ApiRaidSeason = z.infer<typeof raidSeasonSchema>;
 export type ApiPlayer = z.infer<typeof playerSchema>;
+export type ApiUnit = z.infer<typeof unitSchema>;
 export type ApiRole = z.infer<typeof apiRole>;

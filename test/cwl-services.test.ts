@@ -179,7 +179,7 @@ describe("freshness — T4.8", () => {
   describe("every watched job has a threshold matched to its schedule", () => {
     // Mirrors scripts/sync/health.ts's WATCHED. Not imported: that module
     // builds an admin Supabase client at import time and needs the service key.
-    const WATCHED = ["clans", "cwl", "war", "raids", "clan-games"] as const;
+    const WATCHED = ["clans", "cwl", "war", "raids", "clan-games", "players"] as const;
 
     it.each(WATCHED)("%s has an explicit entry, not the default", (jobType) => {
       expect(STALE_AFTER_MS[jobType]).toBeDefined();
@@ -194,6 +194,7 @@ describe("freshness — T4.8", () => {
       ["war", 60],
       ["raids", 24 * 60],
       ["clan-games", 24 * 60],
+      ["players", 24 * 60],
     ])("%s allows more than its %i-minute interval", (jobType, intervalMinutes) => {
       expect(STALE_AFTER_MS[jobType]!).toBeGreaterThan(intervalMinutes * 60 * 1000);
     });
@@ -201,7 +202,7 @@ describe("freshness — T4.8", () => {
     it("does not mark a daily job stale the morning after it ran", () => {
       const ranAt = "2026-07-31T05:41:00Z"; // sync-raids.yml's cron
       const nextMorning = new Date("2026-08-01T11:00:00Z"); // ~29h later
-      for (const jobType of ["raids", "clan-games"] as const) {
+      for (const jobType of ["raids", "clan-games", "players"] as const) {
         expect(
           freshness(run({ jobType, finishedAt: ranAt }), nextMorning).level,
         ).toBe("fresh");

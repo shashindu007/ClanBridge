@@ -196,6 +196,11 @@ async function seedFixtures(h: Harness) {
     insert into member_snapshots (clan_id, player_id, donations, donations_received, trophies) values
       ('${CLAN_A}', '${PLAYER_A}', 1200, 900, 5200),
       ('${CLAN_B}', '${PLAYER_B}', 400, 1500, 4100);
+
+    -- 036. Identically shaped per clan, like member_snapshots above.
+    insert into player_progress (player_id, clan_id, th_level, units) values
+      ('${PLAYER_A}', '${CLAN_A}', 15, '[]'),
+      ('${PLAYER_B}', '${CLAN_B}', 14, '[]');
   `);
 }
 
@@ -465,6 +470,7 @@ describe("T3.7 — a member of clan A cannot read clan B", () => {
     "announcements",
     "sync_log",
     "member_snapshots",
+    "player_progress",
   ])("reads exactly one row from %s — its own", async (table) => {
     await h.asUser(USER_A);
     expect(await count(h, table)).toBe(1);
@@ -715,6 +721,16 @@ describe("check constraints reject bad data", () => {
         `insert into clan_roles (user_id, clan_id, role) values ('${USER_B}', '${CLAN_A}', 'coLeader')`,
       ),
     ).rejects.toThrow(/clan_roles_role_check/);
+  });
+
+  // 036 re-declared the job_type check to admit the players sync. Re-declaring
+  // a check is where a value quietly goes missing, so both ends are asserted.
+  it("accepts the players job type 036 added, and still rejects an unknown one", async () => {
+    await h.db.exec(`insert into sync_log (job_type, status) values ('players', 'success')`);
+    await h.db.exec(`insert into sync_log (job_type, status) values ('clan-games', 'success')`);
+    await expect(
+      h.db.exec(`insert into sync_log (job_type, status) values ('buildings', 'success')`),
+    ).rejects.toThrow(/sync_log_job_type_check/);
   });
 
   it("rejects an unknown sync_log status", async () => {

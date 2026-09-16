@@ -17,7 +17,10 @@ import type {
   MemberSnapshot,
   Player,
   PlayerDetail,
+  PlayerProgress,
+  ProgressUnit,
   RaidSeason,
+  Village,
   War,
   WarAttack,
   WarMember,
@@ -31,6 +34,7 @@ import type {
   ApiPlayer,
   ApiRaidSeasons,
   ApiRole,
+  ApiUnit,
   ApiWar,
   ApiWarAttack,
   ApiWarMember,
@@ -123,6 +127,47 @@ export function mapPlayer(api: ApiPlayer): PlayerDetail {
     league: api.league?.name,
     clanTag: api.clan ? normaliseTag(api.clan.tag) : undefined,
     gamesChampionValue: gamesChampion?.value,
+  };
+}
+
+/**
+ * 'builderBase' to 'builder'; anything else — including a missing field — is the
+ * home village, which is where every unit lived before the Builder Base existed.
+ */
+function mapVillage(village: string | undefined): Village {
+  return village === "builderBase" ? "builder" : "home";
+}
+
+function mapUnit(api: Pick<ApiUnit, "name" | "level" | "maxLevel" | "village">): ProgressUnit {
+  return {
+    name: api.name,
+    level: api.level,
+    apiMax: api.maxLevel,
+    village: mapVillage(api.village),
+  };
+}
+
+/**
+ * T11B.2 — how far along a village is, as the API reports it.
+ *
+ * A separate function from mapPlayer() rather than more fields on PlayerDetail:
+ * clan-games maps a player once per member for one achievement value, and has no
+ * use for 150 unit objects per call.
+ *
+ * It translates and does not classify. Which troop is a pet, which is a super
+ * troop and what this Town Hall allows are game data, and a mapper that decided
+ * them would be the one place nobody looks after a game update.
+ */
+export function mapPlayerProgress(api: ApiPlayer): PlayerProgress {
+  return {
+    tag: normaliseTag(api.tag),
+    thLevel: api.townHallLevel,
+    thWeaponLevel: api.townHallWeaponLevel,
+    bhLevel: api.builderHallLevel,
+    heroes: api.heroes.map(mapUnit),
+    equipment: api.heroEquipment.map(mapUnit),
+    troops: api.troops.map(mapUnit),
+    spells: api.spells.map(mapUnit),
   };
 }
 

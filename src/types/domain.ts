@@ -149,6 +149,36 @@ export interface PlayerDetail extends Player {
   gamesChampionValue?: number;
 }
 
+/** Which village a unit belongs to. Supercell spells the second one "builderBase". */
+export type Village = "home" | "builder";
+
+/**
+ * One hero, piece of equipment, troop, pet, siege machine or spell (T11B.2).
+ *
+ * `apiMax` is named for where it came from because it is NOT what most readers
+ * will assume: it is the game's absolute maximum, not the cap for this player's
+ * Town Hall. The Town Hall cap lives in src/data/game/.
+ */
+export interface ProgressUnit {
+  name: string;
+  level: number;
+  apiMax: number;
+  village: Village;
+}
+
+/** Everything the player endpoint says about how far along a village is. */
+export interface PlayerProgress {
+  tag: string;
+  thLevel?: number;
+  thWeaponLevel?: number;
+  bhLevel?: number;
+  heroes: ProgressUnit[];
+  equipment: ProgressUnit[];
+  /** Troops, pets, siege machines and super troops — the API does not separate them. */
+  troops: ProgressUnit[];
+  spells: ProgressUnit[];
+}
+
 // ---------------------------------------------------------------------------
 // HUMAN DECISIONS — written by people through the app only (R11)
 //

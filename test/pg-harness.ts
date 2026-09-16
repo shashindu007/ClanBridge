@@ -76,6 +76,9 @@ export const PHASE1_MIGRATIONS = [
   // T11.4 users.avatar_path — a path in the private avatars bucket, not a URL.
   // The bucket itself is 035, which is live-only; this half is plain DDL.
   "034_user_avatar.sql",
+  // T11B.4 the daily base-progress snapshot, and 'players' in sync_log's job
+  // types. Must follow 031, whose auth_owned_player_ids() its owner policy calls.
+  "036_player_progress.sql",
 ] as const;
 
 /**
@@ -265,6 +268,7 @@ export const PHASE1_TABLES = [
   "member_snapshots",
   "notification_preferences",
   "player_nicknames",
+  "player_progress",
   "players",
   "poll_options",
   "poll_responses",

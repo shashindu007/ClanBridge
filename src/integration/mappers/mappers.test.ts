@@ -24,6 +24,7 @@ import {
   mapClanMembers,
   mapCwlGroup,
   mapPlayer,
+  mapPlayerProgress,
   mapRaidSeasons,
   mapRole,
   mapSnapshot,
@@ -460,5 +461,73 @@ describe("mapPlayer", () => {
 
   it("exposes no achievements array above the boundary (R7)", () => {
     expect(player).not.toHaveProperty("achievements");
+  });
+});
+
+describe("playerSchema — base progress (T11B.1)", () => {
+  const api = playerSchema.parse(fixture("player.json"));
+
+  it("reads every unit list the fixture carries", () => {
+    expect(api.heroes.length).toBeGreaterThan(0);
+    expect(api.heroEquipment.length).toBeGreaterThan(0);
+    expect(api.troops.length).toBeGreaterThan(0);
+    expect(api.spells.length).toBeGreaterThan(0);
+    expect(api.builderHallLevel).toBeTypeOf("number");
+  });
+
+  // The fact T11B's original plan got wrong, pinned so it cannot be re-assumed.
+  // A TH17 account is not maxed at 110, so maxLevel is the game's ceiling rather
+  // than this Town Hall's cap.
+  it("maxLevel is the game maximum, not the Town Hall cap", () => {
+    const king = api.heroes.find((h) => h.name === "Barbarian King")!;
+    expect(api.townHallLevel).toBe(17);
+    expect(king.maxLevel).toBeGreaterThan(king.level);
+  });
+
+  it("defaults every unit list to [] for an account that has none", () => {
+    const bare = playerSchema.parse({ tag: "#2PP0JCCL", name: "x" });
+    expect(bare.troops).toEqual([]);
+    expect(bare.heroes).toEqual([]);
+    expect(bare.heroEquipment).toEqual([]);
+    expect(bare.spells).toEqual([]);
+  });
+});
+
+describe("mapPlayerProgress (T11B.2)", () => {
+  const api = playerSchema.parse(fixture("player.json"));
+  const progress = mapPlayerProgress(api);
+
+  it("carries the hall levels under their internal names", () => {
+    expect(progress.thLevel).toBe(api.townHallLevel);
+    expect(progress.thWeaponLevel).toBe(api.townHallWeaponLevel);
+    expect(progress.bhLevel).toBe(api.builderHallLevel);
+    expect(progress.tag).toMatch(/^#/);
+  });
+
+  it("keeps every unit, one for one", () => {
+    expect(progress.heroes).toHaveLength(api.heroes.length);
+    expect(progress.equipment).toHaveLength(api.heroEquipment.length);
+    expect(progress.troops).toHaveLength(api.troops.length);
+    expect(progress.spells).toHaveLength(api.spells.length);
+  });
+
+  it("maps builderBase to builder and everything else to home", () => {
+    const machine = progress.heroes.find((h) => h.name === "Battle Machine")!;
+    const king = progress.heroes.find((h) => h.name === "Barbarian King")!;
+    expect(machine.village).toBe("builder");
+    expect(king.village).toBe("home");
+  });
+
+  // Baby Dragon exists in both villages. Anything keyed by name alone would
+  // merge two different units.
+  it("keeps same-named units in different villages apart", () => {
+    const babies = progress.troops.filter((t) => t.name === "Baby Dragon");
+    expect(babies.map((b) => b.village).sort()).toEqual(["builder", "home"]);
+  });
+
+  it("exposes no raw field names above the boundary (R7)", () => {
+    expect(progress.heroes[0]).not.toHaveProperty("maxLevel");
+    expect(progress).not.toHaveProperty("heroEquipment");
+    expect(progress).not.toHaveProperty("builderHallLevel");
   });
 });

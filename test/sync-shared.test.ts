@@ -246,7 +246,7 @@ describe("T2.5 — runSyncJob and sync_log (R9)", () => {
   });
 
   it("accepts every job_type the check constraint allows", async () => {
-    for (const job of ["clans", "cwl", "war", "raids", "clan-games", "backup"] as const) {
+    for (const job of ["clans", "cwl", "war", "raids", "clan-games", "players", "backup"] as const) {
       const result = await runSyncJob(job, async () => {}, { client });
       expect(result, job).toBe("success");
     }

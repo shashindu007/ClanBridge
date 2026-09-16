@@ -78,6 +78,8 @@ player_nicknames    id, player_id, nickname, set_by
 
 It also carries no `clan_id`, unlike everything above it, and that absence is deliberate rather than an oversight: a village's clan **changes**, so a copy here would be either stale or maintained by a sync job writing a human-decision table, which is the exact bug this section exists to prevent.
 
+**`player_progress` (036) is a game fact, and the pasted village export is not a table at all.** The daily sync writes one reading per village of every hero, troop and spell level, with the Town Hall cap that applied when it was read — stored, so refreshing `src/data/game/` never re-scores history. A member can also paste their in-game village export to see buildings and timers. That text is a game fact supplied by a person, which is exactly the mix this section forbids in a table, so it is parsed in the browser and never stored anywhere. See IMPLEMENTATION.md Phase 11B.
+
 `polls.scope` is `clan` or `family`. A CWL availability poll uses `family` scope, because the leader decides across all three clans at once and needs one pool of responses rather than three separate ones.
 
 Two constraints matter more than they look. `poll_responses(poll_id, player_id)` is unique — one answer per player, editable until the poll closes, with `updated_at` recording late changes. And a player may appear in only one CWL roster per season across all three clans, enforced in the database rather than only in the form, because the alternative is discovering a double-booking on day one of CWL.
