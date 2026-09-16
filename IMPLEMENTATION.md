@@ -28,7 +28,8 @@ and T9.10 done apart from the parts that wait on a deployment ·
 four auth-adjacent security findings ·
 **Phase 11 entire** — a member's own villages, in one place, with a report each ·
 **Phase 11B entire** — Base details: progress against Town Hall caps, and a
-view-only paste of the in-game village export.
+view-only paste of the in-game village export ·
+**Phase 11C entire** — a base's CWL record from every clan in the family.
 
 **Every phase in this document is now complete except T9.4 (restore test) and
 the deployment-side half of T9.3.** Both need something outside the codebase: a
@@ -36,6 +37,8 @@ scratch Supabase project to restore into, and a Vercel deployment to inspect.
 **Phase 11B is built, and it corrected its own plan:** the API's `maxLevel` is the
 game's ceiling, not the Town Hall's cap, so the block now carries generated game
 data it had originally rejected. Its heading explains.
+**Phase 11C is the one deliberate R3 exception in the schema:** CWL season totals
+are readable family-wide, through one definer function that returns totals only.
 
 **Phase 11 came from the product being unable to say something the schema had
 always known.** `Architecture.md` §7.1 has claimed since the first draft that "a
@@ -624,9 +627,12 @@ clanbridge/
 │       ├── 035_avatars_storage.sql    T11.5  the avatars BUCKET. LIVE-ONLY like 029,
 │       │                                     and absent from apply-all.sql for the
 │       │                                     same reason: the bundle is PHASE1 only
-│       └── 036_player_progress.sql    T11B.4 one reading a village a day, the CAP
-│                                             stored with each level. Clan policy OR
-│                                             owner policy; no UPDATE for anybody
+│       ├── 036_player_progress.sql    T11B.4 one reading a village a day, the CAP
+│       │                                     stored with each level. Clan policy OR
+│       │                                     owner policy; no UPDATE for anybody
+│       └── 037_family_cwl_history.sql T11C.1 CWL season TOTALS from every platform
+│                                             clan — the one deliberate R3 exception.
+│                                             Table policies untouched
 │
 ├── test/                    QA — runs the migrations against real Postgres (PGlite)
 │   ├── pg-harness.ts        boots PGlite
@@ -2657,6 +2663,88 @@ independent check — `game-data.test.ts` asserts no unit on it sits above its c
 
 ---
 
+# Phase 11C — A base's CWL record follows it across the family's clans
+
+*A village's CWL history is the village's, not the clan's it happens to be in now.*
+
+**Found on a real base.** SK FLASH (`#GJUUGRVCU`) played 14 CWL wars and made 13
+attacks across 2026-08 and 2026-09 — every one of them in **DH CWL ONLY**, the
+family's CWL clan — and now lives in **Dark Hell**. Its report said *"No CWL record
+for this member in Dark Hell yet."* That sentence was true and completely
+misleading, and it had two causes, either of which alone would have produced it:
+
+1. **The read asked one clan.** `playerReport()` → `playerSeasonHistory(clanId)` →
+   `seasonHistoryForClan(clanId)` walked only the current clan's `cwl_seasons`. The
+   data was intact — `players.tag` is unique, so `cwl_war_members.player_id` still
+   points at the same row after a move — and was simply never asked for.
+2. **RLS would have hidden it anyway.** 006's and 019's CWL policies admit a season
+   only to a viewer holding a role in the clan that owns it, and the owner's only
+   `clan_roles` row was Dark Hell. (The "co-leader" badge on the page is the
+   in-game rank, not an app role.)
+
+The same per-clan read fed the roster builder's **Last CWL** column and the members
+page's **needs-attention** list, so a member who plays CWL in the CWL clan read as
+having no CWL record on every page a leader decides from.
+
+**Decision: family-wide visibility.** Anyone holding a role in any platform clan may
+see any village's CWL season totals from every platform clan. **That is a
+deliberate R3 exception**, and it is made as narrowly as it can be.
+
+- [x] **T11C.1 — `family_cwl_history()`** — `supabase/migrations/037_family_cwl_history.sql`
+  A definer function returning, per requested player, per clan, per season: the
+  clan's id, tag and name, wars rostered, attacks used, stars. **Nothing else** — no
+  opponents, results, destruction, positions, or any other player.
+  **Rejected: widening the four CWL tables' policies**, which would hand every member
+  every clan's entire CWL tree to render four numbers. The tables' own policies are
+  untouched; the test asserts a member still reads zero of another clan's
+  `cwl_seasons`, `cwl_wars`, `cwl_war_members` and `cwl_attacks` directly.
+  It answers a caller with any clan role; a caller with none only for their own
+  villages (031's `auth_owned_player_ids()`); the service role; and nobody else.
+  At most 500 players per call. Its semantics are the walk it replaced: driven from
+  the roster, an off-roster attack not counted, soft-deleted rows ignored, newest
+  season first.
+
+- [x] **T11C.2 — `familyCwlHistory()`** — `src/repositories/cwl.ts`, `test/pglite-supabase.ts`
+  One round trip for any number of players, in `cache()`. The shim learned to pass a
+  JS array as a Postgres array parameter — it had been rendering it as JSON, which
+  `uuid[]` rejects. `test/family-cwl-history.test.ts` (the guard, the leak check,
+  the arithmetic) landed in this commit rather than as its own T11C.6.
+
+- [x] **T11C.3 — The report** — `src/repositories/player-report.ts`, `src/components/player-report-sections.tsx`
+  CWL is now the one family-wide read in the bundle; the other five stay on `clanId`.
+  The panel gains a **Clan** column; a season links to its clan's CWL page only when
+  the reader can open that clan, and is plain text otherwise, so nobody is handed a
+  404. The empty state names no clan, because naming one is the misreading this
+  phase ended.
+
+- [x] **T11C.4 — The roster builder** — `(app)/roster/[season]/page.tsx`
+  One `familyCwlHistory()` for the whole pool instead of a history per clan. Last CWL
+  is the newest season from any clan, with "in DH CWL ONLY" beneath it when that was
+  not the member's own clan.
+
+- [x] **T11C.5 — The members page, and the per-clan history goes** — `[clanTag]/members/page.tsx`, `src/repositories/cwl.ts`
+  needs-attention totals are family-wide. `seasonHistoryForClan()` and
+  `playerSeasonHistory()` had no callers left and are removed; their pinned
+  expectations were rewritten against `familyCwlHistory()` in
+  `test/cwl-history-repo.test.ts` first, and pass against the SQL.
+
+- [x] **T11C.6 — Tests for the function** — folded into T11C.2; see above.
+
+- [x] **T11C.7 — Write Phase 11C down** — `IMPLEMENTATION.md`, `Architecture.md` §7.3
+
+**Outstanding after Phase 11C:**
+
+- **Apply 037 to the live database** (`npm run migrations:apply`, or the
+  `apply-all.sql` bundle, which includes it). Until then the report, the roster and
+  the members page all fail soft: `familyCwlHistory()` treats an error as "no
+  history", so they show no CWL rather than crash.
+- **Check SK FLASH once it is applied:** its report should list 2026-09 and 2026-08
+  under DH CWL ONLY, 14 wars and 13 attacks in all.
+- **Clan movement and the other five report panels are unchanged** — still confined
+  to clans the reader holds a role in. Only CWL was asked for.
+
+---
+
 ## 5B. Coverage check
 
 Every requirement traced to the tasks that deliver it. Use this to confirm nothing was dropped.
@@ -2667,6 +2755,7 @@ Every requirement traced to the tasks that deliver it. Use this to confirm nothi
 | **A member's own villages, in one place** | **M1** | **T11.1–T11.14** |
 | Clan directory, donations, activity | M2 | T2.9, T3B.1–T3B.6 |
 | **Per-base report, reachable by its owner** | **M2** | **T11.11, T11.12** |
+| **CWL record follows the player across the family's clans** | **M3** | **T11C.1–T11C.7** |
 | **Upgrade progress per Town Hall, and the village export** | **M2** | **T11B.1–T11B.13** |
 | CWL tracking and history | M3 | T4.1–T4.8 |
 | **Polls before CWL and war** | **M10** | **T4B.1–T4B.5, T6.7** |
