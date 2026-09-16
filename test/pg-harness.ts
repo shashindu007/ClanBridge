@@ -79,6 +79,9 @@ export const PHASE1_MIGRATIONS = [
   // T11B.4 the daily base-progress snapshot, and 'players' in sync_log's job
   // types. Must follow 031, whose auth_owned_player_ids() its owner policy calls.
   "036_player_progress.sql",
+  // T11C.1 family_cwl_history() — CWL season totals from every platform clan, a
+  // deliberate R3 exception. Must follow 031 (auth_owned_player_ids) and 019.
+  "037_family_cwl_history.sql",
 ] as const;
 
 /**

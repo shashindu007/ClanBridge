@@ -76,7 +76,10 @@ describe("empty states say what is missing and which clan", () => {
   it("names the clan rather than saying 'no data'", () => {
     // The clan name is what makes an empty state actionable: a leader reading it
     // learns the sync has not run HERE, not that the member does not exist.
-    expect(html).toContain("No CWL record for this member in DH v2");
+    // CWL is the exception since T11C.3: its record is family-wide, so the empty
+    // state names no clan — "in DH v2" is the misreading that change ended.
+    expect(html).toContain("No CWL record for this member in any of the family");
+    expect(html).not.toContain("No CWL record for this member in DH v2");
     expect(html).toContain("No war record for this member in DH v2");
     expect(html).toContain("No raid weekends recorded for DH v2");
     expect(html).toContain("No Clan Games months recorded for DH v2");
@@ -135,9 +138,26 @@ describe("clan movement", () => {
 describe("populated numbers", () => {
   const full: PlayerReport = {
     ...EMPTY,
+    // T11C.3 — one season in the page's own clan, one in the family's CWL clan.
     cwlSeasons: [
-      { season: "2026-08", warsRostered: 7, attacksUsed: 6, stars: 15 },
-      { season: "2026-09", warsRostered: 7, attacksUsed: 7, stars: 19 },
+      {
+        season: "2026-09",
+        clanId: CLAN_B,
+        clanTag: "#20PP0JCC",
+        clanName: "DH CWL ONLY",
+        warsRostered: 7,
+        attacksUsed: 7,
+        stars: 19,
+      },
+      {
+        season: "2026-08",
+        clanId: CLAN_A,
+        clanTag: "#2PP0JCCL",
+        clanName: "DH v2",
+        warsRostered: 7,
+        attacksUsed: 6,
+        stars: 15,
+      },
     ],
     cwlTotals: { warsRostered: 14, attacksUsed: 13, stars: 34 },
     donations: [
@@ -162,7 +182,8 @@ describe("populated numbers", () => {
     },
   };
 
-  const html = render(full);
+  // The reader holds a role in clan A only, as SK FLASH's owner does in Dark Hell.
+  const html = render(full, new Map([[CLAN_A, "DH v2"]]));
 
   it("shows the CWL total beside the table, from the same bundle", () => {
     // The header and the rows are two renderings of one number. Computing the
@@ -206,6 +227,21 @@ describe("populated numbers", () => {
     expect(html).toContain('href="/%232PP0JCCL/games"');
     expect(html).toContain('href="/%232PP0JCCL/cwl/2026-08"');
     expect(html).not.toContain("/#2PP0JCCL/");
+  });
+
+  // T11C.3 — the bug: a season played in another of the family's clans.
+  it("lists a CWL season played in another clan, naming that clan", () => {
+    expect(html).toContain("DH CWL ONLY");
+    expect(html).toContain("2026-09");
+    expect(html).toContain("across the family");
+  });
+
+  it("links a season only when the reader can open its clan", () => {
+    // Clan B is not in the reader's clanNames, so its CWL page would 404.
+    expect(html).not.toContain('href="/%2320PP0JCC/cwl/2026-09"');
+
+    const both = render(full, new Map([[CLAN_A, "DH v2"], [CLAN_B, "DH CWL ONLY"]]));
+    expect(both).toContain('href="/%2320PP0JCC/cwl/2026-09"');
   });
 });
 

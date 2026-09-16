@@ -396,6 +396,8 @@ using (
 
 Every table carrying clan data gets an equivalent policy. Sync jobs use the service role key, which bypasses RLS by design — that is correct, because jobs are not acting on behalf of any user.
 
+**The one deliberate exception is CWL history (Phase 11C).** Members of this family move between its clans and play CWL in whichever one fields a roster, so a village's CWL record has to follow the village. It does so through `family_cwl_history()` (037), a definer function returning per-player season TOTALS and the clan's name to anyone holding a role in any platform clan. The CWL tables' own policies are unchanged — a member still reads none of another clan's seasons, wars or attacks directly — and nothing else in the schema is family-wide. Widen that function's output, not the tables' policies, if more is ever needed.
+
 **Test this deliberately.** Sign in as an ordinary member of clan one, then request clan two's data by editing the URL directly. If anything comes back, there is a hole. Repeat this test after every phase.
 
 ### 7.4 The multi-base identity model

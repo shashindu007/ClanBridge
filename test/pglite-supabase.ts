@@ -304,9 +304,16 @@ export function createPgliteSupabase(db: PGlite): SupabaseClient {
         .filter(([name]) => types.has(name))
         .map(([name, value]) => {
           const type = types.get(name)!;
-          return value === null || value === undefined
-            ? `${name} => null::${type}`
-            : `${name} => ${literal(value)}::${type}`;
+          if (value === null || value === undefined) return `${name} => null::${type}`;
+          // T11C.2 — a Postgres ARRAY parameter (family_cwl_history's uuid[]).
+          // literal() renders a JS array as JSON for jsonb columns, which a uuid[]
+          // rejects as a malformed array literal; PostgREST sends a real array.
+          if (Array.isArray(value) && type.endsWith("[]")) {
+            return value.length
+              ? `${name} => array[${value.map(literal).join(", ")}]::${type}`
+              : `${name} => '{}'::${type}`;
+          }
+          return `${name} => ${literal(value)}::${type}`;
         })
         .join(", ");
 

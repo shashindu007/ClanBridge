@@ -235,130 +235,74 @@ export interface PlayerSeasonTotals {
   stars: number;
 }
 
+/** One season of one player's CWL, and the clan it was played in (T11C.2). */
+export interface FamilySeasonTotals extends PlayerSeasonTotals {
+  clanId: string;
+  clanTag: string;
+  clanName: string;
+}
+
 /**
- * Every player's CWL history for one clan, in one pass.
+ * Players' CWL history from EVERY platform clan, keyed by player id (T11C.2).
  *
  * ───────────────────────────────────────────────────────────────────────────
- * WHY THIS EXISTS, AND WHAT IT REPLACED
+ * THE ONE READ IN THIS FILE THAT DOES NOT TAKE A clanId
  *
- * playerSeasonHistory() answered for ONE player and did it by walking the
- * clan's whole CWL tree to get there: seasons, then every war in each season,
- * then that war's roster and its attacks — filtering to the one player in
- * JavaScript, after fetching everybody. Two seasons of seven wars is about
- * thirty-one round trips per player.
+ * Everything above resolves a clan first, and the header of this file explains
+ * why. This does not, on purpose: a village's CWL record belongs to the village,
+ * and the family's members move between clans — SK FLASH played every CWL war it
+ * has in DH CWL ONLY and lives in Dark Hell. Asking one clan for that record
+ * returned nothing, and 006's policies would have hidden it anyway.
  *
- * Three callers then asked it per player. /roster/[season] did so in a
- * sequential loop over the availability pool, which at eighty-one players was
- * on the order of two and a half THOUSAND round trips, one after another, to
- * render a single page. The members page did the same in a Promise.all, which
- * only made the count concurrent rather than smaller — its comment reasoned
- * "one pass over the roster... acceptable at <= 50 members", which would have
- * been right if each call were one query rather than thirty-one.
- *
- * Every one of those requests fetched IDENTICAL data. The season list, the
- * wars, each war's roster and each war's attacks do not depend on which player
- * is being asked about; only the filtering did. So this fetches the clan's tree
- * once and accumulates all players together, and the per-player function below
- * became a lookup into it.
- *
- * Wrapped in cache() for the same reason visibleClans() is: the roster builder
- * asks for each of a leader's clans and the members page asks again for the one
- * it is showing, and within a request that should be one answer rather than
- * several. cache() keys on argument identity, which holds because
- * lib/supabase/server.ts guarantees exactly one client object per request.
+ * So it calls family_cwl_history() (037), a definer function that is the whole
+ * of the R3 exception: it returns season TOTALS and the clan's name, answers
+ * only callers who hold a role in some platform clan (or own the village), and
+ * leaves every CWL table's own policy untouched. Read 037's header before
+ * widening what it returns.
  * ───────────────────────────────────────────────────────────────────────────
  *
- * R3 is unchanged. Every season comes from seasonsForClan, which filters by
- * clan; every war id comes from those seasons, and every roster and attack id
- * comes from those wars. The chain is the same one the header of this file
- * describes, walked once instead of once per player.
+ * Seasons are newest first — callers read `[0]` as "last CWL", exactly as they
+ * did with the per-clan history this replaced. A player with no rostered war
+ * anywhere is absent from the map, not present with [].
+ *
+ * One round trip however many players are asked about, which is what lets the
+ * roster builder ask for its whole pool at once.
+ *
+ * It REPLACED seasonHistoryForClan() and playerSeasonHistory(), which walked one
+ * clan's CWL tree in JavaScript — seasons, wars, then every roster and attack
+ * list — and so could only ever answer "what did this player play HERE". The
+ * semantics that walk established (driven from the roster, newest first, an
+ * off-roster attack not counted) are now 037's SQL, and
+ * test/cwl-history-repo.test.ts holds the two to the same expectations.
+ *
+ * Wrapped in cache(); the key is the array's identity, so a caller that wants
+ * the memo must pass the same array.
  */
-export const seasonHistoryForClan = cache(async function seasonHistoryForClan(
+export const familyCwlHistory = cache(async function familyCwlHistory(
   supabase: SupabaseClient,
-  clanId: string,
-): Promise<Map<string, PlayerSeasonTotals[]>> {
-  const seasons = await seasonsForClan(supabase, clanId);
-  if (!seasons.length) return new Map();
+  playerIds: readonly string[],
+): Promise<Map<string, FamilySeasonTotals[]>> {
+  const ids = [...new Set(playerIds)];
+  const result = new Map<string, FamilySeasonTotals[]>();
+  if (!ids.length) return result;
 
-  // Wave one: every season's wars at once, rather than a season at a time.
-  const warsPerSeason = await Promise.all(
-    seasons.map((season) => warsInSeason(supabase, season.id)),
-  );
+  const { data, error } = await supabase.rpc("family_cwl_history", { p_player_ids: ids });
+  if (error || !data) return result;
 
-  const wars = seasons.flatMap((season, index) =>
-    warsPerSeason[index]!.map((war) => ({ season: season.season, warId: war.id })),
-  );
-  if (!wars.length) return new Map();
-
-  // Wave two: every roster and every attack for every war, all in flight
-  // together. This is the read that used to be repeated once per player.
-  const [rosters, attacks] = await Promise.all([
-    Promise.all(wars.map(({ warId }) => rosterForWar(supabase, warId))),
-    Promise.all(wars.map(({ warId }) => attacksForWar(supabase, warId))),
-  ]);
-
-  // playerId -> season -> totals
-  const byPlayer = new Map<string, Map<string, PlayerSeasonTotals>>();
-
-  const totalsFor = (playerId: string, season: string): PlayerSeasonTotals => {
-    let seasonsOfPlayer = byPlayer.get(playerId);
-    if (!seasonsOfPlayer) {
-      seasonsOfPlayer = new Map();
-      byPlayer.set(playerId, seasonsOfPlayer);
-    }
-    let totals = seasonsOfPlayer.get(season);
-    if (!totals) {
-      totals = { season, warsRostered: 0, attacksUsed: 0, stars: 0 };
-      seasonsOfPlayer.set(season, totals);
-    }
-    return totals;
-  };
-
-  wars.forEach(({ season }, index) => {
-    // Driven from the ROSTER, never from the attacks — a player who was in the
-    // war and did nothing still has to appear, and they are the ones a leader is
-    // looking for. Same argument warRecord() makes in services/cwl.ts.
-    const rostered = new Set<string>();
-    for (const entry of rosters[index]!) {
-      rostered.add(entry.playerId);
-      totalsFor(entry.playerId, season).warsRostered += 1;
-    }
-
-    for (const attack of attacks[index]!) {
-      // An attack from somebody the roster does not list would otherwise create
-      // a player with attacks and no wars, whose ratio is undefined.
-      if (!rostered.has(attack.playerId)) continue;
-      const totals = totalsFor(attack.playerId, season);
-      totals.attacksUsed += 1;
-      totals.stars += attack.stars;
-    }
-  });
-
-  // Seasons come back oldest-first from seasonsForClan's own ordering, reversed
-  // there to newest-first; `wars` preserves that, so the per-player arrays are
-  // already in the order the old function produced.
-  const result = new Map<string, PlayerSeasonTotals[]>();
-  for (const [playerId, seasonsOfPlayer] of byPlayer) {
-    result.set(
-      playerId,
-      [...seasonsOfPlayer.values()].filter((totals) => totals.warsRostered > 0),
-    );
+  // The function orders season desc, then clan name; appending preserves that.
+  for (const row of data as Array<Record<string, unknown>>) {
+    const playerId = row.player_id as string;
+    const list = result.get(playerId) ?? [];
+    list.push({
+      season: row.season as string,
+      clanId: row.clan_id as string,
+      clanTag: row.clan_tag as string,
+      clanName: row.clan_name as string,
+      warsRostered: Number(row.wars_rostered),
+      attacksUsed: Number(row.attacks_used),
+      stars: Number(row.stars),
+    });
+    result.set(playerId, list);
   }
   return result;
 });
-
-/**
- * One player's CWL history.
- *
- * A lookup into {@link seasonHistoryForClan} rather than its own walk of the
- * tree. Kept as a function because three pages read it this way and the shape
- * they want is the per-player array; what changed is that asking for a second
- * player in the same request now costs nothing.
- */
-export async function playerSeasonHistory(
-  supabase: SupabaseClient,
-  clanId: string,
-  playerId: string,
-): Promise<PlayerSeasonTotals[]> {
-  return (await seasonHistoryForClan(supabase, clanId)).get(playerId) ?? [];
-}

@@ -106,16 +106,18 @@ export function PlayerReportSections({
           {cwlSeasons.length > 0 && (
             <p className="text-muted-foreground text-sm tabular-nums">
               {cwlTotals.attacksUsed} of {cwlTotals.warsRostered} attacks used ·{" "}
-              {cwlTotals.stars} stars
+              {cwlTotals.stars} stars · across the family
             </p>
           )}
         </div>
 
         {cwlSeasons.length === 0 ? (
+          // T11C.3 — no clan named. The record is family-wide now, so "in
+          // Dark Hell" would be the exact misreading this change exists to end.
           <p className="text-muted-foreground text-sm">
-            No CWL record for this member in {clanName} yet. They have either not
-            played a CWL season here, or CWL has not run since the sync job
-            started capturing it.
+            No CWL record for this member in any of the family&apos;s clans yet.
+            They have either not played a CWL season in one, or CWL has not run
+            since the sync job started capturing it.
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -123,6 +125,7 @@ export function PlayerReportSections({
               <TableHeader>
                 <TableRow>
                   <TableHead>Season</TableHead>
+                  <TableHead>Clan</TableHead>
                   <TableHead className="text-right">Wars</TableHead>
                   <TableHead className="text-right">Attacks</TableHead>
                   <TableHead className="text-right">Missed</TableHead>
@@ -132,16 +135,25 @@ export function PlayerReportSections({
               <TableBody>
                 {cwlSeasons.map((s) => {
                   const missed = s.warsRostered - s.attacksUsed;
+                  // A season links to its clan's CWL page only when the viewer can
+                  // open that clan. clanNames is built from visibleClans(), so an
+                  // absent id means requireClanByTag() would 404 the link.
+                  const canOpen = clanNames.has(s.clanId);
                   return (
-                    <TableRow key={s.season}>
+                    <TableRow key={`${s.clanId}:${s.season}`}>
                       <TableCell className="font-medium">
-                        <Link
-                          className="underline-offset-2 hover:underline"
-                          href={`/${clanTag}/cwl/${encodeURIComponent(s.season)}`}
-                        >
-                          {s.season}
-                        </Link>
+                        {canOpen ? (
+                          <Link
+                            className="underline-offset-2 hover:underline"
+                            href={`/${encodeURIComponent(s.clanTag)}/cwl/${encodeURIComponent(s.season)}`}
+                          >
+                            {s.season}
+                          </Link>
+                        ) : (
+                          s.season
+                        )}
                       </TableCell>
+                      <TableCell>{s.clanName}</TableCell>
                       <TableCell className="text-right tabular-nums">
                         {s.warsRostered}
                       </TableCell>
