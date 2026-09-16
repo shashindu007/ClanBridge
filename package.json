@@ -18,6 +18,7 @@
     "sync:war": "tsx --env-file-if-exists=.env.local scripts/sync/war.ts",
     "sync:raids": "tsx --env-file-if-exists=.env.local scripts/sync/raids.ts",
     "sync:clan-games": "tsx --env-file-if-exists=.env.local scripts/sync/clan-games.ts",
+    "sync:players": "tsx --env-file-if-exists=.env.local scripts/sync/players.ts",
     "sync:health": "tsx --env-file-if-exists=.env.local scripts/sync/health.ts",
     "icons": "tsx scripts/make-icons.ts",
     "game-data": "tsx scripts/game-data.ts",
