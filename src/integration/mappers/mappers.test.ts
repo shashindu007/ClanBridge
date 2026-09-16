@@ -24,6 +24,7 @@ import {
   mapClanMembers,
   mapCwlGroup,
   mapPlayer,
+  mapPlayerProgress,
   mapRaidSeasons,
   mapRole,
   mapSnapshot,
@@ -489,5 +490,44 @@ describe("playerSchema — base progress (T11B.1)", () => {
     expect(bare.heroes).toEqual([]);
     expect(bare.heroEquipment).toEqual([]);
     expect(bare.spells).toEqual([]);
+  });
+});
+
+describe("mapPlayerProgress (T11B.2)", () => {
+  const api = playerSchema.parse(fixture("player.json"));
+  const progress = mapPlayerProgress(api);
+
+  it("carries the hall levels under their internal names", () => {
+    expect(progress.thLevel).toBe(api.townHallLevel);
+    expect(progress.thWeaponLevel).toBe(api.townHallWeaponLevel);
+    expect(progress.bhLevel).toBe(api.builderHallLevel);
+    expect(progress.tag).toMatch(/^#/);
+  });
+
+  it("keeps every unit, one for one", () => {
+    expect(progress.heroes).toHaveLength(api.heroes.length);
+    expect(progress.equipment).toHaveLength(api.heroEquipment.length);
+    expect(progress.troops).toHaveLength(api.troops.length);
+    expect(progress.spells).toHaveLength(api.spells.length);
+  });
+
+  it("maps builderBase to builder and everything else to home", () => {
+    const machine = progress.heroes.find((h) => h.name === "Battle Machine")!;
+    const king = progress.heroes.find((h) => h.name === "Barbarian King")!;
+    expect(machine.village).toBe("builder");
+    expect(king.village).toBe("home");
+  });
+
+  // Baby Dragon exists in both villages. Anything keyed by name alone would
+  // merge two different units.
+  it("keeps same-named units in different villages apart", () => {
+    const babies = progress.troops.filter((t) => t.name === "Baby Dragon");
+    expect(babies.map((b) => b.village).sort()).toEqual(["builder", "home"]);
+  });
+
+  it("exposes no raw field names above the boundary (R7)", () => {
+    expect(progress.heroes[0]).not.toHaveProperty("maxLevel");
+    expect(progress).not.toHaveProperty("heroEquipment");
+    expect(progress).not.toHaveProperty("builderHallLevel");
   });
 });
