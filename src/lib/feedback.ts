@@ -92,6 +92,10 @@ export const ERROR_MESSAGES: Record<string, string> = {
   forbidden: "You do not have permission to do that.",
   "unknown-job": "That is not a job that can be started by hand.",
   "unknown-action": "That is not something this page can do.",
+  // /roster. The page used to render these itself from its own table; the toast
+  // already shows every ?error=, so the page said the same thing twice.
+  "bad-season": "Pick this month or next month from the list.",
+  "not-leadership": "Only clan leadership can start a season.",
   "rate-limited":
     "Too many manual runs. A sync is a repair, not a routine — wait an hour.",
   "claim-failed":
