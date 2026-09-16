@@ -97,6 +97,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
   forbidden: "You do not have permission to do that.",
   "unknown-job": "That is not a job that can be started by hand.",
   "unknown-action": "That is not something this page can do.",
+  // War board: an assign or claim with no base chosen, or one outside the war.
+  "pick-a-base": "Choose a base from the list first.",
   // /roster. The page used to render these itself from its own table; the toast
   // already shows every ?error=, so the page said the same thing twice.
   "bad-season": "Pick this month or next month from the list.",
