@@ -97,6 +97,9 @@ export const ERROR_MESSAGES: Record<string, string> = {
   forbidden: "You do not have permission to do that.",
   "unknown-job": "That is not a job that can be started by hand.",
   "unknown-action": "That is not something this page can do.",
+  // Poll page. Rendered by the page itself until the redesign; the toast is now the one place.
+  incomplete: "Pick an answer before saving.",
+  closed: "This poll has closed, so there is nothing to remind anyone about.",
   // War board: an assign or claim with no base chosen, or one outside the war.
   "pick-a-base": "Choose a base from the list first.",
   // /roster. The page used to render these itself from its own table; the toast
