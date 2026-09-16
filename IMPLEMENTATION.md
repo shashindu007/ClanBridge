@@ -26,13 +26,16 @@ T4.1–T4.8 · **Phase 4B entire** · **Phase 5 entire** ·
 and T9.10 done apart from the parts that wait on a deployment ·
 **Phase 10 entire** — sign-out, password sign-in, the compulsory setup step, and
 four auth-adjacent security findings ·
-**Phase 11 entire** — a member's own villages, in one place, with a report each.
+**Phase 11 entire** — a member's own villages, in one place, with a report each ·
+**Phase 11B entire** — Base details: progress against Town Hall caps, and a
+view-only paste of the in-game village export.
 
 **Every phase in this document is now complete except T9.4 (restore test) and
 the deployment-side half of T9.3.** Both need something outside the codebase: a
 scratch Supabase project to restore into, and a Vercel deployment to inspect.
-**Phase 11B is planned and not built** — it is the only block here whose tasks are
-all unticked, and it is scoped rather than started.
+**Phase 11B is built, and it corrected its own plan:** the API's `maxLevel` is the
+game's ceiling, not the Town Hall's cap, so the block now carries generated game
+data it had originally rejected. Its heading explains.
 
 **Phase 11 came from the product being unable to say something the schema had
 always known.** `Architecture.md` §7.1 has claimed since the first draft that "a
@@ -535,6 +538,7 @@ clanbridge/
 │   ├── sync-health.yml      T5.8  hourly watchdog — needs no game API key
 │   ├── sync-war.yml         T6.2  manual only; the schedule is a sync-clans step
 │   ├── sync-raids.yml       T7.2  daily; also runs sync:clan-games (T7.4)
+│   ├── sync-players.yml     T11B.6 daily — hero, troop and spell levels
 │   └── backup.yml           T2.8  weekly pg_dump
 │
 ├── fixtures/                T2.1  captured API responses, for USE_FIXTURES
@@ -553,7 +557,8 @@ clanbridge/
 │   ├── capture-fixtures.ts  T2.1  fetch + scrub, in one step
 │   ├── scrub-fixtures.ts    replaces names and tags, keeps every shape
 │   ├── restore-verify.ts    T9.4  restores a dump into a scratch project and audits it
-│   └── make-icons.ts        T5.3  writes public/icons/ — no image dependency
+│   ├── make-icons.ts        T5.3  writes public/icons/ — no image dependency
+│   └── game-data.ts         T11B.3 → src/data/game/*.json from two PINNED sources
 │
 ├── scripts/sync/
 │   ├── shared.ts            T2.5  sync_log helpers (R9) + T5.8 failure alert
@@ -563,7 +568,8 @@ clanbridge/
 │   ├── cwl.ts               T4.1
 │   ├── war.ts               T6.1
 │   ├── raids.ts             T7.1
-│   └── clan-games.ts        T7.4
+│   ├── clan-games.ts        T7.4
+│   └── players.ts           T11B.5 clan members AND every owned village, daily
 │
 ├── supabase/
 │   ├── seed.sql             T1.10  superseded — clans are added at /admin (015)
@@ -615,9 +621,12 @@ clanbridge/
 │       │                                     Full unique index, not partial — ON
 │       │                                     CONFLICT cannot infer a partial one
 │       ├── 034_user_avatar.sql        T11.4  users.avatar_path — a PATH, not a URL
-│       └── 035_avatars_storage.sql    T11.5  the avatars BUCKET. LIVE-ONLY like 029,
-│                                             and absent from apply-all.sql for the
-│                                             same reason: the bundle is PHASE1 only
+│       ├── 035_avatars_storage.sql    T11.5  the avatars BUCKET. LIVE-ONLY like 029,
+│       │                                     and absent from apply-all.sql for the
+│       │                                     same reason: the bundle is PHASE1 only
+│       └── 036_player_progress.sql    T11B.4 one reading a village a day, the CAP
+│                                             stored with each level. Clan policy OR
+│                                             owner policy; no UPDATE for anybody
 │
 ├── test/                    QA — runs the migrations against real Postgres (PGlite)
 │   ├── pg-harness.ts        boots PGlite
@@ -644,6 +653,7 @@ clanbridge/
     │   │   │   ├── page.tsx           T3B.1  dashboard
     │   │   │   ├── members/           T3B.2, T3B.3, T3B.5
     │   │   │   ├── player/[tag]/      T3B.4  ★ objective O4
+    │   │   │   │   └── details/       T11B.10 Base details — leader and co-leader only
     │   │   │   ├── polls/             T4B.2-4
     │   │   │   ├── cwl/               T4.4, T4.5, T4B.10-13  (T4.10 dropped)
     │   │   │   ├── war/               T6.3-6.6, T6.8-6.10
@@ -656,6 +666,7 @@ clanbridge/
     │   │   ├── account/page.tsx       T11.8  ★ your picture and your villages
     │   │   ├── account/bases/[tag]/   T11.12 the report for one of YOUR bases —
     │   │   │                                 authorised by ownership, not by clan
+    │   │   ├── account/bases/[tag]/details/  T11B.10 ★ Base details, + the export paste
     │   │   ├── account/avatar/route.ts T11.10 signs the CALLER'S OWN path. No id
     │   │   │                                 parameter, so there is no IDOR
     │   │   └── admin/                 T9.2, T9.6
@@ -669,11 +680,20 @@ clanbridge/
     │   ├── avatar-form.tsx  T11.9   compresses in the browser, Storage before DB
     │   ├── player-report-sections.tsx  T11.11  the six panels, shared by the two
     │   │                            pages that show them (+ .test.ts, 22 cases)
+    │   ├── base-details.tsx T11B.9  progress panels, shared by both details pages
+    │   ├── village-export-paste.tsx  T11B.12  "use client". Parses in the tab,
+    │   │                            sends nothing, saves nothing
+    │   ├── village-export-view.tsx   T11B.12  what a parsed export shows
     │   └── ui/              shadcn copies land here
+    │
+    ├── data/game/           T11B.3  GENERATED game data — see its README.md
+    │   ├── units.json  buildings.json   caps at every hall level, export ids
+    │   └── index.ts         resolveUnit(), lockedUnits() — browser-safe
     │
     ├── integration/         R7 — raw API shapes stop here
     │   ├── coc-client.ts    T2.3
     │   ├── coc-schemas.ts   T2.2  zod, one per endpoint
+    │   ├── village-export.ts T11B.11 the in-game export's shape — NOT an API
     │   ├── errors.ts        named error classes
     │   └── mappers/         T2.4
     │
@@ -693,12 +713,16 @@ clanbridge/
     │   └── utils.ts         cn() for shadcn
     │
     ├── repositories/        T4.3 onward — every query filters by clan (R3)
-    │   ├── account-bases.ts    T11.6  the ONE file filtered by owner, not clan
-    │   └── player-report.ts    T11.11 the seven reads behind a village's report
+    │   ├── account-bases.ts    T11.6  filtered by owner, not clan
+    │   ├── player-report.ts    T11.11 the seven reads behind a village's report
+    │   └── player-progress.ts  T11B.8 scope is { clanId } or "owner", REQUIRED
     ├── services/            derived values: missed attacks, donation deltas
+    │   ├── progress.ts      T11B.7 levels against caps; "behind", never "rushed"
+    │   └── village.ts       T11B.11 buildings, walls and timers from an export
     └── types/
         ├── database.ts      generated from Supabase
-        └── domain.ts        internal types (R7)
+        ├── domain.ts        internal types (R7)
+        └── village.ts       T11B.11 a parsed export. Never stored
 ```
 
 Each directory that is still a placeholder carries a `README.md` naming the rules that
@@ -2498,97 +2522,138 @@ defines.
 
 # Phase 11B — How far along each base actually is
 
-*Planned, not built. Every box here is unticked and that is the current state, not an omission.*
+*A clash.ninja-style view of a village: every hero, pet, troop, siege machine and
+spell against the cap for its Town Hall, and — from a pasted in-game export —
+buildings, walls, traps and running timers.*
 
 Phase 11 answers "what has this village DONE" from data the product already had.
-This one answers "how far along is it" — hero, troop and spell levels, what has
-been upgraded lately, and which group is behind — which is the half members
-actually compare with each other, and the reason clash.ninja exists.
+This one answers "how far along is it", which is the half members actually compare
+with each other, and the reason clash.ninja exists.
 
-**The data is one endpoint away and the endpoint is already wired.**
-`playerEndpoint()`, `playerSchema` and `mapPlayer()` all exist, and
-`scripts/sync/clan-games.ts` already calls `/players/{tag}` once per member per
-run, so the per-player loop is a proven shape with a known rate cost.
-`fixtures/player.json` is a real scrubbed capture carrying 81 troops, 8 heroes
-with equipment, 18 spells and 54 achievements — none of which `playerSchema`
-currently reads. So T11B.1 is verifiable offline with **zero API calls**.
+**Two ways in.** Every base on `/account` has a **Base details** button, and so does
+its report. Leaders and co-leaders get the same button on a member's profile. The
+page defaults to what the daily sync stored; the owner — and only the owner — can
+also **paste their village export** to add buildings and timers, which is read in
+the browser and never leaves it.
 
-- [ ] **T11B.1 — Capture what the player endpoint already sends** — `src/integration/coc-schemas.ts`
-  `unitSchema`, `heroEquipmentSchema`, `heroSchema`, and `troops`/`heroes`/`spells`
-  on `playerSchema` as `z.array(...).default([])`, plus `attackWins`,
-  `defenseWins`, `builderHallLevel`, `builderBaseTrophies`, `bestTrophies`.
-  `.default([])` for the reason `achievements` has it — a TH3 account with no
-  heroes must be `[]`, not `undefined`, or every consumer needs a null check.
-  `looseObject` throughout so a hero added in the next game update does not fail
-  the capture gate. **Do not tighten `league`:** the fixture carries `leagueTier`
-  and no `league` key, and the field is already nullable-tolerant.
+## The plan was built on a wrong premise, and it is corrected here
 
-- [ ] **T11B.2 — Map it without letting a raw name out** — `src/integration/mappers/index.ts`, `src/types/domain.ts`
-  R7. `builderHallLevel → bhLevel`; `village` and `maxLevel` pass through
-  unrenamed because they are already clean, and the mapper must not decide which
-  village a later service cares about.
+The first draft of this block said *"the API's `maxLevel` is already this player's
+TH-relative maximum, so completion is TH-relative for free"*, and rejected a Town
+Hall cap table as game knowledge R1 and R7 keep out of the codebase.
 
-- [ ] **T11B.3 — A daily progression snapshot** — `supabase/migrations/036_player_progress.sql`
-  One row per player per day, levels as `jsonb` maps, `unique (player_id, captured_day)`.
+**It is not.** `fixtures/player.json` is a real TH17 capture whose Barbarian King
+reads `100/110`, super troops `1/9` and pets `10/15`. `maxLevel` is the game's
+ceiling. Built as planned, every base below the highest Town Hall would have read
+as behind — and nothing would have reported it, because every figure would have
+been plausible. `mappers.test.ts` now pins the fact so it cannot be re-assumed.
 
-  **A tall table is rejected on arithmetic:** one row per unit is ~107 × 50 × 365 ≈
-  2 M rows a year against a 500 MB tier, which is the same calculation 007 uses to
-  justify hourly bucketing. `at time zone 'UTC'` in the generated column is
-  required, not decorative — 007 explains that `date_trunc` over a `timestamptz` is
-  not immutable and Postgres refuses it.
-  **The `*_max` maps stored alongside `*_levels` are the non-obvious part and the
-  header must say so.** "Rushed" is level-against-maximum AT THE TIME OF CAPTURE,
-  and Supercell raises maxima every update — so storing only levels means every
-  historical row silently re-scores itself against today's maxima, and a base that
-  was maxed in March reads as rushed in June. Nothing would report it; both numbers
-  are plausible. That is the same class of bug as `writeStart()`'s
-  `ignoreDuplicates` note in `scripts/sync/clan-games.ts`.
-  R5: `on conflict do nothing`. RLS: the clan policy **and** a second one through
-  `auth_owned_player_ids()`, which is what makes a cross-clan base's progress
-  visible and inherits 031's R3 argument. No update and no delete grant to anybody
-  — append-only enforced as a privilege, not a convention.
+So there IS game data now (`src/data/game/`), and the rejection is withdrawn rather
+than quietly ignored. It is **generated**, not typed: `scripts/game-data.ts` reads
+two MIT-licensed datasets derived from the game files, at pinned versions, and
+refuses to write if they disagree about any id. The real TH17 fixture is the
+independent check — `game-data.test.ts` asserts no unit on it sits above its cap.
 
-- [ ] **T11B.4 — The players sync** — `scripts/sync/players.ts`, `scripts/sync/shared.ts`, `package.json`
-  `clan-games.ts`'s loop, including its per-member `CocNotFoundError` skip so one
-  departed member does not fail the run. `runSyncJob("players", …)` gives R9 for
-  free. R1/R2 — Actions only. Cost is one call per member per run, ≈100 a day.
-  **The test injects a PGlite client** (the discriminator is `options.client`, not
-  the env var) and runs twice asserting zero new rows, because
-  `assertNotFixtureSync()` refuses a fixtures-backed sync run outright unless
-  `ALLOW_FIXTURE_SYNC=true`. It must also state that **every fixture player is the
-  same player** — `coc-client.ts` maps all `/players/*` to one file — so 50 members
-  produce 50 identical rows, which is what makes the idempotency assertion
-  meaningful and is not real variety.
+## Tasks
 
-- [ ] **T11B.5 — Put it on a schedule and watch it** — `.github/workflows/sync-players.yml`, `scripts/sync/health.ts`, `src/services/freshness.ts`, `test/cwl-services.test.ts`
-  Daily, **its own workflow** — not a third step in `sync-raids.yml`, which already
-  carries two jobs, because a failure in the first hides the third.
-  **THREE lists must change in the same commit**, and the suite will not catch a
-  partial edit: `health.ts`'s `WATCHED`, `STALE_AFTER_MS["players"] = 36h`, and the
-  MIRRORED `WATCHED` array plus its interval table in `test/cwl-services.test.ts`.
-  That test copies the list rather than importing it, because `health.ts` builds an
-  admin Supabase client at import time — so the tripwire this document credits with
-  catching T6.2's unwatched sync is weaker than it reads.
+- [x] **T11B.1 — Capture what the player endpoint already sends** — `src/integration/coc-schemas.ts`
+  `unitSchema`, `heroEquipmentSchema`, `heroSchema`; `troops`, `heroes`,
+  `heroEquipment`, `spells` as `.default([])`, and the hall and trophy fields.
+  `looseObject` throughout; `league` untouched.
 
-- [ ] **T11B.6 — What "rushed" means, as a pure function** — `src/services/progress.ts`
-  `completion()`, `groupCompletion()`, `rushScore()`, `upgradesSince()`.
-  **The API's `maxLevel` is already this player's TH-relative maximum**, so
-  completion is TH-relative for free — that is the whole argument for this being
-  pure with no embedded game data. **Rejected:** a hard-coded TH → max-level table,
-  which is wrong the day Supercell ships an update and is exactly the game
-  knowledge R1 and R7 keep out of this codebase.
-  **Returns a breakdown, never a verdict**, following `needsAttention()`'s rule —
-  "ADVISORY ONLY… never automate a decision about a person". "Rushed" is a word
-  members use about each other; the page shows WHICH GROUP is behind, not a label.
+- [x] **T11B.2 — Map it without letting a raw name out** — `src/integration/mappers/index.ts`, `src/types/domain.ts`
+  `mapPlayerProgress()` → `PlayerProgress`, each unit `{ name, level, apiMax, village }`.
+  **Named `apiMax`, not `maxLevel`,** because the obvious name carries the wrong
+  assumption. A separate function from `mapPlayer()`, which clan-games calls once
+  per member for one achievement value. It translates and does not classify.
 
-- [ ] **T11B.7 — Show it on the report** — `src/repositories/player-progress.ts`, `src/components/player-report-sections.tsx`
-  `progressHistory()` ascending, matching `snapshotHistory()`'s reasoning, and a
-  seventh section — last, with an empty state naming `sync:players` the way the
-  other six name theirs. Both pages get it at once, which is what T11.11 was for.
+- [x] **T11B.3 — Town Hall caps and unit groups, as generated data** — `scripts/game-data.ts`, `src/data/game/`
+  Caps at every hall level, the group of every unit (the API cannot tell a pet or a
+  siege machine from an Archer), and the numeric ids the export uses.
+  **Builder Base troop caps are indexed by Builder Barracks level, not Builder Hall
+  level** — the source arrays are 12 long against 10 halls — so they are translated
+  through the barracks cap at each hall; without that a BH10 Raged Barbarian caps
+  at 16 instead of 20. `resolveUnit()` falls back to `apiMax` with `capKnown: false`
+  when a unit is newer than the data, the hall is unknown, or the player is ABOVE
+  the data's cap — which can only mean the data is stale. The README says how to
+  refresh it.
 
-- [ ] **T11B.8 — Write Phase 11B down** — `IMPLEMENTATION.md`, `Architecture.md`
-  Including the new game-fact table in `Architecture.md` §1B's table, which is
-  where a reader looks to check R11.
+- [x] **T11B.4 — A daily progression snapshot** — `supabase/migrations/036_player_progress.sql`
+  One row per village per UTC day, `units` as a jsonb array. **The cap applied at
+  capture is stored with each level**, so refreshing the game data never re-scores
+  history — the first draft's argument for storing maxima, kept.
+  RLS is 006's clan policy OR 031's owner policy; `clan_id` is nullable because an
+  owned village may have left every platform clan. SELECT to sessions, INSERT only
+  to the sync role, and **UPDATE and DELETE revoked from it** — 014's default
+  privileges would otherwise grant them. `sync_log.job_type` learns `players`.
+  `test/player-progress.test.ts` asserts each of those.
+
+- [x] **T11B.5 — The players sync** — `scripts/sync/players.ts`
+  **Clan members AND every owned village**, deduplicated. The first draft read clan
+  members only, which would have left the details page of any base outside the
+  three clans empty forever. An owned village that has left the platform is filed
+  under `clan_id = null`, so the clan it left stops receiving its readings. Units a
+  hall allows but the player has not unlocked are stored at level 0
+  (`lockedUnits()`), except equipment, which is collected rather than unlocked.
+  The test stubs `fetch` per tag, because the fixture path maps every player to one
+  file.
+
+- [x] **T11B.6 — Put it on a schedule and watch it** — `.github/workflows/sync-players.yml`, `scripts/sync/health.ts`, `src/services/freshness.ts`, `test/cwl-services.test.ts`
+  Daily at 06:11 UTC, in its own workflow (about 30 Actions minutes a month). All
+  three watch lists changed in one commit.
+
+- [x] **T11B.7 — What progress and being behind mean** — `src/services/progress.ts`
+  Levels against caps, **summed**, not units maxed; floored, so 100% only ever means
+  capped. Super troops are not counted — their level is the base troop's.
+  `behindPreviousHall()` is the clash.ninja definition of rushed, **without the
+  word**, following `needsAttention()`'s rule. `upgradesBetween()` keys by village
+  AND name, because there are two Baby Dragons.
+
+- [x] **T11B.8 — The reads** — `src/repositories/player-progress.ts`
+  `baseProgress()`: the newest reading and the oldest inside 30 days. **The scope is
+  a required `{ clanId } | "owner"`**, not an optional `clanId`, so dropping the clan
+  filter has to be written at the call site rather than happen by omission.
+
+- [x] **T11B.9 — The panels** — `src/components/base-details.tsx`, `src/components/ui/progress.tsx`
+  Shared by both pages, like `player-report-sections.tsx`. The Home / Builder Base
+  switch is a `?village=` link, not client state. Units whose cap is only the game
+  maximum carry an asterisk and an explanation.
+
+- [x] **T11B.10 — The pages and the buttons** — `(app)/account/bases/[tag]/details/page.tsx`, `(app)/[clanTag]/player/[tag]/details/page.tsx`
+  The owner page is gated by `basesForUser()` **with no degraded branch** — unlike
+  the report, progress is readable by ownership, so its button on `/account` shows
+  for every base. The leader page is gated by `hasRole(clan.role, "co-leader")` →
+  `notFound()`, and the profile shows the button only to whoever passes that gate.
+
+- [x] **T11B.11 — Read a pasted village export** — `src/integration/village-export.ts`, `src/services/village.ts`, `src/types/village.ts`
+  The in-game Data Export has no published schema, so its shape was **confirmed
+  against two production parsers** (clashcwl.com, clashwatcher.com) rather than
+  guessed, and every row field but `data` is optional. `timer` is seconds left AT
+  the export's `timestamp`, and is counted down from there. Buildings are
+  aggregated per type and summed per instance.
+
+- [x] **T11B.12 — The paste button** — `src/components/village-export-paste.tsx`, `src/components/village-export-view.tsx`
+  Owner page only. **Parsed in the browser: no fetch, no server action, no storage,
+  no table.** R11 — a table written by pasting would be a game-fact table with a
+  human writer. The export's tag must match the base. The parser and ~60 KB of game
+  data load on the first "Show details", not with the page.
+
+- [x] **T11B.13 — Write Phase 11B down** — `IMPLEMENTATION.md`, `Architecture.md`
+
+**Outstanding after Phase 11B, all of it needing something outside the repo:**
+
+- **Apply 036 to the live database** (`npm run migrations:apply`, or the
+  `apply-all.sql` bundle — 036 IS in it), then `npm run types:db`.
+- **Run the players sync once by hand** (Actions → sync-players → Run workflow, or
+  `npm run sync:players` locally with `USE_FIXTURES=false`). Until it has run,
+  every details page shows its empty state.
+- **Capture a real village export** into `fixtures/`, scrubbed, and build
+  `village-export.test.ts` on it. The inline exports there use only confirmed field
+  names, but `fixtures/README.md` is right that a guessed shape is the one a parser
+  is wrong about.
+- **Building counts per Town Hall** ("7 of 7 cannons") are not generated — see the
+  known gaps in `src/data/game/README.md`.
+- **After each game update, `npm run game-data`** once the two sources publish it.
 
 ---
 
@@ -2602,7 +2667,7 @@ Every requirement traced to the tasks that deliver it. Use this to confirm nothi
 | **A member's own villages, in one place** | **M1** | **T11.1–T11.14** |
 | Clan directory, donations, activity | M2 | T2.9, T3B.1–T3B.6 |
 | **Per-base report, reachable by its owner** | **M2** | **T11.11, T11.12** |
-| Upgrade progress and rushed-base advice | M2 | T11B.1–T11B.8 — **planned, not built** |
+| **Upgrade progress per Town Hall, and the village export** | **M2** | **T11B.1–T11B.13** |
 | CWL tracking and history | M3 | T4.1–T4.8 |
 | **Polls before CWL and war** | **M10** | **T4B.1–T4B.5, T6.7** |
 | **Leader selects the roster per clan** | **M10** | **T4B.6–T4B.10, T6.8** |
