@@ -362,3 +362,67 @@ export async function playerSeasonHistory(
 ): Promise<PlayerSeasonTotals[]> {
   return (await seasonHistoryForClan(supabase, clanId)).get(playerId) ?? [];
 }
+
+/** One season of one player's CWL, and the clan it was played in (T11C.2). */
+export interface FamilySeasonTotals extends PlayerSeasonTotals {
+  clanId: string;
+  clanTag: string;
+  clanName: string;
+}
+
+/**
+ * Players' CWL history from EVERY platform clan, keyed by player id (T11C.2).
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * THE ONE READ IN THIS FILE THAT DOES NOT TAKE A clanId
+ *
+ * Everything above resolves a clan first, and the header of this file explains
+ * why. This does not, on purpose: a village's CWL record belongs to the village,
+ * and the family's members move between clans — SK FLASH played every CWL war it
+ * has in DH CWL ONLY and lives in Dark Hell. Asking one clan for that record
+ * returned nothing, and 006's policies would have hidden it anyway.
+ *
+ * So it calls family_cwl_history() (037), a definer function that is the whole
+ * of the R3 exception: it returns season TOTALS and the clan's name, answers
+ * only callers who hold a role in some platform clan (or own the village), and
+ * leaves every CWL table's own policy untouched. Read 037's header before
+ * widening what it returns.
+ * ───────────────────────────────────────────────────────────────────────────
+ *
+ * Seasons are newest first — callers read `[0]` as "last CWL", exactly as they
+ * did with the per-clan history this replaced. A player with no rostered war
+ * anywhere is absent from the map, not present with [].
+ *
+ * One round trip however many players are asked about, which is what lets the
+ * roster builder ask for its whole pool at once. Wrapped in cache() like
+ * seasonHistoryForClan; the key is the array's identity, so callers that want
+ * the memo must pass the same array.
+ */
+export const familyCwlHistory = cache(async function familyCwlHistory(
+  supabase: SupabaseClient,
+  playerIds: readonly string[],
+): Promise<Map<string, FamilySeasonTotals[]>> {
+  const ids = [...new Set(playerIds)];
+  const result = new Map<string, FamilySeasonTotals[]>();
+  if (!ids.length) return result;
+
+  const { data, error } = await supabase.rpc("family_cwl_history", { p_player_ids: ids });
+  if (error || !data) return result;
+
+  // The function orders season desc, then clan name; appending preserves that.
+  for (const row of data as Array<Record<string, unknown>>) {
+    const playerId = row.player_id as string;
+    const list = result.get(playerId) ?? [];
+    list.push({
+      season: row.season as string,
+      clanId: row.clan_id as string,
+      clanTag: row.clan_tag as string,
+      clanName: row.clan_name as string,
+      warsRostered: Number(row.wars_rostered),
+      attacksUsed: Number(row.attacks_used),
+      stars: Number(row.stars),
+    });
+    result.set(playerId, list);
+  }
+  return result;
+});
