@@ -35,6 +35,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/page-header";
+import {
+  ArrowRight,
+  Castle,
+  CheckCircle2,
+  CircleAlert,
+  Plus,
+  RefreshCw,
+  ScrollText,
+  TriangleAlert,
+  UserCheck,
+} from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -170,44 +182,73 @@ async function triggerSync(formData: FormData) {
   redirect(outcome.ok ? "/admin?ok=dispatched" : `/admin?error=${encodeURIComponent(outcome.detail)}`);
 }
 
+/** Job types as a person would name them. The code stays visible beside it for debugging. */
+const JOB_LABELS: Record<string, { label: string; schedule: string }> = {
+  clans: { label: "Clan members", schedule: "Every hour" },
+  cwl: { label: "Clan War League", schedule: "Every 2 hours" },
+  war: { label: "Wars", schedule: "Every hour, with clan members" },
+  raids: { label: "Raids and Clan Games", schedule: "Daily" },
+  "clan-games": { label: "Clan Games", schedule: "Daily, with raids" },
+  players: { label: "Base progress", schedule: "Daily" },
+  backup: { label: "Backup", schedule: "Weekly" },
+};
+
+/**
+ * R10 skip reasons in words. A skip is a NORMAL outcome, and "noCwlGroup" read
+ * like a failure to everyone who had not written the sync job.
+ */
+const SKIP_REASONS: Record<string, string> = {
+  notInWar: "Not in a war",
+  warEnded: "War already ended",
+  noCwlGroup: "No CWL this week",
+  noClansSeeded: "No clans added yet",
+  notClanGames: "Clan Games not running",
+  nothingToSnapshot: "Nothing to record",
+  noPlayers: "No players to read yet",
+};
+
+function jobLabel(jobType: string): string {
+  return JOB_LABELS[jobType]?.label ?? jobType;
+}
+
 /** One row of the history table. */
 function RunRow({ run, clanNames }: { run: SyncRunRecord; clanNames: Map<string, string> }) {
   const state = freshness(run);
-  const minutes = Math.max(
-    0,
-    Math.floor((Date.now() - new Date(run.startedAt).getTime()) / 60_000),
-  );
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(run.startedAt).getTime()) / 60_000));
 
   return (
-    <tr className="border-b last:border-0">
-      <td className="py-2 pr-4 font-mono text-xs">{run.jobType}</td>
-      <td className="py-2 pr-4">
-        <Badge
-          variant={
-            run.status === "failed"
-              ? "destructive"
-              : run.status === "running"
-                ? "outline"
-                : "secondary"
-          }
-        >
-          {run.status}
-        </Badge>
+    <tr className="border-b align-top last:border-0">
+      <td className="py-2.5 pr-4">
+        <span className="block text-sm font-medium">{jobLabel(run.jobType)}</span>
+        <span className="text-muted-foreground font-mono text-xs">{run.jobType}</span>
       </td>
-      <td className="text-muted-foreground py-2 pr-4 text-sm">
-        {run.clanId ? (clanNames.get(run.clanId) ?? "—") : "all clans"}
+      <td className="py-2.5 pr-4">
+        {run.status === "failed" ? (
+          <Badge variant="destructive">Failed</Badge>
+        ) : run.status === "running" ? (
+          <Badge variant="info">Running</Badge>
+        ) : run.status === "skipped" ? (
+          <Badge variant="secondary">Skipped</Badge>
+        ) : (
+          <Badge variant="success">Succeeded</Badge>
+        )}
       </td>
-      <td className="text-muted-foreground py-2 pr-4 text-sm">{ago(minutes)}</td>
-      <td className="text-muted-foreground py-2 pr-4 text-sm">
-        {/* A skip is a NORMAL outcome (R10), so it shows its reason rather than
-            a row count — "noCwlGroup" is the answer three weeks a month. */}
+      <td className="text-muted-foreground py-2.5 pr-4 text-sm">
+        {run.clanId ? (clanNames.get(run.clanId) ?? "—") : "All clans"}
+      </td>
+      <td className="text-muted-foreground py-2.5 pr-4 text-sm whitespace-nowrap">{ago(minutes)}</td>
+      <td className="text-muted-foreground py-2.5 pr-4 text-sm">
+        {/* A skip is a NORMAL outcome (R10), so it shows its reason rather than a
+            row count. */}
         {run.status === "skipped"
-          ? (run.skipReason ?? "skipped")
-          : run.recordsWritten !== null
-            ? `${run.recordsWritten} rows`
-            : state.level === "never"
-              ? "did not finish"
-              : "—"}
+          ? (SKIP_REASONS[run.skipReason ?? ""] ?? run.skipReason ?? "Nothing to do")
+          : run.status === "failed"
+            ? (run.error?.slice(0, 120) ?? "No error recorded")
+            : run.recordsWritten !== null
+              ? `${run.recordsWritten} row${run.recordsWritten === 1 ? "" : "s"} saved`
+              : state.level === "never"
+                ? "Did not finish"
+                : "—"}
       </td>
     </tr>
   );
@@ -224,8 +265,7 @@ export default async function AdminPage() {
   const isLeaderSomewhere = clans.some((c) => c.role === "leader");
 
   // "platform admin reads all clans" (015) means an admin sees every clan;
-  // everyone else sees only their own. Either way this is the list they may act
-  // on, and RLS decided it — not this page.
+  // everyone else sees only their own. RLS decided it — not this page.
   const { data: allClans } = await supabase
     .from("clans")
     .select("id, tag, name")
@@ -235,9 +275,8 @@ export default async function AdminPage() {
   const clanRows = (allClans ?? []) as Array<{ id: string; tag: string; name: string }>;
   const myClanIds = new Set(clans.map((c) => c.id));
 
-  // Whether the platform has an owner at all. A non-admin can see zero rows here
-  // either because there is no admin or because RLS hid one — which is exactly
-  // why the claim is guarded by the function and OWNER_EMAIL rather than by this.
+  // Whether the platform has an owner at all. The claim itself is guarded by the
+  // function and OWNER_EMAIL rather than by this.
   const { count: adminCount } = await supabase
     .from("users")
     .select("id", { count: "exact", head: true })
@@ -246,66 +285,112 @@ export default async function AdminPage() {
 
   const unclaimed = !admin && (adminCount ?? 0) === 0;
 
-  // T9.2 — read once and derive the failed list from it, rather than querying
-  // twice. Two reads of a table a live sync job is writing to can disagree, and
-  // a "failed jobs" panel contradicting the history table directly below it is
-  // worse than either on its own. RLS scopes these rows; see recentRuns().
+  // T9.2 — read once and derive the failed list from it, so the "failed jobs"
+  // panel cannot contradict the history table below it.
   const runs = await recentRuns(supabase, 50);
   const failed = failedRuns(runs);
   const clanNames = new Map(clanRows.map((c) => [c.id, c.name]));
   const canDispatch = dispatchConfig() !== null;
+  const lastRun = runs[0] ?? null;
+  const lastRunMinutes = lastRun
+    ? Math.max(0, Math.floor((Date.now() - new Date(lastRun.startedAt).getTime()) / 60_000))
+    : null;
 
   if (!admin && !isLeaderSomewhere && !unclaimed) {
     return (
-      <main className="mx-auto max-w-3xl space-y-4 p-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Nothing here yet</h1>
-        {clans.length === 0 ? (
-          // Approved, but belonging to no clan. Only reachable when a platform
-          // admin approves an account before there is a clan to put it in (018),
-          // so say what actually needs to happen rather than "access denied".
-          <p className="text-muted-foreground text-sm">
-            Your account is approved but you are not in any clan yet. A leader
-            needs to add you to one — ask them in game.
-          </p>
-        ) : (
-          <p className="text-muted-foreground text-sm">
-            You do not have administrative access.
-          </p>
-        )}
+      <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+        <PageHeader title="Admin" />
+        <Alert variant="info">
+          <CircleAlert aria-hidden />
+          <AlertTitle>{clans.length === 0 ? "You are not in a clan yet" : "This page is for leaders"}</AlertTitle>
+          <AlertDescription>
+            {clans.length === 0
+              ? "Your account is approved, but a leader still needs to add you to a clan. Ask them in game."
+              : "Only clan leaders and the platform owner can manage clans and syncing."}
+          </AlertDescription>
+        </Alert>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-3xl space-y-8 p-8">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
-        <p className="text-muted-foreground text-sm">
-          Clans, accounts and sync health.
-        </p>
-      </div>
+    <main className="mx-auto max-w-5xl space-y-8 p-4 sm:p-8">
+      <PageHeader
+        title="Admin"
+        description="Set up clans, keep game data syncing, and review accounts and changes."
+      />
 
-      {/* The error ternary that used to live here — ten branches deep,
-          translating `bad-tag`, `duplicate`, `rate-limited` and the rest — moved
-          to lib/feedback.ts, where the toast and every other page read the same
-          wording. A failure toast stays until it is dismissed, so nothing is
-          lost by it no longer being inline.
+      {/* Errors and "sync requested" come through the toast (lib/feedback.ts),
+          which every page shares — the page no longer repeats them inline. */}
 
-          The "asked GitHub to run it" note went the same way. It was careful to
-          say ACCEPTED rather than complete — GitHub's 204 means it took the
-          request, not that the job ran — and that distinction survives in the
-          wording of `dispatched`. */}
+      {unclaimed && (
+        <section className="cb-panel space-y-3 rounded-lg border-2 border-dashed p-6">
+          <h2 className="text-lg font-semibold">First step: claim this platform</h2>
+          <p className="text-muted-foreground text-sm">
+            Nobody owns this installation yet. Claiming it makes you the platform owner,
+            approves your account, and lets you add clans. It can only happen once, and only
+            from the email address set as <code>OWNER_EMAIL</code>.
+          </p>
+          <form action={claimOwnership}>
+            <SubmitButton pendingLabel="Claiming">Claim ownership</SubmitButton>
+          </form>
+        </section>
+      )}
+
+      {/* ── At a glance ─────────────────────────────────────────────────── */}
+      <section className="grid gap-3 sm:grid-cols-3">
+        <GlanceCard
+          icon={<Castle aria-hidden className="size-5" />}
+          label="Clans"
+          value={String(clanRows.length)}
+          hint={clanRows.length === 0 ? "Add your first clan below" : "on this platform"}
+        />
+        <GlanceCard
+          icon={
+            failed.length > 0 ? (
+              <TriangleAlert aria-hidden className="text-destructive size-5" />
+            ) : (
+              <CheckCircle2 aria-hidden className="text-success size-5" />
+            )
+          }
+          label="Sync health"
+          value={failed.length > 0 ? `${failed.length} failed` : runs.length === 0 ? "Not started" : "Healthy"}
+          hint={failed.length > 0 ? "See the details below" : "in the last 50 runs"}
+        />
+        <GlanceCard
+          icon={<RefreshCw aria-hidden className="size-5" />}
+          label="Last sync"
+          value={lastRunMinutes === null ? "Never" : ago(lastRunMinutes)}
+          hint={lastRun ? jobLabel(lastRun.jobType) : "No job has run yet"}
+        />
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2">
+        <LinkCard
+          href="/admin/members"
+          icon={<UserCheck aria-hidden className="size-5" />}
+          title="Pending accounts"
+          description="Approve or decline people waiting to join."
+        />
+        <LinkCard
+          href="/admin/audit"
+          icon={<ScrollText aria-hidden className="size-5" />}
+          title="Audit log"
+          description="Who changed what, and when. Nothing in it can be edited or removed."
+        />
+      </section>
 
       {failed.length > 0 && (
         <Alert variant="destructive">
+          <TriangleAlert aria-hidden />
           <AlertTitle>
-            {failed.length === 1 ? "1 sync job failed" : `${failed.length} sync jobs failed`}
+            {failed.length === 1 ? "1 sync job failed recently" : `${failed.length} sync jobs failed recently`}
           </AlertTitle>
           <AlertDescription>
             <ul className="mt-1 space-y-1">
               {failed.slice(0, 5).map((run) => (
                 <li key={run.id} className="text-sm">
-                  <span className="font-mono text-xs">{run.jobType}</span>
+                  <span className="font-medium">{jobLabel(run.jobType)}</span>
                   {run.error ? ` — ${run.error.slice(0, 160)}` : ""}
                 </li>
               ))}
@@ -314,79 +399,35 @@ export default async function AdminPage() {
         </Alert>
       )}
 
-      {unclaimed && (
-        <section className="space-y-3 rounded-lg border p-6">
-          <h2 className="font-medium">Claim this platform</h2>
-          <p className="text-muted-foreground text-sm">
-            Nobody owns this installation yet. Claiming it makes you the platform
-            admin, approves your account, and lets you add the clans. This can only
-            happen once, and only from the address in <code>OWNER_EMAIL</code>.
-          </p>
-          <form action={claimOwnership}>
-            <SubmitButton>Claim ownership</SubmitButton>
-          </form>
-        </section>
-      )}
-
-      {admin && (
-        <section className="space-y-4 rounded-lg border p-6">
-          <div className="space-y-1">
-            <h2 className="font-medium">Add a clan</h2>
-            <p className="text-muted-foreground text-sm">
-              The tag is all you provide. Name, badge and the member list are filled
-              in by the hourly sync — they belong to the game, not to you.
-            </p>
-          </div>
-
-          <form action={addClan} className="flex flex-wrap items-end gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="tag">Clan tag</Label>
-              <Input
-                id="tag"
-                name="tag"
-                required
-                placeholder="#2PP0JCCL"
-                autoCapitalize="characters"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="name">Name (placeholder)</Label>
-              <Input id="name" name="name" required placeholder="Clan name" />
-            </div>
-            <SubmitButton>Add</SubmitButton>
-          </form>
-        </section>
-      )}
-
-      <section className="space-y-4 rounded-lg border p-6">
-        <h2 className="font-medium">Clans</h2>
+      {/* ── Clans ────────────────────────────────────────────────────────── */}
+      <section className="cb-panel space-y-5 rounded-lg border p-6">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">Clans</h2>
+          <p className="text-muted-foreground text-sm">The clans this platform follows.</p>
+        </div>
 
         {clanRows.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            No clans yet. Add the first one above, then run{" "}
-            <code>npm run sync:clans</code> to pull in its members.
+          <p className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
+            No clans yet. Add the first one below; its members arrive with the next hourly sync,
+            or press <span className="font-medium">Run now</span> on Clan members.
           </p>
         ) : (
-          <ul className="divide-y">
+          <ul className="grid gap-2 sm:grid-cols-2">
             {clanRows.map((clan) => (
-              <li key={clan.id} className="flex items-center gap-4 py-3">
+              <li key={clan.id} className="bg-card flex items-center gap-3 rounded-md border p-3">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{clan.name}</p>
                   <p className="text-muted-foreground font-mono text-xs">{clan.tag}</p>
                 </div>
-
                 {myClanIds.has(clan.id) ? (
-                  <Link
-                    href={`/${encodeURIComponent(clan.tag)}`}
-                    className="text-sm hover:underline"
-                  >
-                    Open
-                  </Link>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/${encodeURIComponent(clan.tag)}`}>Open</Link>
+                  </Button>
                 ) : (
                   admin && (
                     <form action={grantSelfLeader}>
                       <input type="hidden" name="clanId" value={clan.id} />
-                      <SubmitButton variant="outline" size="sm">
+                      <SubmitButton variant="outline" size="sm" pendingLabel="Granting">
                         Make me leader
                       </SubmitButton>
                     </form>
@@ -396,70 +437,100 @@ export default async function AdminPage() {
             ))}
           </ul>
         )}
+
+        {admin && (
+          <form action={addClan} className="space-y-3 border-t pt-5">
+            <div className="space-y-1">
+              <h3 className="font-medium">Add a clan</h3>
+              <p className="text-muted-foreground text-sm">
+                Only the tag matters. The real name, badge and members are filled in by the
+                sync — the name you type is just a placeholder until then.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="tag">Clan tag</Label>
+                <Input id="tag" name="tag" required placeholder="#2PP0JCCL" autoCapitalize="characters" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="name">Name for now</Label>
+                <Input id="name" name="name" required placeholder="Clan name" />
+              </div>
+              <SubmitButton pendingLabel="Adding">
+                <Plus aria-hidden />
+                Add clan
+              </SubmitButton>
+            </div>
+          </form>
+        )}
       </section>
 
       {/* T9.2 — run a sync now. R2: this asks GitHub Actions to run the job; it
-          never runs one here, because a Vercel function is killed at ten seconds
-          and would leave a CWL sync half written. */}
-      <section className="space-y-4 rounded-lg border p-6">
+          never runs one here, because a Vercel function is killed at ten seconds. */}
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="space-y-1">
-          <h2 className="font-medium">Run a sync now</h2>
+          <h2 className="text-lg font-semibold">Sync game data now</h2>
           <p className="text-muted-foreground text-sm">
-            Starts the same GitHub Actions workflow the schedule uses. Results
-            appear in the history below, not immediately.
+            Every job already runs on a schedule. Use these only to repair missing data — each
+            starts a GitHub Actions run, and the result appears in the history a few minutes
+            later. Limited to a few per hour.
           </p>
         </div>
 
         {canDispatch ? (
-          <div className="flex flex-wrap gap-2">
+          <ul className="grid gap-2 sm:grid-cols-2">
             {(Object.keys(DISPATCHABLE) as Array<keyof typeof DISPATCHABLE>).map((job) => (
-              <form key={job} action={triggerSync}>
-                <input type="hidden" name="job" value={job} />
-                <SubmitButton variant="outline" size="sm">
-                  {job}
-                </SubmitButton>
-              </form>
+              <li key={job} className="bg-card flex items-center gap-3 rounded-md border p-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{jobLabel(job)}</p>
+                  <p className="text-muted-foreground text-xs">{JOB_LABELS[job]?.schedule}</p>
+                </div>
+                <form action={triggerSync}>
+                  <input type="hidden" name="job" value={job} />
+                  <SubmitButton variant="outline" size="sm" pendingLabel="Requesting">
+                    Run now
+                  </SubmitButton>
+                </form>
+              </li>
             ))}
-          </div>
+          </ul>
         ) : (
-          // Unconfigured is a state, not an error — the same shape as
-          // pushConfigured(). Offering a button that always fails teaches an
-          // operator that the page is broken.
+          // Unconfigured is a state, not an error. A button that always fails teaches
+          // an operator that the page is broken.
           <p className="text-muted-foreground text-sm">
-            Manual runs are not configured. Set <code>GITHUB_DISPATCH_TOKEN</code>{" "}
-            and <code>GITHUB_DISPATCH_REPO</code> to enable them. Until then, use
-            the <strong>Run workflow</strong> button on the Actions tab in GitHub.
+            Manual runs are not set up. Set <code>GITHUB_DISPATCH_TOKEN</code> and{" "}
+            <code>GITHUB_DISPATCH_REPO</code> to turn them on. Until then, use{" "}
+            <strong>Run workflow</strong> on the Actions tab in GitHub.
           </p>
         )}
       </section>
 
-      {/* T9.2 — the history. R9 says every job writes to sync_log; this is what
-          makes that record visible, and without it the log catches nothing. */}
-      <section className="space-y-4 rounded-lg border p-6">
+      {/* T9.2 — the history. R9 says every job writes to sync_log; this makes it visible. */}
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="space-y-1">
-          <h2 className="font-medium">Sync history</h2>
+          <h2 className="text-lg font-semibold">Sync history</h2>
           <p className="text-muted-foreground text-sm">
-            The last {runs.length} runs, newest first.
+            The last {runs.length} runs, newest first.{" "}
+            <span className="text-foreground">Skipped</span> is normal — it means there was
+            nothing to collect, like no war in progress.
           </p>
         </div>
 
         {runs.length === 0 ? (
-          // T9.10 — "a sync that has never run" is the state of a fresh install,
-          // not an edge case, and it needs to say what to do next.
           <p className="text-muted-foreground text-sm">
-            No sync has ever run. Once a workflow runs — on its schedule, or from
-            the buttons above — every attempt is recorded here.
+            No sync has run yet. Once a job runs — on its schedule or from the buttons above —
+            every attempt appears here.
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <div className="-mx-6 overflow-x-auto px-6">
+            <table className="w-full min-w-[40rem] text-left">
               <thead>
-                <tr className="text-muted-foreground border-b text-xs">
+                <tr className="text-muted-foreground border-b text-xs uppercase">
                   <th className="py-2 pr-4 font-medium">Job</th>
-                  <th className="py-2 pr-4 font-medium">Status</th>
+                  <th className="py-2 pr-4 font-medium">Result</th>
                   <th className="py-2 pr-4 font-medium">Clan</th>
                   <th className="py-2 pr-4 font-medium">Started</th>
-                  <th className="py-2 pr-4 font-medium">Result</th>
+                  <th className="py-2 pr-4 font-medium">Details</th>
                 </tr>
               </thead>
               <tbody>
@@ -471,31 +542,52 @@ export default async function AdminPage() {
           </div>
         )}
       </section>
-
-      <section className="space-y-2 rounded-lg border p-6">
-        <h2 className="font-medium">Accounts</h2>
-        <p className="text-muted-foreground text-sm">
-          Approve or decline people waiting to join.
-        </p>
-        <Button asChild variant="outline">
-          <Link href="/admin/members">Pending accounts</Link>
-        </Button>
-      </section>
-
-      {/* T9.6 — R4 records every write, and this is what makes that record
-          visible. Shown to everyone who reaches /admin; the page itself explains
-          that only a clan's leader can read entries, because the log holds
-          entries about co-leaders too. */}
-      <section className="space-y-2 rounded-lg border p-6">
-        <h2 className="font-medium">Audit log</h2>
-        <p className="text-muted-foreground text-sm">
-          Who changed what, and when. Leaders only — nothing in it can be edited
-          or removed.
-        </p>
-        <Button asChild variant="outline">
-          <Link href="/admin/audit">View audit log</Link>
-        </Button>
-      </section>
     </main>
+  );
+}
+
+function GlanceCard({
+  icon,
+  label,
+  value,
+  hint,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  hint: string;
+}) {
+  return (
+    <div className="cb-panel space-y-1 rounded-lg border p-4">
+      <div className="text-muted-foreground flex items-center justify-between gap-2 text-xs font-medium uppercase">
+        {label}
+        {icon}
+      </div>
+      <p className="text-2xl font-semibold">{value}</p>
+      <p className="text-muted-foreground text-xs">{hint}</p>
+    </div>
+  );
+}
+
+function LinkCard({
+  href,
+  icon,
+  title,
+  description,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <Link href={href} className="cb-panel hover:bg-accent group flex items-start gap-3 rounded-lg border p-4 transition-colors">
+      <span className="bg-muted flex size-9 shrink-0 items-center justify-center rounded-md">{icon}</span>
+      <span className="min-w-0 flex-1 space-y-0.5">
+        <span className="block font-medium">{title}</span>
+        <span className="text-muted-foreground block text-sm">{description}</span>
+      </span>
+      <ArrowRight aria-hidden className="text-muted-foreground mt-1 size-4 transition-transform group-hover:translate-x-0.5" />
+    </Link>
   );
 }
