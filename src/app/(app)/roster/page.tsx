@@ -31,7 +31,7 @@ import { ArrowRight, CalendarPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/submit-button";
-import { LineupStatus, SlotMeter } from "@/components/roster-parts";
+import { LineupStatus, SlotMeter } from "@/components/lineup-parts";
 import { currentUserId } from "@/lib/auth";
 import { visibleClans, type VisibleClan } from "@/lib/clans";
 import { publishedSummary, seasonLabel, seasonOf, startableSeasons } from "@/lib/roster-view";
