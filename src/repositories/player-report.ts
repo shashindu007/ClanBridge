@@ -22,6 +22,13 @@
 // reimplement them. Not in members.ts, which would double in size while importing
 // five sibling repositories.
 //
+// T11C.3 — CWL IS THE ONE FAMILY-WIDE READ. A village's CWL record comes from
+// every platform clan through familyCwlHistory() (037), because members move
+// between the family's clans and play CWL in whichever one fields a roster —
+// SK FLASH's whole record is in DH CWL ONLY while it lives in Dark Hell, and the
+// per-clan read reported it as having none. The other five reads stay confined to
+// `clanId`; 037's header is where the exception and its limits are argued.
+//
 // R3 — clanId stays an EXPLICIT PARAMETER rather than being resolved in here, so
 // the filter is visible at every call site. Both callers reach it from something
 // that already authorised the clan: requireClanByTag() on the profile, and the
@@ -32,7 +39,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { gamesForPlayer } from "@/repositories/clan-games";
-import { playerSeasonHistory, type PlayerSeasonTotals } from "@/repositories/cwl";
+import { familyCwlHistory, type FamilySeasonTotals } from "@/repositories/cwl";
 import { clanMovement, snapshotHistory } from "@/repositories/members";
 import { seasonsForPlayer } from "@/repositories/raids";
 import { attacksForWar, membersOfWar, targetsForWar, warsForClan } from "@/repositories/war";
@@ -65,9 +72,12 @@ export interface CwlTotals {
 }
 
 export interface PlayerReport {
-  /** Per-season CWL record for this clan, oldest first as the repository returns it. */
-  cwlSeasons: PlayerSeasonTotals[];
-  /** Summed across those seasons, so the header and the table cannot disagree. */
+  /**
+   * Per-season CWL record from EVERY platform clan, newest first, each naming the
+   * clan it was played in (T11C.3).
+   */
+  cwlSeasons: FamilySeasonTotals[];
+  /** Summed across those seasons and clans, so the header and the table cannot disagree. */
   cwlTotals: CwlTotals;
   /**
    * Donation months, OLDEST FIRST as services/members.ts produces them.
@@ -111,9 +121,10 @@ export async function playerReport(
 
   const since = new Date(Date.now() - historyDays * 86_400_000);
 
-  const [cwlSeasons, snapshots, movement, raidHistory, gamesHistory, recentWars] =
+  const [cwlHistory, snapshots, movement, raidHistory, gamesHistory, recentWars] =
     await Promise.all([
-      playerSeasonHistory(supabase, clanId, playerId),
+      // Family-wide — see the T11C.3 note in the header.
+      familyCwlHistory(supabase, [playerId]),
       snapshotHistory(supabase, clanId, playerId, since),
       clanMovement(supabase, playerId),
       seasonsForPlayer(supabase, clanId, playerId),
@@ -137,6 +148,8 @@ export async function playerReport(
   // from the same function over the same window, which is why the two pages
   // cannot disagree about what a missed attack is.
   const war = warContribution(perWar).find((c) => c.playerId === playerId) ?? null;
+
+  const cwlSeasons = cwlHistory.get(playerId) ?? [];
 
   const cwlTotals = cwlSeasons.reduce<CwlTotals>(
     (sum, s) => ({
