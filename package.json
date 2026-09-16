@@ -20,6 +20,7 @@
     "sync:clan-games": "tsx --env-file-if-exists=.env.local scripts/sync/clan-games.ts",
     "sync:health": "tsx --env-file-if-exists=.env.local scripts/sync/health.ts",
     "icons": "tsx scripts/make-icons.ts",
+    "game-data": "tsx scripts/game-data.ts",
     "fixtures:capture": "tsx --env-file=.env.local scripts/capture-fixtures.ts",
     "fixtures:seed": "tsx scripts/seed-fixtures.ts",
     "test": "vitest run",
