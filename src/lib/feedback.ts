@@ -38,7 +38,12 @@ export const OK_MESSAGES: Record<string, string> = {
   "roster-started": "Roster started for this season.",
 
   // War (Phase 6).
-  "lineup-saved": "Lineup saved.",
+  "lineup-started": "Lineup started. Add players to it.",
+  "lineup-added": "Added to the lineup.",
+  "lineup-removed": "Removed from the lineup.",
+  "lineup-published": "Lineup published. Everyone in the clan can see it now.",
+  "lineup-unpublished": "Back to draft. Members can no longer see it.",
+  "lineup-linked": "Lineup linked to the war.",
   "target-assigned": "Target assigned.",
   "target-cleared": "Target cleared.",
   "target-claimed": "Base claimed. It is yours unless leadership reassigns it.",
