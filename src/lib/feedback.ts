@@ -62,7 +62,8 @@ export const OK_MESSAGES: Record<string, string> = {
   "notice-removed": "Announcement removed.",
 
   // CWL bonus medals (T4.7).
-  "bonus-awarded": "Bonus recorded.",
+  "bonus-awarded": "Medal awarded.",
+  "bonus-withdrawn": "Medal taken back.",
 
   // Base layouts (Phase 8).
   voted: "Vote counted.",
@@ -97,6 +98,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
   forbidden: "You do not have permission to do that.",
   "unknown-job": "That is not a job that can be started by hand.",
   "unknown-action": "That is not something this page can do.",
+  // CWL report.
+  "bad-order": "The medal place must be a whole number, 1 or more.",
   // Create poll.
   "no-title": "Give the poll a title so members know what they are answering.",
   "need-options": "A poll needs at least two answers to choose from.",

@@ -12,6 +12,12 @@
 // they are invisible in every report while consuming a slot somebody else was
 // promised.
 //
+// REDESIGNED: the season as a month name; "Picked versus played" as three
+// explained cards with the two lists that matter side by side; contribution
+// columns that say "War days", "Attacks 6 of 7" and "Avg destruction"; and bonus
+// medals as an awarded list beside one card per candidate with labelled "Place"
+// and "Reason" fields, instead of two unlabelled inputs squeezed onto each row.
+//
 // T4B.13 — the bonus order is the LEADER'S, not a formula's. The rule for this
 // deployment is their final decision order, so the system lays out the evidence
 // and then records what was decided. A ranking that can be recomputed answers
@@ -21,8 +27,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { CheckCircle2, CircleAlert, Medal, UserPlus, UserX } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/page-header";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,6 +43,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { requireClanByTag } from "@/lib/clans";
+import { seasonLabel } from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
 import { attacksForWar, rosterForWar, seasonByName, warsInSeason } from "@/repositories/cwl";
 import {
@@ -71,9 +81,13 @@ async function bonusAction(formData: FormData) {
   const action = String(formData.get("action") ?? "");
 
   let result: { error?: string };
+  // The toast used to say "Bonus recorded." after taking a medal BACK.
+  let done = "";
   if (action === "withdraw") {
     result = await withdrawBonus(supabase, seasonId, playerId);
+    done = "bonus-withdrawn";
   } else {
+    done = "bonus-awarded";
     const orderRaw = String(formData.get("awardOrder") ?? "").trim();
     const order = orderRaw ? Number(orderRaw) : null;
     if (order !== null && (!Number.isInteger(order) || order < 1)) {
@@ -86,18 +100,15 @@ async function bonusAction(formData: FormData) {
   if (result.error) redirect(`${here}?error=${encodeURIComponent(result.error)}`);
 
   revalidatePath(here);
-  redirect(`${here}?ok=bonus-awarded`);
+  redirect(`${here}?ok=${done}`);
 }
 
 export default async function CwlSeasonReportPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ clanTag: string; season: string }>;
-  searchParams: Promise<{ error?: string }>;
 }) {
   const { clanTag, season: rawSeason } = await params;
-  const { error } = await searchParams;
   const season = decodeURIComponent(rawSeason);
   const supabase = await createClient();
 
@@ -126,121 +137,121 @@ export default async function CwlSeasonReportPage({
   const unplanned = comparison.filter((r) => r.outcome === "unplanned");
   const played = comparison.filter((r) => r.outcome === "played");
 
-  const base = `/${encodeURIComponent(clan.tag)}/cwl/${encodeURIComponent(season)}`;
+  const clanBase = `/${encodeURIComponent(clan.tag)}`;
+  const base = `${clanBase}/cwl/${encodeURIComponent(season)}`;
+  const nextOrder = nextAwardOrder(awarded);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-8">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">CWL {season} report</h1>
-        <p className="text-muted-foreground text-sm">
-          {clan.name} · {wars.length} war day{wars.length === 1 ? "" : "s"} ·{" "}
-          <Link className="underline" href={base}>
-            Day detail
-          </Link>
-        </p>
-      </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>That did not work</AlertTitle>
-          <AlertDescription>
-            {error === "bad-order" ? "The order must be a whole number, 1 or more." : error}
-          </AlertDescription>
-        </Alert>
-      )}
+    <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8">
+      <PageHeader
+        back={{ href: base, label: "Day by day" }}
+        eyebrow={clan.name}
+        title={`CWL report · ${seasonLabel(season)}`}
+        description={`Who you picked compared with who played, what each player contributed over ${wars.length} war day${wars.length === 1 ? "" : "s"}, and the bonus medals.`}
+      />
 
       {!roster && (
-        <Alert>
-          <AlertTitle>No roster was recorded for this season</AlertTitle>
-          <AlertDescription>
-            Without the leader&apos;s selection there is nothing to compare against, so
-            everyone below shows as unplanned. Build a roster before CWL next month and
-            this becomes the report that ends arguments.
+        <Alert variant="warning">
+          <CircleAlert aria-hidden />
+          <AlertTitle>No lineup was picked for this season</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>
+              There is nothing to compare with, so everyone who played shows as &ldquo;not
+              picked&rdquo;. Pick next season&apos;s lineup in the roster builder and this
+              report shows who followed the plan.
+            </p>
+            {leadership && (
+              <Button asChild size="sm" variant="outline">
+                <Link href="/roster">Open CWL lineups</Link>
+              </Button>
+            )}
           </AlertDescription>
         </Alert>
       )}
 
       {/* ── T4B.11 — plan versus reality ───────────────────────────────────── */}
-      <section className="space-y-4 rounded-lg border p-6">
-        <h2 className="font-medium">Plan versus reality</h2>
-        <div className="grid grid-cols-3 gap-3 text-center">
-          <div className="rounded-md border p-3">
-            <div className="text-2xl font-semibold tabular-nums">{played.length}</div>
-            <div className="text-muted-foreground text-xs">selected, played</div>
-          </div>
-          <div className="rounded-md border p-3">
-            <div className="text-destructive text-2xl font-semibold tabular-nums">
-              {absent.length}
-            </div>
-            <div className="text-muted-foreground text-xs">selected, absent</div>
-          </div>
-          <div className="rounded-md border p-3">
-            <div className="text-2xl font-semibold tabular-nums">{unplanned.length}</div>
-            <div className="text-muted-foreground text-xs">played, not selected</div>
-          </div>
+      <section className="cb-panel space-y-5 rounded-lg border p-6">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">Picked versus played</h2>
+          <p className="text-muted-foreground text-sm">
+            Your lineup compared with the players the game actually put in the wars.
+          </p>
         </div>
 
-        {absent.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Selected but never appeared</h3>
-            <ul className="divide-y">
-              {absent.map((r) => (
-                <li key={r.playerId} className="flex items-center gap-3 py-2 text-sm">
-                  <span className="flex-1">{r.name}</span>
-                  <span className="text-muted-foreground font-mono text-xs">{r.tag}</span>
-                </li>
-              ))}
-            </ul>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <OutcomeCard
+            icon={<CheckCircle2 aria-hidden className="text-success size-5" />}
+            count={played.length}
+            label="Picked and played"
+            hint="The plan worked for these."
+          />
+          <OutcomeCard
+            icon={<UserX aria-hidden className="text-destructive size-5" />}
+            count={absent.length}
+            label="Picked but did not play"
+            hint="Worth a conversation."
+          />
+          <OutcomeCard
+            icon={<UserPlus aria-hidden className="text-warning-ink size-5" />}
+            count={unplanned.length}
+            label="Played without being picked"
+            hint="Each took a spot someone else was promised."
+          />
+        </div>
+
+        {(absent.length > 0 || unplanned.length > 0) && (
+          <div className="grid gap-6 md:grid-cols-2">
+            <NameList
+              title="Picked but did not play"
+              empty="Everyone picked played."
+              rows={absent.map((r) => ({ id: r.playerId, name: r.name, tag: r.tag, detail: null }))}
+              clanBase={clanBase}
+            />
+            <NameList
+              title="Played without being picked"
+              empty="Nobody played who was not picked."
+              rows={unplanned.map((r) => ({
+                id: r.playerId,
+                name: r.name,
+                tag: r.tag,
+                detail: `${r.warsPlayed} war day${r.warsPlayed === 1 ? "" : "s"}`,
+              }))}
+              clanBase={clanBase}
+            />
           </div>
         )}
 
-        {unplanned.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Played but was never selected</h3>
-            <p className="text-muted-foreground text-xs">
-              Added in game without being on the roster — each one took a slot somebody
-              else was promised.
-            </p>
-            <ul className="divide-y">
-              {unplanned.map((r) => (
-                <li key={r.playerId} className="flex items-center gap-3 py-2 text-sm">
-                  <span className="flex-1">{r.name}</span>
-                  <span className="text-muted-foreground tabular-nums">
-                    {r.warsPlayed} war{r.warsPlayed === 1 ? "" : "s"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {absent.length === 0 && unplanned.length === 0 && wars.length > 0 && (
-          <p className="text-muted-foreground text-sm">
-            Everyone selected played, and nobody played who was not selected. The plan
-            held exactly.
+        {absent.length === 0 && unplanned.length === 0 && wars.length > 0 && roster && (
+          <p className="text-sm">
+            <CheckCircle2 aria-hidden className="text-success mr-1 inline size-4" />
+            The plan held exactly: everyone picked played, and nobody else did.
           </p>
         )}
       </section>
 
       {/* ── T4B.12 — contribution ──────────────────────────────────────────── */}
-      <section className="space-y-4 rounded-lg border p-6">
-        <h2 className="font-medium">Contribution</h2>
-        {contributions.length === 0 ? (
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">What each player contributed</h2>
           <p className="text-muted-foreground text-sm">
-            No war data captured for this season.
+            <span className="text-foreground font-medium">Missed</span> counts war days a
+            player was in and did not attack — not days they were left out of.
           </p>
+        </div>
+        {contributions.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No war data was captured for this season.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="-mx-6 overflow-x-auto px-6">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Player</TableHead>
-                  <TableHead className="text-right">Wars</TableHead>
+                  <TableHead className="text-right">War days</TableHead>
                   <TableHead className="text-right">Attacks</TableHead>
                   <TableHead className="text-right">Missed</TableHead>
                   <TableHead className="text-right">Stars</TableHead>
-                  <TableHead className="text-right">Avg %</TableHead>
-                  <TableHead className="text-right">Bonus</TableHead>
+                  <TableHead className="text-right">Avg destruction</TableHead>
+                  <TableHead className="text-right">Medal</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -249,26 +260,28 @@ export default async function CwlSeasonReportPage({
                     <TableCell className="font-medium">
                       <Link
                         className="underline-offset-2 hover:underline"
-                        href={`/${encodeURIComponent(clan.tag)}/player/${encodeURIComponent(c.tag)}`}
+                        href={`${clanBase}/player/${encodeURIComponent(c.tag)}`}
                       >
                         {c.name}
                       </Link>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{c.warsPlayed}</TableCell>
-                    <TableCell className="text-right tabular-nums">{c.attacksUsed}</TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {c.missed > 0 ? (
-                        <span className="text-destructive">{c.missed}</span>
-                      ) : (
-                        "—"
-                      )}
+                      {c.attacksUsed} of {c.warsPlayed}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {c.missed > 0 ? <span className="text-destructive font-medium">{c.missed}</span> : "—"}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{c.stars}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {c.averageDestruction.toFixed(1)}
-                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{c.averageDestruction.toFixed(1)}%</TableCell>
                     <TableCell className="text-right">
-                      {c.hasBonus ? <Badge>#{c.bonusOrder ?? "?"}</Badge> : "—"}
+                      {c.hasBonus ? (
+                        <Badge variant="success">
+                          <Medal aria-hidden />#{c.bonusOrder ?? "?"}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -280,85 +293,157 @@ export default async function CwlSeasonReportPage({
 
       {/* ── T4B.13 — the leader's bonus order ──────────────────────────────── */}
       {leadership && contributions.length > 0 && (
-        <section className="space-y-4 rounded-lg border p-6">
+        <section className="cb-panel space-y-5 rounded-lg border p-6">
           <div className="space-y-1">
-            <h2 className="font-medium">Bonus medals</h2>
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
+              <Medal aria-hidden className="size-5" />
+              Bonus medals
+            </h2>
             <p className="text-muted-foreground text-sm">
-              Your order, recorded with a note. The table above is the evidence; the
-              decision is yours, and it is what gets kept.
+              You decide who gets a medal and in what order; the table above is the evidence.
+              Add a reason so the decision can be explained later.
             </p>
           </div>
 
-          {awarded.length > 0 && (
-            <ul className="divide-y">
-              {awarded.map((a) => (
-                <li key={a.playerId} className="flex flex-wrap items-center gap-3 py-3">
-                  <Badge>#{a.bonusOrder ?? "?"}</Badge>
-                  <span className="min-w-0 flex-1 text-sm font-medium">{a.name}</span>
-                  <form action={bonusAction}>
-                    <input type="hidden" name="clanTag" value={clanTag} />
-                    <input type="hidden" name="season" value={season} />
-                    <input type="hidden" name="seasonId" value={seasonRow.id} />
-                    <input type="hidden" name="playerId" value={a.playerId} />
-                    <input type="hidden" name="action" value="withdraw" />
-                    <SubmitButton size="xs" variant="ghost">
-                      Withdraw
-                    </SubmitButton>
-                  </form>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">
+                Awarded <span className="text-muted-foreground tabular-nums">({awarded.length})</span>
+              </h3>
+              {awarded.length === 0 ? (
+                <p className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
+                  No medals awarded yet. Award the first from the list of players.
+                </p>
+              ) : (
+                <ol className="divide-y rounded-md border">
+                  {awarded.map((a) => (
+                    <li key={a.playerId} className="flex items-center gap-3 px-3 py-2">
+                      <Badge variant="success">#{a.bonusOrder ?? "?"}</Badge>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{a.name}</span>
+                      <form action={bonusAction}>
+                        <input type="hidden" name="clanTag" value={clanTag} />
+                        <input type="hidden" name="season" value={season} />
+                        <input type="hidden" name="seasonId" value={seasonRow.id} />
+                        <input type="hidden" name="playerId" value={a.playerId} />
+                        <input type="hidden" name="action" value="withdraw" />
+                        <SubmitButton
+                          size="xs"
+                          variant="ghost"
+                          pendingLabel="Removing"
+                          aria-label={`Take back ${a.name}'s medal`}
+                        >
+                          Take back
+                        </SubmitButton>
+                      </form>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
 
-          <div className="space-y-3">
-            <h3 className="text-muted-foreground text-sm font-medium">
-              Award the next medal
-            </h3>
-            {candidates.length === 0 ? (
-              <p className="text-muted-foreground text-sm">Everyone already has one.</p>
-            ) : (
-              <ul className="divide-y">
-                {candidates.slice(0, 10).map((c) => (
-                  <li key={c.playerId} className="flex flex-wrap items-center gap-2 py-2">
-                    <span className="min-w-0 flex-1 text-sm">
-                      {c.name}
-                      <span className="text-muted-foreground">
-                        {" "}
-                        — {c.stars} stars, {c.missed} missed
-                      </span>
-                    </span>
-                    <form action={bonusAction} className="flex items-center gap-2">
-                      <input type="hidden" name="clanTag" value={clanTag} />
-                      <input type="hidden" name="season" value={season} />
-                      <input type="hidden" name="seasonId" value={seasonRow.id} />
-                      <input type="hidden" name="playerId" value={c.playerId} />
-                      <input type="hidden" name="action" value="award" />
-                      <Input
-                        name="awardOrder"
-                        type="number"
-                        min={1}
-                        defaultValue={nextAwardOrder(awarded)}
-                        className="w-16"
-                        aria-label={`Order for ${c.name}`}
-                      />
-                      <Input
-                        name="note"
-                        placeholder="Why"
-                        maxLength={200}
-                        className="w-40"
-                        aria-label={`Note for ${c.name}`}
-                      />
-                      <SubmitButton size="xs">
-                        Award
-                      </SubmitButton>
-                    </form>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">Award a medal</h3>
+              {candidates.length === 0 ? (
+                <p className="text-muted-foreground text-sm">Every player already has a medal.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {candidates.slice(0, 10).map((c) => (
+                    <li key={c.playerId} className="bg-card space-y-2 rounded-md border p-3">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="text-sm font-medium">{c.name}</span>
+                        <span className="text-muted-foreground text-xs tabular-nums">
+                          {c.stars} stars · {c.attacksUsed} of {c.warsPlayed} attacks
+                          {c.missed > 0 ? ` · ${c.missed} missed` : ""}
+                        </span>
+                      </div>
+                      <form action={bonusAction} className="flex flex-wrap items-end gap-2">
+                        <input type="hidden" name="clanTag" value={clanTag} />
+                        <input type="hidden" name="season" value={season} />
+                        <input type="hidden" name="seasonId" value={seasonRow.id} />
+                        <input type="hidden" name="playerId" value={c.playerId} />
+                        <input type="hidden" name="action" value="award" />
+                        <label className="space-y-1">
+                          <span className="text-muted-foreground block text-xs">Place</span>
+                          <Input name="awardOrder" type="number" min={1} defaultValue={nextOrder} className="h-9 w-20" />
+                        </label>
+                        <label className="min-w-40 flex-1 space-y-1">
+                          <span className="text-muted-foreground block text-xs">Reason (optional)</span>
+                          <Input name="note" placeholder="e.g. Most stars, no misses" maxLength={200} className="h-9" />
+                        </label>
+                        <SubmitButton size="sm" pendingLabel="Awarding">
+                          Award medal
+                        </SubmitButton>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {candidates.length > 10 && (
+                <p className="text-muted-foreground text-xs">
+                  Showing the top 10 of {candidates.length} players without a medal.
+                </p>
+              )}
+            </div>
           </div>
         </section>
       )}
     </main>
+  );
+}
+
+function OutcomeCard({
+  icon,
+  count,
+  label,
+  hint,
+}: {
+  icon: React.ReactNode;
+  count: number;
+  label: string;
+  hint: string;
+}) {
+  return (
+    <div className="bg-card space-y-1 rounded-md border p-4">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-3xl font-semibold tabular-nums">{count}</span>
+        {icon}
+      </div>
+      <p className="text-sm font-medium">{label}</p>
+      <p className="text-muted-foreground text-xs">{hint}</p>
+    </div>
+  );
+}
+
+function NameList({
+  title,
+  empty,
+  rows,
+  clanBase,
+}: {
+  title: string;
+  empty: string;
+  rows: Array<{ id: string; name: string; tag: string; detail: string | null }>;
+  clanBase: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-medium">
+        {title} <span className="text-muted-foreground tabular-nums">({rows.length})</span>
+      </h3>
+      {rows.length === 0 ? (
+        <p className="text-muted-foreground text-sm">{empty}</p>
+      ) : (
+        <ul className="divide-y rounded-md border">
+          {rows.map((r) => (
+            <li key={r.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+              <Link className="min-w-0 truncate underline-offset-2 hover:underline" href={`${clanBase}/player/${encodeURIComponent(r.tag)}`}>
+                {r.name}
+              </Link>
+              <span className="text-muted-foreground shrink-0 text-xs tabular-nums">{r.detail ?? r.tag}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
