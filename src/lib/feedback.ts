@@ -97,6 +97,11 @@ export const ERROR_MESSAGES: Record<string, string> = {
   forbidden: "You do not have permission to do that.",
   "unknown-job": "That is not a job that can be started by hand.",
   "unknown-action": "That is not something this page can do.",
+  // Create poll.
+  "no-title": "Give the poll a title so members know what they are answering.",
+  "need-options": "A poll needs at least two answers to choose from.",
+  "duplicate-options": "Two answers have the same wording, which makes the result unreadable.",
+  "bad-type": "That kind of poll is not one this system knows.",
   // Poll page. Rendered by the page itself until the redesign; the toast is now the one place.
   incomplete: "Pick an answer before saving.",
   closed: "This poll has closed, so there is nothing to remind anyone about.",
