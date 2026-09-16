@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { requireClanByTag } from "@/lib/clans";
 import { createClient } from "@/lib/supabase/server";
-import { seasonHistoryForClan } from "@/repositories/cwl";
+import { familyCwlHistory } from "@/repositories/cwl";
 import { latestSnapshots, membersForClan, recentSnapshots } from "@/repositories/members";
 import { latestRun } from "@/repositories/sync-log";
 import { freshness } from "@/services/freshness";
@@ -106,7 +106,15 @@ export default async function MemberDirectoryPage({
   // Departed members are excluded from the list even when the toggle shows them
   // in the table: "needs attention" means someone a leader might act on, and
   // someone who has already left is not that.
-  const cwlHistory = await seasonHistoryForClan(supabase, clan.id);
+  //
+  // T11C.5 — from every clan in the family, not only this one. A member of this
+  // clan who plays CWL in DH CWL ONLY had no CWL here, so their participation read
+  // as zero wars and the attention list judged them on nothing. One read for the
+  // whole directory, as before.
+  const cwlHistory = await familyCwlHistory(
+    supabase,
+    members.map((m) => m.playerId),
+  );
   const attention = needsAttention(
     rows
       .filter(({ member }) => !member.leftAt)
