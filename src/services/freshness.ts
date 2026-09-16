@@ -34,6 +34,8 @@ export const STALE_AFTER_MS: Record<string, number> = {
   // and it is worth stating that the default is not a safe fallback for a job
   // slower than a few hours: EVERY job on a schedule needs a line here.
   "clan-games": 36 * 60 * 60 * 1000,
+  // T11B.6 — daily, its own workflow (sync-players.yml). Same window as raids.
+  players: 36 * 60 * 60 * 1000,
 };
 
 const DEFAULT_STALE_AFTER_MS = 3 * 60 * 60 * 1000;

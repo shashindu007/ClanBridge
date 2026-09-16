@@ -1,0 +1,72 @@
+# T11B.6 — base progress: hero, equipment, pet, troop, siege and spell levels.
+#
+# R2 — sync runs here, never on Vercel.
+#
+# Repository secrets required (Settings -> Secrets and variables -> Actions):
+#   COC_API_TOKEN         the PRODUCTION key, registered against the RoyaleAPI proxy IP
+#   COC_API_BASE          https://cocproxy.royaleapi.dev/v1
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_KEY
+#
+# R6 — none of these may ever be set as a Vercel environment variable.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# DAILY, AND ITS OWN WORKFLOW
+#
+# Daily because upgrades take days. An hourly reading would store 24 identical
+# rows and 036's unique (player_id, captured_day) would refuse 23 of them anyway.
+# A missed day costs nothing permanent: the next run reads the current levels,
+# and "upgraded lately" simply spans two days instead of one.
+#
+# Its own workflow rather than a third step in sync-raids.yml. That file carries
+# the Clan Games snapshot, whose missed run is UNRECOVERABLE, and a third job
+# sharing its runner is one more thing between it and a green tick. The price is
+# one extra checkout a day — about a minute, so roughly 30 of the private
+# repository's 2,000 monthly minutes. sync-raids.yml's header does that
+# arithmetic for its own case; this is the case where the isolation is worth it.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# R10 — "skipped" means no clan members or owned villages are held yet, which is
+# only true before the first sync:clans run. Not something to investigate after.
+
+name: sync-players
+
+on:
+  schedule:
+    # Once a day at 06:11 UTC. Offset from sync-clans' :17, sync-cwl's :23,
+    # sync-health's :47 and sync-raids' 05:41 so no two jobs contend for the
+    # same rate-limited API key.
+    - cron: "11 6 * * *"
+  workflow_dispatch: # for a first fill, or after a game update refreshes src/data/game/
+
+concurrency:
+  group: sync-players
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    # One call per village, throttled to one every 200 ms. ~150 members plus a
+    # few owned alts is about 30 seconds of throttle before retries.
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Snapshot base progress
+        run: npm run sync:players
+        env:
+          COC_API_TOKEN: ${{ secrets.COC_API_TOKEN }}
+          COC_API_BASE: ${{ secrets.COC_API_BASE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # Explicitly false, for the reason sync-raids.yml gives: a fixtures run
+          # in CI would report success daily while writing nothing real.
+          USE_FIXTURES: "false"
