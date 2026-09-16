@@ -43,7 +43,7 @@ import { playerEndpoint, request } from "@/integration/coc-client";
 import { playerSchema } from "@/integration/coc-schemas";
 import { CocNotFoundError } from "@/integration/errors";
 import { mapPlayerProgress } from "@/integration/mappers";
-import { resolveUnit, type ResolvedUnit, type UnitSource } from "@/data/game";
+import { lockedUnits, resolveUnit, type ResolvedUnit, type UnitSource } from "@/data/game";
 import type { PlayerProgress, ProgressUnit } from "@/types/domain";
 import { activeClans, main, skip, type JobContext } from "./shared";
 
@@ -122,11 +122,18 @@ export function progressRow(target: ProgressTarget, progress: PlayerProgress) {
   const resolve = (source: UnitSource) => (unit: ProgressUnit): ResolvedUnit =>
     resolveUnit(unit, source, unit.village === "home" ? progress.thLevel : progress.bhLevel);
 
-  const units: ResolvedUnit[] = [
+  const present: ResolvedUnit[] = [
     ...progress.heroes.map(resolve("heroes")),
     ...progress.equipment.map(resolve("equipment")),
     ...progress.troops.map(resolve("troops")),
     ...progress.spells.map(resolve("spells")),
+  ];
+
+  // What this hall allows but the API omitted because it is not unlocked yet.
+  // Stored as level 0 at capture, with the cap of the day, like everything else.
+  const units = [
+    ...present,
+    ...lockedUnits(present, progress.thLevel, progress.bhLevel),
   ];
 
   return {

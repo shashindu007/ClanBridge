@@ -15,6 +15,7 @@ import {
   buildingByExportId,
   capAt,
   findUnit,
+  lockedUnits,
   resolveUnit,
   unitByExportId,
   type UnitSource,
@@ -120,5 +121,35 @@ describe("resolveUnit", () => {
   it("falls back when the player is above the data's cap", () => {
     const resolved = resolveUnit({ ...king, level: 104 }, "heroes", 17);
     expect(resolved).toMatchObject({ cap: 110, capKnown: false });
+  });
+});
+
+describe("lockedUnits", () => {
+  it("adds what a hall allows but the API omitted, at level 0", () => {
+    // A TH12 account that has only ever trained Barbarians.
+    const locked = lockedUnits([{ name: "Barbarian", village: "home" }], 12, undefined);
+    const names = locked.map((u) => u.name);
+
+    expect(names).not.toContain("Barbarian");
+    expect(names).toContain("Wall Wrecker"); // a siege machine TH12 allows
+    expect(names).toContain("Barbarian King");
+    expect(locked.every((u) => u.level === 0 && u.cap > 0 && u.capKnown)).toBe(true);
+  });
+
+  it("never adds equipment, super troops or guardians", () => {
+    const groups = new Set(lockedUnits([], 18, 10).map((u) => u.group));
+    expect(groups.has("equipment")).toBe(false);
+    expect(groups.has("superTroop")).toBe(false);
+    expect(groups.has("guardian")).toBe(false);
+  });
+
+  it("adds nothing when the hall is unknown", () => {
+    expect(lockedUnits([], undefined, undefined)).toEqual([]);
+  });
+
+  it("adds nothing a real TH17 account is missing except what it could not have", () => {
+    const present = everyUnit.flatMap(([, units]) => units);
+    // The fixture has every hero, pet, troop, siege and spell TH17 allows.
+    expect(lockedUnits(present, progress.thLevel, progress.bhLevel)).toEqual([]);
   });
 });

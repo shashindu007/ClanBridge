@@ -141,6 +141,61 @@ function fallbackGroup(source: UnitSource, village: Village): UnitGroup {
 }
 
 /**
+ * Groups whose units the API omits until they are unlocked, and which a Town
+ * Hall therefore expects at level 0 rather than not at all.
+ *
+ * NOT equipment: epic and event pieces are acquired, not unlocked by a
+ * building, so an absent one is not "behind". NOT super troops: their level
+ * mirrors the base troop. NOT guardians: the player endpoint does not report
+ * them at all, so absence proves nothing.
+ */
+const EXPECTED_GROUPS = new Set<UnitGroup>([
+  "hero",
+  "pet",
+  "elixirTroop",
+  "darkTroop",
+  "siege",
+  "elixirSpell",
+  "darkSpell",
+  "builderTroop",
+  "builderHero",
+]);
+
+/**
+ * Units this hall allows that the player has not unlocked, as level-0 entries.
+ *
+ * The API lists only what a player HAS, so a TH12 base that never built a Siege
+ * Workshop would otherwise read as 100% on siege machines. clash.ninja counts
+ * these as zero, and so does this.
+ */
+export function lockedUnits(
+  present: Array<Pick<ProgressUnit, "name" | "village">>,
+  thLevel: number | undefined,
+  bhLevel: number | undefined,
+): ResolvedUnit[] {
+  const have = new Set(present.map((u) => unitKey(u.name, u.village)));
+  const locked: ResolvedUnit[] = [];
+
+  for (const unit of UNITS) {
+    if (!EXPECTED_GROUPS.has(unit.group)) continue;
+    if (have.has(unitKey(unit.name, unit.village))) continue;
+    const cap = capAt(unit.caps, unit.village === "home" ? thLevel : bhLevel);
+    if (!cap) continue; // not available at this hall, or hall unknown
+
+    locked.push({
+      name: unit.name,
+      level: 0,
+      apiMax: Math.max(...unit.caps),
+      village: unit.village,
+      group: unit.group,
+      cap,
+      capKnown: true,
+    });
+  }
+  return locked;
+}
+
+/**
  * Attach a group and the hall-relative cap to one unit from the API.
  *
  * `hall` is the Town Hall level for home units and the Builder Hall level for
