@@ -104,7 +104,7 @@ export default async function CwlDayDetailPage({
         description="Each war day's result, and who did not use their attack."
         actions={
           <>
-            <DataFreshness freshness={runs} />
+            <DataFreshness freshness={runs} canAdmin={clan.role === "leader"} />
             <Button asChild variant="outline" size="sm">
               <Link href={`${base}/report`}>Season report</Link>
             </Button>

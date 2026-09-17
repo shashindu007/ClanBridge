@@ -63,11 +63,11 @@ export default async function WarHistoryPage({
   const totals = warTotals(wars);
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-8">
+    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">War history</h1>
-          <DataFreshness freshness={runs} />
+          <DataFreshness freshness={runs} canAdmin={clan.role === "leader"} />
         </div>
         <p className="text-muted-foreground text-sm">
           {clan.name} ·{" "}
@@ -82,7 +82,7 @@ export default async function WarHistoryPage({
       </div>
 
       {wars.length === 0 ? (
-        <section className="space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-lg border p-6">
           <h2 className="font-medium">No wars recorded yet</h2>
           <p className="text-muted-foreground text-sm">
             {runs.level === "never"

@@ -11,16 +11,33 @@ API when the season ends and cannot ever be recovered. Everything else is second
 
 ## Status
 
-**Every phase in IMPLEMENTATION.md is complete** except T9.4 (the restore test)
-and the deployment half of T9.3 — both of which need something outside this
-repository: a scratch Supabase project to restore into, and a Vercel deployment
-to inspect. **Phase 11B is the one block that is scoped rather than built**, and
-every box in it is unticked.
+**`IMPLEMENTATION.md` is the ledger. Read the checkboxes there; this file does
+not keep a second copy of them.**
 
-This section previously said phases 1, 2, 3 and 3B were done and "everything from
-Phase 4B onward is still a labelled placeholder", and that no sync job had run
-against the live API. Both had been untrue for some time. `IMPLEMENTATION.md`
-carries the per-task ledger and is the file to trust.
+That rule is the finding, not a preference. This section has now gone stale
+twice, the same way, about the same subject. The first time it claimed phases 1
+to 3B were done and "everything from Phase 4B onward is still a labelled
+placeholder", and that no sync job had run against the live API — untrue for
+months. It was rewritten with a note saying so, and within days it was wrong
+again: it said Phase 11B was "scoped rather than built" with "every box unticked"
+while all thirteen T11B boxes were ticked and the code was under test, and it
+said migrations 030 to 035 were unapplied while the regenerated
+`src/types/database.ts` showed all of them live.
+
+Both times the cause was the same. Status that lives in two files diverges, and
+the file nobody edits during a phase is the one that lies. So the count is gone
+rather than corrected — a number here would only go stale a third time.
+
+What needs a live environment rather than a commit, and is therefore genuinely
+outstanding:
+
+- **T9.4 — the restore test.** Needs a scratch Supabase project to restore into.
+  `npm run restore:verify` exists and has nowhere to point. The weekly dump runs;
+  it has never been restored, so its success rate is unknown, and the data it
+  protects cannot be re-fetched from anywhere.
+- **The deployment half of T9.3.** Needs a Vercel deployment to inspect.
+- **T0.9 — Upstash functional verification.** See the note at the end of this
+  section; the limiter fails open, so a misconfiguration is invisible.
 
 What is worth knowing before you touch anything:
 
@@ -30,12 +47,15 @@ What is worth knowing before you touch anything:
 - **Two clans exist, not three** — `DH CWL ONLY` and `DH v2`, and the second is a
   test clan. Adding the rest is deferred by choice; they go in at `/admin`.
   Anywhere the docs say "three clans", read it as intent rather than state.
-- **Migrations 030 to 035 are not applied to the live database yet**, and until
-  they are, `src/types/database.ts` is stale for `users`. Run
-  `npm run migrations:apply` — which covers the live-only files too — then
-  `npm run types:db`. Two dashboard settings go with 030 (see the T10 block in
-  IMPLEMENTATION.md), and 035 creates a Storage bucket worth confirming by eye,
-  because the test suite cannot reach a bucket policy.
+- **Applying migrations is `npm run migrations:apply`, then `npm run types:db`.**
+  Do not read a migration number off this file to decide what is outstanding —
+  compare `supabase/migrations/` against the database, because that is the only
+  comparison that cannot go stale. `src/types/database.ts` states the table count
+  and the date it was generated at the top; if that disagrees with the migration
+  list, regenerate it before trusting it.
+  Two dashboard settings go with 030 (see the T10 block in IMPLEMENTATION.md),
+  and 035 creates a Storage bucket worth confirming by eye, because the test
+  suite cannot reach a bucket policy.
   **If you apply by pasting `supabase/apply-all.sql` instead, 029 and 035 are not
   in it** — that bundle is built from the PGlite-testable list only, and both
   Storage migrations have to be run separately.

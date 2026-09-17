@@ -156,7 +156,7 @@ export default async function NoticesPage({
   }
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-8">
+    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Announcements</h1>
         <p className="text-muted-foreground text-sm">
@@ -174,7 +174,7 @@ export default async function NoticesPage({
       )}
 
       {mayPost && (
-        <form action={createNotice} className="space-y-3 rounded-lg border p-6">
+        <form action={createNotice} className="cb-panel space-y-3 rounded-lg border p-6">
           <h2 className="font-medium">Post an announcement</h2>
 
           <div className="space-y-1">
@@ -208,7 +208,7 @@ export default async function NoticesPage({
       )}
 
       {notices.length === 0 ? (
-        <section className="space-y-2 rounded-lg border p-6">
+        <section className="cb-panel space-y-2 rounded-lg border p-6">
           <h2 className="font-medium">Nothing posted yet</h2>
           <p className="text-muted-foreground text-sm">
             {mayPost
@@ -219,7 +219,7 @@ export default async function NoticesPage({
       ) : (
         <ul className="space-y-4">
           {notices.map((notice) => (
-            <li key={notice.id} className="space-y-2 rounded-lg border p-6">
+            <li key={notice.id} className="cb-panel space-y-2 rounded-lg border p-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="font-medium">{notice.title}</h2>
                 {notice.pinned && <Badge variant="secondary">pinned</Badge>}

@@ -82,7 +82,7 @@ export default async function OwnBaseReportPage({
   const reportable = Boolean(base.clanId && roles.has(base.clanId));
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-8">
+    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
       <div className="space-y-3">
         <Button asChild variant="ghost" size="xs" className="-ml-2">
           <Link href="/account">

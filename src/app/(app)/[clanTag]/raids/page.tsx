@@ -113,11 +113,11 @@ export default async function RaidsPage({
   const history = historyTotals(seasons);
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-8">
+    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">Raid weekends</h1>
-          <DataFreshness freshness={fresh} />
+          <DataFreshness freshness={fresh} canAdmin={clan.role === "leader"} />
         </div>
         <p className="text-muted-foreground text-sm">
           {clan.name} ·{" "}

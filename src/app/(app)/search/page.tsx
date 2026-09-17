@@ -59,7 +59,7 @@ export default async function CrossClanSearchPage({
     : [];
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-8">
+    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Search members</h1>
         <p className="text-muted-foreground text-sm">
@@ -85,7 +85,7 @@ export default async function CrossClanSearchPage({
           a partial tag is not a meaningful query.
         </p>
       ) : hits.length === 0 ? (
-        <section className="space-y-2 rounded-lg border p-6">
+        <section className="cb-panel space-y-2 rounded-lg border p-6">
           <h2 className="font-medium">No match for &ldquo;{term}&rdquo;</h2>
           <p className="text-muted-foreground text-sm">
             Nobody in your clans matches that. If you are searching a tag, check

@@ -31,7 +31,7 @@ export default function AppLoading() {
       role="status"
       aria-busy="true"
       aria-label="Loading"
-      className="mx-auto max-w-5xl space-y-8 p-8"
+      className="mx-auto max-w-5xl space-y-8 p-4 sm:p-8"
     >
       <div className="space-y-3">
         <Bar className="h-7 w-56" />
@@ -40,14 +40,14 @@ export default function AppLoading() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 3 }, (_, i) => (
-          <div key={i} className="space-y-3 rounded-lg border p-6">
+          <div key={i} className="cb-panel space-y-3 rounded-lg border p-6">
             <Bar className="h-4 w-24" />
             <Bar className="h-8 w-16" />
           </div>
         ))}
       </div>
 
-      <div className="space-y-3 rounded-lg border p-6">
+      <div className="cb-panel space-y-3 rounded-lg border p-6">
         <Bar className="h-4 w-32" />
         <div className="space-y-2">
           {Array.from({ length: 6 }, (_, i) => (

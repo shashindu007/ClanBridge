@@ -185,7 +185,7 @@ export default async function WarBoardPage({
       eyebrow={clan.name}
       title="War board"
       description="The current war: who still has attacks to use, and which base each member should hit."
-      actions={<DataFreshness freshness={runs} />}
+      actions={<DataFreshness freshness={runs} canAdmin={clan.role === "leader"} />}
     />
   );
 

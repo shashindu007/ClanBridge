@@ -220,7 +220,7 @@ export default async function LayoutsPage({
   }
 
   return (
-    <main className="mx-auto max-w-7xl space-y-8 p-8">
+    <main className="mx-auto max-w-7xl space-y-8 p-4 sm:p-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">Base layouts</h1>
@@ -285,7 +285,7 @@ export default async function LayoutsPage({
       {layouts.length === 0 ? (
         // T9.10 — an empty library is the normal state of a new clan, and the
         // two reasons for it need different answers.
-        <section className="space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-lg border p-6">
           <h2 className="font-medium">
             {thLevel || layoutType ? "Nothing matches that filter" : "No layouts yet"}
           </h2>

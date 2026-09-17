@@ -376,7 +376,15 @@ export default async function PollDetailPage({
           <h2 className="text-lg font-semibold">Results so far</h2>
           <span className="text-muted-foreground text-sm tabular-nums">
             {totalVotes} answer{totalVotes === 1 ? "" : "s"}
-            {breakdown ? ` from ${breakdown.totalEligible} members` : ""}
+            {/* Branched like the count beside it. Reachable with one eligible
+                player on a small clan, or on a poll opened before the roster
+                filled — and "from 1 members" beside a correctly singular
+                "1 answer" is the kind of seam a member reads as carelessness. */}
+            {breakdown
+              ? ` from ${breakdown.totalEligible} ${
+                  breakdown.totalEligible === 1 ? "member" : "members"
+                }`
+              : ""}
           </span>
         </div>
 

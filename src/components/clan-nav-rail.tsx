@@ -154,6 +154,28 @@ export function ClanSectionTabs({ clans }: { clans: RailClan[] }) {
   const pathname = usePathname();
   const current = currentClanTag(pathname);
 
+  // Same job as the clan switcher's, and it was missing here for longer.
+  //
+  // THE SWITCHER HAS TWO OR THREE PILLS. THIS ROW HAS NINE. At roughly 100px
+  // per icon-and-label tab that is about 900px of strip in the ~343px a phone
+  // gives it, so two thirds of the navigation is off screen at any moment — and
+  // the tabs are in nav order, not in an order that puts the current one first.
+  // A member on Bases or Notices, the last two, saw a tab strip with nothing lit
+  // on it at all, because the tab saying where they were had scrolled off the
+  // right-hand edge. The comment on ClanSwitcher's effect above applies here
+  // verbatim; it simply was not applied here.
+  //
+  // Both rows, because the sub-tab row under War and CWL has the same problem in
+  // miniature. "nearest" so a tab already on screen is left alone — scrolling
+  // the rail on every navigation when nothing needed moving is its own kind of
+  // wrong.
+  const activeTabRef = useRef<HTMLAnchorElement>(null);
+  const activeChildRef = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    activeChildRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [pathname]);
+
   const inClan = current !== null && clans.some((c) => c.tag === current);
   if (!inClan) return null;
 
@@ -178,6 +200,7 @@ export function ClanSectionTabs({ clans }: { clans: RailClan[] }) {
             return (
               <Link
                 key={section.path}
+                ref={active ? activeTabRef : undefined}
                 href={sectionHref(base, section)}
                 aria-current={active ? "page" : undefined}
                 title={section.hint}
@@ -203,6 +226,7 @@ export function ClanSectionTabs({ clans }: { clans: RailClan[] }) {
               return (
                 <Link
                   key={child.path}
+                  ref={active ? activeChildRef : undefined}
                   href={sectionHref(base, child)}
                   aria-current={active ? "page" : undefined}
                   title={child.hint}

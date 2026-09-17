@@ -76,7 +76,7 @@ export default async function CrossClanReportPage() {
 
   if (clans.length === 0) {
     return (
-      <main className="mx-auto max-w-7xl space-y-4 p-8">
+      <main className="mx-auto max-w-7xl space-y-4 p-4 sm:p-8">
         <h1 className="text-2xl font-semibold tracking-tight">Participation</h1>
         <p className="text-muted-foreground text-sm">
           {all.length === 0
@@ -116,7 +116,7 @@ export default async function CrossClanReportPage() {
   const flaggedCount = rows.filter((r) => r.flags.length > 0).length;
 
   return (
-    <main className="mx-auto max-w-5xl space-y-8 p-8">
+    <main className="mx-auto max-w-5xl space-y-8 p-4 sm:p-8">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Participation</h1>
         <p className="text-muted-foreground text-sm">
