@@ -76,11 +76,42 @@ export default async function MemberDirectoryPage({
   const descending = query.dir === "desc";
   const includeDeparted = query.departed === "1";
 
-  const members = await membersForClan(supabase, clan.id, { includeDeparted });
-  const [latest, recent, clansRun] = await Promise.all([
-    latestSnapshots(supabase, clan.id, members.length),
+  // ── TWO ROUND TRIPS, NOT THREE ────────────────────────────────────────────
+  //
+  // The reads on this page fall into exactly two layers, and they used to be
+  // spread over three.
+  //
+  // Layer one — everything keyed by the clan alone. Only membersForClan() was
+  // here before; recentSnapshots() and latestRun() were queued behind it despite
+  // needing nothing from it. A waterfall made of independent work, which is the
+  // shape T10.9 removed from the layout and left behind on the pages.
+  const [members, recent, clansRun] = await Promise.all([
+    membersForClan(supabase, clan.id, { includeDeparted }),
     recentSnapshots(supabase, clan.id),
     latestRun(supabase, "clans", clan.id),
+  ]);
+
+  // Layer two — the two reads that genuinely need the member list, and which
+  // need nothing from EACH OTHER. latestSnapshots() sizes its row budget from
+  // the count; familyCwlHistory() takes the ids. They were sequential, so the
+  // page paid two round trips for work that fits in one.
+  //
+  // T3B.5 — familyCwlHistory is ONE read for the whole directory, and that is
+  // load-bearing. It used to be a Promise.all of playerSeasonHistory() per
+  // member, reasoned as "acceptable at <= 50 members" — which would have been
+  // right if each call were one query. Each was about thirty-one: it walked the
+  // clan's entire CWL tree and filtered to one player afterwards, so fifty
+  // members were fifteen hundred queries all fetching identical rows.
+  //
+  // T11C.5 — from every clan in the family, not only this one. A member of this
+  // clan who plays CWL in DH CWL ONLY had no CWL here, so their participation
+  // read as zero wars and the attention list judged them on nothing.
+  const [latest, cwlHistory] = await Promise.all([
+    latestSnapshots(supabase, clan.id, members.length),
+    familyCwlHistory(
+      supabase,
+      members.map((m) => m.playerId),
+    ),
   ]);
 
   const now = new Date();
@@ -93,28 +124,9 @@ export default async function MemberDirectoryPage({
     ),
   }));
 
-  // T3B.5. One read for the whole clan, then the participation totals come out
-  // of a map.
-  //
-  // This used to be a Promise.all of playerSeasonHistory() per member, with a
-  // comment reasoning "acceptable at <= 50 members" — which would have been
-  // right if each call were one query. Each was about thirty-one: that function
-  // walked the clan's entire CWL tree and filtered to one player afterwards. So
-  // fifty members were fifteen hundred queries, concurrent rather than few, all
-  // fetching identical rows.
-  //
-  // Departed members are excluded from the list even when the toggle shows them
-  // in the table: "needs attention" means someone a leader might act on, and
-  // someone who has already left is not that.
-  //
-  // T11C.5 — from every clan in the family, not only this one. A member of this
-  // clan who plays CWL in DH CWL ONLY had no CWL here, so their participation read
-  // as zero wars and the attention list judged them on nothing. One read for the
-  // whole directory, as before.
-  const cwlHistory = await familyCwlHistory(
-    supabase,
-    members.map((m) => m.playerId),
-  );
+  // Departed members are excluded from the attention list even when the toggle
+  // shows them in the table: "needs attention" means someone a leader might act
+  // on, and someone who has already left is not that.
   const attention = needsAttention(
     rows
       .filter(({ member }) => !member.leftAt)
@@ -184,11 +196,11 @@ export default async function MemberDirectoryPage({
   };
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6 p-8">
+    <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">Members</h1>
-          <DataFreshness freshness={freshness(clansRun)} />
+          <DataFreshness freshness={freshness(clansRun)} canAdmin={clan.role === "leader"} />
         </div>
         <p className="text-muted-foreground text-sm">
           {clan.name} — {rows.length} {includeDeparted ? "including former members" : "current"}

@@ -41,6 +41,7 @@ import {
   releaseTarget,
   targetsForWar,
   warById,
+  warRostersFor,
   warsForClan,
 } from "@/repositories/war";
 import {
@@ -591,6 +592,7 @@ const PLAYER_A = "aaaaaaaa-0000-4000-8000-00000000f001";
 const PLAYER_A2 = "aaaaaaaa-0000-4000-8000-00000000f002";
 const WAR_A = "99999999-0000-4000-8000-0000000000a1";
 const WAR_B = "99999999-0000-4000-8000-0000000000b1";
+const WAR_C = "99999999-0000-4000-8000-0000000000c1";
 
 describe("repositories/war — against real Postgres", () => {
   let h: Harness;
@@ -692,6 +694,80 @@ describe("repositories/war — against real Postgres", () => {
       expect(attacks).toHaveLength(1);
       expect(attacks[0]!.defenderPosition).toBe(2);
       expect(attacks[0]!.destruction).toBe(100);
+    });
+  });
+
+  // ── The batched loader ───────────────────────────────────────────────────
+  //
+  // warRostersFor() replaced a per-war fan-out that cost 4N queries on the
+  // player profile and /war/report — membersOfWar() ends in its own player
+  // lookup, so ten wars were forty statements.
+  //
+  // THE POINT OF THIS BLOCK IS THAT IT MUST AGREE WITH THE SINGULAR FUNCTIONS,
+  // because warContribution() is derived from whatever it returns. A grouping
+  // bug here does not throw; it silently credits one war's attacks to another
+  // and changes what the participation report says about a person.
+  describe("warRostersFor — many wars in four queries", () => {
+    it("returns exactly what the singular reads return, for the same war", async () => {
+      await h.asUser(MEMBER_A);
+
+      const [members, attacks, targets] = await Promise.all([
+        membersOfWar(client, WAR_A),
+        attacksForWar(client, WAR_A),
+        targetsForWar(client, WAR_A),
+      ]);
+
+      const rosters = await warRostersFor(client, [WAR_A]);
+      const batched = rosters.get(WAR_A)!;
+
+      expect(batched.members).toEqual(members);
+      expect(batched.attacks).toEqual(attacks);
+      expect(batched.targets).toEqual(targets);
+    });
+
+    it("keeps each war's rows under its own id", async () => {
+      // A second war in the SAME clan, so both are readable and a grouping bug
+      // would show up as rows landing on the wrong war rather than as a denial.
+      await h.asSuperuser();
+      await h.db.exec(`
+        insert into wars (id, clan_id, opponent_name, team_size, state, start_time)
+        values ('${WAR_C}', '${CLAN_A}', 'Third', 2, 'warEnded', '2026-07-22T06:00:00Z');
+        insert into war_members (war_id, player_id, map_position, th_level, attacks_allowed)
+        values ('${WAR_C}', '${PLAYER_A2}', 1, 15, 2);
+      `);
+
+      await h.asUser(MEMBER_A);
+      const rosters = await warRostersFor(client, [WAR_A, WAR_C]);
+
+      expect(rosters.get(WAR_A)!.members.map((m) => m.name)).toEqual([
+        "Member A",
+        "Member A2",
+      ]);
+      expect(rosters.get(WAR_C)!.members.map((m) => m.name)).toEqual(["Member A2"]);
+      // WAR_A's only attack must not have leaked onto WAR_C.
+      expect(rosters.get(WAR_C)!.attacks).toEqual([]);
+    });
+
+    it("omits a war it has no rows for, so callers can default it", async () => {
+      await h.asUser(MEMBER_A);
+      const rosters = await warRostersFor(client, [WAR_A, WAR_B]);
+
+      // WAR_B belongs to clan B — RLS denies it, which is the same outcome as a
+      // war with no rows and must not become an empty-but-present entry that
+      // reads as "everyone missed".
+      expect(rosters.has(WAR_B)).toBe(false);
+    });
+
+    it("issues nothing for an empty list", async () => {
+      await h.asUser(MEMBER_A);
+      expect((await warRostersFor(client, [])).size).toBe(0);
+    });
+
+    it("de-duplicates repeated ids", async () => {
+      await h.asUser(MEMBER_A);
+      const rosters = await warRostersFor(client, [WAR_A, WAR_A, WAR_A]);
+      expect(rosters.size).toBe(1);
+      expect(rosters.get(WAR_A)!.members).toHaveLength(2);
     });
   });
 

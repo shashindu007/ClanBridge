@@ -116,17 +116,35 @@ export default async function CwlSeasonReportPage({
   const seasonRow = await seasonByName(supabase, clan.id, season);
   if (!seasonRow) notFound();
 
-  const wars = await warsInSeason(supabase, seasonRow.id);
-  const warData: SeasonWarData[] = await Promise.all(
-    wars.map(async (war) => ({
-      apiRoster: await rosterForWar(supabase, war.id),
-      attacks: await attacksForWar(supabase, war.id),
-    })),
-  );
+  // ── TWO WAVES, NOT SIX ────────────────────────────────────────────────────
+  //
+  // These five reads were issued one after another, and only two of the
+  // dependencies were real: warData needs the war list, and membersOfRoster
+  // needs the roster's id. Everything else was queued behind work it had no use
+  // for — the season's wars, the leader's roster and the bonus awards are three
+  // independent reads off ids already in hand.
+  //
+  // The fan-out inside warData was sequential too: `await` then `await` for two
+  // reads of the same war that do not depend on each other, so a seven-war
+  // season paid two full waves of latency where it needed one.
+  const [wars, roster, bonuses] = await Promise.all([
+    warsInSeason(supabase, seasonRow.id),
+    rosterFor(supabase, clan.id, season),
+    bonusesForSeason(supabase, seasonRow.id),
+  ]);
 
-  const roster = await rosterFor(supabase, clan.id, season);
-  const selected = roster ? await membersOfRoster(supabase, roster.id) : [];
-  const bonuses = await bonusesForSeason(supabase, seasonRow.id);
+  const [warData, selected] = await Promise.all([
+    Promise.all(
+      wars.map(async (war): Promise<SeasonWarData> => {
+        const [apiRoster, attacks] = await Promise.all([
+          rosterForWar(supabase, war.id),
+          attacksForWar(supabase, war.id),
+        ]);
+        return { apiRoster, attacks };
+      }),
+    ),
+    roster ? membersOfRoster(supabase, roster.id) : [],
+  ]);
 
   const comparison = planVsReality(selected, warData);
   const contributions = contributionReport(warData, bonuses);
