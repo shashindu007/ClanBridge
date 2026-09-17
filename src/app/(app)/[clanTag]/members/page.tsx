@@ -19,8 +19,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PoolSearch } from "@/components/lineup-parts";
 import { requireClanByTag } from "@/lib/clans";
-import { isLeader } from "@/lib/visibility";
+import {
+  filterMembers,
+  memberSearch,
+  parseMemberQuery,
+  SORTS,
+  type SortKey,
+} from "@/lib/members-view";
+import { canSeeAttention, isLeader, tierOf } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import { familyCwlHistory } from "@/repositories/cwl";
 import { latestSnapshots, membersForClan, recentSnapshots } from "@/repositories/members";
@@ -34,19 +42,6 @@ import {
 } from "@/services/members";
 
 export const dynamic = "force-dynamic";
-
-const SORTS = {
-  name: "Name",
-  role: "Role",
-  th: "TH",
-  trophies: "Trophies",
-  given: "Given",
-  received: "Received",
-  ratio: "Ratio",
-  activity: "Last seen",
-} as const;
-
-type SortKey = keyof typeof SORTS;
 
 /** Leader first — the in-game hierarchy, not alphabetical. */
 const ROLE_ORDER: Record<string, number> = {
@@ -65,7 +60,12 @@ export default async function MemberDirectoryPage({
   searchParams,
 }: {
   params: Promise<{ clanTag: string }>;
-  searchParams: Promise<{ sort?: string; dir?: string; departed?: string }>;
+  searchParams: Promise<{
+    sort?: string;
+    dir?: string;
+    departed?: string;
+    q?: string;
+  }>;
 }) {
   const { clanTag } = await params;
   const query = await searchParams;
@@ -73,9 +73,15 @@ export default async function MemberDirectoryPage({
 
   const clan = await requireClanByTag(supabase, clanTag);
 
-  const sort: SortKey = (query.sort as SortKey) in SORTS ? (query.sort as SortKey) : "name";
-  const descending = query.dir === "desc";
-  const includeDeparted = query.departed === "1";
+  // One allow-list parse, one writer. The page used to read these three inline
+  // and rebuild the query string in two other places, each knowing about a
+  // different subset — which is exactly how a search term gets dropped by a
+  // sort click. See lib/members-view.ts.
+  const tier = tierOf(clan.role);
+  const q = parseMemberQuery(query, tier);
+  const sort: SortKey = q.sort;
+  const descending = q.dir === "desc";
+  const includeDeparted = q.departed;
 
   // ── TWO ROUND TRIPS, NOT THREE ────────────────────────────────────────────
   //
@@ -188,13 +194,35 @@ export default async function MemberDirectoryPage({
 
   rows.sort(compare);
 
+  // ── THE SEARCH FILTERS WHAT IS RENDERED, AND NOTHING ELSE ─────────────────
+  //
+  // Every read above is sized from the UNFILTERED roster and must stay that way.
+  // latestSnapshots() budgets its row limit as max(200, memberCount * 4) and its
+  // header explains that the window has to contain a complete batch or players
+  // silently vanish from the map — so narrowing `members` before that call would
+  // shrink the budget and lose people. Filtering here, after the last await,
+  // makes that true by construction rather than by remembering.
+  //
+  // `attention` is likewise computed from the full list: "Worth a look" is
+  // advice about the clan, not about the current search, and a leader typing a
+  // name should not watch the flags disappear. It is also what keeps the lookup
+  // below total — the panel used to do rows.find(...)! against a list that would
+  // no longer contain everyone it had flagged.
+  const memberById = new Map(rows.map((r) => [r.member.playerId, r.member]));
+  const visible = filterMembers(
+    rows.map((r) => ({ ...r, name: r.member.name, tag: r.member.tag })),
+    q.q,
+  );
+  const searching = q.q.length > 0;
+
   const coveredDays = recent.coveredFrom ? daysBetween(recent.coveredFrom, now) : 0;
   const base = `/${encodeURIComponent(clan.tag)}/members`;
-  const link = (key: SortKey) => {
-    const flip = sort === key && !descending ? "desc" : "asc";
-    const departed = includeDeparted ? "&departed=1" : "";
-    return `${base}?sort=${key}&dir=${flip}${departed}`;
-  };
+  /** Every link on this page goes through memberSearch, so no state is dropped. */
+  const link = (key: SortKey) =>
+    `${base}${memberSearch(q, {
+      sort: key,
+      dir: sort === key && !descending ? "desc" : "asc",
+    })}`;
 
   return (
     <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
@@ -204,15 +232,35 @@ export default async function MemberDirectoryPage({
           <DataFreshness freshness={freshness(clansRun)} canAdmin={isLeader(clan.role)} />
         </div>
         <p className="text-muted-foreground text-sm">
-          {clan.name} — {rows.length} {includeDeparted ? "including former members" : "current"}
+          {/* "3 of 47" while searching, so a filtered list never reads as a
+              clan that has shrunk. */}
+          {clan.name} —{" "}
+          {searching
+            ? `${visible.length} of ${rows.length} matching “${q.q}”`
+            : `${rows.length} ${includeDeparted ? "including former members" : "current"}`}
           . Donations are this season&rsquo;s; the game resets them monthly.
         </p>
       </div>
 
+      {/* The same GET form the roster builder and the war lineup use. No client
+          code: a search is a URL, so it can be sent to somebody. `hidden`
+          re-emits the sort and the departed toggle, which is what stops the
+          form throwing them away — the mirror image of link() above. */}
+      <PoolSearch
+        action={base}
+        hidden={{
+          ...(sort !== "name" ? { sort } : {}),
+          ...(descending ? { dir: "desc" } : {}),
+          ...(includeDeparted ? { departed: "1" } : {}),
+        }}
+        q={q.q}
+        clearHref={searching ? `${base}${memberSearch(q, { q: "" })}` : null}
+      />
+
       <div className="flex flex-wrap gap-3 text-sm">
         <Link
           className="underline underline-offset-2"
-          href={`${base}?sort=${sort}&dir=${descending ? "desc" : "asc"}${includeDeparted ? "" : "&departed=1"}`}
+          href={`${base}${memberSearch(q, { departed: !includeDeparted })}`}
         >
           {includeDeparted ? "Hide former members" : "Include former members"}
         </Link>
@@ -221,12 +269,16 @@ export default async function MemberDirectoryPage({
       {/* T3B.5 — advisory, and it shows its working. Placed above the table
           because it is the reason a leader opened this page, but deliberately
           worded as a prompt to look rather than a verdict. */}
-      {attention.length > 0 && (
+      {canSeeAttention(clan.role) && attention.length > 0 && (
         <section className="cb-panel space-y-3 rounded-lg border p-6">
           <h2 className="font-medium">Worth a look — {attention.length}</h2>
           <ul className="space-y-3">
             {attention.map((flag) => {
-              const member = rows.find((r) => r.member.playerId === flag.playerId)!.member;
+              // From the unfiltered map, and checked rather than asserted. The
+              // `!` this replaces threw the moment a search narrowed `rows`
+              // below the set these flags were computed from.
+              const member = memberById.get(flag.playerId);
+              if (!member) return null;
               return (
                 <li key={flag.playerId} className="text-sm">
                   <Link
@@ -269,6 +321,30 @@ export default async function MemberDirectoryPage({
             running — check <Link className="underline" href="/admin">/admin</Link>.
           </p>
         </section>
+      ) : visible.length === 0 ? (
+        // Its own state. Reusing the one above would tell a member who mistyped
+        // a name that the clan has never been synced.
+        <section className="cb-panel space-y-3 rounded-lg border p-6">
+          <h2 className="font-medium">Nobody matches &ldquo;{q.q}&rdquo;</h2>
+          <p className="text-muted-foreground text-sm">
+            Part of a name works, and so does part of a tag. Tags never contain
+            the letter O — what looks like one is a zero.
+            {!includeDeparted && " Somebody who has left the clan is hidden unless you include former members."}
+          </p>
+          <div className="flex flex-wrap gap-3 text-sm">
+            <Link className="underline underline-offset-2" href={`${base}${memberSearch(q, { q: "" })}`}>
+              Clear the search
+            </Link>
+            {!includeDeparted && (
+              <Link
+                className="underline underline-offset-2"
+                href={`${base}${memberSearch(q, { departed: true })}`}
+              >
+                Search former members too
+              </Link>
+            )}
+          </div>
+        </section>
       ) : (
         <section className="cb-panel rounded-lg border">
           <div className="overflow-x-auto">
@@ -293,7 +369,7 @@ export default async function MemberDirectoryPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map(({ member, activity }) => (
+                {visible.map(({ member, activity }) => (
                   <TableRow key={member.playerId}>
                     <TableCell className="font-medium">
                       <Link
