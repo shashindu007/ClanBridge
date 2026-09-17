@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataFreshness } from "@/components/data-freshness";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeader } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import { latestRun } from "@/repositories/sync-log";
 import { warsForClan, type WarRow } from "@/repositories/war";
@@ -67,7 +68,7 @@ export default async function WarHistoryPage({
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">War history</h1>
-          <DataFreshness freshness={runs} canAdmin={clan.role === "leader"} />
+          <DataFreshness freshness={runs} canAdmin={isLeader(clan.role)} />
         </div>
         <p className="text-muted-foreground text-sm">
           {clan.name} ·{" "}

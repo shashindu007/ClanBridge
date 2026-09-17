@@ -55,6 +55,7 @@ import {
   type ClanSection,
 } from "@/lib/clan-nav";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeader } from "@/lib/visibility";
 import { cwlPhase, nextCwlWindow } from "@/lib/coc-time";
 import { createClient } from "@/lib/supabase/server";
 import { clanDetail, currentMemberCount, latestAnnouncement } from "@/repositories/clans";
@@ -392,7 +393,7 @@ export default async function ClanDashboardPage({
                 </p>
               </div>
             </div>
-            <DataFreshness freshness={fresh} canAdmin={clan.role === "leader"} />
+            <DataFreshness freshness={fresh} canAdmin={isLeader(clan.role)} />
           </div>
         </div>
       </section>

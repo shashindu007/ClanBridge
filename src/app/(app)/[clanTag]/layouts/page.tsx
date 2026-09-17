@@ -28,6 +28,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { currentUserId } from "@/lib/auth";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeadership } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import {
   LAYOUT_TYPES,
@@ -206,7 +207,7 @@ export default async function LayoutsPage({
     }
   }
 
-  const isLeadership = clan.role === "leader" || clan.role === "co-leader";
+  const leadership = isLeadership(clan.role);
 
   /** Preserve the other filter when changing one, so they compose. */
   function filterHref(next: { th?: number | null; type?: LayoutType | null }): string {
@@ -307,7 +308,7 @@ export default async function LayoutsPage({
               layout={layout}
               clanTag={clan.tag}
               imageUrl={layout.imageUrl ? (signed.get(layout.imageUrl) ?? null) : null}
-              canRemove={isLeadership || layout.uploadedBy === userId}
+              canRemove={leadership || layout.uploadedBy === userId}
             />
           ))}
         </section>

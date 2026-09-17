@@ -56,6 +56,7 @@ import {
 } from "@/components/lineup-parts";
 import { currentUserId } from "@/lib/auth";
 import { visibleClans, type VisibleClan } from "@/lib/clans";
+import { isLeadership } from "@/lib/visibility";
 import {
   DEFAULT_QUERY,
   availabilityCounts,
@@ -84,10 +85,6 @@ import {
 } from "@/repositories/rosters";
 
 export const dynamic = "force-dynamic";
-
-function isLeadership(role: string): boolean {
-  return role === "leader" || role === "co-leader";
-}
 
 async function mutate(formData: FormData) {
   "use server";

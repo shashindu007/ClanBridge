@@ -13,15 +13,12 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeadership } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import { membersOfRoster, rosterFor, rosterSeasons } from "@/repositories/rosters";
 import { DISPLAY_ZONE } from "@/lib/display-time";
 
 export const dynamic = "force-dynamic";
-
-function isLeadership(role: string): boolean {
-  return role === "leader" || role === "co-leader";
-}
 
 function when(iso: string): string {
   return new Date(iso).toLocaleString("en-GB", {

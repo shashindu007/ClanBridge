@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/table";
 import { currentUserId } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
+import { isLeadership } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import {
   latestSnapshots,
@@ -53,11 +54,6 @@ export const dynamic = "force-dynamic";
 
 function ratioLabel(ratio: number | null): string {
   return ratio === null ? "—" : ratio.toFixed(2);
-}
-
-/** Same rule as /roster: co-leader and above. */
-function isLeadership(role: string): boolean {
-  return role === "leader" || role === "co-leader";
 }
 
 export default async function CrossClanReportPage() {

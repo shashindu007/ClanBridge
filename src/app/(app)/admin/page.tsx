@@ -23,6 +23,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { currentUserId, isPlatformAdmin } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
+import { isLeader } from "@/lib/visibility";
 import { InvalidTagError, normaliseTag } from "@/lib/tags";
 import { isUniqueViolation, safeMessage } from "@/lib/errors";
 import { failedRuns, recentRuns, type SyncRunRecord } from "@/repositories/sync-log";
@@ -163,7 +164,7 @@ async function triggerSync(formData: FormData) {
 
   const admin = await isPlatformAdmin(supabase, userId);
   const clans = await visibleClans(supabase, userId);
-  if (!admin && !clans.some((c) => c.role === "leader")) {
+  if (!admin && !clans.some((c) => isLeader(c.role))) {
     redirect("/admin?error=forbidden");
   }
 
@@ -262,7 +263,7 @@ export default async function AdminPage() {
 
   const admin = await isPlatformAdmin(supabase, userId);
   const clans = await visibleClans(supabase, userId);
-  const isLeaderSomewhere = clans.some((c) => c.role === "leader");
+  const isLeaderSomewhere = clans.some((c) => isLeader(c.role));
 
   // "platform admin reads all clans" (015) means an admin sees every clan;
   // everyone else sees only their own. RLS decided it — not this page.

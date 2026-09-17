@@ -35,6 +35,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeader } from "@/lib/visibility";
 import { seasonLabel } from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
 import { attacksForWar, rosterForWar, seasonByName, warsInSeason } from "@/repositories/cwl";
@@ -104,7 +105,7 @@ export default async function CwlDayDetailPage({
         description="Each war day's result, and who did not use their attack."
         actions={
           <>
-            <DataFreshness freshness={runs} canAdmin={clan.role === "leader"} />
+            <DataFreshness freshness={runs} canAdmin={isLeader(clan.role)} />
             <Button asChild variant="outline" size="sm">
               <Link href={`${base}/report`}>Season report</Link>
             </Button>

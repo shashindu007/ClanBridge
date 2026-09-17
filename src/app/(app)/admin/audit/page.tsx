@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { auditActorEmails, auditEntriesForClan, describeAudit } from "@/lib/audit";
 import { currentUserId } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
+import { isLeader } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import { DISPLAY_ZONE } from "@/lib/display-time";
 
@@ -56,7 +57,7 @@ export default async function AdminAuditPage({
   if (!userId) redirect("/login");
 
   const clans = await visibleClans(supabase, userId);
-  const leaderOf = clans.filter((c) => c.role === "leader");
+  const leaderOf = clans.filter((c) => isLeader(c.role));
 
   // Nothing to show, and the reason matters. A co-leader here has not hit a bug.
   if (leaderOf.length === 0) {

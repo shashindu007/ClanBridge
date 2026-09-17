@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/page-header";
 import { requireClanByTag } from "@/lib/clans";
+import { canOpenPolls } from "@/lib/visibility";
 import { seasonLabel, startableSeasons } from "@/lib/roster-view";
 import { currentUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -138,7 +139,7 @@ export default async function CreatePollPage({
   const clan = await requireClanByTag(supabase, clanTag);
   const back = `/${encodeURIComponent(clan.tag)}/polls`;
 
-  if (clan.role !== "leader" && clan.role !== "co-leader") {
+  if (!canOpenPolls(clan.role)) {
     return (
       <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
         <PageHeader back={{ href: back, label: "All polls" }} title="Create a poll" />

@@ -34,6 +34,7 @@ import { PageHeader } from "@/components/page-header";
 import { formatDisplay } from "@/lib/display-time";
 import { availabilityOf, seasonLabel } from "@/lib/roster-view";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeadership } from "@/lib/visibility";
 import { currentUserId } from "@/lib/auth";
 import { notifyUsers } from "@/lib/push";
 import { createClient } from "@/lib/supabase/server";
@@ -56,10 +57,6 @@ import {
 } from "@/services/polls";
 
 export const dynamic = "force-dynamic";
-
-function isLeadership(role: string): boolean {
-  return role === "leader" || role === "co-leader";
-}
 
 async function submitAnswer(formData: FormData) {
   "use server";

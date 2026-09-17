@@ -43,6 +43,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeadership } from "@/lib/visibility";
 import { seasonLabel } from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
 import { attacksForWar, rosterForWar, seasonByName, warsInSeason } from "@/repositories/cwl";
@@ -62,10 +63,6 @@ import {
 } from "@/services/rosters";
 
 export const dynamic = "force-dynamic";
-
-function isLeadership(role: string): boolean {
-  return role === "leader" || role === "co-leader";
-}
 
 async function bonusAction(formData: FormData) {
   "use server";

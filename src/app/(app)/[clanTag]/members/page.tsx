@@ -20,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeader } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import { familyCwlHistory } from "@/repositories/cwl";
 import { latestSnapshots, membersForClan, recentSnapshots } from "@/repositories/members";
@@ -200,7 +201,7 @@ export default async function MemberDirectoryPage({
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">Members</h1>
-          <DataFreshness freshness={freshness(clansRun)} canAdmin={clan.role === "leader"} />
+          <DataFreshness freshness={freshness(clansRun)} canAdmin={isLeader(clan.role)} />
         </div>
         <p className="text-muted-foreground text-sm">
           {clan.name} — {rows.length} {includeDeparted ? "including former members" : "current"}

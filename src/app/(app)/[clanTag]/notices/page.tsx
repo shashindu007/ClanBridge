@@ -25,17 +25,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeadership } from "@/lib/visibility";
 import { notifyClan } from "@/lib/push";
 import { createClient } from "@/lib/supabase/server";
 import { announcementsForClan } from "@/repositories/clans";
 import { DISPLAY_ZONE } from "@/lib/display-time";
 
 export const dynamic = "force-dynamic";
-
-/** Leader and co-leader, matching auth_leadership_clan_ids() in migration 021. */
-function isLeadership(role: string): boolean {
-  return role === "leader" || role === "co-leader";
-}
 
 function when(iso: string): string {
   return new Date(iso).toLocaleString("en-GB", {

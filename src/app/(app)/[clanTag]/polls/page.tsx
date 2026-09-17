@@ -11,16 +11,13 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeadership } from "@/lib/visibility";
 import { currentUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { myPlayers, pollsForClan, responsesForPoll } from "@/repositories/polls";
 import { isOpen } from "@/services/polls";
 
 export const dynamic = "force-dynamic";
-
-function isLeadership(role: string): boolean {
-  return role === "leader" || role === "co-leader";
-}
 
 /**
  * How long a poll has left, in words.

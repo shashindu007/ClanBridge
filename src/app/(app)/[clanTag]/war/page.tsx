@@ -46,6 +46,7 @@ import { PageHeader } from "@/components/page-header";
 import { Stars, Stat } from "@/components/stars";
 import { currentUserId } from "@/lib/auth";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeader, isLeadership } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import { myPlayers } from "@/repositories/polls";
 import { latestRun } from "@/repositories/sync-log";
@@ -73,10 +74,6 @@ import { freshness } from "@/services/freshness";
 import { LocalTime } from "@/components/local-time";
 
 export const dynamic = "force-dynamic";
-
-function isLeadership(role: string): boolean {
-  return role === "leader" || role === "co-leader";
-}
 
 function stateBadge(war: WarRow) {
   if (war.state === "preparation") return <Badge variant="info">Preparation day</Badge>;
@@ -185,7 +182,7 @@ export default async function WarBoardPage({
       eyebrow={clan.name}
       title="War board"
       description="The current war: who still has attacks to use, and which base each member should hit."
-      actions={<DataFreshness freshness={runs} canAdmin={clan.role === "leader"} />}
+      actions={<DataFreshness freshness={runs} canAdmin={isLeader(clan.role)} />}
     />
   );
 

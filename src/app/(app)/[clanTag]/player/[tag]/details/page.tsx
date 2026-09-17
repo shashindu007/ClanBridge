@@ -20,8 +20,8 @@ import { ArrowLeft } from "lucide-react";
 import { BaseDetails, villageParam } from "@/components/base-details";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { hasRole } from "@/lib/auth";
 import { requireClanByTag } from "@/lib/clans";
+import { canSeeBaseDetails } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import { decodeTag, encodeTag, InvalidTagError } from "@/lib/tags";
 import { baseProgress } from "@/repositories/player-progress";
@@ -39,7 +39,7 @@ export default async function MemberBaseDetailsPage({
   const supabase = await createClient();
 
   const clan = await requireClanByTag(supabase, clanTag);
-  if (!hasRole(clan.role, "co-leader")) notFound();
+  if (!canSeeBaseDetails(clan.role)) notFound();
 
   let playerTag: string;
   try {

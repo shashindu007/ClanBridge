@@ -52,6 +52,7 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { currentUserId } from "@/lib/auth";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeadership } from "@/lib/visibility";
 import { formatDisplay } from "@/lib/display-time";
 import {
   DEFAULT_QUERY,
@@ -85,10 +86,6 @@ export const dynamic = "force-dynamic";
 const WAR_SIZES = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
 
 const UUID = /^[0-9a-f-]{36}$/i;
-
-function isLeadership(role: string): boolean {
-  return role === "leader" || role === "co-leader";
-}
 
 /** The largest war the "In" answers can fill, or null below 5. */
 function supportedSize(inCount: number): number | null {
