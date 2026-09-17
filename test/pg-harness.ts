@@ -82,6 +82,11 @@ export const PHASE1_MIGRATIONS = [
   // T11C.1 family_cwl_history() — CWL season totals from every platform clan, a
   // deliberate R3 exception. Must follow 031 (auth_owned_player_ids) and 019.
   "037_family_cwl_history.sql",
+  // T12.1 family_clans() and family_clan_roster() — every platform clan's
+  // overview and roster, the second deliberate R3 exception after 037. Must
+  // follow 006 (auth_clan_ids), 008 (players.left_at) and 020 (clans.level,
+  // war_league, member_count), all of which its result columns read.
+  "038_family_directory.sql",
 ] as const;
 
 /**
