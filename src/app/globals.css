@@ -161,6 +161,13 @@
 }
 
 .dark {
+  /* Native widgets too — scrollbars, form controls, and the canvas the browser
+     paints behind the document between navigations. Without this a dark page
+     gets a light scrollbar and a white flash on every full page load. The
+     blocking script in app/layout.tsx sets the same thing inline so it applies
+     before this stylesheet has parsed; this is what keeps it true afterwards. */
+  color-scheme: dark;
+
   /* Night wood. The same furniture after dark, measured on it:
        foreground on background     15.96:1   (14.27:1 on --card)
        muted-foreground on bg        7.89:1   (6.28:1 on --muted)
@@ -194,10 +201,13 @@
      lighten, because dark-on-dark is unreadable. Measured against a 16% tint
      of each mark: success 9.94:1, warning 9.38:1, info 8.33:1.
 
-     NOTE these are currently dead. `@custom-variant dark` above targets `.dark`
-     and nothing in the app ever adds that class — there is no theme toggle and
-     no next-themes. They are written anyway so that adding one is a one-line
-     change rather than a colour audit. */
+     These were dead for most of this project's life: `@custom-variant dark`
+     above targets `.dark`, and nothing ever added that class. lib/theme.ts now
+     does, from a stored preference defaulting to the OS — so every value in
+     this block, and every `.dark` rule in the decorative layer below, is live.
+     The note is kept because it records why they were written before anything
+     could show them, and that turned out to be the right call: turning dark
+     mode on cost a toggle and a six-line script, not a colour audit. */
   --success-ink: oklch(0.8 0.182 151.7);
   --warning-ink: oklch(0.837 0.164 84.4);
   --info: oklch(0.622 0.161 255.1);
