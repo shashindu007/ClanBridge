@@ -35,12 +35,10 @@ import { requireClanByTag } from "@/lib/clans";
 import { createClient } from "@/lib/supabase/server";
 import { DISPLAY_ZONE } from "@/lib/display-time";
 import {
-  attacksForWar,
   lineupForWar,
   membersOfLineup,
-  membersOfWar,
-  targetsForWar,
   warById,
+  warRostersFor,
   warsForClan,
   type WarAttackRow,
   type WarMemberRow,
@@ -88,9 +86,9 @@ export default async function WarReportPage({
 
   if (wars.length === 0) {
     return (
-      <main className="mx-auto max-w-7xl space-y-6 p-8">
+      <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
         <ReportHeader clanName={clan.name} base={base} />
-        <section className="space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-lg border p-6">
           <h2 className="font-medium">No wars to report on yet</h2>
           <p className="text-muted-foreground text-sm">
             This page compares who was picked against who played, and who was told
@@ -113,20 +111,31 @@ export default async function WarReportPage({
     targets: WarTargetRow[];
   }> = [];
 
-  // Every war's three reads in flight together, rather than a war at a time.
-  // WAR_WINDOW wars at three sequential queries each was 3N round trips before
-  // the first row could render; it is now three waves regardless of N.
+  // FOUR QUERIES, WHATEVER WAR_WINDOW IS.
+  //
+  // This looped the wars and issued three reads for each inside a Promise.all,
+  // under a comment claiming it was "three waves regardless of N". That was true
+  // of the LATENCY and false of the query count: membersOfWar() ends in its own
+  // playerDetails() lookup, so N wars cost 4N statements — forty at the default
+  // window — all arriving together to queue on a free-tier pooler. Overlapping
+  // forty queries does not make them four.
+  //
+  // warRostersFor() filters each table by `war_id in (…)` once and resolves
+  // every player across every war in one lookup. See its header in
+  // repositories/war.ts; the player profile went the same way.
+  const rosters = await warRostersFor(
+    supabase,
+    wars.map((war) => war.id),
+  );
+
+  // Wars with no rows are kept as empties rather than dropped: warContribution()
+  // counts a war a member was absent from, so losing one would quietly improve
+  // everybody's record.
   loaded.push(
-    ...(await Promise.all(
-      wars.map(async (war) => {
-        const [members, attacks, targets] = await Promise.all([
-          membersOfWar(supabase, war.id),
-          attacksForWar(supabase, war.id),
-          targetsForWar(supabase, war.id),
-        ]);
-        return { war, members, attacks, targets };
-      }),
-    )),
+    ...wars.map((war) => ({
+      war,
+      ...(rosters.get(war.id) ?? { members: [], attacks: [], targets: [] }),
+    })),
   );
 
   const contribution = warContribution(loaded);
@@ -145,12 +154,12 @@ export default async function WarReportPage({
     : null;
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-8">
+    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
       <ReportHeader clanName={clan.name} base={base} />
 
       {/* ── T6.10 ─────────────────────────────────────────────────────────── */}
       {focus && comparison && compliance && (
-        <section className="space-y-4 rounded-lg border p-6">
+        <section className="cb-panel space-y-4 rounded-lg border p-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-medium">
               Plan versus reality —{" "}
@@ -250,7 +259,7 @@ export default async function WarReportPage({
       )}
 
       {/* ── T6.9 ──────────────────────────────────────────────────────────── */}
-      <section className="space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">
             Contribution{" "}
@@ -344,11 +353,15 @@ async function loadOne(
 ) {
   const war = await warById(supabase, clanId, warId); // R3
   if (!war) return undefined;
+
+  // Three SEQUENTIAL awaits before — one round trip each, for three reads that
+  // never depended on one another. warRostersFor() takes a list of one and does
+  // them together, so this is the same four-query shape the main list uses
+  // rather than a second way of loading the same thing.
+  const rosters = await warRostersFor(supabase, [war.id]);
   return {
     war,
-    members: await membersOfWar(supabase, war.id),
-    attacks: await attacksForWar(supabase, war.id),
-    targets: await targetsForWar(supabase, war.id),
+    ...(rosters.get(war.id) ?? { members: [], attacks: [], targets: [] }),
   };
 }
 

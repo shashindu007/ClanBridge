@@ -112,6 +112,81 @@ describe("POST /api/auth/sign-in", () => {
       expect(body).not.toContain(message);
     });
 
+    // ── A transport failure is NOT a credential failure ────────────────────
+    //
+    // The enumeration argument above is about the ANSWER to a credential check.
+    // These never got one: the request did not reach Supabase, so the reply is
+    // identical whether the address exists or not and there is nothing to leak.
+    //
+    // The bug this covers was watched happening. A network drop produced
+    // `AuthRetryableFetchError: fetch failed` with status 0, the route answered
+    // 401 "Wrong email or password", and the password had never been checked
+    // against anything.
+    describe("when the auth server cannot be reached", () => {
+      /** What @supabase/auth-js actually throws. The guard reads `name`. */
+      function retryable(message = "fetch failed") {
+        const error = new Error(message);
+        error.name = "AuthRetryableFetchError";
+        (error as Error & { status: number }).status = 0;
+        (error as Error & { __isAuthError: boolean }).__isAuthError = true;
+        return error;
+      }
+
+      it("503s rather than 401, so nobody retypes a password that was never read", async () => {
+        signInWithPassword.mockResolvedValue({ data: { user: null }, error: retryable() });
+        vi.spyOn(console, "error").mockImplementation(() => {});
+
+        const res = await POST(post({ email: EMAIL, password: PASSWORD }));
+        expect(res.status).toBe(503);
+      });
+
+      it("says the connection failed, not that the credentials are wrong", async () => {
+        signInWithPassword.mockResolvedValue({ data: { user: null }, error: retryable() });
+        vi.spyOn(console, "error").mockImplementation(() => {});
+
+        const res = await POST(post({ email: EMAIL, password: PASSWORD }));
+        const body = (await res.json()) as { error: string };
+        expect(body.error).toContain("Could not reach the server");
+        expect(body.error).not.toContain("Wrong email or password");
+      });
+
+      it("sends Retry-After, because waiting is the correct action", async () => {
+        signInWithPassword.mockResolvedValue({ data: { user: null }, error: retryable() });
+        vi.spyOn(console, "error").mockImplementation(() => {});
+
+        const res = await POST(post({ email: EMAIL, password: PASSWORD }));
+        expect(res.headers.get("Retry-After")).toBe("5");
+      });
+
+      // The half of the old behaviour worth keeping: the member is told the
+      // connection failed, and the transport detail stays in the log.
+      it("keeps the underlying message out of the response", async () => {
+        signInWithPassword.mockResolvedValue({
+          data: { user: null },
+          error: retryable("getaddrinfo ENOTFOUND xyz.supabase.co"),
+        });
+        vi.spyOn(console, "error").mockImplementation(() => {});
+
+        const res = await POST(post({ email: EMAIL, password: PASSWORD }));
+        expect(await res.text()).not.toContain("ENOTFOUND");
+      });
+
+      // The guard must be narrow. An ordinary rejection is still 401, or this
+      // change has quietly turned every wrong password into "try again later"
+      // and the enumeration protection with it.
+      it("does not catch an ordinary credential rejection", async () => {
+        signInWithPassword.mockResolvedValue({
+          data: { user: null },
+          error: { message: "Invalid login credentials" },
+        });
+        vi.spyOn(console, "error").mockImplementation(() => {});
+
+        const res = await POST(post({ email: EMAIL, password: PASSWORD }));
+        expect(res.status).toBe(401);
+        expect((await res.json()).error).toBe("Wrong email or password.");
+      });
+    });
+
     it("logs the real reason so it is still debuggable", async () => {
       const spy = vi.spyOn(console, "error").mockImplementation(() => {});
       signInWithPassword.mockResolvedValue({

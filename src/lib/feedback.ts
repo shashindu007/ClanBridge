@@ -38,7 +38,12 @@ export const OK_MESSAGES: Record<string, string> = {
   "roster-started": "Roster started for this season.",
 
   // War (Phase 6).
-  "lineup-saved": "Lineup saved.",
+  "lineup-started": "Lineup started. Add players to it.",
+  "lineup-added": "Added to the lineup.",
+  "lineup-removed": "Removed from the lineup.",
+  "lineup-published": "Lineup published. Everyone in the clan can see it now.",
+  "lineup-unpublished": "Back to draft. Members can no longer see it.",
+  "lineup-linked": "Lineup linked to the war.",
   "target-assigned": "Target assigned.",
   "target-cleared": "Target cleared.",
   "target-claimed": "Base claimed. It is yours unless leadership reassigns it.",
@@ -57,7 +62,8 @@ export const OK_MESSAGES: Record<string, string> = {
   "notice-removed": "Announcement removed.",
 
   // CWL bonus medals (T4.7).
-  "bonus-awarded": "Bonus recorded.",
+  "bonus-awarded": "Medal awarded.",
+  "bonus-withdrawn": "Medal taken back.",
 
   // Base layouts (Phase 8).
   voted: "Vote counted.",
@@ -92,6 +98,18 @@ export const ERROR_MESSAGES: Record<string, string> = {
   forbidden: "You do not have permission to do that.",
   "unknown-job": "That is not a job that can be started by hand.",
   "unknown-action": "That is not something this page can do.",
+  // CWL report.
+  "bad-order": "The medal place must be a whole number, 1 or more.",
+  // Create poll.
+  "no-title": "Give the poll a title so members know what they are answering.",
+  "need-options": "A poll needs at least two answers to choose from.",
+  "duplicate-options": "Two answers have the same wording, which makes the result unreadable.",
+  "bad-type": "That kind of poll is not one this system knows.",
+  // Poll page. Rendered by the page itself until the redesign; the toast is now the one place.
+  incomplete: "Pick an answer before saving.",
+  closed: "This poll has closed, so there is nothing to remind anyone about.",
+  // War board: an assign or claim with no base chosen, or one outside the war.
+  "pick-a-base": "Choose a base from the list first.",
   // /roster. The page used to render these itself from its own table; the toast
   // already shows every ?error=, so the page said the same thing twice.
   "bad-season": "Pick this month or next month from the list.",

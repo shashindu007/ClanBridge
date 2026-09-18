@@ -38,24 +38,26 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { ArrowLeft, CircleAlert, Search } from "lucide-react";
+import { ArrowLeft, CircleAlert } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/submit-button";
 import {
   AvailabilityBadge,
+  AvailabilityChips,
+  HowItWorks,
   LastCwl,
   LineupPanel,
   LineupStatus,
+  PoolSearch,
+  Step,
   TownHall,
-} from "@/components/roster-parts";
+} from "@/components/lineup-parts";
 import { currentUserId } from "@/lib/auth";
 import { visibleClans, type VisibleClan } from "@/lib/clans";
+import { isLeadership } from "@/lib/visibility";
 import {
-  AVAILABILITY_FILTERS,
-  AVAILABILITY_LABELS,
   DEFAULT_QUERY,
   availabilityCounts,
   builderSearch,
@@ -83,10 +85,6 @@ import {
 } from "@/repositories/rosters";
 
 export const dynamic = "force-dynamic";
-
-function isLeadership(role: string): boolean {
-  return role === "leader" || role === "co-leader";
-}
 
 async function mutate(formData: FormData) {
   "use server";
@@ -213,8 +211,9 @@ export default async function RosterBuilderPage({
             {visible.map((roster) => (
               <LineupPanel
                 key={roster.id}
-                roster={roster}
-                clanName={clanById.get(roster.clanId)?.name ?? "Clan"}
+                title={clanById.get(roster.clanId)?.name ?? "Clan"}
+                status={roster.status}
+                slots={roster.slotCount}
                 members={rosterMembers.get(roster.id) ?? []}
               />
             ))}
@@ -318,25 +317,20 @@ export default async function RosterBuilderPage({
     <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
       <PageHeader title={title} />
 
-      {/* A native disclosure: open until the first player is picked, then out of
-          the way, and never more than one click from being read again. */}
-      <details open={nobodyPickedYet} className="cb-panel group rounded-lg border p-5">
-        <summary className="cursor-pointer font-medium">How this works</summary>
-        <ol className="mt-4 grid gap-4 sm:grid-cols-3">
-          <Step n={1} title="Check who is available">
-            Members answer the CWL availability poll with In, Maybe or Out. Their answers
-            show in the player list.
-          </Step>
-          <Step n={2} title="Pick each clan's lineup">
-            Choose a clan in the tabs, then press Add beside a player. Up to{" "}
-            {selected.slotCount} per clan. Everything saves as you go.
-          </Step>
-          <Step n={3} title="Publish">
-            Drafts are private to leaders. Publish a lineup when it is ready and that
-            clan&apos;s members can see it.
-          </Step>
-        </ol>
-      </details>
+      <HowItWorks open={nobodyPickedYet}>
+        <Step n={1} title="Check who is available">
+          Members answer the CWL availability poll with In, Maybe or Out. Their answers show
+          in the player list.
+        </Step>
+        <Step n={2} title="Pick each clan's lineup">
+          Choose a clan in the tabs, then press Add beside a player. Up to{" "}
+          {selected.slotCount} per clan. Everything saves as you go.
+        </Step>
+        <Step n={3} title="Publish">
+          Drafts are private to leaders. Publish a lineup when it is ready and that
+          clan&apos;s members can see it.
+        </Step>
+      </HowItWorks>
 
       {availabilityPoll ? (
         <div className="cb-panel flex flex-wrap items-center justify-between gap-3 rounded-lg border px-5 py-3 text-sm">
@@ -401,11 +395,12 @@ export default async function RosterBuilderPage({
             so the result of an Add is visible without scrolling. */}
         <aside className="order-first lg:sticky lg:top-4 lg:order-last">
           <LineupPanel
-            roster={selected}
-            clanName={selectedClan.name}
+            title={selectedClan.name}
+            status={selected.status}
+            slots={selected.slotCount}
             members={selectedMembers}
             action={mutate}
-            hidden={{ season, view }}
+            hidden={{ season, view, rosterId: selected.id }}
           />
         </aside>
 
@@ -418,68 +413,30 @@ export default async function RosterBuilderPage({
             </p>
           </div>
 
-          <div role="group" aria-label="Filter by availability" className="flex flex-wrap gap-2">
-            {AVAILABILITY_FILTERS.map((filter) => {
-              const active = current.show === filter;
-              return (
-                <Link
-                  key={filter}
-                  href={`${base}${builderSearch(current, { show: filter })}`}
-                  aria-current={active ? "true" : undefined}
-                  className={`rounded-full border px-3 py-1 text-sm transition-colors ${
-                    active ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-accent"
-                  }`}
-                >
-                  {AVAILABILITY_LABELS[filter]}{" "}
-                  <span className={`tabular-nums ${active ? "" : "text-muted-foreground"}`}>
-                    {counts[filter]}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
+          <AvailabilityChips
+            active={current.show}
+            counts={counts}
+            hrefFor={(show) => `${base}${builderSearch(current, { show })}`}
+          />
 
+          {/* A plain GET form
           {/* A plain GET form: the filters are URL state, so no client code. */}
-          <form method="get" action={base} className="flex flex-wrap items-end gap-2">
-            <input type="hidden" name="clan" value={selectedClan.tag} />
-            {current.show !== "all" && <input type="hidden" name="show" value={current.show} />}
-            {current.picked !== "hide" && <input type="hidden" name="picked" value={current.picked} />}
-            <div className="relative min-w-48 flex-1">
-              <Search aria-hidden className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-              <Input
-                name="q"
-                defaultValue={current.q}
-                placeholder="Search by name or tag"
-                aria-label="Search players by name or tag"
-                className="pl-9"
-              />
-            </div>
-            {leads.length > 1 && (
-              <select
-                name="from"
-                defaultValue={current.from ?? ""}
-                aria-label="Only players currently in this clan"
-                className="border-input bg-background h-10 rounded-md border px-3 text-sm"
-              >
-                <option value="">From all clans</option>
-                {leads.map((clan) => (
-                  <option key={clan.id} value={clan.id}>
-                    From {clan.name}
-                  </option>
-                ))}
-              </select>
-            )}
-            <Button type="submit" variant="outline">
-              Search
-            </Button>
-            {filtersActive && (
-              <Button asChild variant="ghost">
-                <Link href={`${base}${builderSearch({ ...DEFAULT_QUERY, clan: selectedClan.tag, picked: current.picked })}`}>
-                  Clear filters
-                </Link>
-              </Button>
-            )}
-          </form>
+          <PoolSearch
+            action={base}
+            hidden={{
+              clan: selectedClan.tag,
+              ...(current.show !== "all" ? { show: current.show } : {}),
+              ...(current.picked !== "hide" ? { picked: current.picked } : {}),
+            }}
+            q={current.q}
+            clans={leads}
+            from={current.from}
+            clearHref={
+              filtersActive
+                ? `${base}${builderSearch({ ...DEFAULT_QUERY, clan: selectedClan.tag, picked: current.picked })}`
+                : null
+            }
+          />
 
           <p className="text-muted-foreground text-sm">
             Showing {shown.length} player{shown.length === 1 ? "" : "s"}
@@ -626,19 +583,5 @@ function PageHeader({ title }: { title: string }) {
         </p>
       </div>
     </div>
-  );
-}
-
-function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
-  return (
-    <li className="flex gap-3">
-      <span className="bg-primary text-primary-foreground flex size-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
-        {n}
-      </span>
-      <span className="space-y-1">
-        <span className="block text-sm font-medium">{title}</span>
-        <span className="text-muted-foreground block text-sm">{children}</span>
-      </span>
-    </li>
   );
 }

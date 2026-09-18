@@ -1,13 +1,22 @@
-// T3B.6 — cross-clan member search.
+// T3B.6 / T12.1 — family-wide member search.
 //
-// Outside [clanTag] because it spans clans: a leader remembers a name but not
-// which of the three that person is in, which is the whole reason this exists.
+// Outside [clanTag] because it spans clans: somebody remembers a name but not
+// which clan that person is in, which is the whole reason this exists.
 //
-// R3 — AND THIS IS THE PAGE THAT GETS IT WRONG. Spanning clans is not the same
-// as not filtering by clan. The search runs one query per clan the caller may
-// see, built from visibleClans(); it never queries players unscoped and leans on
-// RLS to sort it out. test/authorisation.test.ts asserts the net underneath
-// holds anyway, because both are meant to be true.
+// R3 — SPANNING CLANS IS STILL NOT THE SAME AS NOT FILTERING BY CLAN, and that
+// rule is unchanged. What changed in T12.1 is the LIST: the clan ids now come
+// from familyClans() rather than visibleClans(), so the search covers every
+// platform clan instead of only the ones the caller holds a role in.
+//
+// The widening lives in 038's definer function, not in a policy. `players` keeps
+// its clan-scoped SELECT policy, so this page cannot read another clan's roster
+// by querying the table — it has to ask family_clan_roster(), which returns six
+// columns and refuses anyone holding no clan role at all.
+//
+// searchPlayers() in repositories/members.ts is NOT deleted. It is still the
+// right function for a clan-scoped search under a session that holds the role,
+// it is tested, and replacing a tested thing to avoid two spellings would have
+// been the wrong trade.
 //
 // The form is a GET, so a search is a URL. No client JavaScript, and a leader
 // can paste the result to someone.
@@ -25,10 +34,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { currentUserId } from "@/lib/auth";
-import { visibleClans } from "@/lib/clans";
+import { clanRoles, currentUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { searchPlayers } from "@/repositories/members";
+import { familyClanRoster, familyClans } from "@/repositories/family";
 
 export const dynamic = "force-dynamic";
 
@@ -44,26 +52,33 @@ export default async function CrossClanSearchPage({
   const userId = await currentUserId(supabase);
   if (!userId) redirect("/login");
 
-  // The only source of truth for which clans this user may search. A hardcoded
-  // list of three tags here is exactly how a leader of clan A ends up holding a
-  // working search across clan B (T3.7).
-  const clans = await visibleClans(supabase, userId);
+  // Every platform clan, and the caller's role in each — null for most of them.
+  // Still the only source of truth for what may be searched: a hardcoded list of
+  // tags here is exactly how somebody ends up holding a working search across a
+  // clan the database would have refused (T3.7).
+  const [clans, roles] = await Promise.all([
+    familyClans(supabase),
+    clanRoles(supabase, userId),
+  ]);
   const byId = new Map(clans.map((c) => [c.id, c]));
 
+  // Departed players included, as before — the footnote says so, and R4 means
+  // their rows never went anywhere.
   const hits = term
-    ? await searchPlayers(
+    ? await familyClanRoster(
         supabase,
         clans.map((c) => c.id),
         term,
+        true,
       )
     : [];
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-8">
+    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Search members</h1>
         <p className="text-muted-foreground text-sm">
-          Across {clans.length === 1 ? "your clan" : `all ${clans.length} of your clans`}.
+          Across {clans.length === 1 ? "the family's clan" : `all ${clans.length} clans in the family`}.
           Search a name, or paste a full tag beginning with #.
         </p>
       </div>
@@ -85,10 +100,10 @@ export default async function CrossClanSearchPage({
           a partial tag is not a meaningful query.
         </p>
       ) : hits.length === 0 ? (
-        <section className="space-y-2 rounded-lg border p-6">
+        <section className="cb-panel space-y-2 rounded-lg border p-6">
           <h2 className="font-medium">No match for &ldquo;{term}&rdquo;</h2>
           <p className="text-muted-foreground text-sm">
-            Nobody in your clans matches that. If you are searching a tag, check
+            Nobody in the family matches that. If you are searching a tag, check
             it is exact and remember tags never contain the letter O — what looks
             like one is a zero.
           </p>
@@ -107,14 +122,28 @@ export default async function CrossClanSearchPage({
               </TableHeader>
               <TableBody>
                 {hits.map((hit) => {
-                  const clan = byId.get(hit.clanId)!;
+                  // No `!`. The two reads are separate, so a clan soft-deleted
+                  // between them would leave a hit with nowhere to point — rare,
+                  // and a dropped row is a better answer than a crash.
+                  const clan = byId.get(hit.clanId);
+                  if (!clan) return null;
+
+                  // WHERE THE NAME LINKS DEPENDS ON WHETHER YOU ARE IN THAT CLAN.
+                  // player/[tag] still resolves through requireClanByTag, so for
+                  // a clan the caller holds no role in it would 404 — a search
+                  // result that punishes you for clicking it. Those land on the
+                  // clan's roster with the tag already searched, which is the
+                  // most a visitor is allowed to see of that person anyway.
+                  const clanHref = `/${encodeURIComponent(clan.tag)}`;
+                  const inClan = roles.has(hit.clanId);
+                  const nameHref = inClan
+                    ? `${clanHref}/player/${encodeURIComponent(hit.tag)}`
+                    : `${clanHref}/members?q=${encodeURIComponent(hit.tag)}`;
+
                   return (
                     <TableRow key={hit.playerId}>
                       <TableCell className="font-medium">
-                        <Link
-                          className="underline-offset-2 hover:underline"
-                          href={`/${encodeURIComponent(clan.tag)}/player/${encodeURIComponent(hit.tag)}`}
-                        >
+                        <Link className="underline-offset-2 hover:underline" href={nameHref}>
                           {hit.name}
                         </Link>
                         {hit.leftAt && (
@@ -127,12 +156,12 @@ export default async function CrossClanSearchPage({
                         </span>
                       </TableCell>
                       <TableCell className="text-sm">
-                        <Link
-                          className="underline-offset-2 hover:underline"
-                          href={`/${encodeURIComponent(clan.tag)}`}
-                        >
+                        <Link className="underline-offset-2 hover:underline" href={clanHref}>
                           {clan.name}
                         </Link>
+                        {!inClan && (
+                          <span className="text-muted-foreground ml-2 text-xs">visiting</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {hit.clanRole ?? "—"}

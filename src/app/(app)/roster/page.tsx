@@ -31,9 +31,10 @@ import { ArrowRight, CalendarPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/submit-button";
-import { LineupStatus, SlotMeter } from "@/components/roster-parts";
+import { LineupStatus, SlotMeter } from "@/components/lineup-parts";
 import { currentUserId } from "@/lib/auth";
 import { visibleClans, type VisibleClan } from "@/lib/clans";
+import { isLeadership } from "@/lib/visibility";
 import { publishedSummary, seasonLabel, seasonOf, startableSeasons } from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -45,10 +46,6 @@ import {
 } from "@/repositories/rosters";
 
 export const dynamic = "force-dynamic";
-
-function isLeadership(role: string): boolean {
-  return role === "leader" || role === "co-leader";
-}
 
 async function startSeason(formData: FormData) {
   "use server";

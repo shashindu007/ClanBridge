@@ -7,6 +7,7 @@
 // every month "not in CWL" is the correct outcome, and an indicator that is
 // amber most of the year is an indicator nobody reads on the week it matters.
 
+import Link from "next/link";
 import { CircleCheck, CircleDashed, Clock, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { Freshness, FreshnessLevel } from "@/services/freshness";
@@ -46,7 +47,26 @@ const LOOK: Record<
   never: { variant: "outline", Icon: CircleDashed },
 };
 
-export function DataFreshness({ freshness }: { freshness: Freshness }) {
+export function DataFreshness({
+  freshness,
+  canAdmin = false,
+}: {
+  freshness: Freshness;
+  /**
+   * Whether this reader can actually do anything about a failure.
+   *
+   * The failed state used to end "— check /admin" for everybody. An ordinary
+   * member who followed that reached a panel reading "This page is for
+   * leaders", which is a dead end dressed as an instruction. Architecture §11
+   * says the intended mechanism is that "a member will report it before a
+   * leader notices" — so the copy now says that to the people it is true of,
+   * and keeps the link for the people who can use it.
+   *
+   * Defaults to false: a caller that has not thought about the role gets the
+   * message that is safe for anyone to read.
+   */
+  canAdmin?: boolean;
+}) {
   const { level, label, skipReason } = freshness;
   const { variant, Icon } = LOOK[level];
 
@@ -67,7 +87,20 @@ export function DataFreshness({ freshness }: { freshness: Freshness }) {
       </Badge>
       {skipReason && <span>{NOT_IN_CWL[skipReason] ?? skipReason}</span>}
       {level === "stale" && <span>— the sync job may have stopped</span>}
-      {level === "failed" && <span>— check /admin</span>}
+      {level === "failed" &&
+        (canAdmin ? (
+          <span>
+            —{" "}
+            <Link href="/admin" className="underline underline-offset-2">
+              check /admin
+            </Link>
+          </span>
+        ) : (
+          // Named in words a member can act on, and no route they cannot open.
+          // "Game data" rather than "the sync job": a member does not know what
+          // a sync job is and cannot run one.
+          <span>— tell your clan leader; game data has stopped updating</span>
+        ))}
     </span>
   );
 }

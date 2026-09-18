@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeader } from "@/lib/visibility";
 import { cwlPhase, nextCwlWindow } from "@/lib/coc-time";
 import { createClient } from "@/lib/supabase/server";
 import { seasonsForClan, warsInSeason } from "@/repositories/cwl";
@@ -63,11 +64,11 @@ export default async function CwlSeasonListPage({
   const phase = cwlPhase(now);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-8">
+    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">Clan War League</h1>
-          <DataFreshness freshness={runs} />
+          <DataFreshness freshness={runs} canAdmin={isLeader(clan.role)} />
         </div>
         <p className="text-muted-foreground text-sm">
           {clan.name} — every season captured, oldest kept forever.

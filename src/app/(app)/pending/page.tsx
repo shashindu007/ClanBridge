@@ -53,7 +53,7 @@ export default async function PendingApprovalPage() {
 
   if (rejected) {
     return (
-      <main className="mx-auto max-w-2xl space-y-6 p-8">
+      <main className="mx-auto max-w-2xl space-y-6 p-4 sm:p-8">
         <h1 className="text-2xl font-semibold tracking-tight">
           This account was not approved
         </h1>
@@ -69,7 +69,7 @@ export default async function PendingApprovalPage() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 p-8">
+    <main className="mx-auto max-w-2xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">
           Waiting for approval

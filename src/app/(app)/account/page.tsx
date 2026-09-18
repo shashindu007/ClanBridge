@@ -201,7 +201,7 @@ export default async function AccountPage() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl space-y-8 p-8">
+    <main className="mx-auto max-w-2xl space-y-8 p-4 sm:p-8">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Your account</h1>
         <p className="text-muted-foreground text-sm">
@@ -221,7 +221,7 @@ export default async function AccountPage() {
         </p>
       </div>
 
-      <section className="space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="space-y-1">
           <h2 className="font-medium">Profile picture</h2>
           <p className="text-muted-foreground text-sm">
@@ -262,7 +262,7 @@ export default async function AccountPage() {
         <AvatarForm userId={userId} save={saveAvatar} />
       </section>
 
-      <section className="space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="space-y-1">
           <h2 className="font-medium">Your bases</h2>
           <p className="text-muted-foreground text-sm">
@@ -294,7 +294,7 @@ export default async function AccountPage() {
         )}
       </section>
 
-      <section className="space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="space-y-1">
           <h2 className="font-medium">Add another base</h2>
           <p className="text-muted-foreground text-sm">

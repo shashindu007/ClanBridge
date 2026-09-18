@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { THEME_COLOR, THEME_INIT_SCRIPT } from "@/lib/theme";
 
 // T5.3 — manifest and theme colour are what make the PWA installable.
 //
@@ -37,8 +38,19 @@ export const viewport: Viewport = {
   // the browser chrome cannot read a CSS custom property. It was slate-900,
   // left over from the shadcn defaults, which put a cold blue-black band above
   // a warm wooden header on every installed PWA. If the rail's colour changes,
-  // this is the second place to change it.
-  themeColor: "#412c1f",
+  // this is the second place to change it — and lib/theme.ts is the third,
+  // which is where both values below come from.
+  //
+  // TWO ENTRIES NOW, one per OS preference, because there are two rails. This
+  // is keyed to the OS rather than to the member's stored choice, which no meta
+  // tag can see — applyTheme() writes an unmedia'd third tag at runtime to
+  // cover an explicit choice that disagrees with the OS. The pair below is what
+  // paints the status bar correctly on the very first frame, before any script
+  // has run.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: THEME_COLOR.light },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLOR.dark },
+  ],
 };
 
 export default function RootLayout({
@@ -47,7 +59,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning, and ONLY on <html>. The script below mutates
+    // this element's class and style before React sees the document, so the
+    // server's markup and the client's differ by design. The attribute does not
+    // cascade — every element inside is still checked normally.
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Before the first paint. See THEME_INIT_SCRIPT: anything later paints
+            a frame of the wrong theme, on every navigation that reloads the
+            document, which is worse than having no dark mode at all. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="flex min-h-screen flex-col">
         {/* The page's light and texture. A real element rather than a
             `body::before`, because body paints an opaque --background and a

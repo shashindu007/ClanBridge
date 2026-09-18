@@ -9,6 +9,11 @@
 // nothing but your own rows unless you are leadership, and the counts come from
 // a definer function that aggregates without exposing a row.
 //
+// REDESIGNED so a member sees their own answer first — big answer cards with an
+// icon each, "Current answer: In", and a closed poll showing what was answered
+// instead of promising it "below" and never showing it — and a leader sees the
+// chase list and the answers grouped by option side by side.
+//
 // THE LIST THAT MATTERS is "has not answered". Counts are the easy half and
 // every polling tool shows them; the useful half is the absence. Thirty members,
 // eighteen answers, and the question is which twelve — a list that cannot come
@@ -17,12 +22,19 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { BellRing, CheckCircle2, CircleAlert, CircleHelp, XCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/page-header";
+import { formatDisplay } from "@/lib/display-time";
+import { availabilityOf, seasonLabel } from "@/lib/roster-view";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeadership } from "@/lib/visibility";
 import { currentUserId } from "@/lib/auth";
 import { notifyUsers } from "@/lib/push";
 import { createClient } from "@/lib/supabase/server";
@@ -45,10 +57,6 @@ import {
 } from "@/services/polls";
 
 export const dynamic = "force-dynamic";
-
-function isLeadership(role: string): boolean {
-  return role === "leader" || role === "co-leader";
-}
 
 async function submitAnswer(formData: FormData) {
   "use server";
@@ -153,10 +161,10 @@ export default async function PollDetailPage({
   searchParams,
 }: {
   params: Promise<{ clanTag: string; pollId: string }>;
-  searchParams: Promise<{ error?: string; reminded?: string }>;
+  searchParams: Promise<{ reminded?: string }>;
 }) {
   const { clanTag, pollId } = await params;
-  const { error, reminded } = await searchParams;
+  const { reminded } = await searchParams;
   const supabase = await createClient();
 
   const clan = await requireClanByTag(supabase, clanTag);
@@ -177,6 +185,7 @@ export default async function PollDetailPage({
   const myResponses = new Map(
     responses.filter((r) => mine.some((p) => p.id === r.playerId)).map((r) => [r.playerId, r]),
   );
+  const labelOf = new Map(options.map((o) => [o.id, o.label]));
 
   // Who SHOULD have answered. A clan poll asks this clan; a family poll asks
   // every clan, but leadership here can only see their own clan's members, so
@@ -184,8 +193,7 @@ export default async function PollDetailPage({
   let eligible: EligibleMember[] = [];
   if (leadership) {
     const members = await membersForClan(supabase, clan.id);
-    // Departed members are excluded: chasing an answer from someone who has left
-    // the clan is noise, and it makes the "18 of 30" denominator wrong (T3.9).
+    // Departed members are excluded (T3.9).
     eligible = members
       .filter((m) => m.leftAt === null)
       .map((m) => ({ playerId: m.playerId, tag: m.tag, name: m.name }));
@@ -193,246 +201,329 @@ export default async function PollDetailPage({
   const breakdown = leadership ? pollBreakdown(eligible, responses, options) : null;
   const shares = optionShare(counts);
   const totalVotes = counts.reduce((sum, c) => sum + c.votes, 0);
-
   const back = `/${encodeURIComponent(clan.tag)}/polls`;
+  const allAnswered = mine.length > 0 && mine.every((p) => myResponses.has(p.id));
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-8">
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{poll.title}</h1>
-          <Badge variant={open ? "default" : "secondary"}>{open ? "Open" : "Closed"}</Badge>
-        </div>
-        {poll.question && <p className="text-sm">{poll.question}</p>}
-        <p className="text-muted-foreground text-sm">
-          {poll.scope === "family" ? "Asked of every clan" : clan.name}
-          {poll.season ? ` · season ${poll.season}` : ""} ·{" "}
-          <Link className="underline" href={back}>
-            All polls
-          </Link>
-        </p>
-      </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>That did not work</AlertTitle>
-          <AlertDescription>
-            {error === "incomplete"
-              ? "Pick an account and an option."
-              : error === "closed"
-                ? "This poll has closed, so there is nothing to remind anyone about."
-                : error}
-          </AlertDescription>
-        </Alert>
-      )}
+    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
+      <PageHeader
+        back={{ href: back, label: "All polls" }}
+        eyebrow={
+          <>
+            {poll.scope === "family" ? "Asked of every clan" : clan.name}
+            {poll.season ? ` · ${seasonLabel(poll.season)}` : ""}
+          </>
+        }
+        title={poll.title}
+        description={poll.question ?? undefined}
+        actions={
+          <span className="flex flex-col items-end gap-1">
+            <Badge variant={open ? "success" : "secondary"}>{open ? "Open" : "Closed"}</Badge>
+            {poll.closesAt && (
+              <span className="text-muted-foreground text-xs">
+                {open ? "Closes " : "Closed "}
+                {formatDisplay(poll.closesAt, "datetime")}
+              </span>
+            )}
+          </span>
+        }
+      />
 
       {/* Said plainly, including when it is zero. A reminder button that reports
-          nothing leaves the leader believing thirty people were chased when the
-          real answer is that none of them have notifications turned on — and
-          they find out a week later, when nobody has answered. */}
+          nothing leaves the leader believing thirty people were chased when none
+          of them have notifications turned on. */}
       {reminded !== undefined && (
-        <Alert>
+        <Alert variant={reminded === "0" ? "warning" : "info"}>
+          <BellRing aria-hidden />
           <AlertTitle>
-            {reminded === "0" ? "Nobody could be reached" : `Reminded ${reminded}`}
+            {reminded === "0" ? "Nobody could be reached" : `Reminder sent to ${reminded}`}
           </AlertTitle>
           <AlertDescription>
             {reminded === "0"
-              ? "None of the members who have not answered have notifications turned on for a device. You will have to chase them another way."
-              : "Only members with notifications turned on receive these, so the number is usually smaller than the list."}
+              ? "None of the members who have not answered have notifications turned on. You will have to chase them another way."
+              : "Only members with notifications turned on receive reminders, so this is usually smaller than the list."}
           </AlertDescription>
         </Alert>
       )}
 
-      {/* ── Answering ─────────────────────────────────────────────────────── */}
+      {/* ── Your answer ─────────────────────────────────────────────────────── */}
       {mine.length === 0 ? (
-        <Alert>
-          <AlertTitle>Verify a player first</AlertTitle>
-          <AlertDescription>
-            Answers belong to a Clash account, not to your login — a member with two
-            villages has two answers to give.{" "}
-            <Link className="underline" href="/verify">
-              Verify an account
-            </Link>{" "}
-            to take part.
+        <Alert variant="info">
+          <CircleAlert aria-hidden />
+          <AlertTitle>Link your Clash account to answer</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>
+              Answers belong to a village, not to your login — a member with two villages
+              gives two answers.
+            </p>
+            <Button asChild size="sm">
+              <Link href="/verify">Link an account</Link>
+            </Button>
           </AlertDescription>
         </Alert>
-      ) : !open ? (
-        <section className="rounded-lg border p-6">
-          <p className="text-muted-foreground text-sm">
-            This poll is closed. Your answer
-            {mine.length > 1 ? "s are" : " is"} locked in below.
-          </p>
-        </section>
       ) : (
-        mine.map((player) => {
-          const existing = myResponses.get(player.id);
-          return (
-            <form
-              key={player.id}
-              action={submitAnswer}
-              className="space-y-4 rounded-lg border p-6"
-            >
-              <input type="hidden" name="clanTag" value={clanTag} />
-              <input type="hidden" name="pollId" value={poll.id} />
-              <input type="hidden" name="playerId" value={player.id} />
+        <section className="cb-panel space-y-4 rounded-lg border p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">{mine.length > 1 ? "Your answers" : "Your answer"}</h2>
+            {allAnswered ? (
+              <Badge variant="success">
+                <CheckCircle2 aria-hidden />
+                Answered
+              </Badge>
+            ) : open ? (
+              <Badge variant="warning">Waiting for your answer</Badge>
+            ) : null}
+          </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="font-medium">
-                  {player.name}{" "}
-                  <span className="text-muted-foreground font-mono text-xs">{player.tag}</span>
-                </h2>
-                {existing && <Badge variant="secondary">answered</Badge>}
-              </div>
+          {mine.map((player) => {
+            const existing = myResponses.get(player.id);
+            const chosen = existing ? labelOf.get(existing.optionId) : null;
 
-              <div className="flex flex-wrap gap-2">
-                {options.map((option) => (
-                  <label
-                    key={option.id}
-                    className="has-checked:border-primary has-checked:bg-accent flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 text-sm"
-                  >
-                    <input
-                      type="radio"
-                      name="optionId"
-                      value={option.id}
-                      defaultChecked={existing?.optionId === option.id}
-                      required
-                      className="accent-primary"
-                    />
-                    {option.label}
-                  </label>
-                ))}
-              </div>
+            // Closed: show what was answered, locked. The old page said "locked in
+            // below" and then never showed it.
+            if (!open) {
+              return (
+                <div key={player.id} className="bg-card flex flex-wrap items-center justify-between gap-2 rounded-md border p-4">
+                  <span className="font-medium">
+                    {player.name} <span className="text-muted-foreground font-mono text-xs">{player.tag}</span>
+                  </span>
+                  <span className="text-sm">
+                    {chosen ? (
+                      <>
+                        Answered <span className="font-semibold">{chosen}</span>
+                        {existing?.note && <span className="text-muted-foreground"> — {existing.note}</span>}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">Did not answer</span>
+                    )}
+                  </span>
+                </div>
+              );
+            }
 
-              <div className="space-y-2">
-                <Label htmlFor={`note-${player.id}`}>Note (optional)</Label>
-                <Input
-                  id={`note-${player.id}`}
-                  name="note"
-                  maxLength={200}
-                  defaultValue={existing?.note ?? ""}
-                  placeholder="Away days 3 and 4"
-                />
-              </div>
+            return (
+              <form key={player.id} action={submitAnswer} className="bg-card space-y-4 rounded-md border p-4">
+                <input type="hidden" name="clanTag" value={clanTag} />
+                <input type="hidden" name="pollId" value={poll.id} />
+                <input type="hidden" name="playerId" value={player.id} />
 
-              <SubmitButton size="sm">
-                {existing ? "Change my answer" : "Submit"}
-              </SubmitButton>
-            </form>
-          );
-        })
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="font-medium">
+                    {player.name} <span className="text-muted-foreground font-mono text-xs">{player.tag}</span>
+                  </p>
+                  {chosen && (
+                    <p className="text-muted-foreground text-sm">
+                      Current answer: <span className="text-foreground font-semibold">{chosen}</span>
+                    </p>
+                  )}
+                </div>
+
+                <fieldset className="space-y-2">
+                  <legend className="sr-only">Choose an answer for {player.name}</legend>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {options.map((option) => (
+                      <label
+                        key={option.id}
+                        className="has-checked:border-primary has-checked:bg-accent has-checked:ring-primary/30 flex cursor-pointer items-center gap-3 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-colors has-checked:ring-2 hover:bg-accent/50"
+                      >
+                        <input
+                          type="radio"
+                          name="optionId"
+                          value={option.id}
+                          defaultChecked={existing?.optionId === option.id}
+                          required
+                          className="accent-primary size-4"
+                        />
+                        <OptionIcon label={option.label} />
+                        {option.label}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor={`note-${player.id}`}>Add a note for your leader (optional)</Label>
+                  <Input
+                    id={`note-${player.id}`}
+                    name="note"
+                    maxLength={200}
+                    defaultValue={existing?.note ?? ""}
+                    placeholder="e.g. Away on days 3 and 4"
+                  />
+                </div>
+
+                <SubmitButton pendingLabel="Saving">
+                  {existing ? "Update my answer" : "Save my answer"}
+                </SubmitButton>
+              </form>
+            );
+          })}
+
+          {open && (
+            <p className="text-muted-foreground text-xs">
+              You can change your answer until the poll closes.
+            </p>
+          )}
+        </section>
       )}
 
       {/* ── Results ───────────────────────────────────────────────────────── */}
-      <section className="space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-medium">Results</h2>
+          <h2 className="text-lg font-semibold">Results so far</h2>
           <span className="text-muted-foreground text-sm tabular-nums">
             {totalVotes} answer{totalVotes === 1 ? "" : "s"}
+            {/* Branched like the count beside it. Reachable with one eligible
+                player on a small clan, or on a poll opened before the roster
+                filled — and "from 1 members" beside a correctly singular
+                "1 answer" is the kind of seam a member reads as carelessness. */}
+            {breakdown
+              ? ` from ${breakdown.totalEligible} ${
+                  breakdown.totalEligible === 1 ? "member" : "members"
+                }`
+              : ""}
           </span>
         </div>
 
         {shares.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No options on this poll.</p>
+          <p className="text-muted-foreground text-sm">This poll has no options.</p>
         ) : (
           <ul className="space-y-3">
             {shares.map((option) => (
-              <li key={option.optionId} className="space-y-1">
-                <div className="flex justify-between text-sm">
-                  <span>{option.label}</span>
+              <li key={option.optionId} className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="flex items-center gap-2 font-medium">
+                    <OptionIcon label={option.label} />
+                    {option.label}
+                  </span>
                   <span className="text-muted-foreground tabular-nums">
                     {option.votes} · {option.share}%
                   </span>
                 </div>
-                <div className="bg-muted h-2 w-full overflow-hidden rounded-full">
-                  <div className="bg-primary h-full" style={{ width: `${option.share}%` }} />
-                </div>
+                <Progress value={option.share} label={`${option.label}: ${option.share}%`} />
               </li>
             ))}
           </ul>
         )}
+        {!leadership && (
+          <p className="text-muted-foreground text-xs">
+            Only the totals are shown to members. Leaders can see who answered what.
+          </p>
+        )}
       </section>
 
-      {/* ── The chase list. Leadership only, by policy, not by hiding. ────── */}
+      {/* ── Leadership: who to chase, and who said what. Policy, not hiding. ── */}
       {leadership && breakdown && (
-        <>
-          <section className="space-y-4 rounded-lg border p-6">
-            <h2 className="font-medium">
-              Has not answered{" "}
-              <span className="text-muted-foreground font-normal">
-                ({breakdown.notAnswered.length} of {breakdown.totalEligible})
-              </span>
-            </h2>
+        <div className="grid items-start gap-6 md:grid-cols-2">
+          <section className="cb-panel space-y-4 rounded-lg border p-6">
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold">
+                Not answered yet{" "}
+                <span className="text-muted-foreground text-base font-normal tabular-nums">
+                  {breakdown.notAnswered.length} of {breakdown.totalEligible}
+                </span>
+              </h2>
+              <p className="text-muted-foreground text-sm">Members of {clan.name} with no answer.</p>
+            </div>
+
             {breakdown.notAnswered.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                Everyone in {clan.name} has answered.
+              <p className="text-sm">
+                <CheckCircle2 aria-hidden className="text-success mr-1 inline size-4" />
+                Everyone has answered.
               </p>
             ) : (
               <>
-                <ul className="divide-y">
+                {/* T4B.5 — only these people are notified; reminding everyone
+                    teaches the prompt answerers that answering changes nothing. */}
+                {open ? (
+                  <form action={remindNonResponders} className="space-y-1.5">
+                    <input type="hidden" name="clanTag" value={clanTag} />
+                    <input type="hidden" name="pollId" value={pollId} />
+                    <SubmitButton size="sm" pendingLabel="Sending reminders">
+                      <BellRing aria-hidden />
+                      Remind these {breakdown.notAnswered.length}
+                    </SubmitButton>
+                    <p className="text-muted-foreground text-xs">
+                      Sent only to members with notifications turned on.
+                    </p>
+                  </form>
+                ) : (
+                  <p className="text-muted-foreground text-xs">The poll has closed, so there is nobody left to chase.</p>
+                )}
+                <ul className="max-h-96 divide-y overflow-y-auto rounded-md border">
                   {breakdown.notAnswered.map((m) => (
-                    <li key={m.playerId} className="flex items-center gap-4 py-2">
-                      <span className="flex-1 text-sm">{m.name}</span>
+                    <li key={m.playerId} className="flex items-center justify-between gap-3 px-3 py-2">
+                      <span className="text-sm">{m.name}</span>
                       <span className="text-muted-foreground font-mono text-xs">{m.tag}</span>
                     </li>
                   ))}
                 </ul>
-                {/* T4B.5 — chase them, rather than listing them and hoping.
-                    Only the people on this list are notified; reminding everyone
-                    teaches the members who answered on time that answering does
-                    not stop the reminders, and they stop answering. */}
-                {open ? (
-                  <form action={remindNonResponders} className="flex items-center gap-3">
-                    <input type="hidden" name="clanTag" value={clanTag} />
-                    <input type="hidden" name="pollId" value={pollId} />
-                    <SubmitButton variant="outline" size="sm">
-                      Remind these {breakdown.notAnswered.length}
-                    </SubmitButton>
-                    <span className="text-muted-foreground text-xs">
-                      Only members who have turned notifications on can be reached.
-                    </span>
-                  </form>
-                ) : (
-                  <p className="text-muted-foreground text-xs">
-                    This poll is closed — there is nothing left to chase.
-                  </p>
-                )}
               </>
             )}
           </section>
 
-          <section className="space-y-4 rounded-lg border p-6">
-            <h2 className="font-medium">Who answered what</h2>
+          <section className="cb-panel space-y-4 rounded-lg border p-6">
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold">Who answered what</h2>
+              <p className="text-muted-foreground text-sm">Grouped by answer. Notes are shown under names.</p>
+            </div>
             {breakdown.answered.length === 0 ? (
               <p className="text-muted-foreground text-sm">Nobody has answered yet.</p>
             ) : (
-              <ul className="divide-y">
-                {breakdown.answered.map((r) => (
-                  <li key={r.playerId} className="flex flex-wrap items-center gap-3 py-2">
-                    <span className="min-w-0 flex-1 text-sm">
-                      {r.name}
-                      {r.note && (
-                        <span className="text-muted-foreground"> — {r.note}</span>
-                      )}
-                    </span>
-                    {r.changedAt && <Badge variant="outline">changed</Badge>}
-                    <Badge variant="secondary">{r.optionLabel}</Badge>
-                  </li>
-                ))}
-              </ul>
+              <div className="space-y-4">
+                {options.map((option) => {
+                  const group = breakdown.answered.filter((r) => r.optionId === option.id);
+                  if (group.length === 0) return null;
+                  return (
+                    <div key={option.id} className="space-y-1.5">
+                      <h3 className="flex items-center gap-2 text-sm font-medium">
+                        <OptionIcon label={option.label} />
+                        {option.label}
+                        <span className="text-muted-foreground tabular-nums">({group.length})</span>
+                      </h3>
+                      <ul className="divide-y rounded-md border">
+                        {group.map((r) => (
+                          <li key={r.playerId} className="px-3 py-2 text-sm">
+                            <span className="flex items-center justify-between gap-2">
+                              {r.name}
+                              {r.changedAt && <Badge variant="outline">changed answer</Badge>}
+                            </span>
+                            {r.note && <span className="text-muted-foreground block text-xs">“{r.note}”</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </section>
+        </div>
+      )}
 
-          {open && (
-            <form action={submitClose}>
-              <input type="hidden" name="clanTag" value={clanTag} />
-              <input type="hidden" name="pollId" value={poll.id} />
-              <SubmitButton variant="outline" size="sm">
-                Close this poll now
-              </SubmitButton>
-            </form>
-          )}
-        </>
+      {leadership && open && (
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed p-4">
+          <p className="text-muted-foreground text-sm">
+            Closing locks every answer. Members can no longer change theirs.
+          </p>
+          <form action={submitClose}>
+            <input type="hidden" name="clanTag" value={clanTag} />
+            <input type="hidden" name="pollId" value={poll.id} />
+            <SubmitButton variant="outline" size="sm" pendingLabel="Closing">
+              Close this poll now
+            </SubmitButton>
+          </form>
+        </section>
       )}
     </main>
   );
+}
+
+/** An icon for the three standard answers, so a result reads without the colour. */
+function OptionIcon({ label }: { label: string }) {
+  const kind = availabilityOf(label);
+  if (kind === "in") return <CheckCircle2 aria-hidden className="text-success size-4 shrink-0" />;
+  if (kind === "maybe") return <CircleHelp aria-hidden className="text-warning-ink size-4 shrink-0" />;
+  if (kind === "out") return <XCircle aria-hidden className="text-destructive size-4 shrink-0" />;
+  return null;
 }

@@ -42,7 +42,7 @@ import { gamesForPlayer } from "@/repositories/clan-games";
 import { familyCwlHistory, type FamilySeasonTotals } from "@/repositories/cwl";
 import { clanMovement, snapshotHistory } from "@/repositories/members";
 import { seasonsForPlayer } from "@/repositories/raids";
-import { attacksForWar, membersOfWar, targetsForWar, warsForClan } from "@/repositories/war";
+import { warRostersFor, warsForClan } from "@/repositories/war";
 import { playerGamesSummary, type PlayerGamesSummary } from "@/services/clan-games";
 import {
   donationSeasons,
@@ -100,11 +100,17 @@ export interface PlayerReport {
 /**
  * The whole report for one village in one clan.
  *
- * SEVEN READS IN TWO WAVES, which is what keeps objective O4's thirty seconds
- * honest. The first wave is six independent reads issued together; the second is
- * the war window, which cannot start until warsForClan() has said which wars
- * there are, and then issues all 3N of its own at once. Ten wars at three
- * sequential reads each was thirty round trips to a database in another region.
+ * TEN READS IN TWO WAVES, and the count no longer grows with the war window —
+ * which is what keeps objective O4's thirty seconds honest.
+ *
+ * The first wave is six independent reads issued together. The second cannot
+ * start until warsForClan() has said which wars there are, and is then a fixed
+ * four however many come back.
+ *
+ * This docstring used to say the second wave "issues all 3N of its own at once",
+ * as though overlapping them made the count irrelevant. It did not: N wars cost
+ * 4N queries, because membersOfWar() ends in its own player lookup. Ten wars was
+ * forty statements queueing on a free-tier pooler. See warRostersFor().
  *
  * @param historyDays overridable only so a caller can narrow the window; the
  * default is the one objective O4 names and no caller should widen it casually,
@@ -132,16 +138,27 @@ export async function playerReport(
       warsForClan(supabase, clanId, warWindow),
     ]);
 
-  // Wave two. Every war's three reads go at once, and so do all the wars.
-  const perWar = await Promise.all(
-    recentWars.map(async (war) => {
-      const [members, attacks, targets] = await Promise.all([
-        membersOfWar(supabase, war.id),
-        attacksForWar(supabase, war.id),
-        targetsForWar(supabase, war.id),
-      ]);
-      return { members, attacks, targets };
-    }),
+  // Wave two. FOUR QUERIES, NOT FOUR PER WAR.
+  //
+  // This looped the wars and issued the three singular reads for each, inside a
+  // Promise.all — which overlapped the latency and hid the count. membersOfWar()
+  // ends in its own playerDetails() lookup, so each war actually cost four
+  // queries, and at WAR_WINDOW = 10 rendering one player's profile was forty
+  // separate statements against a free-tier pooler.
+  //
+  // warRostersFor() filters each table by `war_id in (…)` once and groups in
+  // memory, and resolves every player across every war in a single lookup
+  // instead of re-fetching the same roster war after war. See its header.
+  const rosters = await warRostersFor(
+    supabase,
+    recentWars.map((war) => war.id),
+  );
+
+  // Order preserved from recentWars, and wars with no rows kept as empties —
+  // warContribution() counts a war a member was absent from, so dropping it
+  // would silently improve everyone's record.
+  const perWar = recentWars.map(
+    (war) => rosters.get(war.id) ?? { members: [], attacks: [], targets: [] },
   );
 
   // The SHARED derivation, not a second count. /war/report computes its table

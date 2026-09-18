@@ -55,6 +55,7 @@ import {
   type ClanSection,
 } from "@/lib/clan-nav";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeader } from "@/lib/visibility";
 import { cwlPhase, nextCwlWindow } from "@/lib/coc-time";
 import { createClient } from "@/lib/supabase/server";
 import { clanDetail, currentMemberCount, latestAnnouncement } from "@/repositories/clans";
@@ -65,7 +66,6 @@ import {
   attacksForWar,
   currentWar,
   membersOfWar,
-  targetsForWar,
   type WarRow,
 } from "@/repositories/war";
 import { freshness } from "@/services/freshness";
@@ -281,27 +281,46 @@ export default async function ClanDashboardPage({
   const fresh = freshness(clansRun);
   const neverSynced = fresh.level === "never";
 
-  // The war's roster, attacks and assignments — only when there is a war. Most
-  // of any given week there is not, and three queries returning nothing on
-  // every dashboard render is three queries nobody asked for.
-  const [warMembers, warAttacks, warTargets] = war
-    ? await Promise.all([
-        membersOfWar(supabase, war.id),
-        attacksForWar(supabase, war.id),
-        targetsForWar(supabase, war.id),
-      ])
-    : [[], [], []];
+  // OPEN polls only — see openWarAvailabilityPoll. Last war's closed poll is
+  // not something to chase members about.
+  //
+  // Resolved from `polls`, which is already in hand, so this costs nothing and
+  // can be decided before the round trip below rather than after it.
+  const poll = openWarAvailabilityPoll(polls);
 
-  const record = warRecord(warMembers, warAttacks, warTargets);
+  // ── The second round trip, and it used to be the third and fourth ─────────
+  //
+  // TWO QUERIES, NOT THREE, AND ONE ROUND TRIP, NOT TWO.
+  //
+  // What was here fetched the war's roster, attacks AND targets together, then
+  // awaited the poll counts separately afterwards. Both were avoidable:
+  //
+  //   targetsForWar   fetched and thrown away. warRecord() only uses targets to
+  //                   populate `record[].target`, and nothing on this page reads
+  //                   it — the dashboard wants a COUNT of unused attacks, and
+  //                   who was told to hit what is the war board's job. The
+  //                   parameter defaults to [] precisely so a caller that does
+  //                   not need the plan does not pay for it.
+  //
+  //   countsForPoll   sequential after the war block, for no reason. A poll's
+  //                   tallies have nothing to do with a war's roster, so the two
+  //                   were a waterfall made of independent work — the shape
+  //                   T10.9 removed from the layout and left behind here.
+  //
+  // Both conditionals still hold. Most of any week there is no war and no open
+  // poll, and this then issues nothing at all.
+  const [warMembers, warAttacks, pollCounts] = await Promise.all([
+    war ? membersOfWar(supabase, war.id) : [],
+    war ? attacksForWar(supabase, war.id) : [],
+    poll ? countsForPoll(supabase, poll.id) : [],
+  ]);
+
+  const record = warRecord(warMembers, warAttacks);
   const attacksLeft = outstandingAttacks(record).reduce(
     (total, m) => total + m.attacksRemaining,
     0,
   );
 
-  // OPEN polls only — see openWarAvailabilityPoll. Last war's closed poll is
-  // not something to chase members about.
-  const poll = openWarAvailabilityPoll(polls);
-  const pollCounts = poll ? await countsForPoll(supabase, poll.id) : [];
   const answered = pollCounts.reduce((total, c) => total + c.votes, 0);
 
   // ── T4.4 — when the next CWL is, which the API never says ─────────────────
@@ -327,7 +346,7 @@ export default async function ClanDashboardPage({
       : undefined;
 
   return (
-    <main className="mx-auto max-w-6xl space-y-6 p-8">
+    <main className="mx-auto max-w-6xl space-y-6 p-4 sm:p-8">
       {/* ── The banner, wearing this clan's own colour ────────────────────────
           --hero-accent is set here and read by .cb-hero and .cb-hero-stripe in
           globals.css, so the three clans get three visibly different banners
@@ -374,7 +393,7 @@ export default async function ClanDashboardPage({
                 </p>
               </div>
             </div>
-            <DataFreshness freshness={fresh} />
+            <DataFreshness freshness={fresh} canAdmin={isLeader(clan.role)} />
           </div>
         </div>
       </section>

@@ -118,7 +118,7 @@ export default async function AccountSettingsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl space-y-8 p-8">
+    <main className="mx-auto max-w-2xl space-y-8 p-4 sm:p-8">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Account</h1>
         <p className="text-muted-foreground text-sm">
@@ -131,7 +131,7 @@ export default async function AccountSettingsPage() {
           components/toaster.tsx. This page redirects a whole SENTENCE rather
           than a code, which messageFor() passes through unchanged. */}
 
-      <section className="space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="space-y-1">
           <h2 className="font-medium">Username</h2>
           <p className="text-muted-foreground text-sm">
@@ -157,7 +157,7 @@ export default async function AccountSettingsPage() {
         </form>
       </section>
 
-      <section className="space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="space-y-1">
           <h2 className="font-medium">Password</h2>
           <p className="text-muted-foreground text-sm">
@@ -197,7 +197,7 @@ export default async function AccountSettingsPage() {
         </form>
       </section>
 
-      <section className="space-y-3 rounded-lg border p-6">
+      <section className="cb-panel space-y-3 rounded-lg border p-6">
         <div className="space-y-1">
           <h2 className="font-medium">This device</h2>
           <p className="text-muted-foreground text-sm">

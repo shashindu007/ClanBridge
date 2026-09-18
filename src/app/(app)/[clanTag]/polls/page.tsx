@@ -11,6 +11,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeadership } from "@/lib/visibility";
 import { currentUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { myPlayers, pollsForClan, responsesForPoll } from "@/repositories/polls";
@@ -18,17 +19,36 @@ import { isOpen } from "@/services/polls";
 
 export const dynamic = "force-dynamic";
 
-function isLeadership(role: string): boolean {
-  return role === "leader" || role === "co-leader";
-}
-
+/**
+ * How long a poll has left, in words.
+ *
+ * ROUNDING HAPPENS ONCE, AT THE END, and the singular is branched on rather
+ * than assumed. Both were wrong here. `Math.round` ran first, so 23.6 hours
+ * became 24, failed the `< 24` test, and divided back down to a bare 1 —
+ * printing "closes in 1 days" for every poll closing between roughly 23 and 36
+ * hours away. The hour branch had the same fault: anything from half an hour to
+ * ninety minutes read "closes in 1 hours".
+ *
+ * services/members.ts branches on `=== 1` eight lines from a similar string and
+ * services/freshness.ts's ago() handles every singular case, so this was a seam
+ * rather than a house style.
+ */
 function closesLabel(closesAt: string | null): string {
   if (!closesAt) return "no closing date";
-  const hours = Math.round((new Date(closesAt).getTime() - Date.now()) / 3_600_000);
+
+  const hours = (new Date(closesAt).getTime() - Date.now()) / 3_600_000;
   if (hours < 0) return "closed";
   if (hours < 1) return "closes within the hour";
-  if (hours < 24) return `closes in ${hours} hours`;
-  return `closes in ${Math.round(hours / 24)} days`;
+
+  // Compared on the unrounded value, so the branch and the number shown can
+  // never disagree about which unit this is.
+  if (hours < 24) {
+    const whole = Math.round(hours);
+    return `closes in ${whole} ${whole === 1 ? "hour" : "hours"}`;
+  }
+
+  const days = Math.round(hours / 24);
+  return `closes in ${days} ${days === 1 ? "day" : "days"}`;
 }
 
 export default async function PollsPage({
@@ -63,7 +83,7 @@ export default async function PollsPage({
   const closed = polls.filter((p) => !isOpen(p));
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-8">
+    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">Polls</h1>

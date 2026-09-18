@@ -2,7 +2,7 @@
 // DO NOT EDIT. Regenerate after every migration — a stale file type-checks
 // against a schema that no longer exists, which is worse than having none.
 //
-// 32 tables, generated 2026-08-10.
+// 35 tables, generated 2026-09-16.
 
 export type Json =
   | string
@@ -85,6 +85,32 @@ export interface Database {
           before?: Json | null;
           after?: Json | null;
           created_at?: string;
+          deleted_at?: string | null;
+        };
+      };
+      base_layout_votes: {
+        Row: {
+          id: string;
+          layout_id: string;
+          user_id: string;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          layout_id: string;
+          user_id: string;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          layout_id?: string;
+          user_id?: string;
+          created_at?: string;
+          updated_at?: string | null;
           deleted_at?: string | null;
         };
       };
@@ -627,6 +653,74 @@ export interface Database {
           deleted_at?: string | null;
         };
       };
+      player_nicknames: {
+        Row: {
+          id: string;
+          player_id: string;
+          nickname: string;
+          set_by: string;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          player_id: string;
+          nickname: string;
+          set_by: string;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          player_id?: string;
+          nickname?: string;
+          set_by?: string;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      player_progress: {
+        Row: {
+          id: string;
+          player_id: string;
+          clan_id: string | null;
+          captured_at: string;
+          th_level: number | null;
+          th_weapon_level: number | null;
+          bh_level: number | null;
+          units: Json;
+          created_at: string;
+          deleted_at: string | null;
+          captured_day: string | null;
+        };
+        Insert: {
+          id?: string;
+          player_id: string;
+          clan_id?: string | null;
+          captured_at?: string;
+          th_level?: number | null;
+          th_weapon_level?: number | null;
+          bh_level?: number | null;
+          units?: Json;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          player_id?: string;
+          clan_id?: string | null;
+          captured_at?: string;
+          th_level?: number | null;
+          th_weapon_level?: number | null;
+          bh_level?: number | null;
+          units?: Json;
+          created_at?: string;
+          deleted_at?: string | null;
+        };
+      };
       players: {
         Row: {
           id: string;
@@ -953,6 +1047,9 @@ export interface Database {
           approved_by: string | null;
           approved_at: string | null;
           is_platform_admin: boolean;
+          username: string | null;
+          password_set_at: string | null;
+          avatar_path: string | null;
         };
         Insert: {
           id: string;
@@ -966,6 +1063,9 @@ export interface Database {
           approved_by?: string | null;
           approved_at?: string | null;
           is_platform_admin?: boolean;
+          username?: string | null;
+          password_set_at?: string | null;
+          avatar_path?: string | null;
         };
         Update: {
           id?: string;
@@ -979,6 +1079,9 @@ export interface Database {
           approved_by?: string | null;
           approved_at?: string | null;
           is_platform_admin?: boolean;
+          username?: string | null;
+          password_set_at?: string | null;
+          avatar_path?: string | null;
         };
       };
       war_attacks: {
@@ -1260,6 +1363,7 @@ export interface Database {
 // Row aliases.
 export type AnnouncementsRow = Database["public"]["Tables"]["announcements"]["Row"];
 export type AuditLogRow = Database["public"]["Tables"]["audit_log"]["Row"];
+export type BaseLayoutVotesRow = Database["public"]["Tables"]["base_layout_votes"]["Row"];
 export type BaseLayoutsRow = Database["public"]["Tables"]["base_layouts"]["Row"];
 export type ClanGamesRow = Database["public"]["Tables"]["clan_games"]["Row"];
 export type ClanGamesScoresRow = Database["public"]["Tables"]["clan_games_scores"]["Row"];
@@ -1274,6 +1378,8 @@ export type CwlWarMembersRow = Database["public"]["Tables"]["cwl_war_members"]["
 export type CwlWarsRow = Database["public"]["Tables"]["cwl_wars"]["Row"];
 export type MemberSnapshotsRow = Database["public"]["Tables"]["member_snapshots"]["Row"];
 export type NotificationPreferencesRow = Database["public"]["Tables"]["notification_preferences"]["Row"];
+export type PlayerNicknamesRow = Database["public"]["Tables"]["player_nicknames"]["Row"];
+export type PlayerProgressRow = Database["public"]["Tables"]["player_progress"]["Row"];
 export type PlayersRow = Database["public"]["Tables"]["players"]["Row"];
 export type PollOptionsRow = Database["public"]["Tables"]["poll_options"]["Row"];
 export type PollResponsesRow = Database["public"]["Tables"]["poll_responses"]["Row"];

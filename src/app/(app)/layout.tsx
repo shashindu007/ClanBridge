@@ -23,6 +23,7 @@ import { createClient } from "@/lib/supabase/server";
 import { accountProfile, currentUserId, needsAccountSetup } from "@/lib/auth";
 import { clanAccent } from "@/lib/clan-accent";
 import { visibleClans } from "@/lib/clans";
+import { isLeader, isLeadership } from "@/lib/visibility";
 import { isGateExempt, isSetupExempt } from "@/lib/gate";
 import { AccountMenu } from "@/components/account-menu";
 import { Toaster } from "@/components/toaster";
@@ -102,10 +103,8 @@ export default async function AppLayout({
   const clans = approved ? allClans : [];
   const admin = profile?.isPlatformAdmin === true;
 
-  const showAdminLink = admin || clans.some((c) => c.role === "leader");
-  const showLeadershipLinks = clans.some(
-    (c) => c.role === "leader" || c.role === "co-leader",
-  );
+  const showAdminLink = admin || clans.some((c) => isLeader(c.role));
+  const showLeadershipLinks = clans.some((c) => isLeadership(c.role));
 
   // Flattened for the rail, which is a Client Component and therefore receives
   // only serialisable values. The accent is resolved HERE rather than there so

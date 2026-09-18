@@ -13,15 +13,12 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeadership } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import { membersOfRoster, rosterFor, rosterSeasons } from "@/repositories/rosters";
 import { DISPLAY_ZONE } from "@/lib/display-time";
 
 export const dynamic = "force-dynamic";
-
-function isLeadership(role: string): boolean {
-  return role === "leader" || role === "co-leader";
-}
 
 function when(iso: string): string {
   return new Date(iso).toLocaleString("en-GB", {
@@ -54,7 +51,7 @@ export default async function PublishedRosterPage({
   const base = `/${encodeURIComponent(clan.tag)}/cwl/roster`;
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-8">
+    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">CWL lineup</h1>
         <p className="text-muted-foreground text-sm">
@@ -76,7 +73,7 @@ export default async function PublishedRosterPage({
       )}
 
       {!roster ? (
-        <section className="space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-lg border p-6">
           <h2 className="font-medium">Nothing published for {season}</h2>
           <p className="text-muted-foreground text-sm">
             The lineup appears here once your leader publishes it. If they are still
@@ -89,7 +86,7 @@ export default async function PublishedRosterPage({
           )}
         </section>
       ) : (
-        <section className="space-y-4 rounded-lg border p-6">
+        <section className="cb-panel space-y-4 rounded-lg border p-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-medium">
               Selected{" "}

@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { clanGamesWindow, isDuringClanGames } from "@/lib/coc-time";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeader } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import {
   gamesBySeason,
@@ -134,11 +135,11 @@ export default async function ClanGamesPage({
   const nextWindow = clanGamesWindow(now);
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-8">
+    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">Clan Games</h1>
-          <DataFreshness freshness={fresh} />
+          <DataFreshness freshness={fresh} canAdmin={isLeader(clan.role)} />
         </div>
         <p className="text-muted-foreground text-sm">
           {clan.name} ·{" "}

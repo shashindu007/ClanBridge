@@ -28,6 +28,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { currentUserId } from "@/lib/auth";
 import { requireClanByTag } from "@/lib/clans";
+import { isLeadership } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import {
   LAYOUT_TYPES,
@@ -206,7 +207,7 @@ export default async function LayoutsPage({
     }
   }
 
-  const isLeadership = clan.role === "leader" || clan.role === "co-leader";
+  const leadership = isLeadership(clan.role);
 
   /** Preserve the other filter when changing one, so they compose. */
   function filterHref(next: { th?: number | null; type?: LayoutType | null }): string {
@@ -220,7 +221,7 @@ export default async function LayoutsPage({
   }
 
   return (
-    <main className="mx-auto max-w-7xl space-y-8 p-8">
+    <main className="mx-auto max-w-7xl space-y-8 p-4 sm:p-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">Base layouts</h1>
@@ -285,7 +286,7 @@ export default async function LayoutsPage({
       {layouts.length === 0 ? (
         // T9.10 — an empty library is the normal state of a new clan, and the
         // two reasons for it need different answers.
-        <section className="space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-lg border p-6">
           <h2 className="font-medium">
             {thLevel || layoutType ? "Nothing matches that filter" : "No layouts yet"}
           </h2>
@@ -307,7 +308,7 @@ export default async function LayoutsPage({
               layout={layout}
               clanTag={clan.tag}
               imageUrl={layout.imageUrl ? (signed.get(layout.imageUrl) ?? null) : null}
-              canRemove={isLeadership || layout.uploadedBy === userId}
+              canRemove={leadership || layout.uploadedBy === userId}
             />
           ))}
         </section>

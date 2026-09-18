@@ -47,32 +47,84 @@ function Step({
 
 export default function MemberGuidePage() {
   return (
-    <main className="mx-auto max-w-2xl space-y-10 p-8">
+    <main className="mx-auto max-w-2xl space-y-10 p-4 sm:p-8">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Getting started</h1>
+        {/* WHAT IT IS, BEFORE WHAT TO DO. This page opened with "Five minutes,
+            once" and went straight into instructions, which assumes the reader
+            already knows why they are following them. They usually do not: they
+            were sent a link by a clan leader. "What this replaces" further down
+            answers it well and is four screens away on a phone. One sentence
+            here costs nothing and stops the reader working through a signup for
+            a thing they cannot name. */}
         <p className="text-muted-foreground text-sm">
-          Five minutes, once. After this the app remembers you.
+          ClanBridge keeps your clan&rsquo;s war and Clan War League record in one
+          place that does not get buried in chat — and that the game itself throws
+          away when a league season ends.
+        </p>
+        <p className="text-muted-foreground text-sm">
+          Setting it up takes about five minutes, once. After that the app
+          remembers you.
         </p>
       </div>
 
-      {/* ── Signing up ──────────────────────────────────────────────────────── */}
+      {/* ── Signing up ────────────────────────────────────────────────────────
+          FOUR STEPS, AND THEY MATCH THE PRODUCT. This section used to open with
+          "There is no password", which was true of the magic-link-only design
+          and stopped being true the day /account/setup shipped — one day after
+          this file was last edited. It also described three steps and skipped
+          the compulsory one entirely.
+
+          The failure was not academic. A member reading it went to /login, which
+          opens on the PASSWORD door, and was asked for a password they had just
+          been told did not exist and did not have. This page is the one a leader
+          links in WhatsApp and never explains again, so it was sending every new
+          member into the one screen they could not get past.
+
+          The order below is the order (app)/layout.tsx actually enforces —
+          setup, then approval — and the numbers are the point: an unbounded
+          process becomes a finite one the moment somebody can see how many steps
+          are left. */}
       <section className="space-y-5">
-        <h2 className="text-lg font-medium">Signing in</h2>
+        <h2 className="text-lg font-medium">Getting in, the first time</h2>
+        <p className="text-muted-foreground text-sm">
+          Four steps. You need your phone with Clash of Clans on it for step 3.
+        </p>
 
         <ol className="space-y-5">
-          <Step n={1} title="Sign in with your email">
+          <Step n={1} title="Ask for a sign-in link">
             <p>
-              There is no password. Enter your email on the{" "}
+              On the{" "}
               <Link href="/login" className="underline">
                 sign-in page
-              </Link>{" "}
-              and you will be sent a link — opening it signs you in. The link works
-              once and expires, so ask for a new one rather than reusing an old
-              email.
+              </Link>
+              , press <strong>Sign up</strong> — not the Sign in button, which is
+              for people who already have an account. Enter your email and we
+              send you a link. Opening it signs you in.
+            </p>
+            <p>
+              The link works once and expires quickly, so if it has been sitting
+              in your inbox a while, ask for a new one rather than reusing it.
             </p>
           </Step>
 
-          <Step n={2} title="Link your Clash of Clans account">
+          <Step n={2} title="Choose a username and a password">
+            <p>
+              The link drops you straight onto a short form. Pick a{" "}
+              <strong>username</strong> — 3 to 20 characters, lowercase letters,
+              numbers and underscores — and a <strong>password</strong>.
+            </p>
+            <p>
+              This step is not optional and you cannot skip past it. The username
+              is how your clan sees you here; you still sign in with your email.
+              The password is what lets you sign in from then on{" "}
+              <strong>without waiting for an email every time</strong>, which
+              matters most if you have more than one village under more than one
+              address.
+            </p>
+          </Step>
+
+          <Step n={3} title="Link your Clash of Clans account">
             <p>
               The app needs to know which village is yours. In game, go to{" "}
               <strong>Settings → More Settings → API Token</strong> and copy the
@@ -83,19 +135,41 @@ export default function MemberGuidePage() {
               along with your player tag.
             </p>
             <p>
+              Your player tag is the short code under your name on your in-game
+              profile. It starts with <strong>#</strong> and never contains the
+              letter O — what looks like one is a zero.
+            </p>
+            <p>
               The token changes every time you open that screen, so copy a fresh
               one rather than an old screenshot.
             </p>
           </Step>
 
-          <Step n={3} title="Wait for a leader to approve you">
+          <Step n={4} title="Wait for a leader to approve you">
             <p>
               Verifying proves you own the account. A leader still has to confirm
               you belong here — until they do you will see a holding page, and
-              nothing else. Ask in game if it takes more than a day.
+              nothing else. That page does not refresh by itself, so reload it to
+              check. Ask in game if it takes more than a day.
             </p>
           </Step>
         </ol>
+
+        {/* The everyday path, stated separately, because it is not step five of
+            anything — it is what every visit after the first looks like, and a
+            member who only reads the numbered list would not know the four steps
+            were a one-off. */}
+        <Alert>
+          <AlertTitle>After that, just email and password</AlertTitle>
+          <AlertDescription>
+            The four steps above happen once. From then on you sign in with your
+            email and the password you chose in step 2 — no inbox needed.{" "}
+            <strong>Forgotten it?</strong> Press <strong>Sign up</strong> again to
+            get a link, sign in with that, then set a new password under{" "}
+            <strong>Sign-in and password</strong> in the account menu. There is no
+            separate reset page — the link is the reset.
+          </AlertDescription>
+        </Alert>
 
         {/* Verification asks members to paste a token into a website, which is
             exactly the shape of every account-theft scam in this game. Saying
@@ -120,7 +194,7 @@ export default function MemberGuidePage() {
           Optional on Android, and required on iPhone if you want notifications.
         </p>
 
-        <div className="space-y-4 rounded-lg border p-6">
+        <div className="cb-panel space-y-4 rounded-lg border p-6">
           <h3 className="font-medium">Android — Chrome</h3>
           <ol className="text-muted-foreground list-decimal space-y-1 pl-5 text-sm">
             <li>Open this site in Chrome.</li>
@@ -133,7 +207,7 @@ export default function MemberGuidePage() {
           </ol>
         </div>
 
-        <div className="space-y-4 rounded-lg border p-6">
+        <div className="cb-panel space-y-4 rounded-lg border p-6">
           <h3 className="font-medium">iPhone and iPad — Safari</h3>
           <ol className="text-muted-foreground list-decimal space-y-1 pl-5 text-sm">
             <li>

@@ -352,6 +352,155 @@ export async function targetsForWar(
 }
 
 // ---------------------------------------------------------------------------
+// Many wars at once.
+//
+// THE N+1 THIS REPLACES, AND WHY IT HID SO WELL. Three call sites — the player
+// profile, /war/report, and the same report on a member's own base — each wanted
+// the roster, the attacks and the targets for the last WAR_WINDOW wars. Each
+// looped the wars and called the three singular functions above, wrapped in
+// Promise.all so the round trips overlapped.
+//
+// That overlapping is exactly what made it look solved. The comment at the
+// /war/report call site said so in as many words: "three waves regardless of N".
+// It was three waves of LATENCY and 4N QUERIES — because membersOfWar() ends in
+// its own playerDetails() lookup, so each war cost four, not three. At
+// WAR_WINDOW = 10 that is forty queries to render one player's profile, every
+// one of them a separate statement against a free-tier pooler with a small
+// connection limit. Concurrency does not make forty queries into four; it makes
+// them arrive together and queue.
+//
+// This is the same bug T3B.5 found in the member directory, where fifty members
+// were fifteen hundred queries "concurrent rather than few, all fetching
+// identical rows". Same shape, one layer down, and the fix is the same: filter
+// by `in (…)` once per table and group in memory.
+//
+// FOUR QUERIES, WHATEVER N IS. Three `in (war_id)` reads plus one playerDetails
+// for every player across every war — which also de-duplicates the roster
+// lookup, since the same people appear in war after war and were previously
+// fetched once per war.
+// ---------------------------------------------------------------------------
+
+/** One war's three row sets, as the report services want them. */
+export interface WarRosterRows {
+  members: WarMemberRow[];
+  attacks: WarAttackRow[];
+  targets: WarTargetRow[];
+}
+
+/** Group rows by their `war_id`, preserving the order the query returned. */
+function byWar<T>(
+  rows: Array<Record<string, unknown>>,
+  map: (row: Record<string, unknown>) => T,
+): Map<string, T[]> {
+  const out = new Map<string, T[]>();
+  for (const row of rows) {
+    const warId = row.war_id as string;
+    const list = out.get(warId);
+    if (list) list.push(map(row));
+    else out.set(warId, [map(row)]);
+  }
+  return out;
+}
+
+/**
+ * The roster, attacks and targets for several wars, in four queries.
+ *
+ * Returns a Map keyed by war id. A war with no rows is ABSENT rather than
+ * present-and-empty, so callers read through `?? []` — which is also what keeps
+ * a war that has been synced but not populated from looking like a war whose
+ * members all failed to attack.
+ *
+ * Ordering within each war matches the singular functions: members by map
+ * position, attacks by attack order, targets by target position. The sort is
+ * done per group after grouping, because one `order()` across the whole result
+ * does not survive being split by war.
+ */
+export async function warRostersFor(
+  supabase: SupabaseClient,
+  warIds: string[],
+): Promise<Map<string, WarRosterRows>> {
+  const ids = [...new Set(warIds)];
+  if (!ids.length) return new Map();
+
+  const [memberRes, attackRes, targetRes] = await Promise.all([
+    supabase
+      .from("war_members")
+      .select("war_id, player_id, map_position, th_level, attacks_allowed")
+      .in("war_id", ids)
+      .is("deleted_at", null),
+    supabase
+      .from("war_attacks")
+      .select(
+        "war_id, player_id, attack_order, stars, destruction, defender_tag, defender_position",
+      )
+      .in("war_id", ids)
+      .is("deleted_at", null),
+    supabase
+      .from("war_targets")
+      .select("war_id, player_id, target_position, note, assigned_by, assigned_at")
+      .in("war_id", ids)
+      .is("deleted_at", null),
+  ]);
+
+  const memberRows = (memberRes.data ?? []) as unknown as Array<Record<string, unknown>>;
+  const attackRows = (attackRes.data ?? []) as unknown as Array<Record<string, unknown>>;
+  const targetRows = (targetRes.data ?? []) as unknown as Array<Record<string, unknown>>;
+
+  // ONE lookup for every player in every war. The per-war version fetched the
+  // same roster again for each war they appeared in.
+  const details = await playerDetails(
+    supabase,
+    memberRows.map((r) => r.player_id as string),
+  );
+
+  const membersByWar = byWar(memberRows, (r) => {
+    const p = details.get(r.player_id as string);
+    return {
+      playerId: r.player_id as string,
+      tag: p?.tag ?? "",
+      name: p?.name ?? "Unknown player",
+      mapPosition: (r.map_position as number | null) ?? null,
+      thLevel: (r.th_level as number | null) ?? p?.thLevel ?? null,
+      attacksAllowed: (r.attacks_allowed as number | null) ?? 2,
+    } satisfies WarMemberRow;
+  });
+
+  const attacksByWar = byWar(attackRows, (r) => ({
+    playerId: r.player_id as string,
+    attackOrder: r.attack_order as number,
+    stars: r.stars as number,
+    destruction: Number(r.destruction),
+    defenderTag: (r.defender_tag as string | null) ?? null,
+    defenderPosition: (r.defender_position as number | null) ?? null,
+  }));
+
+  const targetsByWar = byWar(targetRows, (r) => ({
+    playerId: r.player_id as string,
+    targetPosition: r.target_position as number,
+    note: (r.note as string | null) ?? null,
+    assignedBy: (r.assigned_by as string | null) ?? null,
+    assignedAt: String(r.assigned_at),
+  }));
+
+  const out = new Map<string, WarRosterRows>();
+  for (const id of ids) {
+    const members = (membersByWar.get(id) ?? []).sort(
+      (a, b) => (a.mapPosition ?? 99) - (b.mapPosition ?? 99),
+    );
+    const attacks = (attacksByWar.get(id) ?? []).sort(
+      (a, b) => a.attackOrder - b.attackOrder,
+    );
+    const targets = (targetsByWar.get(id) ?? []).sort(
+      (a, b) => a.targetPosition - b.targetPosition,
+    );
+    if (members.length || attacks.length || targets.length) {
+      out.set(id, { members, attacks, targets });
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // T6.4 — target writes, all four through definer functions.
 //
 // Same shape as awardBonus/withdrawBonus in ./rosters.ts, INCLUDING the

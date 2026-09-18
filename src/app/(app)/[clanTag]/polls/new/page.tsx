@@ -9,18 +9,27 @@
 // know pushes them to guess, and a wrong In is worse for the leader than an
 // honest Maybe: it fills a roster slot that then goes unused.
 //
+// REDESIGNED as two steps: pick what you are asking (three cards that say what
+// each poll is for and where its answers show up), then fill in the details —
+// with the CWL season chosen from a list instead of typed as "2026-09", and a
+// warning not to rename In / Maybe / Out, which the lineup pages sort by.
+//
 // Authority is enforced by the policies in migration 010, not by hiding this
 // page. The role check below only produces a better error than a rejected insert.
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { CircleAlert, MessageSquare, Shield, Swords } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/page-header";
 import { requireClanByTag } from "@/lib/clans";
+import { canOpenPolls } from "@/lib/visibility";
+import { seasonLabel, startableSeasons } from "@/lib/roster-view";
 import { currentUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createPoll, type PollScope, type PollType } from "@/repositories/polls";
@@ -49,6 +58,11 @@ async function submit(formData: FormData) {
 
   const question = String(formData.get("question") ?? "").trim() || null;
   const season = String(formData.get("season") ?? "").trim() || null;
+  // The page offers this month and next from a list; anything else is a crafted
+  // request or a stale tab from last month.
+  if (pollType === "cwl_availability" && (!season || !startableSeasons(new Date()).includes(season))) {
+    redirect(`${back}/new?type=cwl_availability&error=bad-season`);
+  }
 
   // A CWL poll spans every clan; anything else belongs to this one.
   const scope: PollScope = pollType === "cwl_availability" ? "family" : "clan";
@@ -92,90 +106,123 @@ async function submit(formData: FormData) {
   redirect(`${back}/${result.id}?ok=poll-opened`);
 }
 
+/** What each kind of poll is FOR, in the words a leader would use. */
+const TYPE_INFO: Record<PollType, { label: string; description: string; icon: React.ReactNode }> = {
+  cwl_availability: {
+    label: "CWL availability",
+    description: "Asks every clan who can play Clan War League this month. Answers appear in the CWL roster builder.",
+    icon: <Swords aria-hidden className="size-5" />,
+  },
+  war_availability: {
+    label: "War availability",
+    description: "Asks this clan who can play the next war. Answers appear on the war lineup, with the war size they support.",
+    icon: <Shield aria-hidden className="size-5" />,
+  },
+  general: {
+    label: "Anything else",
+    description: "A question of your own for this clan, with the answers you choose.",
+    icon: <MessageSquare aria-hidden className="size-5" />,
+  },
+};
+
 export default async function CreatePollPage({
   params,
   searchParams,
 }: {
   params: Promise<{ clanTag: string }>;
-  searchParams: Promise<{ error?: string; type?: string }>;
+  searchParams: Promise<{ type?: string }>;
 }) {
   const { clanTag } = await params;
-  const { error, type } = await searchParams;
+  const { type } = await searchParams;
   const supabase = await createClient();
 
   const clan = await requireClanByTag(supabase, clanTag);
   const back = `/${encodeURIComponent(clan.tag)}/polls`;
 
-  if (clan.role !== "leader" && clan.role !== "co-leader") {
+  if (!canOpenPolls(clan.role)) {
     return (
-      <main className="mx-auto max-w-3xl space-y-4 p-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Create a poll</h1>
-        <Alert>
-          <AlertTitle>Leadership only</AlertTitle>
+      <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+        <PageHeader back={{ href: back, label: "All polls" }} title="Create a poll" />
+        <Alert variant="info">
+          <CircleAlert aria-hidden />
+          <AlertTitle>Only leaders can open polls</AlertTitle>
           <AlertDescription>
-            Only a leader or co-leader of {clan.name} can open a poll.
+            Ask a leader or co-leader of {clan.name} if there is something the clan should be asked.
           </AlertDescription>
         </Alert>
-        <Button asChild variant="outline">
-          <Link href={back}>Back to polls</Link>
-        </Button>
       </main>
     );
   }
 
-  const selectedType = (type as PollType) ?? "cwl_availability";
+  const selectedType: PollType = POLL_TYPES.includes(type as PollType) ? (type as PollType) : "cwl_availability";
   const template = POLL_TEMPLATES[selectedType] ?? POLL_TEMPLATES.general!;
-  const thisMonth = new Date().toISOString().slice(0, 7);
-
-  const message: Record<string, string> = {
-    "no-title": "Give the poll a title so members know what they are answering.",
-    "need-options": "A poll needs at least two options.",
-    "duplicate-options": "Two options have the same label, which makes the result unreadable.",
-    "bad-type": "That poll type is not one this system knows.",
-  };
+  const seasons = startableSeasons(new Date());
+  const availability = selectedType !== "general";
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-8">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Create a poll</h1>
-        <p className="text-muted-foreground text-sm">
-          {clan.name} — a CWL poll is asked of every clan at once.
-        </p>
-      </div>
+    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+      <PageHeader
+        back={{ href: back, label: "All polls" }}
+        eyebrow={clan.name}
+        title="Create a poll"
+        description="Ask the clan a question. Members answer on their phones, and you can see who has not answered yet."
+      />
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>That did not work</AlertTitle>
-          <AlertDescription>{message[error] ?? error}</AlertDescription>
-        </Alert>
-      )}
+      {/* Step 1. Changing the type reloads with a different template rather than
+          doing it in the browser, so this page stays a Server Component. */}
+      <section className="space-y-3">
+        <h2 className="font-medium">1. What do you want to ask?</h2>
+        <nav aria-label="Kind of poll" className="grid gap-3 sm:grid-cols-3">
+          {POLL_TYPES.map((t) => {
+            const info = TYPE_INFO[t];
+            const active = t === selectedType;
+            return (
+              <Link
+                key={t}
+                href={`${back}/new?type=${t}`}
+                aria-current={active ? "page" : undefined}
+                className={`flex flex-col gap-2 rounded-lg border-2 p-4 transition-colors ${
+                  active ? "border-primary bg-accent" : "bg-card hover:bg-accent/50"
+                }`}
+              >
+                <span className="flex items-center gap-2 font-medium">
+                  {info.icon}
+                  {info.label}
+                </span>
+                <span className="text-muted-foreground text-xs">{info.description}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </section>
 
-      {/* Changing the type reloads with a different template rather than doing it
-          in the browser, so this page stays a Server Component. */}
-      <nav className="flex flex-wrap gap-2">
-        {POLL_TYPES.map((t) => (
-          <Button
-            key={t}
-            asChild
-            size="sm"
-            variant={t === selectedType ? "default" : "outline"}
-          >
-            <Link href={`${back}/new?type=${t}`}>
-              {t === "cwl_availability"
-                ? "CWL availability"
-                : t === "war_availability"
-                  ? "War availability"
-                  : "General"}
-            </Link>
-          </Button>
-        ))}
-      </nav>
-
-      <form action={submit} className="space-y-5 rounded-lg border p-6">
+      <form action={submit} className="cb-panel space-y-5 rounded-lg border p-6">
+        <h2 className="font-medium">2. The details</h2>
         <input type="hidden" name="clanTag" value={clanTag} />
         <input type="hidden" name="pollType" value={selectedType} />
 
-        <div className="space-y-2">
+        {selectedType === "cwl_availability" && (
+          <div className="space-y-1.5">
+            <Label htmlFor="season">Which CWL season?</Label>
+            <select
+              id="season"
+              name="season"
+              defaultValue={seasons[0]}
+              className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm sm:w-72"
+            >
+              {seasons.map((s, i) => (
+                <option key={s} value={s}>
+                  {seasonLabel(s)} {i === 0 ? "(this month)" : "(next month)"}
+                </option>
+              ))}
+            </select>
+            <p className="text-muted-foreground text-xs">
+              Links the answers to that season, so the roster builder shows them.
+            </p>
+          </div>
+        )}
+
+        <div className="space-y-1.5">
           <Label htmlFor="title">Title</Label>
           <Input
             id="title"
@@ -184,42 +231,29 @@ export default async function CreatePollPage({
             maxLength={120}
             defaultValue={
               selectedType === "cwl_availability"
-                ? `CWL availability — ${thisMonth}`
+                ? `CWL availability — ${seasonLabel(seasons[0]!)}`
                 : template.title
             }
+            placeholder="e.g. Clan capital weekend plan"
           />
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="question">Question (optional)</Label>
           <Input
             id="question"
             name="question"
             maxLength={300}
-            placeholder="Are you available for CWL this season?"
+            placeholder={
+              selectedType === "war_availability"
+                ? "Can you play both attacks in the next war?"
+                : "Are you available for CWL this season?"
+            }
           />
         </div>
 
-        {selectedType === "cwl_availability" && (
-          <div className="space-y-2">
-            <Label htmlFor="season">Season</Label>
-            <Input id="season" name="season" defaultValue={thisMonth} pattern="\d{4}-\d{2}" />
-            <p className="text-muted-foreground text-xs">
-              Links the answers to a CWL season, so the roster builder can find them.
-            </p>
-          </div>
-        )}
-
-        <div className="space-y-2">
-          <Label htmlFor="closesAt">Closes at (optional)</Label>
-          <Input id="closesAt" name="closesAt" type="datetime-local" />
-          <p className="text-muted-foreground text-xs">
-            After this, answers lock. Leave empty to keep it open until you close it.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="options">Options, one per line</Label>
+        <div className="space-y-1.5">
+          <Label htmlFor="options">Answers members can choose</Label>
           <textarea
             id="options"
             name="options"
@@ -228,10 +262,23 @@ export default async function CreatePollPage({
             defaultValue={template.options.join("\n")}
             className="border-input placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs focus-visible:ring-1 focus-visible:outline-none"
           />
+          <p className="text-muted-foreground text-xs">
+            One answer per line, at least two.
+            {availability &&
+              " Keep In, Maybe and Out as they are — the lineup pages sort players by those exact words."}
+          </p>
         </div>
 
-        <div className="flex gap-3">
-          <SubmitButton>Open the poll</SubmitButton>
+        <div className="space-y-1.5">
+          <Label htmlFor="closesAt">Close automatically at (optional)</Label>
+          <Input id="closesAt" name="closesAt" type="datetime-local" className="sm:w-72" />
+          <p className="text-muted-foreground text-xs">
+            Answers lock at this time. Leave it empty to keep the poll open until you close it yourself.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-3 border-t pt-5">
+          <SubmitButton pendingLabel="Opening">Open the poll</SubmitButton>
           <Button asChild variant="outline">
             <Link href={back}>Cancel</Link>
           </Button>

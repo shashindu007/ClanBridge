@@ -30,7 +30,8 @@ import {
   dayLabel,
 } from "@/components/player-report-sections";
 import { requireClanByTag, visibleClans } from "@/lib/clans";
-import { currentUserId, hasRole } from "@/lib/auth";
+import { canSeeBaseDetails } from "@/lib/visibility";
+import { currentUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { decodeTag, encodeTag, InvalidTagError } from "@/lib/tags";
 import { playerReport } from "@/repositories/player-report";
@@ -99,7 +100,7 @@ export default async function PlayerProfilePage({
   const encodedTag = encodeURIComponent(clan.tag);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-8">
+    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">{player.name}</h1>
@@ -108,7 +109,7 @@ export default async function PlayerProfilePage({
           {player.left_at && <Badge variant="destructive">left the clan</Badge>}
           {/* T11B.10 — leadership only, matching the details page's own gate, so
               nobody is shown a button that leads to a 404. */}
-          {hasRole(clan.role, "co-leader") && (
+          {canSeeBaseDetails(clan.role) && (
             <Button asChild size="sm" className="ml-auto">
               <Link href={`/${encodedTag}/player/${encodeTag(player.tag)}/details`}>
                 <Castle aria-hidden />

@@ -7,12 +7,16 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
   AvailabilityBadge,
+  AvailabilityChips,
+  HowItWorks,
   LastCwl,
   LineupPanel,
   LineupStatus,
+  PoolSearch,
   SlotMeter,
+  Step,
   TownHall,
-} from "@/components/roster-parts";
+} from "@/components/lineup-parts";
 import type { Roster, RosterMember } from "@/repositories/rosters";
 
 const html = (element: Parameters<typeof renderToStaticMarkup>[0]) => renderToStaticMarkup(element);
@@ -40,6 +44,12 @@ const member = (n: number, th = 17): RosterMember => ({
 });
 
 const noop = async () => {};
+
+const panel = {
+  title: "Dark Hell",
+  status: roster.status,
+  slots: roster.slotCount,
+};
 
 describe("labels", () => {
   it("labels a Town Hall level instead of printing a bare number", () => {
@@ -110,7 +120,7 @@ describe("LastCwl", () => {
 
 describe("LineupPanel", () => {
   it("explains an empty draft and why Publish is disabled", () => {
-    const out = html(createElement(LineupPanel, { roster, clanName: "Dark Hell", members: [], action: noop }));
+    const out = html(createElement(LineupPanel, { ...panel, members: [], action: noop }));
     expect(out).toContain("Press Add beside a player");
     expect(out).toContain("Add at least one player before you can publish");
     expect(out).toMatch(/<button[^>]*disabled/);
@@ -120,24 +130,25 @@ describe("LineupPanel", () => {
   it("numbers the players, labels their Town Hall, and names what Remove does", () => {
     const out = html(
       createElement(LineupPanel, {
-        roster,
-        clanName: "Dark Hell",
+        ...panel,
         members: [member(1, 18), member(2, 17)],
         action: noop,
-        hidden: { season: "2026-09", view: "?show=in" },
+        hidden: { season: "2026-09", view: "?show=in", rosterId: "r1" },
       }),
     );
     expect(out).toContain("TH 18");
     expect(out).toContain('aria-label="Remove Player 1 from the Dark Hell lineup"');
     expect(out).toContain('name="view" value="?show=in"');
+    // The lineup's id rides in `hidden` under the name the page's action reads.
+    expect(out).toContain('name="rosterId" value="r1"');
     expect(out).toContain("Publish lineup to members");
   });
 
   it("offers unpublishing, in words, once published", () => {
     const out = html(
       createElement(LineupPanel, {
-        roster: { ...roster, status: "published" },
-        clanName: "Dark Hell",
+        ...panel,
+        status: "published",
         members: [member(1)],
         action: noop,
       }),
@@ -147,8 +158,81 @@ describe("LineupPanel", () => {
   });
 
   it("renders read-only with no forms when there is no action", () => {
-    const out = html(createElement(LineupPanel, { roster, clanName: "Dark Hell", members: [member(1)] }));
+    const out = html(createElement(LineupPanel, { ...panel, members: [member(1)] }));
     expect(out).not.toContain("<form");
     expect(out).not.toContain("Remove");
+  });
+});
+
+describe("LineupPanel for a war", () => {
+  it("names the audience and carries extras under the publish button", () => {
+    const out = html(
+      createElement(
+        LineupPanel,
+        {
+          title: "15v15 war",
+          status: "published",
+          slots: 15,
+          members: [member(1)],
+          audience: "everyone in the clan",
+          action: noop,
+          hidden: { lineupId: "l1" },
+        },
+        createElement("p", null, "Link it to the war"),
+      ),
+    );
+    expect(out).toContain("everyone in the clan can see this lineup");
+    expect(out).toContain('name="lineupId" value="l1"');
+    expect(out).toContain("Link it to the war");
+  });
+});
+
+describe("filters", () => {
+  it("renders every availability chip with its count, marking the active one", () => {
+    const out = html(
+      createElement(AvailabilityChips, {
+        active: "in",
+        counts: { all: 40, in: 12, maybe: 3, none: 20, out: 5 },
+        hrefFor: (f: string) => `/x?show=${f}`,
+      }),
+    );
+    expect(out).toContain("Said In");
+    expect(out).toContain("No answer");
+    expect(out).toContain('href="/x?show=out"');
+    expect(out).toMatch(/aria-current="true"[^>]*>Said In/);
+  });
+
+  it("is a GET form that keeps other URL state and offers Clear only when filtering", () => {
+    const out = html(
+      createElement(PoolSearch, {
+        action: "/roster/2026-09",
+        hidden: { clan: "#2G8YQYRGJ" },
+        q: "flash",
+        clans: [
+          { id: "a", name: "Dark Hell" },
+          { id: "b", name: "DH CWL ONLY" },
+        ],
+        from: "b",
+        clearHref: "/roster/2026-09",
+      }),
+    );
+    expect(out).toContain('method="get"');
+    expect(out).toContain('name="clan" value="#2G8YQYRGJ"');
+    expect(out).toContain('value="flash"');
+    expect(out).toContain("From DH CWL ONLY");
+    expect(out).toContain("Clear filters");
+
+    const plain = html(createElement(PoolSearch, { action: "/x", hidden: {}, q: "" }));
+    expect(plain).not.toContain("Clear filters");
+    expect(plain).not.toContain("<select");
+  });
+
+  it("renders How this works as a native disclosure with numbered steps", () => {
+    const out = html(
+      createElement(HowItWorks, { open: true }, createElement(Step, { n: 1, title: "Check who is available" }, "text")),
+    );
+    expect(out).toContain("<details open");
+    expect(out).toContain("How this works");
+    expect(out).toContain("Check who is available");
   });
 });

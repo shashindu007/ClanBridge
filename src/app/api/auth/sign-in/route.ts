@@ -23,6 +23,7 @@
 // ever arrives here.
 
 import { NextResponse } from "next/server";
+import { isAuthRetryableFetchError } from "@supabase/supabase-js";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { PASSWORD_MAX_LENGTH } from "@/lib/account";
@@ -55,6 +56,25 @@ function json(body: unknown, status: number, headers?: Record<string, string>) {
  * turns this route into an oracle that says which email addresses have accounts.
  */
 const REFUSED = "Wrong email or password.";
+
+/**
+ * What to say when the auth server could not be reached at all.
+ *
+ * WHY THIS IS NOT A CREDENTIAL FAILURE, AND WHY SAYING SO LEAKS NOTHING.
+ *
+ * REFUSED above exists so this route cannot be used to discover which addresses
+ * have accounts. That argument is about the ANSWER to a credential check. A
+ * transport failure happens BEFORE any account is looked up: the request never
+ * reached Supabase, so the reply is identical whether the address exists, does
+ * not exist, or was never typed. It carries no information to leak, and
+ * collapsing it into REFUSED buys no secrecy while costing the member the truth.
+ *
+ * What it cost in practice: a network drop produced
+ * `AuthRetryableFetchError: fetch failed` with `status: 0`, this route returned
+ * 401 "Wrong email or password", and the member retyped a password that had
+ * never been checked. 503 plus Retry-After says wait; 401 says you are wrong.
+ */
+const UNREACHABLE = "Could not reach the server. Check your connection and try again.";
 
 export async function POST(request: Request): Promise<Response> {
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
@@ -124,6 +144,24 @@ export async function POST(request: Request): Promise<Response> {
     email,
     password: parsed.data.password,
   });
+
+  // Reached Supabase and been told no? Or never reached it? The two need
+  // different answers, and separating them is the whole of UNREACHABLE's note.
+  //
+  // isAuthRetryableFetchError is the library's own guard — it is what marks the
+  // AuthRetryableFetchError that a DNS failure, a dropped connection or a
+  // timeout produces. Matching on the message text would break the first time
+  // undici rewords "fetch failed".
+  if (error && isAuthRetryableFetchError(error)) {
+    console.error(`sign-in: could not reach the auth server — ${error.message}`);
+    return json({ error: UNREACHABLE }, 503, {
+      ...headers,
+      // Seconds, and deliberately short: the caller is a member staring at a
+      // form, not a crawler. Long enough that an instant retry does not hit the
+      // same dead connection.
+      "Retry-After": "5",
+    });
+  }
 
   if (error || !data.user) {
     // Logged, not returned. Whoever is debugging needs to know the difference

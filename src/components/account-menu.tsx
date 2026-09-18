@@ -41,6 +41,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { SignOutButton } from "@/components/sign-out-button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export interface AccountMenuProps {
   username: string | null;
@@ -193,6 +194,14 @@ export function AccountMenu({
           <CircleHelp aria-hidden className="text-muted-foreground size-4" />
           Help and page guide
         </Link>
+
+        {/* Appearance sits below the destinations and above the way out. It is
+            a SETTING, not a place, so it does not belong among the links — and
+            it is the only setting here that takes effect without leaving the
+            menu, which is why it is a control rather than another row. */}
+        <div className="mt-1 border-t pt-1">
+          <ThemeToggle />
+        </div>
 
         <div className="mt-1 border-t pt-1">
           <SignOutButton className={`${ITEM} w-full text-destructive no-underline hover:no-underline`}>

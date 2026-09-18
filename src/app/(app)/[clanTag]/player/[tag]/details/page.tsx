@@ -20,8 +20,8 @@ import { ArrowLeft } from "lucide-react";
 import { BaseDetails, villageParam } from "@/components/base-details";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { hasRole } from "@/lib/auth";
 import { requireClanByTag } from "@/lib/clans";
+import { canSeeBaseDetails } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import { decodeTag, encodeTag, InvalidTagError } from "@/lib/tags";
 import { baseProgress } from "@/repositories/player-progress";
@@ -39,7 +39,7 @@ export default async function MemberBaseDetailsPage({
   const supabase = await createClient();
 
   const clan = await requireClanByTag(supabase, clanTag);
-  if (!hasRole(clan.role, "co-leader")) notFound();
+  if (!canSeeBaseDetails(clan.role)) notFound();
 
   let playerTag: string;
   try {
@@ -68,7 +68,7 @@ export default async function MemberBaseDetailsPage({
   const encodedPlayer = encodeTag(player.tag);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-8">
+    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
       <div className="space-y-3">
         <Button asChild variant="ghost" size="xs" className="-ml-2">
           <Link href={`/${encodedClan}/player/${encodedPlayer}`}>

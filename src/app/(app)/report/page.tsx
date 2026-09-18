@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/table";
 import { currentUserId } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
+import { isLeadership } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import {
   latestSnapshots,
@@ -53,11 +54,6 @@ export const dynamic = "force-dynamic";
 
 function ratioLabel(ratio: number | null): string {
   return ratio === null ? "—" : ratio.toFixed(2);
-}
-
-/** Same rule as /roster: co-leader and above. */
-function isLeadership(role: string): boolean {
-  return role === "leader" || role === "co-leader";
 }
 
 export default async function CrossClanReportPage() {
@@ -76,7 +72,7 @@ export default async function CrossClanReportPage() {
 
   if (clans.length === 0) {
     return (
-      <main className="mx-auto max-w-7xl space-y-4 p-8">
+      <main className="mx-auto max-w-7xl space-y-4 p-4 sm:p-8">
         <h1 className="text-2xl font-semibold tracking-tight">Participation</h1>
         <p className="text-muted-foreground text-sm">
           {all.length === 0
@@ -116,7 +112,7 @@ export default async function CrossClanReportPage() {
   const flaggedCount = rows.filter((r) => r.flags.length > 0).length;
 
   return (
-    <main className="mx-auto max-w-5xl space-y-8 p-8">
+    <main className="mx-auto max-w-5xl space-y-8 p-4 sm:p-8">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Participation</h1>
         <p className="text-muted-foreground text-sm">
