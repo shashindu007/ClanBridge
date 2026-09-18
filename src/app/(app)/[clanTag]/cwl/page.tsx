@@ -26,7 +26,7 @@ import { cwlPhase, nextCwlWindow } from "@/lib/coc-time";
 import { createClient } from "@/lib/supabase/server";
 import { seasonsForClan, warsInSeason } from "@/repositories/cwl";
 import { latestRun } from "@/repositories/sync-log";
-import { seasonTotals } from "@/services/cwl";
+import { seasonSpan, seasonTotals } from "@/services/cwl";
 import { freshness } from "@/services/freshness";
 
 export const dynamic = "force-dynamic";
@@ -50,10 +50,13 @@ export default async function CwlSeasonListPage({
   // seasons and seven wars each, so this stays small; if it ever does not, it
   // becomes one grouped query rather than a cache.
   const rows = await Promise.all(
-    seasons.map(async (season) => ({
-      season,
-      totals: seasonTotals(await warsInSeason(supabase, season.id)),
-    })),
+    seasons.map(async (season) => {
+      const wars = await warsInSeason(supabase, season.id);
+      // Both derived from the same read. The span costs nothing extra here —
+      // the wars were already being loaded for the totals, and their start and
+      // end times had simply never been selected (T12.2).
+      return { season, totals: seasonTotals(wars), span: seasonSpan(wars) };
+    }),
   );
 
   // T4.4. Only ever read by the empty state below — once there are rows, the
@@ -115,6 +118,7 @@ export default async function CwlSeasonListPage({
             <TableHeader>
               <TableRow>
                 <TableHead>Season</TableHead>
+                <TableHead>When</TableHead>
                 <TableHead className="text-right">W</TableHead>
                 <TableHead className="text-right">L</TableHead>
                 <TableHead className="text-right">T</TableHead>
@@ -123,9 +127,24 @@ export default async function CwlSeasonListPage({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map(({ season, totals }) => (
+              {rows.map(({ season, totals, span }) => (
                 <TableRow key={season.id}>
                   <TableCell className="font-medium">{season.season}</TableCell>
+                  {/* A preserved season is worth little if nobody can tell when
+                      it happened. "2026-09" is a key, not a date a member
+                      recognises a year later. */}
+                  <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                    {span ? (
+                      <>
+                        <LocalTime iso={span.from} style="date" />
+                        {span.state === "running" && (
+                          <span className="text-warning-ink"> · running</span>
+                        )}
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">{totals.wins}</TableCell>
                   <TableCell className="text-right">{totals.losses}</TableCell>
                   <TableCell className="text-right">{totals.ties}</TableCell>

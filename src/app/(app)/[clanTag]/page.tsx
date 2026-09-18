@@ -59,7 +59,7 @@ import { isLeader } from "@/lib/visibility";
 import { cwlPhase, nextCwlWindow } from "@/lib/coc-time";
 import { createClient } from "@/lib/supabase/server";
 import { clanDetail, currentMemberCount, latestAnnouncement } from "@/repositories/clans";
-import { seasonsForClan } from "@/repositories/cwl";
+import { seasonsForClan, warsInSeason } from "@/repositories/cwl";
 import { countsForPoll, pollsForClan } from "@/repositories/polls";
 import { latestRun } from "@/repositories/sync-log";
 import {
@@ -336,6 +336,23 @@ export default async function ClanDashboardPage({
   const cwlNext = nextCwlWindow(now);
   const phase = cwlPhase(now);
   const cwlSeasonRow = seasons.find((s) => s.season === cwlNext.season) ?? null;
+
+  // ── The CURRENT war day, when there is a league on ────────────────────────
+  //
+  // The panel below could say a season was running and nothing about when
+  // anything happened — while the war card directly above it counted down a
+  // regular war to the minute. The times were in cwl_wars the whole time; no
+  // query had ever asked for them.
+  //
+  // Conditional, so it costs nothing for the three weeks in four that there is
+  // no league: outside CWL there is no season row and this never runs.
+  const cwlWars = cwlSeasonRow ? await warsInSeason(supabase, cwlSeasonRow.id) : [];
+  // The day being fought, or the last one recorded once the season is over.
+  const cwlToday =
+    cwlWars.find((w) => w.state === "inWar") ??
+    cwlWars.find((w) => w.state === "preparation") ??
+    cwlWars[cwlWars.length - 1] ??
+    null;
 
   // Both numbers, when they disagree. See currentMemberCount's comment: the gap
   // is the interesting part, so showing only one of them would hide the signal.
@@ -681,6 +698,30 @@ export default async function ClanDashboardPage({
               {cwlSeasonRow.league ? ` in ${cwlSeasonRow.league}` : ""}. Stars,
               attacks and who has missed a day are all on the season page.
             </p>
+            {/* The deadline, in the reader's own zone, worded as the war card
+                above words a regular war. A CWL day gives one attack and no
+                second chance, so this is the line on the whole page most worth
+                being exact about. */}
+            {cwlToday && (
+              <p className="text-sm">
+                {cwlToday.state === "preparation" ? (
+                  <>
+                    Day {cwlToday.dayNumber ?? "?"} — battle day starts{" "}
+                    <LocalTime iso={cwlToday.startTime} style="weekday" />
+                  </>
+                ) : cwlToday.state === "inWar" ? (
+                  <>
+                    Day {cwlToday.dayNumber ?? "?"} ends{" "}
+                    <LocalTime iso={cwlToday.endTime} style="weekday" />
+                  </>
+                ) : (
+                  <>
+                    Day {cwlToday.dayNumber ?? "?"} ended{" "}
+                    <LocalTime iso={cwlToday.endTime} style="weekday" />
+                  </>
+                )}
+              </p>
+            )}
             <Button asChild size="sm">
               <Link href={`${href}/cwl/${encodeURIComponent(cwlSeasonRow.season)}`}>
                 Open {cwlSeasonRow.season}

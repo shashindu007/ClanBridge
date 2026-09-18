@@ -44,6 +44,16 @@ export interface CwlWar {
   ourDestruction: number | null;
   theirDestruction: number | null;
   result: string | null;
+  /**
+   * When battle day BEGAN for this war day — the API's startTime, which is the
+   * end of preparation and not when the day was matched up.
+   *
+   * Synced into cwl_wars since 002 and selected here since T12.2, which is the
+   * whole of that task: the column was written every CWL sync and no query ever
+   * asked for it, so the season page could not say when a day ran while the war
+   * board three tabs away said exactly that about a regular war.
+   */
+  startTime: string | null;
   endTime: string | null;
 }
 
@@ -114,7 +124,8 @@ export async function warsInSeason(
     .from("cwl_wars")
     .select(
       "id, war_tag, day_number, opponent_name, opponent_tag, team_size, state, " +
-        "our_stars, their_stars, our_destruction, their_destruction, result, end_time",
+        "our_stars, their_stars, our_destruction, their_destruction, result, " +
+        "start_time, end_time",
     )
     .eq("season_id", seasonId)
     .is("deleted_at", null)
@@ -134,6 +145,7 @@ export async function warsInSeason(
     ourDestruction: r.our_destruction === null ? null : Number(r.our_destruction),
     theirDestruction: r.their_destruction === null ? null : Number(r.their_destruction),
     result: (r.result as string | null) ?? null,
+    startTime: (r.start_time as string | null) ?? null,
     endTime: (r.end_time as string | null) ?? null,
   }));
 }
