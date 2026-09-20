@@ -92,14 +92,23 @@ function Stat({
   hint,
   tone,
   Icon,
+  href,
 }: {
   label: string;
   value: string;
   hint?: string;
   tone: string;
   Icon: typeof Users;
+  /**
+   * T12.4 — optional, and only the two presence tiles pass it.
+   *
+   * The other four are game facts with nowhere more detailed to go; these two
+   * are a count whose whole point is the list behind it. A tile that is a link
+   * only when it leads somewhere is better than four dead links for symmetry.
+   */
+  href?: string;
 }) {
-  return (
+  const body = (
     <div
       // `isolate` is load-bearing: the wash below is an absolutely positioned
       // child, and a positioned child paints ABOVE the in-flow text beside it.
@@ -150,6 +159,16 @@ function Stat({
       </div>
       {hint && <p className="text-muted-foreground mt-2 pl-2.5 text-xs">{hint}</p>}
     </div>
+  );
+
+  if (!href) return body;
+
+  // `block` so the anchor takes the tile's shape rather than collapsing to the
+  // width of its content and leaving most of the card unclickable.
+  return (
+    <Link href={href} className="cb-panel-interactive block rounded-xl">
+      {body}
+    </Link>
   );
 }
 
@@ -469,15 +488,15 @@ export default async function ClanDashboardPage({
             tone="var(--success)"
             Icon={Swords}
           />
-          {/* T12.3 — the platform, not the clan.
+          {/* T12.3 / T12.4 — the platform, not the clan.
 
               The other three tiles are game facts about one clan; these two are
               about the PEOPLE using this app, which is a question members
               actually ask ("is anyone else on?") and which nothing in the
               product answered. Counts only — platform_presence() never returns
               a list, because every approved member can call it and `users`
-              holds email addresses. The directory is /search, which reads
-              in-game names. */}
+              holds email addresses. WHO those people are is /people, which
+              calls active_members() (041) and is what these two link to. */}
           <Stat
             label="On ClanBridge"
             value={String(presence.activeAccounts)}
@@ -488,6 +507,7 @@ export default async function ClanDashboardPage({
             }
             tone="var(--clan-1)"
             Icon={UserRound}
+            href="/people"
           />
           <Stat
             label="Online now"
@@ -499,6 +519,7 @@ export default async function ClanDashboardPage({
             }
             tone="var(--info)"
             Icon={Wifi}
+            href="/people"
           />
           <Stat
             label="CWL seasons"

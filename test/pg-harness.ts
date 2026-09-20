@@ -100,6 +100,9 @@ export const PHASE1_MIGRATIONS = [
   // about) and 039, whose account_messages rows it copies across and whose
   // send_account_message() it replaces.
   "040_notification_feed.sql",
+  // T12.4 active_members() — who is here by name, with last_seen_at. Must
+  // follow 040, which adds the column and the five-minute window it shares.
+  "041_active_members.sql",
 ] as const;
 
 /**

@@ -31,7 +31,6 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import {
   Activity,
-  Bell,
   Castle,
   ChevronDown,
   CircleHelp,
@@ -40,7 +39,7 @@ import {
   KeyRound,
   LogOut,
   ShieldCheck,
-  SlidersHorizontal,
+  Users,
 } from "lucide-react";
 import { SignOutButton } from "@/components/sign-out-button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -59,12 +58,38 @@ export interface AccountMenuProps {
    * would put a 404 in the console of every member who has not set a picture.
    */
   hasAvatar?: boolean;
-  /** T12.3 — unread notifications, for the count beside the Notifications entry. */
-  unreadNotifications?: number;
 }
 
 const ITEM =
   "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.9375rem] transition-colors hover:bg-accent hover:text-accent-foreground";
+
+/**
+ * One square in the grid of the member's own destinations.
+ *
+ * Icon above label rather than beside it: at half the menu's width a row would
+ * truncate the longer names, and stacking gives the icon room to do the work it
+ * is there for. Labels are one word each for the same reason — "Sign-in and
+ * password" does not fit a tile, and the page it opens says the rest.
+ */
+function TileLink({
+  href,
+  Icon,
+  label,
+}: {
+  href: string;
+  Icon: typeof Castle;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="hover:bg-accent hover:text-accent-foreground flex flex-col items-center gap-1.5 rounded-md border px-2 py-3 text-center text-xs transition-colors"
+    >
+      <Icon aria-hidden className="text-muted-foreground size-4.5" />
+      {label}
+    </Link>
+  );
+}
 
 export function AccountMenu({
   username,
@@ -72,7 +97,6 @@ export function AccountMenu({
   showAdmin,
   showLeadership,
   hasAvatar = false,
-  unreadNotifications = 0,
 }: AccountMenuProps) {
   const ref = useRef<HTMLDetailsElement>(null);
   const pathname = usePathname();
@@ -181,45 +205,43 @@ export function AccountMenu({
             Admin
           </Link>
         )}
-        {/* T12.3 — the feed, and below it the settings for it. Both are on
-            the rail already (the bell), so these are the narrow-screen path to
-            the same pages — the menu is always the COMPLETE list and the rail
-            is a set of shortcuts on top of it, which is the rule the two
-            leadership links above follow.
 
-            Order matters: what was sent to you, then what you want sent. The
-            bug this whole phase fixes was those two being the same link. */}
-        <Link href="/notifications" className={ITEM}>
-          <Bell aria-hidden className="text-muted-foreground size-4" />
-          Notifications
-          {unreadNotifications > 0 && (
-            <span className="bg-info-tint text-info-ink ml-auto rounded-full px-1.5 py-0.5 text-xs leading-none">
-              {unreadNotifications}
-            </span>
-          )}
-        </Link>
-        <Link href="/settings/notifications" className={ITEM}>
-          <SlidersHorizontal aria-hidden className="text-muted-foreground size-4" />
-          What to notify me about
-        </Link>
-        {/* T11.8 — the member's own villages and their picture. Above the
-            credentials entry because it is the one of the two they open more than
-            once. */}
-        <Link href="/account" className={ITEM}>
-          <Castle aria-hidden className="text-muted-foreground size-4" />
-          My bases
-        </Link>
-        {/* Renamed from "Account". Two items a word apart — "Account" and "My
-            bases" — is a menu a member has to guess at, and "Account" never
-            described that page anyway: it changes a username and a password. */}
-        <Link href="/settings/account" className={ITEM}>
-          <KeyRound aria-hidden className="text-muted-foreground size-4" />
-          Sign-in and password
-        </Link>
-        <Link href="/guide" className={ITEM}>
-          <CircleHelp aria-hidden className="text-muted-foreground size-4" />
-          Help and page guide
-        </Link>
+        {/* ── The member's own four, as a grid ─────────────────────────────
+            T12.4 — NOTIFICATIONS IS NOT HERE, AND THAT IS THE POINT.
+
+            T12.3 put it in this menu on the "the menu is always the COMPLETE
+            list" rule that the two leadership links follow. That rule earns
+            its keep for those, because they are hidden from the rail below
+            `md` and the menu is the only way to reach them on a phone. The
+            bell is NOT hidden at any width — only its label is — so the menu
+            entry was never a narrow-screen path to anything. It was a second
+            button to a page that already had one, sitting directly under the
+            first, and "What to notify me about" made it three controls for one
+            subject.
+
+            So the feed is reached by the bell, and the settings for it are
+            reached from the feed's own Settings button — see the notifications
+            page. Both are one click, neither is duplicated, and this menu goes
+            back to being the things that have nowhere else to live.
+
+            A grid rather than four more rows: these are the member's OWN
+            things and they are peers, so two columns says that in a way a
+            vertical list of one-line links does not, and it halves the height
+            of a menu that hangs over the page. Four is the right number for
+            it — at three it reads as a ragged list, and at six it stops being
+            scannable. */}
+        <div className="mt-1 grid grid-cols-2 gap-1">
+          {/* T11.8 — the member's own villages and their picture. First
+              because it is the one of these they open more than once. */}
+          <TileLink href="/account" Icon={Castle} label="My bases" />
+          <TileLink href="/people" Icon={Users} label="People" />
+          {/* Renamed from "Account". Two items a word apart — "Account" and
+              "My bases" — is a menu a member has to guess at, and "Account"
+              never described that page anyway: it changes a username and a
+              password. */}
+          <TileLink href="/settings/account" Icon={KeyRound} label="Sign-in" />
+          <TileLink href="/guide" Icon={CircleHelp} label="Help" />
+        </div>
 
         {/* Appearance sits below the destinations and above the way out. It is
             a SETTING, not a place, so it does not belong among the links — and

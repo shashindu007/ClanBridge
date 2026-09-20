@@ -211,6 +211,50 @@ export async function platformPresence(
   };
 }
 
+/** One person on the platform, as everybody else is allowed to see them. */
+export interface ActiveMember {
+  id: string;
+  username: string | null;
+  displayName: string | null;
+  /** Null for somebody who has not loaded a page since presence shipped. */
+  lastSeenAt: string | null;
+  isOnline: boolean;
+  clans: Array<{ clan: string; tag: string; role: string }>;
+}
+
+/**
+ * Everyone approved, online first, never-seen last.
+ *
+ * NO EMAIL COLUMN EXISTS on what comes back, and that is the function's whole
+ * shape rather than something this file filters out — active_members() (041)
+ * returns six columns and `email` is not one of them. The administrative view
+ * of a person, which does carry it, is adminAccounts() in accounts.ts and
+ * answers only to a leader.
+ *
+ * `isOnline` is computed in SQL against the same five-minute window
+ * platformPresence() counts with, so the list and the tally beside it cannot
+ * disagree.
+ */
+export async function activeMembers(
+  supabase: SupabaseClient,
+): Promise<ActiveMember[]> {
+  const { data, error } = await supabase.rpc("active_members");
+
+  if (error) {
+    safeMessage("active-members", error, "");
+    return [];
+  }
+
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    id: row.id as string,
+    username: (row.username as string | null) ?? null,
+    displayName: (row.display_name as string | null) ?? null,
+    lastSeenAt: (row.last_seen_at as string | null) ?? null,
+    isOnline: row.is_online === true,
+    clans: (row.clans as ActiveMember["clans"] | null) ?? [],
+  }));
+}
+
 /**
  * Record that the caller is here.
  *

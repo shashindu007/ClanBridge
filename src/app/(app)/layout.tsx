@@ -285,9 +285,9 @@ export default async function AppLayout({
               already the sentence. */}
           {approved && presence.totalAccounts > 0 && (
             <Link
-              href="/search"
+              href="/people"
               title={`${presence.onlineNow} of ${presence.activeAccounts} members active in the last five minutes`}
-              aria-label={`${presence.onlineNow} members online out of ${presence.activeAccounts}. Open the member directory.`}
+              aria-label={`${presence.onlineNow} members online out of ${presence.activeAccounts}. See who is here.`}
               className="text-wood-ink-dim hover:bg-accent hover:text-accent-foreground hidden shrink-0 items-center gap-1.5 rounded-md px-2 py-1 transition-colors lg:flex"
             >
               <span
@@ -325,7 +325,6 @@ export default async function AppLayout({
               showAdmin={showAdminLink}
               showLeadership={showLeadershipLinks}
               hasAvatar={Boolean(profile?.avatarPath)}
-              unreadNotifications={approved ? unread : 0}
             />
           </div>
           </div>
