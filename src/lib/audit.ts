@@ -40,7 +40,12 @@ export type AuditAction =
   | "publish"
   | "approve"
   | "reject"
-  | "verify";
+  | "verify"
+  // T12.2 — administering an account after approval (039). "remove" is distinct
+  // from "delete": R4 keeps the row, and "restore" is the act that undoes it.
+  | "message"
+  | "remove"
+  | "restore";
 
 export const ACTION_LABELS: Record<string, string> = {
   create: "created",
@@ -50,6 +55,10 @@ export const ACTION_LABELS: Record<string, string> = {
   approve: "approved",
   reject: "rejected",
   verify: "verified",
+  message: "messaged",
+  // "removed access from", not "deleted". The account still exists.
+  remove: "removed access from",
+  restore: "restored",
 };
 
 export interface AuditEntry {

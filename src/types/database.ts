@@ -2,7 +2,9 @@
 // DO NOT EDIT. Regenerate after every migration — a stale file type-checks
 // against a schema that no longer exists, which is worse than having none.
 //
-// 35 tables, generated 2026-09-16.
+// 36 tables, generated 2026-09-16, hand-extended for 039 (T12.2:
+// account_messages and notification_preferences.direct_messages). Rerun
+// `npm run types:db` against Supabase once 039 is applied there.
 
 export type Json =
   | string
@@ -15,6 +17,44 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      account_messages: {
+        Row: {
+          id: string;
+          recipient_id: string;
+          sender_id: string;
+          clan_id: string | null;
+          subject: string;
+          body: string;
+          read_at: string | null;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          recipient_id: string;
+          sender_id: string;
+          clan_id?: string | null;
+          subject: string;
+          body: string;
+          read_at?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          recipient_id?: string;
+          sender_id?: string;
+          clan_id?: string | null;
+          subject?: string;
+          body?: string;
+          read_at?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
       announcements: {
         Row: {
           id: string;
@@ -624,6 +664,7 @@ export interface Database {
           war_reminders: boolean;
           raid_reminders: boolean;
           poll_reminders: boolean;
+          direct_messages: boolean;
           created_at: string;
           updated_at: string | null;
           deleted_at: string | null;
@@ -636,6 +677,7 @@ export interface Database {
           war_reminders?: boolean;
           raid_reminders?: boolean;
           poll_reminders?: boolean;
+          direct_messages?: boolean;
           created_at?: string;
           updated_at?: string | null;
           deleted_at?: string | null;
@@ -648,6 +690,7 @@ export interface Database {
           war_reminders?: boolean;
           raid_reminders?: boolean;
           poll_reminders?: boolean;
+          direct_messages?: boolean;
           created_at?: string;
           updated_at?: string | null;
           deleted_at?: string | null;

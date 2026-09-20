@@ -24,14 +24,16 @@ export default async function PendingApprovalPage() {
   const userId = await currentUserId(supabase);
 
   // "read own profile" (006) makes this the user's own row and nothing else.
+  // T12.2 — no `deleted_at is null` filter. A removed account is exactly who
+  // this page now has to speak to, and filtering the row out would leave it
+  // rendering "Waiting for approval" at somebody whose access was taken away.
   const { data } = await supabase
     .from("users")
-    .select("status, requested_clan_id")
-    .eq("id", userId ?? "")
-    .is("deleted_at", null);
+    .select("status, requested_clan_id, deleted_at")
+    .eq("id", userId ?? "");
 
   const row = data?.[0] as
-    | { status: string; requested_clan_id: string | null }
+    | { status: string; requested_clan_id: string | null; deleted_at: string | null }
     | undefined;
 
   // T11.13 — an approved member has no business here, and before Phase 11 nothing
@@ -48,8 +50,36 @@ export default async function PendingApprovalPage() {
   // direction-aware.
   if (row?.status === "approved") redirect("/account");
 
+  const removed = Boolean(row?.deleted_at);
   const rejected = row?.status === "rejected";
   const verified = Boolean(row?.requested_clan_id);
+
+  // T12.2 — removed is checked FIRST, because a removed account is also
+  // 'rejected' and the two need different sentences. "A leader reviewed this
+  // account and declined it" is wrong and confusing for someone who has been
+  // using the product for months: nothing was reviewed, something was taken
+  // away, and the difference is the whole reason they are reading this.
+  if (removed) {
+    return (
+      <main className="mx-auto max-w-2xl space-y-6 p-4 sm:p-8">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          This account has been removed
+        </h1>
+        <Alert variant="destructive">
+          <AlertTitle>Access removed</AlertTitle>
+          <AlertDescription>
+            A clan leader removed this account, so it can no longer see any clan
+            data. Nothing has been deleted — if this was a mistake, a leader can
+            restore it. Speak to them in game.
+          </AlertDescription>
+        </Alert>
+        {/* No links out. The layout sends a removed account back here from
+            every other path, so a button offering to go somewhere would be a
+            button that returns them to this page. Sign out is in the account
+            menu above, which is the one thing left to do. */}
+      </main>
+    );
+  }
 
   if (rejected) {
     return (

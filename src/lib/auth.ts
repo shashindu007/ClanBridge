@@ -197,6 +197,16 @@ export const clanRoles = cache(async function clanRoles(
 export interface AccountProfile {
   /** T3.8 — 'pending' | 'approved' | 'rejected'. */
   status: string;
+  /**
+   * T12.2 — a leader has taken this account's access away (039).
+   *
+   * Its own flag rather than being folded into `status`, because the two answer
+   * different questions: `status` is where the account sits in the approval
+   * process, and this is whether it exists to the product at all. A removed
+   * account is also 'rejected', but a plain rejection is somebody who was never
+   * let in — and /pending says a different sentence to each of them.
+   */
+  removed: boolean;
   email: string;
   /** T10 — null until /account/setup has been completed. */
   username: string | null;
@@ -234,11 +244,19 @@ export const accountProfile = cache(async function accountProfile(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<AccountProfile | null> {
+  // T12.2 — NO `deleted_at is null` FILTER, and that is the fix rather than an
+  // oversight. It used to be here, and it made a removed account indistinguishable
+  // from an account that does not exist: this returned null, needsAccountSetup(null)
+  // is true, and the layout bounced them to /account/setup — forever, because
+  // /account/setup is the one path exempt from that redirect. A member whose access
+  // was taken away would have seen a setup form on a loop and no explanation at all.
+  //
+  // 006's "read own profile" policy is `id = auth.uid()` with no deleted_at
+  // condition, so the row still comes back and the state can be named.
   const { data, error } = await supabase
     .from("users")
-    .select("status, email, username, password_set_at, is_platform_admin, avatar_path")
-    .eq("id", userId)
-    .is("deleted_at", null);
+    .select("status, email, username, password_set_at, is_platform_admin, avatar_path, deleted_at")
+    .eq("id", userId);
 
   if (error || !data?.length) return null;
 
@@ -249,10 +267,12 @@ export const accountProfile = cache(async function accountProfile(
     password_set_at: string | null;
     is_platform_admin: boolean | null;
     avatar_path: string | null;
+    deleted_at: string | null;
   };
 
   return {
     status: row.status,
+    removed: row.deleted_at !== null,
     email: row.email ?? "",
     username: row.username,
     passwordSetAt: row.password_set_at,
@@ -270,6 +290,10 @@ export const accountProfile = cache(async function accountProfile(
  */
 export function needsAccountSetup(profile: AccountProfile | null): boolean {
   if (!profile) return true;
+  // T12.2 — a removed account is never sent to finish setting itself up. There
+  // is nothing on the other side of that form for them, and the redirect would
+  // be the only thing the product ever said to them again.
+  if (profile.removed) return false;
   return !profile.username || !profile.passwordSetAt;
 }
 

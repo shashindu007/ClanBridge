@@ -18,15 +18,17 @@ import { Suspense } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Activity, Bell, ClipboardList } from "lucide-react";
+import { Activity, Bell, ClipboardList, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { accountProfile, currentUserId, needsAccountSetup } from "@/lib/auth";
+import { unreadMessageCount } from "@/repositories/accounts";
 import { clanAccent } from "@/lib/clan-accent";
 import { visibleClans } from "@/lib/clans";
 import { isLeader, isLeadership } from "@/lib/visibility";
 import { isGateExempt, isSetupExempt } from "@/lib/gate";
 import { AccountMenu } from "@/components/account-menu";
 import { Toaster } from "@/components/toaster";
+import { Badge } from "@/components/ui/badge";
 import {
   ClanSectionTabs,
   ClanSwitcher,
@@ -65,11 +67,31 @@ export default async function AppLayout({
   // query for the rare unapproved member and cost a round trip for every other
   // member on every single navigation — the wrong way round. Now both are in
   // flight at once and an unapproved member simply discards an answer.
-  const [profile, allClans] = await Promise.all([
+  // T12.2 — the unread count joins the pair rather than following it.
+  //
+  // T10.9's whole argument was that a serial read here costs a round trip on
+  // every navigation in the product. In parallel it costs none: this is a
+  // head-only exact count, so no row data crosses the wire, and it resolves
+  // inside the time the other two already take. A badge a member has to open a
+  // menu to discover is a badge that does not work — and the one message this
+  // product sends to a person individually is the one worth interrupting them
+  // for.
+  const [profile, allClans, unreadMessages] = await Promise.all([
     accountProfile(supabase, userId),
     visibleClans(supabase, userId),
+    unreadMessageCount(supabase, userId),
   ]);
   const approved = profile?.status === "approved";
+
+  // T12.2 — before the setup gate, because a removed account must not be asked
+  // to finish setting itself up.
+  //
+  // Narrower than isGateExempt(), deliberately. That list exists so an account
+  // on its way IN can reach the pages that get it there — verify a village,
+  // read the guide, claim the platform. A removed account is on its way out and
+  // has no use for any of them, so /pending is the only page left. Signing out
+  // still works: it posts to a route handler, which never renders this layout.
+  if (profile?.removed && pathname !== "/pending") redirect("/pending");
 
   // T10.5 — setup BEFORE approval, and the order is not arbitrary.
   //
@@ -227,6 +249,29 @@ export default async function AppLayout({
             <span className="hidden sm:inline">Notifications</span>
           </Link>
 
+          {/* T12.2 — the inbox, and only when there is something in it.
+              A permanently visible Messages link would be another word in a row
+              this shell has twice been redesigned to shorten, and for most
+              members it would never have anything behind it. Shown when it
+              matters, and the count is the label — "Messages 1" reads as a
+              thing to do in a way a bell with a dot does not. The complete
+              list, empty or not, stays in the account menu. */}
+          {approved && unreadMessages > 0 && (
+            <Link
+              href="/messages"
+              aria-label={`Messages, ${unreadMessages} unread`}
+              title="Messages your clan leadership has sent you"
+              className="text-wood-ink hover:bg-accent hover:text-accent-foreground flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 font-medium transition-colors"
+            >
+              <Mail aria-hidden className="size-4" />
+              <span className="hidden sm:inline">Messages</span>
+              {/* The Badge primitive rather than a hand-rolled pill: its info
+                  variant is the one pairing in this project that has been
+                  checked for contrast in both themes (globals.css). */}
+              <Badge variant="info">{unreadMessages}</Badge>
+            </Link>
+          )}
+
           {/* T10.3 — who you are, then the way out.
 
               The identity is not decoration. The bug that prompted all of T10
@@ -249,6 +294,7 @@ export default async function AppLayout({
               showAdmin={showAdminLink}
               showLeadership={showLeadershipLinks}
               hasAvatar={Boolean(profile?.avatarPath)}
+              unreadMessages={approved ? unreadMessages : 0}
             />
           </div>
           </div>

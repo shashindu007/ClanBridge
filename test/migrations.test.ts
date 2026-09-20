@@ -180,6 +180,14 @@ async function seedFixtures(h: Harness) {
       ('${USER_A}', 'https://push.example/a', 'k', 'k'),
       ('${USER_B}', 'https://push.example/b', 'k', 'k');
 
+    -- 039. Filed under the RECIPIENT's clan, which is what clan_id means on this
+    -- table — the authority the sender acted under. The senders are crossed over
+    -- only because this fixture holds two accounts; send_account_message()
+    -- refuses to write a message to yourself.
+    insert into account_messages (recipient_id, sender_id, clan_id, subject, body) values
+      ('${USER_A}', '${USER_B}', '${CLAN_A}', 'Missed war attacks', 'Please use both attacks.'),
+      ('${USER_B}', '${USER_A}', '${CLAN_B}', 'Missed war attacks', 'Please use both attacks.');
+
     -- Only USER_A has a preference row. USER_B deliberately has none, so the
     -- "absent row means every kind is enabled" rule in 023 is exercised by
     -- push_targets() rather than merely asserted in a comment.

@@ -60,6 +60,15 @@ const KINDS = [
     label: "Poll reminders",
     hint: "A poll closes soon and you have not answered.",
   },
+  {
+    // T12.2. Its own kind rather than riding on Announcements, so switching
+    // clan notices off cannot quietly suppress the one notification that is
+    // addressed to you personally. Turning it off only stops the nudge — the
+    // message itself still arrives on your Messages page.
+    column: "direct_messages",
+    label: "Messages from leadership",
+    hint: "A leader writes to you directly. The message is kept either way.",
+  },
 ] as const;
 
 type PrefRow = Record<string, boolean> & { id?: string };

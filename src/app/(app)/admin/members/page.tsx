@@ -1,27 +1,41 @@
-// T3.8 — Approve or decline pending accounts.
+// T3.8 / T12.2 — the accounts on this platform.
 //
-// (T9.2 adds role adjustment and member management to this page later.)
+// This page used to read `status = 'pending'` and nothing else, so an account
+// vanished from the only screen that ever showed it at the moment it was
+// approved. Approving somebody was a one-way door: no list of who held an
+// account, no way to open one, no way to reach the person, and no way to take
+// access away again. T12.2 is the handle on the other side, and this file is
+// the list half of it — /admin/members/[userId] is the account itself.
 //
-// Both actions are RPCs from 015, not table writes. approve_account() checks the
-// caller's authority, sets the status, and writes audit_log in one indivisible
-// act — which is why `users` has no general update policy and why doing this with
-// a form that PATCHes the row would be wrong.
+// WHAT DECIDES WHO APPEARS HERE is admin_accounts() (039), not this file. A
+// platform admin sees every account; a leader sees accounts in the clans they
+// lead plus the applicants to them. A leader of clan A physically cannot read
+// clan B's, so there is nothing to filter here — the same argument the old
+// version of this file made about RLS, now made about the function that
+// replaced those policies for this screen.
 //
-// R4 — a declined account is marked 'rejected', never deleted. The row and the
-// record of who declined it survive.
+// Both approval actions are still RPCs from 015, not table writes.
+// approve_account() checks the caller's authority, sets the status, and writes
+// audit_log in one indivisible act — which is why `users` has no general update
+// policy and why doing this with a form that PATCHes the row would be wrong.
 //
-// Who appears here is decided by RLS, not by this file: 013's "leaders read
-// pending applicants to their clans" filters on requested_clan_id, and 015's
-// "platform admin reads all users" shows an admin everyone. A leader of clan A
-// physically cannot read clan B's applicants, so there is nothing to filter here.
+// R4 — a declined account is marked 'rejected' and a removed one keeps its row.
+// Nothing on this page deletes anything.
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import { ArrowRight, Search, UserCheck, UserX } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { currentUserId } from "@/lib/auth";
 import { safeMessage } from "@/lib/errors";
+import { adminAccounts, type AdminAccount } from "@/repositories/accounts";
 import { SubmitButton } from "@/components/submit-button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export const dynamic = "force-dynamic";
 
@@ -60,103 +74,177 @@ async function decide(formData: FormData) {
   redirect("/admin/members?ok=member-updated");
 }
 
-export default async function AdminMembersPage({
+/** How a status reads to somebody who did not write the schema. */
+function StatusBadge({ account }: { account: AdminAccount }) {
+  if (account.removedAt) return <Badge variant="destructive">Removed</Badge>;
+  if (account.status === "pending") return <Badge variant="info">Waiting</Badge>;
+  if (account.status === "rejected") return <Badge variant="secondary">Declined</Badge>;
+  return <Badge variant="success">Active</Badge>;
+}
+
+/**
+ * The line under the name: which clans, or why there are none.
+ *
+ * An account with no clan is the state this whole screen exists to make
+ * visible, and there are three different reasons for it — waiting to be
+ * approved, removed, or approved but never added to anything. Collapsing them
+ * into an empty cell is what made the old page unable to explain itself.
+ */
+function accountSubtitle(account: AdminAccount): string {
+  if (account.memberships.length > 0) {
+    return account.memberships.map((m) => `${m.clan} — ${m.role}`).join(", ");
+  }
+  if (account.removedAt) return "No clans — access was removed";
+  if (account.status === "pending") {
+    return account.requestedClan
+      ? `Verified in ${account.requestedClan}, waiting for approval`
+      : "Not verified — has not linked a player account yet";
+  }
+  return "Approved, but not in any clan yet";
+}
+
+export default async function AdminAccountsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ q?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { q } = await searchParams;
   const supabase = await createClient();
 
   const userId = await currentUserId(supabase);
   if (!userId) redirect("/login");
 
-  const { data } = await supabase
-    .from("users")
-    .select("id, email, display_name, status, requested_clan_id, created_at")
-    .eq("status", "pending")
-    .is("deleted_at", null)
-    .order("created_at");
-
-  const pending = (data ?? []).filter((u) => (u as { id: string }).id !== userId) as Array<{
-    id: string;
-    email: string;
-    display_name: string | null;
-    requested_clan_id: string | null;
-    created_at: string;
-  }>;
-
-  // Names for the clan column. Only clans this caller may read come back, which
-  // is the correct set by construction.
-  const clanIds = [...new Set(pending.map((u) => u.requested_clan_id).filter(Boolean))];
-  const { data: clanRows } = clanIds.length
-    ? await supabase.from("clans").select("id, name").in("id", clanIds as string[])
-    : { data: [] };
-
-  const clanName = new Map(
-    ((clanRows ?? []) as Array<{ id: string; name: string }>).map((c) => [c.id, c.name]),
-  );
+  // The search term goes to the database rather than filtering an array here:
+  // a leader's list is small, but 039 matches village tags and names too, and
+  // reproducing that join in JavaScript would mean two definitions of what a
+  // search finds.
+  const accounts = await adminAccounts(supabase, q);
+  const waiting = accounts.filter((a) => a.status === "pending" && !a.removedAt);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Pending accounts</h1>
-        <p className="text-muted-foreground text-sm">
-          People who have signed in and are waiting to be let in.
-        </p>
-      </div>
+    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
+      <PageHeader
+        title="Accounts"
+        description="Everyone who has signed up, whether they are waiting, active or removed. Open one to message the person or take their access away."
+      />
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>That did not work</AlertTitle>
-          <AlertDescription>
-            {error === "refused"
-              ? "The database refused that. Either you do not lead the clan this person applied to, they have not linked a player account yet, or their account is no longer pending."
-              : error === "bad-request"
-                ? "Something was missing from that request."
-                : // T10.8d — every code this page produces is handled above, so
-                  // this branch is now unreachable rather than a place raw
-                  // Postgres text arrives.
-                  "That did not work. Check the server log for why."}
-          </AlertDescription>
-        </Alert>
+      {/* Errors and confirmations come through the shared toast
+          (lib/feedback.ts), so this page does not repeat them inline. */}
+
+      {waiting.length > 0 && (
+        <div className="bg-muted/50 flex items-center gap-3 rounded-lg border p-4">
+          <UserCheck aria-hidden className="size-5 shrink-0" />
+          <p className="text-sm">
+            <strong>
+              {waiting.length === 1
+                ? "1 account is waiting"
+                : `${waiting.length} accounts are waiting`}
+            </strong>{" "}
+            <span className="text-muted-foreground">
+              — they appear first in the list below.
+            </span>
+          </p>
+        </div>
       )}
 
-      {pending.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
-          Nobody is waiting. Accounts appear here once someone signs in and links a
-          player account in one of your clans.
-        </p>
+      {/* A GET form, so a search is a URL a leader can bookmark or reload, and
+          so the back button works. A Server Action here would make the result
+          of a search unreachable by address. */}
+      <form className="flex flex-wrap items-end gap-3">
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <Label htmlFor="q">Find an account</Label>
+          <Input
+            id="q"
+            name="q"
+            defaultValue={q ?? ""}
+            placeholder="Email, username, village name or tag"
+          />
+        </div>
+        <SubmitButton variant="outline" pendingLabel="Searching">
+          <Search aria-hidden />
+          Search
+        </SubmitButton>
+        {q && (
+          <Button asChild variant="ghost">
+            <Link href="/admin/members">Clear</Link>
+          </Button>
+        )}
+      </form>
+
+      {accounts.length === 0 ? (
+        <div className="rounded-lg border border-dashed p-6 text-center">
+          <UserX aria-hidden className="text-muted-foreground mx-auto size-6" />
+          <p className="mt-2 text-sm font-medium">
+            {q ? "No account matches that" : "No accounts to show"}
+          </p>
+          <p className="text-muted-foreground mt-1 text-sm">
+            {q
+              ? "Try part of an email address, a username, or a village tag."
+              : "Accounts appear here once someone signs in. If you lead a clan, you see the accounts in it; the platform owner sees them all."}
+          </p>
+        </div>
       ) : (
         <ul className="divide-y rounded-lg border">
-          {pending.map((user) => (
-            <li key={user.id} className="flex flex-wrap items-center gap-4 p-4">
+          {accounts.map((account) => (
+            <li key={account.id} className="flex flex-wrap items-center gap-3 p-4">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">
-                  {user.display_name ?? user.email}
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href={`/admin/members/${account.id}`}
+                    className="truncate text-sm font-medium hover:underline"
+                  >
+                    {account.username ?? account.displayName ?? account.email}
+                  </Link>
+                  <StatusBadge account={account} />
+                  {account.isPlatformAdmin && <Badge variant="secondary">Owner</Badge>}
+                  {account.id === userId && <Badge variant="outline">You</Badge>}
+                  {account.unreadMessages > 0 && (
+                    <Badge variant="outline">
+                      {account.unreadMessages} unread
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-muted-foreground truncate text-xs">
-                  {user.requested_clan_id
-                    ? `Verified in ${clanName.get(user.requested_clan_id) ?? "a clan"}`
-                    : "Not verified — has not linked a player account yet"}
+                  {accountSubtitle(account)}
                 </p>
+                {/* The village is how a leader actually recognises somebody —
+                    an email address is not a name anyone knows in game. */}
+                {account.players.length > 0 && (
+                  <p className="text-muted-foreground truncate text-xs">
+                    {account.players.map((p) => `${p.name} ${p.tag}`).join(", ")}
+                  </p>
+                )}
               </div>
 
-              <div className="flex gap-2">
-                <form action={decide}>
-                  <input type="hidden" name="userId" value={user.id} />
-                  <input type="hidden" name="action" value="approve" />
-                  <SubmitButton size="sm" disabled={!user.requested_clan_id}>
-                    Approve
-                  </SubmitButton>
-                </form>
-                <form action={decide}>
-                  <input type="hidden" name="userId" value={user.id} />
-                  <input type="hidden" name="action" value="reject" />
-                  <SubmitButton size="sm" variant="outline">
-                    Decline
-                  </SubmitButton>
-                </form>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                {/* Approve and decline stay on the list, because approving is
+                    the one act done in a batch — a leader clearing five
+                    applicants should not open five pages to do it. Everything
+                    else about an account is on the account. */}
+                {account.status === "pending" && !account.removedAt && (
+                  <>
+                    <form action={decide}>
+                      <input type="hidden" name="userId" value={account.id} />
+                      <input type="hidden" name="action" value="approve" />
+                      <SubmitButton size="sm" disabled={!account.requestedClan}>
+                        Approve
+                      </SubmitButton>
+                    </form>
+                    <form action={decide}>
+                      <input type="hidden" name="userId" value={account.id} />
+                      <input type="hidden" name="action" value="reject" />
+                      <SubmitButton size="sm" variant="outline">
+                        Decline
+                      </SubmitButton>
+                    </form>
+                  </>
+                )}
+                <Button asChild size="sm" variant="ghost">
+                  <Link href={`/admin/members/${account.id}`}>
+                    Open
+                    <ArrowRight aria-hidden />
+                  </Link>
+                </Button>
               </div>
             </li>
           ))}

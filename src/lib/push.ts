@@ -40,7 +40,11 @@ export type NotificationKind =
   | "cwl_reminders"
   | "war_reminders"
   | "raid_reminders"
-  | "poll_reminders";
+  | "poll_reminders"
+  // T12.2 — a message from leadership to one account. Its own kind rather than
+  // riding on 'announcements', so muting clan notices cannot silently suppress
+  // the one notification that is about the member personally (039).
+  | "direct_messages";
 
 /**
  * What the service worker receives.

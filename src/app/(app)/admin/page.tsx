@@ -370,8 +370,8 @@ export default async function AdminPage() {
         <LinkCard
           href="/admin/members"
           icon={<UserCheck aria-hidden className="size-5" />}
-          title="Pending accounts"
-          description="Approve or decline people waiting to join."
+          title="Accounts"
+          description="Approve people waiting to join, message a member, or remove access."
         />
         <LinkCard
           href="/admin/audit"

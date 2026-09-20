@@ -87,6 +87,13 @@ export const PHASE1_MIGRATIONS = [
   // follow 006 (auth_clan_ids), 008 (players.left_at) and 020 (clans.level,
   // war_league, member_count), all of which its result columns read.
   "038_family_directory.sql",
+  // T12.2 account_messages, admin_accounts(), send_account_message(),
+  // remove_account() and restore_account() — administering accounts after
+  // approval. Must follow 013 (users.status, requested_clan_id), 015
+  // (auth_is_platform_admin, the privilege guard trigger it sets the GUC for),
+  // 021 (auth_leadership_clan_ids' sibling auth_leader_clan_ids) and 030
+  // (users.username, which admin_accounts returns).
+  "039_account_administration.sql",
 ] as const;
 
 /**
@@ -258,6 +265,7 @@ export async function createHarness(
 
 /** Every table the Phase 1 migrations create. Kept explicit so a new table must be added here consciously. */
 export const PHASE1_TABLES = [
+  "account_messages",
   "announcements",
   "audit_log",
   "base_layout_votes",

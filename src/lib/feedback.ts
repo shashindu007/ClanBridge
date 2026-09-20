@@ -78,6 +78,14 @@ export const OK_MESSAGES: Record<string, string> = {
   // Admin.
   "clan-added": "Clan added. The next sync fills in its details.",
   "member-updated": "Account updated.",
+
+  // Managing accounts after approval (T12.2).
+  "message-sent": "Message sent. It is in their inbox now.",
+  // Says what actually happened rather than "Account deleted": R4 keeps the
+  // row, and the member sees a page explaining they were removed.
+  "account-removed": "Access removed. Their clan roles are revoked and the reason is on the record.",
+  "account-restored": "Account restored. It is back in the approval queue and needs approving again.",
+  "message-read": "Marked as read.",
   // T10.8d — set by dispatchWorkflow when GitHub accepts the run.
   dispatched: "Sync started. It takes a minute or two to show up.",
 };
@@ -121,6 +129,21 @@ export const ERROR_MESSAGES: Record<string, string> = {
   "add-clan-failed": "Could not add that clan. Check the server log for why.",
   "grant-failed":
     "Could not grant you leader of that clan. You need to be the platform admin or already lead it.",
+
+  // Managing accounts after approval (T12.2). Every one of these is the
+  // database having refused, and none of them names which check said no — the
+  // difference between "no such account" and "not yours to touch" is precisely
+  // what somebody probing this screen wants to learn.
+  "no-subject": "Give the message a subject so they know what it is about.",
+  "no-body": "Write the message before sending it.",
+  "message-too-long": "That message is too long. Keep it under 2000 characters.",
+  "send-failed":
+    "That message was not sent. You can only write to accounts in a clan you lead.",
+  "remove-refused":
+    "The database refused that. You can only remove accounts in a clan you lead, you cannot remove your own, and the platform owner's account can never be removed.",
+  "restore-refused":
+    "The database refused that. Either that account was not removed, or it is not one you administer.",
+  "no-reason": "Say why you are removing this account. It goes on the record.",
 };
 
 /**
