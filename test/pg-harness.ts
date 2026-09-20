@@ -94,6 +94,12 @@ export const PHASE1_MIGRATIONS = [
   // 021 (auth_leadership_clan_ids' sibling auth_leader_clan_ids) and 030
   // (users.username, which admin_accounts returns).
   "039_account_administration.sql",
+  // T12.3 notifications — the durable feed behind every best-effort push, plus
+  // users.last_seen_at and platform_presence(). Must follow 021
+  // (auth_leadership_clan_ids), 023 (the preference columns its header argues
+  // about) and 039, whose account_messages rows it copies across and whose
+  // send_account_message() it replaces.
+  "040_notification_feed.sql",
 ] as const;
 
 /**
@@ -283,6 +289,7 @@ export const PHASE1_TABLES = [
   "cwl_wars",
   "member_snapshots",
   "notification_preferences",
+  "notifications",
   "player_nicknames",
   "player_progress",
   "players",

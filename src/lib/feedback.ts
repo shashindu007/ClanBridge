@@ -79,13 +79,13 @@ export const OK_MESSAGES: Record<string, string> = {
   "clan-added": "Clan added. The next sync fills in its details.",
   "member-updated": "Account updated.",
 
-  // Managing accounts after approval (T12.2).
-  "message-sent": "Message sent. It is in their inbox now.",
+  // Managing accounts after approval (T12.2) and the notification feed (T12.3).
+  "message-sent": "Message sent. It is in their notifications now.",
   // Says what actually happened rather than "Account deleted": R4 keeps the
   // row, and the member sees a page explaining they were removed.
   "account-removed": "Access removed. Their clan roles are revoked and the reason is on the record.",
   "account-restored": "Account restored. It is back in the approval queue and needs approving again.",
-  "message-read": "Marked as read.",
+  "notifications-cleared": "All caught up.",
   // T10.8d — set by dispatchWorkflow when GitHub accepts the run.
   dispatched: "Sync started. It takes a minute or two to show up.",
 };

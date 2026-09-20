@@ -178,95 +178,10 @@ export async function restoreAccount(
   return data === true;
 }
 
-// ---------------------------------------------------------------------------
-// The recipient's side.
-// ---------------------------------------------------------------------------
-
-export interface InboxMessage {
-  id: string;
-  subject: string;
-  body: string;
-  createdAt: string;
-  readAt: string | null;
-}
-
-/**
- * The signed-in member's messages, newest first.
- *
- * A plain table read, not an RPC, because 039's "read own account messages"
- * policy already scopes it to the two ends of the conversation — there is no
- * authority to check that RLS has not checked. The `recipient_id` filter is
- * still stated: without it this returns the caller's SENT messages too, which
- * is correct for the policy and wrong for an inbox.
- */
-export async function inboxMessages(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<InboxMessage[]> {
-  const { data, error } = await supabase
-    .from("account_messages")
-    .select("id, subject, body, created_at, read_at")
-    .eq("recipient_id", userId)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    safeMessage("inbox-messages", error, "");
-    return [];
-  }
-
-  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
-    id: row.id as string,
-    subject: row.subject as string,
-    body: row.body as string,
-    createdAt: row.created_at as string,
-    readAt: (row.read_at as string | null) ?? null,
-  }));
-}
-
-/**
- * How many the member has not opened.
- *
- * `head: true` with an exact count, so this is a count on the server and no row
- * data crosses the wire. It runs in the app shell on every navigation, which is
- * the one place in this product where an extra round trip was a visible bug
- * (T10.9) — see (app)/layout.tsx for why it is affordable there and would not
- * be if it were awaited in sequence.
- */
-export async function unreadMessageCount(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<number> {
-  const { count, error } = await supabase
-    .from("account_messages")
-    .select("id", { count: "exact", head: true })
-    .eq("recipient_id", userId)
-    .is("read_at", null)
-    .is("deleted_at", null);
-
-  if (error) {
-    // Never fatal. A badge that cannot be counted must not take down the shell
-    // that every page in the product renders inside.
-    safeMessage("unread-message-count", error, "");
-    return 0;
-  }
-
-  return count ?? 0;
-}
-
-/** Mark one message read. Silently does nothing if it is not the caller's. */
-export async function markMessageRead(
-  supabase: SupabaseClient,
-  messageId: string,
-): Promise<boolean> {
-  const { data, error } = await supabase.rpc("mark_message_read", {
-    p_message: messageId,
-  });
-
-  if (error) {
-    safeMessage("mark-message-read", error, "");
-    return false;
-  }
-
-  return data === true;
-}
+// The recipient's side of a direct message is NOT here any more.
+//
+// T12.3 folded it into the one notification feed: a message is a notification
+// of kind 'direct_messages', read through repositories/notifications.ts like
+// every other. Two inboxes with two unread counts was the fragmentation that
+// phase existed to remove, and keeping a second set of readers here would have
+// been the quiet way to grow it back.

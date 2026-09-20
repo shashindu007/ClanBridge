@@ -39,7 +39,7 @@ describe("030 — username and password_set_at", () => {
   beforeEach(async () => {
     await h.asSuperuser();
     await h.db.exec(`
-      truncate member_snapshots, clan_roles, players, audit_log, users, clans cascade;
+      truncate notifications, member_snapshots, clan_roles, players, audit_log, users, clans cascade;
       delete from auth.users;
 
       insert into auth.users (id, email) values

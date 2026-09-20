@@ -38,7 +38,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { retireExpired, sendPush, type PushTarget } from "@/lib/push";
+import { recordNotification, retireExpired, sendPush, type PushTarget } from "@/lib/push";
 import { STALE_AFTER_MS } from "@/services/freshness";
 import type { JobType } from "./shared";
 
@@ -125,7 +125,13 @@ export async function alertSyncFailure(
     const recipients = await alertRecipients(supabase, clanId);
     const targets = await subscriptionsFor(supabase, recipients);
 
-    const result = await sendPush(targets, {
+    // T12.3 — the record, before the doorbell. These alerts go to the two or
+    // three people who can fix a dead job, and the whole point of T5.8 is that
+    // a failure is noticed at all — so it must survive nobody having push set
+    // up. 'sync_alerts' is not a notification_preferences column on purpose:
+    // this file's header explains why an operational alert is not mutable, and
+    // the feed does not consult preferences in any case.
+    const payload = {
       title: `Sync failed: ${jobType}`,
       // R8 — the job's error text is NOT included. Nothing in src/integration/
       // puts a token into an error message, but a push payload is decrypted on
@@ -136,8 +142,11 @@ export async function alertSyncFailure(
       // One key per job type: a job failing every two hours all night leaves one
       // notification, not twelve.
       tag: `sync-failed:${jobType}`,
-    });
+    };
 
+    await recordNotification(supabase, clanId, "sync_alerts", recipients, payload);
+
+    const result = await sendPush(targets, payload);
     await retireExpired(supabase, result.expired);
   } catch (error) {
     console.error(
@@ -248,7 +257,10 @@ export async function alertStaleJobs(
 
   const worst = stale.reduce((a, b) => ((a.ageMs ?? 0) > (b.ageMs ?? 0) ? a : b));
 
-  const result = await sendPush(targets, {
+  // T12.3 — recorded as well as pushed. This is the alert that exists because
+  // nothing can report its own absence, so it is the last one that should
+  // depend on a browser subscription being in place.
+  const payload = {
     title: stale.length === 1 ? `${worst.jobType} sync has stopped` : "Syncs have stopped",
     body:
       stale.length === 1
@@ -257,8 +269,11 @@ export async function alertStaleJobs(
           `${describeAge(worst.ageMs ?? 0)} ago.`,
     url: ADMIN_PATH,
     tag: "sync-stale",
-  });
+  };
 
+  await recordNotification(supabase, null, "sync_alerts", recipients, payload);
+
+  const result = await sendPush(targets, payload);
   await retireExpired(supabase, result.expired);
   return health;
 }

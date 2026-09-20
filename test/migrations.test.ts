@@ -188,6 +188,12 @@ async function seedFixtures(h: Harness) {
       ('${USER_A}', '${USER_B}', '${CLAN_A}', 'Missed war attacks', 'Please use both attacks.'),
       ('${USER_B}', '${USER_A}', '${CLAN_B}', 'Missed war attacks', 'Please use both attacks.');
 
+    -- 040. account_messages above is a tombstone now; these are the live feed.
+    -- One per clan, like everything else here.
+    insert into notifications (recipient_id, sender_id, clan_id, kind, title, body, url) values
+      ('${USER_A}', '${USER_B}', '${CLAN_A}', 'announcements', 'A notice', 'body', '/'),
+      ('${USER_B}', '${USER_A}', '${CLAN_B}', 'announcements', 'A notice', 'body', '/');
+
     -- Only USER_A has a preference row. USER_B deliberately has none, so the
     -- "absent row means every kind is enabled" rule in 023 is exercised by
     -- push_targets() rather than merely asserted in a comment.

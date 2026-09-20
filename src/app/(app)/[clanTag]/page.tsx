@@ -38,8 +38,10 @@ import {
   TrendingUp,
   Trophy,
   TriangleAlert,
+  UserRound,
   Users,
   Vote,
+  Wifi,
 } from "lucide-react";
 import { DataFreshness } from "@/components/data-freshness";
 import { LocalTime } from "@/components/local-time";
@@ -61,6 +63,7 @@ import { createClient } from "@/lib/supabase/server";
 import { clanDetail, currentMemberCount, latestAnnouncement } from "@/repositories/clans";
 import { seasonsForClan, warsInSeason } from "@/repositories/cwl";
 import { countsForPoll, pollsForClan } from "@/repositories/polls";
+import { platformPresence } from "@/repositories/notifications";
 import { latestRun } from "@/repositories/sync-log";
 import {
   attacksForWar,
@@ -268,15 +271,21 @@ export default async function ClanDashboardPage({
   const href = `/${encodeURIComponent(clan.tag)}`;
   const accent = clanAccent(clan.id);
 
-  const [detail, held, announcement, seasons, clansRun, war, polls] = await Promise.all([
-    clanDetail(supabase, clan.id),
-    currentMemberCount(supabase, clan.id),
-    latestAnnouncement(supabase, clan.id),
-    seasonsForClan(supabase, clan.id),
-    latestRun(supabase, "clans", clan.id),
-    currentWar(supabase, clan.id),
-    pollsForClan(supabase, clan.id),
-  ]);
+  const [detail, held, announcement, seasons, clansRun, war, polls, presence] =
+    await Promise.all([
+      clanDetail(supabase, clan.id),
+      currentMemberCount(supabase, clan.id),
+      latestAnnouncement(supabase, clan.id),
+      seasonsForClan(supabase, clan.id),
+      latestRun(supabase, "clans", clan.id),
+      currentWar(supabase, clan.id),
+      pollsForClan(supabase, clan.id),
+      // T12.3 — one aggregate returning four integers, in the batch that was
+      // already in flight. Added here rather than read from the shell: the
+      // layout has its own copy for the rail indicator, and passing it down
+      // would mean this page could not be rendered without one.
+      platformPresence(supabase),
+    ]);
 
   const fresh = freshness(clansRun);
   const neverSynced = fresh.level === "never";
@@ -459,6 +468,37 @@ export default async function ClanDashboardPage({
             hint="the tier this clan is placed in each CWL"
             tone="var(--success)"
             Icon={Swords}
+          />
+          {/* T12.3 — the platform, not the clan.
+
+              The other three tiles are game facts about one clan; these two are
+              about the PEOPLE using this app, which is a question members
+              actually ask ("is anyone else on?") and which nothing in the
+              product answered. Counts only — platform_presence() never returns
+              a list, because every approved member can call it and `users`
+              holds email addresses. The directory is /search, which reads
+              in-game names. */}
+          <Stat
+            label="On ClanBridge"
+            value={String(presence.activeAccounts)}
+            hint={
+              presence.pendingAccounts > 0
+                ? `accounts, and ${presence.pendingAccounts} waiting to be let in`
+                : "accounts across every clan here"
+            }
+            tone="var(--clan-1)"
+            Icon={UserRound}
+          />
+          <Stat
+            label="Online now"
+            value={String(presence.onlineNow)}
+            hint={
+              presence.onlineNow > 0
+                ? "active in the last five minutes"
+                : "nobody has opened the app recently"
+            }
+            tone="var(--info)"
+            Icon={Wifi}
           />
           <Stat
             label="CWL seasons"

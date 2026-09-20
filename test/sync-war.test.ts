@@ -148,7 +148,7 @@ describe("T6.1 — the clan war sync", () => {
 
       await h.asSuperuser();
       await h.db.exec(`
-        truncate war_attacks, war_members, war_opponent_members, war_targets,
+        truncate notifications, war_attacks, war_members, war_opponent_members, war_targets,
                  war_lineup_members, war_lineups, wars,
                  member_snapshots, players, sync_log, users, clans cascade;
         delete from auth.users;

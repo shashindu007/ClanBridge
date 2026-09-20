@@ -18,10 +18,10 @@ import { Suspense } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Activity, Bell, ClipboardList, Mail } from "lucide-react";
+import { Activity, Bell, ClipboardList } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { accountProfile, currentUserId, needsAccountSetup } from "@/lib/auth";
-import { unreadMessageCount } from "@/repositories/accounts";
+import { platformPresence, touchLastSeen, unreadCount } from "@/repositories/notifications";
 import { clanAccent } from "@/lib/clan-accent";
 import { visibleClans } from "@/lib/clans";
 import { isLeader, isLeadership } from "@/lib/visibility";
@@ -60,26 +60,30 @@ export default async function AppLayout({
 
   const pathname = (await headers()).get(PATHNAME_HEADER) ?? "";
 
-  // T10.9 — the profile and the clan switcher are fetched together.
+  // T10.9 / T12.3 — five reads, still one round trip's worth of latency.
   //
-  // They are independent reads, and they used to run one after the other only
-  // because the clans query sat behind the `approved` check below. That saved a
-  // query for the rare unapproved member and cost a round trip for every other
-  // member on every single navigation — the wrong way round. Now both are in
-  // flight at once and an unapproved member simply discards an answer.
-  // T12.2 — the unread count joins the pair rather than following it.
+  // T10.9's argument was never "ask for less", it was "stop asking in
+  // SEQUENCE": nine or ten serial round trips to a database in another region
+  // before the first byte of the page, with the clan query sitting behind the
+  // `approved` check below so that every member paid for it serially to save
+  // the rare unapproved one a query. The three added since are in the same
+  // batch for the same reason — each resolves inside the time the profile query
+  // already takes, and an unapproved member simply discards an answer.
   //
-  // T10.9's whole argument was that a serial read here costs a round trip on
-  // every navigation in the product. In parallel it costs none: this is a
-  // head-only exact count, so no row data crosses the wire, and it resolves
-  // inside the time the other two already take. A badge a member has to open a
-  // menu to discover is a badge that does not work — and the one message this
-  // product sends to a person individually is the one worth interrupting them
-  // for.
-  const [profile, allClans, unreadMessages] = await Promise.all([
+  //   unread    a head-only exact count — no row data crosses the wire
+  //   presence  four integers from one aggregate
+  //   touch     writes at most once every two minutes, throttled in SQL (040)
+  //
+  // touchLastSeen is here rather than in middleware because middleware runs on
+  // every asset and route in the app, and "last seen" should mean a page was
+  // looked at. It is awaited only so its failure is swallowed in one place; the
+  // page does not read its result.
+  const [profile, allClans, unread, presence] = await Promise.all([
     accountProfile(supabase, userId),
     visibleClans(supabase, userId),
-    unreadMessageCount(supabase, userId),
+    unreadCount(supabase, userId),
+    platformPresence(supabase),
+    touchLastSeen(supabase),
   ]);
   const approved = profile?.status === "approved";
 
@@ -239,36 +243,63 @@ export default async function AppLayout({
               Icon-only below `sm`, where the label is the part that costs width
               and the bell is already unambiguous. aria-label carries the name in
               both cases, so the control is never nameless to a screen reader. */}
+          {/* T12.3 — THE BELL NOW LEADS TO THE NOTIFICATIONS, not to the
+              settings for them.
+
+              It pointed at /settings/notifications, which is where a member
+              chooses what to receive. There was nowhere to READ one, so the
+              icon every product on earth uses for "here is what you missed"
+              opened a page of checkboxes. The settings are one click further
+              in, from the feed itself.
+
+              The count is rendered as a label rather than a bare dot: "3" is a
+              quantity of things to do, and a dot only says "something". */}
           <Link
-            href="/settings/notifications"
-            aria-label="Notifications"
-            title="What this app sends you, and on which devices"
-            className="text-wood-ink-dim hover:bg-accent hover:text-accent-foreground flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 transition-colors"
+            href="/notifications"
+            aria-label={
+              unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
+            }
+            title="Announcements, reminders and anything sent to you"
+            className={`hover:bg-accent hover:text-accent-foreground flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 transition-colors ${
+              unread > 0 ? "text-wood-ink font-medium" : "text-wood-ink-dim"
+            }`}
           >
             <Bell aria-hidden className="size-4" />
             <span className="hidden sm:inline">Notifications</span>
+            {/* The Badge primitive rather than a hand-rolled pill: its info
+                variant is the one pairing in this project that has been checked
+                for contrast in both themes (globals.css). */}
+            {approved && unread > 0 && <Badge variant="info">{unread}</Badge>}
           </Link>
 
-          {/* T12.2 — the inbox, and only when there is something in it.
-              A permanently visible Messages link would be another word in a row
-              this shell has twice been redesigned to shorten, and for most
-              members it would never have anything behind it. Shown when it
-              matters, and the count is the label — "Messages 1" reads as a
-              thing to do in a way a bell with a dot does not. The complete
-              list, empty or not, stays in the account menu. */}
-          {approved && unreadMessages > 0 && (
+          {/* T12.3 — how many people are actually here.
+
+              Small, quiet, and numbers only. It answers a question members ask
+              constantly about a platform this size — "is anyone else around?" —
+              and it is the shell's version of the two tiles on the clan
+              dashboard. Hidden below `lg`: it is the least important thing in
+              this row and the clan switcher is the most, and that row has twice
+              been redesigned to stop the switcher being squeezed.
+
+              A dot rather than a word for the state, because "12 online" is
+              already the sentence. */}
+          {approved && presence.totalAccounts > 0 && (
             <Link
-              href="/messages"
-              aria-label={`Messages, ${unreadMessages} unread`}
-              title="Messages your clan leadership has sent you"
-              className="text-wood-ink hover:bg-accent hover:text-accent-foreground flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 font-medium transition-colors"
+              href="/search"
+              title={`${presence.onlineNow} of ${presence.activeAccounts} members active in the last five minutes`}
+              aria-label={`${presence.onlineNow} members online out of ${presence.activeAccounts}. Open the member directory.`}
+              className="text-wood-ink-dim hover:bg-accent hover:text-accent-foreground hidden shrink-0 items-center gap-1.5 rounded-md px-2 py-1 transition-colors lg:flex"
             >
-              <Mail aria-hidden className="size-4" />
-              <span className="hidden sm:inline">Messages</span>
-              {/* The Badge primitive rather than a hand-rolled pill: its info
-                  variant is the one pairing in this project that has been
-                  checked for contrast in both themes (globals.css). */}
-              <Badge variant="info">{unreadMessages}</Badge>
+              <span
+                aria-hidden
+                className={`size-2 shrink-0 rounded-full ${
+                  presence.onlineNow > 0 ? "bg-success" : "bg-muted-foreground/50"
+                }`}
+              />
+              <span className="tabular-nums">
+                {presence.onlineNow}
+                <span className="text-wood-ink-dim/70">/{presence.activeAccounts}</span>
+              </span>
             </Link>
           )}
 
@@ -294,7 +325,7 @@ export default async function AppLayout({
               showAdmin={showAdminLink}
               showLeadership={showLeadershipLinks}
               hasAvatar={Boolean(profile?.avatarPath)}
-              unreadMessages={approved ? unreadMessages : 0}
+              unreadNotifications={approved ? unread : 0}
             />
           </div>
           </div>

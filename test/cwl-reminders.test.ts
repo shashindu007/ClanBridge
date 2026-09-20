@@ -170,6 +170,9 @@ describe("remindUnusedAttacks — against the database", () => {
       delete from cwl_seasons;
       delete from push_subscriptions;
       delete from notification_preferences;
+      -- T12.3 — remindUnusedAttacks now RECORDS as well as pushes, so these
+      -- rows exist after every run and hold a RESTRICT reference to users.
+      delete from notifications;
       delete from cwl_roster_members;
       delete from cwl_rosters;
       delete from clan_roles;

@@ -51,7 +51,7 @@ describe("T5 — notification schema", () => {
   beforeEach(async () => {
     await h.asSuperuser();
     await h.db.exec(`
-      truncate notification_preferences, push_subscriptions,
+      truncate notifications, notification_preferences, push_subscriptions,
                clan_roles, players, users, clans cascade;
       delete from auth.users;
 

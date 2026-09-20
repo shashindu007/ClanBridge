@@ -2,9 +2,9 @@
 // DO NOT EDIT. Regenerate after every migration — a stale file type-checks
 // against a schema that no longer exists, which is worse than having none.
 //
-// 36 tables, generated 2026-09-16, hand-extended for 039 (T12.2:
-// account_messages and notification_preferences.direct_messages). Rerun
-// `npm run types:db` against Supabase once 039 is applied there.
+// 37 tables, generated 2026-09-16, hand-extended for 039 and 040 (T12.2/T12.3:
+// account_messages, notifications, notification_preferences.direct_messages,
+// users.last_seen_at). Rerun `npm run types:db` once both are applied.
 
 export type Json =
   | string
@@ -696,6 +696,50 @@ export interface Database {
           deleted_at?: string | null;
         };
       };
+      notifications: {
+        Row: {
+          id: string;
+          recipient_id: string;
+          sender_id: string | null;
+          clan_id: string | null;
+          kind: string;
+          title: string;
+          body: string;
+          url: string;
+          read_at: string | null;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          recipient_id: string;
+          sender_id?: string | null;
+          clan_id?: string | null;
+          kind: string;
+          title: string;
+          body: string;
+          url?: string;
+          read_at?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          recipient_id?: string;
+          sender_id?: string | null;
+          clan_id?: string | null;
+          kind?: string;
+          title?: string;
+          body?: string;
+          url?: string;
+          read_at?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
       player_nicknames: {
         Row: {
           id: string;
@@ -1093,6 +1137,7 @@ export interface Database {
           username: string | null;
           password_set_at: string | null;
           avatar_path: string | null;
+          last_seen_at: string | null;
         };
         Insert: {
           id: string;
@@ -1109,6 +1154,7 @@ export interface Database {
           username?: string | null;
           password_set_at?: string | null;
           avatar_path?: string | null;
+          last_seen_at?: string | null;
         };
         Update: {
           id?: string;
@@ -1125,6 +1171,7 @@ export interface Database {
           username?: string | null;
           password_set_at?: string | null;
           avatar_path?: string | null;
+          last_seen_at?: string | null;
         };
       };
       war_attacks: {

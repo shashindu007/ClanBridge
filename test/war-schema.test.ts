@@ -53,7 +53,7 @@ describe("Phase 6 — the war schema (024)", () => {
   beforeEach(async () => {
     await h.asSuperuser();
     await h.db.exec(`
-      truncate war_lineup_members, war_lineups, war_targets, war_attacks,
+      truncate notifications, war_lineup_members, war_lineups, war_targets, war_attacks,
                war_members, wars, clan_roles, players, users, clans cascade;
       delete from auth.users;
 

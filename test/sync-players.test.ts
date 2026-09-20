@@ -103,7 +103,7 @@ describe("T11B.5 — players sync", () => {
 
     await h.asSuperuser();
     await h.db.exec(`
-      truncate player_progress, players, sync_log, clan_roles, users, clans cascade;
+      truncate notifications, player_progress, players, sync_log, clan_roles, users, clans cascade;
       delete from auth.users;
       insert into clans (id, tag, name) values ('${CLAN_A}', '#2PP0JCCL', 'Clan A');
       insert into auth.users (id, email) values ('${USER}', 'owner@example.com');

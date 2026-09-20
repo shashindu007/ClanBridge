@@ -32,6 +32,7 @@ import {
   sendAccountMessage,
   type AdminAccount,
 } from "@/repositories/accounts";
+import { sentTo } from "@/repositories/notifications";
 import { SubmitButton } from "@/components/submit-button";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -79,13 +80,13 @@ async function sendMessage(formData: FormData) {
       // The subject, never the body. A push payload is decrypted on a device
       // this system does not control and may sit on a lock screen.
       body: subject,
-      url: "/messages",
+      url: "/notifications",
       tag: `message-${id}`,
     });
   }
 
   revalidatePath(back);
-  revalidatePath("/messages");
+  revalidatePath("/notifications");
   redirect(`${back}?ok=message-sent`);
 }
 
@@ -169,25 +170,11 @@ export default async function AdminAccountPage({
   const account = await adminAccount(supabase, target);
   if (!account) notFound();
 
-  // 039's "read own account messages" gives the sender their own side of the
+  // 040's "read own notifications" gives the sender their own side of the
   // conversation, so a leader can see what has already been said before saying
   // it again. It is not the whole history: a message from a DIFFERENT leader is
   // theirs, not this caller's, and stays private.
-  const { data: sentRows } = await supabase
-    .from("account_messages")
-    .select("id, subject, body, created_at, read_at")
-    .eq("recipient_id", target)
-    .eq("sender_id", userId)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-
-  const sent = (sentRows ?? []) as Array<{
-    id: string;
-    subject: string;
-    body: string;
-    created_at: string;
-    read_at: string | null;
-  }>;
+  const sent = await sentTo(supabase, userId, target);
 
   const isSelf = account.id === userId;
   const removable = !isSelf && !account.isPlatformAdmin && !account.removedAt;
@@ -300,9 +287,10 @@ export default async function AdminAccountPage({
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">Send a message</h2>
           <p className="text-muted-foreground text-sm">
-            It appears in their Messages page and stays there. If they have
-            notifications switched on they also get a nudge on their phone — but the
-            message does not depend on that.
+            It appears under the bell on their Notifications page and stays there.
+            If they have push switched on they also get a nudge on their phone — but
+            the message does not depend on that, and muting notices cannot suppress
+            it.
           </p>
         </div>
 
@@ -349,12 +337,12 @@ export default async function AdminAccountPage({
               {sent.map((message) => (
                 <li key={message.id} className="space-y-1 p-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium">{message.subject}</span>
-                    <Badge variant={message.read_at ? "success" : "outline"}>
-                      {message.read_at ? "Read" : "Unread"}
+                    <span className="text-sm font-medium">{message.title}</span>
+                    <Badge variant={message.readAt ? "success" : "outline"}>
+                      {message.readAt ? "Read" : "Unread"}
                     </Badge>
                     <span className="text-muted-foreground text-xs">
-                      <LocalTime iso={message.created_at} />
+                      <LocalTime iso={message.createdAt} />
                     </span>
                   </div>
                   <p className="text-muted-foreground text-sm whitespace-pre-wrap">

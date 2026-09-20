@@ -62,7 +62,7 @@ describe("039 — account administration", () => {
   beforeEach(async () => {
     await h.asSuperuser();
     await h.db.exec(`
-      truncate account_messages, audit_log, player_nicknames, players,
+      truncate notifications, account_messages, audit_log, player_nicknames, players,
                clan_roles, users, clans cascade;
       delete from auth.users;
 
@@ -192,24 +192,16 @@ describe("039 — account administration", () => {
   });
 
   // ── messaging ─────────────────────────────────────────────────────────────
-  describe("send_account_message", () => {
-    it("lets a leader write to a member of their clan", async () => {
-      await h.asUser(LEADER_A);
-      const id = await scalar<string | null>(
-        "select send_account_message($1, $2, $3)",
-        [MEMBER_A, "Missed attacks", "Please use both attacks in war."],
-      );
-      expect(id).not.toBeNull();
-
-      await h.asUser(MEMBER_A);
-      const inbox = await h.db.query<{ subject: string; read_at: string | null }>(
-        "select subject, read_at from account_messages",
-      );
-      expect(inbox.rows).toHaveLength(1);
-      expect(inbox.rows[0]!.subject).toBe("Missed attacks");
-      expect(inbox.rows[0]!.read_at).toBeNull();
-    });
-
+  //
+  // send_account_message() IS TESTED IN test/notification-feed.test.ts, NOT
+  // HERE. 040 repointed it at the notifications feed one migration after this
+  // one shipped, so its rows no longer land in account_messages and assertions
+  // written against that table would pass only by testing a tombstone.
+  //
+  // What stays here is the one thing that belongs to THIS migration: the
+  // authority boundary, which 040 did not touch and which is the reason
+  // send_account_message() is a definer function at all.
+  describe("send_account_message — 039's authority boundary", () => {
     it("refuses a leader writing to another clan's member", async () => {
       await h.asUser(LEADER_A);
       expect(
@@ -219,10 +211,6 @@ describe("039 — account administration", () => {
           "Body",
         ]),
       ).toBeNull();
-
-      await h.asSuperuser();
-      const res = await h.db.query("select 1 from account_messages");
-      expect(res.rows).toHaveLength(0);
     });
 
     it("refuses an ordinary member writing to anyone", async () => {
@@ -247,43 +235,6 @@ describe("039 — account administration", () => {
       ).toBeNull();
     });
 
-    it("records the subject in audit_log, and never the body", async () => {
-      await h.asUser(LEADER_A);
-      await h.db.query("select send_account_message($1, $2, $3)", [
-        MEMBER_A,
-        "Missed attacks",
-        "A private sentence that must not travel.",
-      ]);
-
-      await h.asSuperuser();
-      const res = await h.db.query<{ action: string; after: Record<string, unknown> }>(
-        "select action, after from audit_log where entity = 'account_messages'",
-      );
-      expect(res.rows).toHaveLength(1);
-      expect(res.rows[0]!.action).toBe("message");
-      expect(res.rows[0]!.after).toMatchObject({ subject: "Missed attacks" });
-      expect(JSON.stringify(res.rows[0]!.after)).not.toContain("must not travel");
-    });
-
-    it("keeps a message private to its two ends", async () => {
-      await h.asUser(LEADER_A);
-      await h.db.query("select send_account_message($1, $2, $3)", [
-        MEMBER_A,
-        "Missed attacks",
-        "Body",
-      ]);
-
-      // The sender can see what they said. The recipient can see it. A third
-      // party — here the platform admin, who outranks both — cannot, because
-      // this table is scoped to the conversation and not to a clan.
-      await h.asUser(LEADER_A);
-      expect((await h.db.query("select 1 from account_messages")).rows).toHaveLength(1);
-      await h.asUser(MEMBER_A);
-      expect((await h.db.query("select 1 from account_messages")).rows).toHaveLength(1);
-      await h.asUser(OWNER);
-      expect((await h.db.query("select 1 from account_messages")).rows).toHaveLength(0);
-    });
-
     it("rejects a body longer than the column allows", async () => {
       await h.asUser(LEADER_A);
       await expect(
@@ -296,51 +247,23 @@ describe("039 — account administration", () => {
     });
   });
 
-  describe("mark_message_read", () => {
-    async function sendToMemberA(): Promise<string> {
+  describe("the unread badge on the directory", () => {
+    // 040 repointed this count at notifications. Kept as an admin_accounts()
+    // test because that is the function whose output it is, and because a
+    // badge that silently reads zero forever is the exact failure a migration
+    // that changes where rows live tends to leave behind.
+    it("counts what the member has not read", async () => {
       await h.asUser(LEADER_A);
-      return scalar<string>("select send_account_message($1, $2, $3)", [
+      await h.db.query("select send_account_message($1, $2, $3)", [
         MEMBER_A,
         "Missed attacks",
         "Body",
       ]);
-    }
 
-    it("lets the recipient mark their own message read, once", async () => {
-      const id = await sendToMemberA();
-      await h.asUser(MEMBER_A);
-      expect(await scalar<boolean>("select mark_message_read($1)", [id])).toBe(true);
-      // Second call is false: already read, so an unread count cannot be driven
-      // negative by a double submit.
-      expect(await scalar<boolean>("select mark_message_read($1)", [id])).toBe(false);
-    });
-
-    it("refuses to mark somebody else's message read", async () => {
-      const id = await sendToMemberA();
-      await h.asUser(MEMBER_B);
-      expect(await scalar<boolean>("select mark_message_read($1)", [id])).toBe(false);
-      await h.asUser(LEADER_A);
-      expect(await scalar<boolean>("select mark_message_read($1)", [id])).toBe(false);
-    });
-
-    // The reason mark-read is a function rather than an UPDATE policy: a policy
-    // would necessarily grant the whole row, and a warning you can rewrite is
-    // not a warning.
-    it("grants no session the ability to rewrite a message", async () => {
-      const id = await sendToMemberA();
-      await h.asUser(MEMBER_A);
-      await expect(
-        h.db.query("update account_messages set body = 'rewritten' where id = $1", [id]),
-      ).rejects.toThrow();
-    });
-
-    it("shows the unread count to the leader who sent it", async () => {
-      const id = await sendToMemberA();
-      await h.asUser(LEADER_A);
       expect((await accounts()).find((r) => r.id === MEMBER_A)!.unread_messages).toBe(1);
 
       await h.asUser(MEMBER_A);
-      await h.db.query("select mark_message_read($1)", [id]);
+      await h.db.query("select mark_all_notifications_read()");
 
       await h.asUser(LEADER_A);
       expect((await accounts()).find((r) => r.id === MEMBER_A)!.unread_messages).toBe(0);
@@ -511,7 +434,7 @@ describe("039 — account administration", () => {
       ]);
 
       const res = await h.db.query<{ clan_id: string | null }>(
-        "select clan_id from audit_log where entity = 'account_messages'",
+        "select clan_id from audit_log where action = 'message'",
       );
       expect(res.rows).toHaveLength(1);
       // Null because the applicant holds no role yet — which is precisely the

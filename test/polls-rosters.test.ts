@@ -55,7 +55,7 @@ describe("T4B — polls and rosters", () => {
   beforeEach(async () => {
     await h.asSuperuser();
     await h.db.exec(`
-      truncate cwl_roster_members, cwl_rosters, poll_responses, poll_options, polls,
+      truncate notifications, cwl_roster_members, cwl_rosters, poll_responses, poll_options, polls,
                clan_roles, players, users, clans cascade;
       delete from auth.users;
 

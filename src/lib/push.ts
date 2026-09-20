@@ -214,10 +214,105 @@ export async function retireExpired(
 }
 
 /**
- * Resolve, send, and clean up. What every caller actually wants.
+ * T12.3 — write the durable feed rows for a notification.
  *
- * Returns the result rather than throwing: no caller should abandon its own work
- * because a notification did not land.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE RECORD AND THE DOORBELL ARE DIFFERENT THINGS, AND ONLY ONE IS OPTIONAL.
+ *
+ * Everything above this line is best-effort on purpose: no VAPID keys means
+ * sendPush() logs and returns, an unsubscribed member is simply not in
+ * pushTargets(), and every delivery failure is swallowed so that a notification
+ * can never fail the write it accompanies.
+ *
+ * That made "was anyone actually told?" unanswerable. The feed is the answer:
+ * 040's functions write one row per recipient REGARDLESS of
+ * notification_preferences, because the preference governs whether a device
+ * buzzes, not whether the thing happened. Filtering the feed by the same toggle
+ * would mean a member who muted a kind months ago can never find out that
+ * anything of that kind ever occurred.
+ *
+ * Never throws, for the same reason as everything else in this file.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+async function recordForUsers(
+  supabase: SupabaseClient,
+  clanId: string | null,
+  kind: NotificationKind | string,
+  userIds: readonly string[],
+  payload: PushPayload,
+): Promise<number> {
+  if (userIds.length === 0) return 0;
+
+  const { data, error } = await supabase.rpc("raise_notification", {
+    p_recipients: [...userIds],
+    p_clan: clanId,
+    p_kind: kind,
+    p_title: payload.title,
+    p_body: payload.body,
+    p_url: payload.url,
+  });
+
+  if (error) {
+    console.error(`push: could not record notifications — ${error.message}`);
+    return 0;
+  }
+
+  return (data as number | null) ?? 0;
+}
+
+/**
+ * As recordForUsers, but the audience is resolved in SQL.
+ *
+ * notify_clan_members() (040) reads clan_roles itself and leaves out the caller,
+ * so a leader is not notified of the announcement they just wrote — which was a
+ * real complaint about the push-only path this replaces.
+ */
+async function recordForClan(
+  supabase: SupabaseClient,
+  clanId: string,
+  kind: NotificationKind | string,
+  payload: PushPayload,
+): Promise<number> {
+  const { data, error } = await supabase.rpc("notify_clan_members", {
+    p_clan: clanId,
+    p_kind: kind,
+    p_title: payload.title,
+    p_body: payload.body,
+    p_url: payload.url,
+  });
+
+  if (error) {
+    console.error(`push: could not record clan notifications — ${error.message}`);
+    return 0;
+  }
+
+  return (data as number | null) ?? 0;
+}
+
+/**
+ * Sync-job alerts, which resolve their own recipients and bypass preferences.
+ *
+ * Exported because scripts/sync/alerts.ts deliberately does not go through
+ * pushTargets() — it runs with the service key and its audience is "whoever can
+ * fix this", not "whoever asked to be told". It still needs the record.
+ */
+export async function recordNotification(
+  supabase: SupabaseClient,
+  clanId: string | null,
+  kind: string,
+  userIds: readonly string[],
+  payload: PushPayload,
+): Promise<number> {
+  return recordForUsers(supabase, clanId, kind, userIds, payload);
+}
+
+/**
+ * Resolve, RECORD, send, and clean up. What every caller actually wants.
+ *
+ * The record comes first and is not conditional on the send. Returns the push
+ * result rather than throwing: no caller should abandon its own work because a
+ * notification did not land, and after T12.3 a push that lands nowhere is no
+ * longer the same thing as nobody being told.
  */
 export async function notifyClan(
   supabase: SupabaseClient,
@@ -225,6 +320,8 @@ export async function notifyClan(
   kind: NotificationKind,
   payload: PushPayload,
 ): Promise<SendResult> {
+  await recordForClan(supabase, clanId, kind, payload);
+
   const targets = await pushTargets(supabase, clanId, kind);
   const result = await sendPush(targets, payload);
   await retireExpired(supabase, result.expired);
@@ -246,6 +343,11 @@ export async function notifyUsers(
   payload: PushPayload,
 ): Promise<SendResult> {
   if (userIds.length === 0) return { sent: 0, expired: [], failed: 0 };
+
+  // T12.3 — recorded for everyone named, before any of the push filtering
+  // below. The member who muted this kind still gets the row; what they do not
+  // get is the buzz.
+  await recordForUsers(supabase, clanId, kind, userIds, payload);
 
   const wanted = new Set(userIds);
   // Filtered from the authorised list rather than queried directly: this way the

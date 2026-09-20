@@ -31,6 +31,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import {
   Activity,
+  Bell,
   Castle,
   ChevronDown,
   CircleHelp,
@@ -38,8 +39,8 @@ import {
   ClipboardList,
   KeyRound,
   LogOut,
-  Mail,
   ShieldCheck,
+  SlidersHorizontal,
 } from "lucide-react";
 import { SignOutButton } from "@/components/sign-out-button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -58,8 +59,8 @@ export interface AccountMenuProps {
    * would put a 404 in the console of every member who has not set a picture.
    */
   hasAvatar?: boolean;
-  /** T12.2 — unread messages, for the count beside the Messages entry. */
-  unreadMessages?: number;
+  /** T12.3 — unread notifications, for the count beside the Notifications entry. */
+  unreadNotifications?: number;
 }
 
 const ITEM =
@@ -71,7 +72,7 @@ export function AccountMenu({
   showAdmin,
   showLeadership,
   hasAvatar = false,
-  unreadMessages = 0,
+  unreadNotifications = 0,
 }: AccountMenuProps) {
   const ref = useRef<HTMLDetailsElement>(null);
   const pathname = usePathname();
@@ -180,18 +181,26 @@ export function AccountMenu({
             Admin
           </Link>
         )}
-        {/* T12.2 — the inbox. The rail shows a Messages link only while
-            something is unread, so this is the permanent way in: the menu is
-            always the COMPLETE list and the rail is a set of shortcuts on top
-            of it, which is the same rule the two leadership links follow. */}
-        <Link href="/messages" className={ITEM}>
-          <Mail aria-hidden className="text-muted-foreground size-4" />
-          Messages
-          {unreadMessages > 0 && (
+        {/* T12.3 — the feed, and below it the settings for it. Both are on
+            the rail already (the bell), so these are the narrow-screen path to
+            the same pages — the menu is always the COMPLETE list and the rail
+            is a set of shortcuts on top of it, which is the rule the two
+            leadership links above follow.
+
+            Order matters: what was sent to you, then what you want sent. The
+            bug this whole phase fixes was those two being the same link. */}
+        <Link href="/notifications" className={ITEM}>
+          <Bell aria-hidden className="text-muted-foreground size-4" />
+          Notifications
+          {unreadNotifications > 0 && (
             <span className="bg-info-tint text-info-ink ml-auto rounded-full px-1.5 py-0.5 text-xs leading-none">
-              {unreadMessages}
+              {unreadNotifications}
             </span>
           )}
+        </Link>
+        <Link href="/settings/notifications" className={ITEM}>
+          <SlidersHorizontal aria-hidden className="text-muted-foreground size-4" />
+          What to notify me about
         </Link>
         {/* T11.8 — the member's own villages and their picture. Above the
             credentials entry because it is the one of the two they open more than
