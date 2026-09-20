@@ -9,7 +9,13 @@
 import { describe, expect, it } from "vitest";
 import type { CwlAttack, CwlRosterEntry, CwlWar } from "@/repositories/cwl";
 import type { SyncRun } from "@/repositories/sync-log";
-import { missedAttacks, seasonContribution, seasonTotals, warRecord } from "@/services/cwl";
+import {
+  missedAttacks,
+  seasonContribution,
+  seasonSpan,
+  seasonTotals,
+  warRecord,
+} from "@/services/cwl";
 import { ago, freshness, STALE_AFTER_MS } from "@/services/freshness";
 
 function member(n: number): CwlRosterEntry {
@@ -47,6 +53,7 @@ function war(overrides: Partial<CwlWar> = {}): CwlWar {
     ourDestruction: 90,
     theirDestruction: 80,
     result: "win",
+    startTime: null,
     endTime: null,
     ...overrides,
   };
@@ -220,5 +227,83 @@ describe("freshness — T4.8", () => {
     [4320, "3 days ago"],
   ])("phrases %i minutes as %s", (minutes, expected) => {
     expect(ago(minutes)).toBe(expected);
+  });
+});
+
+
+// ── T12.2 — when a season ran ────────────────────────────────────────────────
+//
+// The times were in cwl_wars from the first CWL sync and no query ever selected
+// them, so the season page could not say when a day had run while the war board
+// counted a regular war down to the minute. seasonSpan derives the season's
+// extent from its days, and the `state` it returns is what decides whether the
+// caller words the second date as a deadline or as history — getting that the
+// wrong way round is how somebody reads "ends Friday" about last month.
+
+describe("seasonSpan", () => {
+  it("returns null when no day has a start time", () => {
+    // A season row whose wars were never captured. The page has its own empty
+    // state for this and must not print a span of nothing.
+    expect(seasonSpan([])).toBeNull();
+    expect(seasonSpan([war({ startTime: null, endTime: null })])).toBeNull();
+  });
+
+  it("spans the earliest start to the latest end", () => {
+    const wars = [
+      war({ id: "d2", startTime: "2026-09-04T06:00:00Z", endTime: "2026-09-05T06:00:00Z" }),
+      war({ id: "d1", startTime: "2026-09-03T06:00:00Z", endTime: "2026-09-04T06:00:00Z" }),
+      war({ id: "d3", startTime: "2026-09-05T06:00:00Z", endTime: "2026-09-06T06:00:00Z" }),
+    ];
+    expect(seasonSpan(wars)).toEqual({
+      from: "2026-09-03T06:00:00Z",
+      to: "2026-09-06T06:00:00Z",
+      state: "ended",
+    });
+  });
+
+  it("does not assume the days arrive in order", () => {
+    // warsInSeason orders by day_number, which is nullable — so a season with a
+    // day the API never numbered can arrive in any order at all.
+    const wars = [
+      war({ id: "late", dayNumber: null, startTime: "2026-09-07T06:00:00Z", endTime: "2026-09-08T06:00:00Z" }),
+      war({ id: "early", dayNumber: 1, startTime: "2026-09-01T06:00:00Z", endTime: "2026-09-02T06:00:00Z" }),
+    ];
+    const span = seasonSpan(wars)!;
+    expect(span.from).toBe("2026-09-01T06:00:00Z");
+    expect(span.to).toBe("2026-09-08T06:00:00Z");
+  });
+
+  it("is running while any day has not ended", () => {
+    const wars = [
+      war({ id: "d1", state: "warEnded", startTime: "2026-09-03T06:00:00Z", endTime: "2026-09-04T06:00:00Z" }),
+      war({ id: "d2", state: "inWar", startTime: "2026-09-04T06:00:00Z", endTime: "2026-09-05T06:00:00Z" }),
+    ];
+    expect(seasonSpan(wars)!.state).toBe("running");
+  });
+
+  it("counts a day still in preparation as running", () => {
+    // Nobody has attacked in it yet, so the season is emphatically not over.
+    const wars = [
+      war({ id: "d1", state: "warEnded", startTime: "2026-09-03T06:00:00Z", endTime: "2026-09-04T06:00:00Z" }),
+      war({ id: "d2", state: "preparation", startTime: "2026-09-04T06:00:00Z", endTime: null }),
+    ];
+    expect(seasonSpan(wars)!.state).toBe("running");
+  });
+
+  it("has a start and no end while the first day is still open", () => {
+    const span = seasonSpan([
+      war({ state: "inWar", startTime: "2026-09-03T06:00:00Z", endTime: null }),
+    ])!;
+    expect(span.from).toBe("2026-09-03T06:00:00Z");
+    expect(span.to).toBeNull();
+    expect(span.state).toBe("running");
+  });
+
+  it("ignores a day with no start when others have one", () => {
+    const span = seasonSpan([
+      war({ id: "d1", startTime: null, endTime: null }),
+      war({ id: "d2", startTime: "2026-09-03T06:00:00Z", endTime: "2026-09-04T06:00:00Z" }),
+    ])!;
+    expect(span.from).toBe("2026-09-03T06:00:00Z");
   });
 });

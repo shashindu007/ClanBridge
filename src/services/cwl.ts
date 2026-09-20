@@ -82,6 +82,52 @@ export interface SeasonTotals {
   starsAgainst: number;
 }
 
+export interface SeasonSpan {
+  /** The earliest battle-day start recorded for the season. */
+  from: string;
+  /** The latest end recorded, or null while no day has ended yet. */
+  to: string | null;
+  /** `running` while any day has not reached warEnded. */
+  state: "running" | "ended";
+}
+
+/**
+ * When a season actually ran, derived from its war days.
+ *
+ * DERIVED AND NOT STORED, on purpose. cwl_seasons carries 'YYYY-MM' and the
+ * league and nothing else, while every row in cwl_wars has carried a start and
+ * an end since 002 — written by every CWL sync and, until T12.2, read by no
+ * query at all. So the times existed and the season page could not say when a
+ * day had run, while the war board said exactly that about a regular war.
+ *
+ * A stored pair would also be a second source that can disagree with the days
+ * it summarises. A season's span IS its war days; deriving it cannot drift.
+ *
+ * `state` is what decides how the caller words the second date: while a day is
+ * still open it is a DEADLINE the reader acts on, and afterwards it is a fact
+ * about the past. Getting that the wrong way round is how somebody reads "ends
+ * Friday" about a season that finished last month.
+ *
+ * Null when no day has a start — a season row whose wars were never captured,
+ * which is the case the page's empty state already names.
+ */
+export function seasonSpan(wars: CwlWar[]): SeasonSpan | null {
+  let from: string | null = null;
+  let to: string | null = null;
+  let running = false;
+
+  for (const war of wars) {
+    if (war.startTime && (from === null || war.startTime < from)) from = war.startTime;
+    if (war.endTime && (to === null || war.endTime > to)) to = war.endTime;
+    // Anything not finished keeps the season open, including a day still in
+    // preparation — which is a day nobody has attacked in yet, not a past one.
+    if (war.state !== "warEnded") running = true;
+  }
+
+  if (from === null) return null;
+  return { from, to, state: running ? "running" : "ended" };
+}
+
 /**
  * A season's win/loss record.
  *

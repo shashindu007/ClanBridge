@@ -21,6 +21,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DataFreshness } from "@/components/data-freshness";
+import { LocalTime } from "@/components/local-time";
 import { TownHall } from "@/components/lineup-parts";
 import { PageHeader } from "@/components/page-header";
 import { Stars, Stat } from "@/components/stars";
@@ -40,7 +41,7 @@ import { seasonLabel } from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
 import { attacksForWar, rosterForWar, seasonByName, warsInSeason } from "@/repositories/cwl";
 import { latestRun } from "@/repositories/sync-log";
-import { seasonTotals, warRecord } from "@/services/cwl";
+import { seasonSpan, seasonTotals, warRecord } from "@/services/cwl";
 import { freshness } from "@/services/freshness";
 
 export const dynamic = "force-dynamic";
@@ -88,6 +89,11 @@ export default async function CwlDayDetailPage({
   const selected =
     wars.find((w) => String(w.dayNumber) === day) ?? wars[wars.length - 1] ?? null;
 
+  // When the season ran. Derived from the days rather than stored — see
+  // seasonSpan() for why a stored pair would be a second source that can
+  // disagree with the days it summarises.
+  const span = seasonSpan(wars);
+
   const roster = selected ? await rosterForWar(supabase, selected.id) : [];
   const attacks = selected ? await attacksForWar(supabase, selected.id) : [];
   const record = warRecord(roster, attacks);
@@ -112,6 +118,30 @@ export default async function CwlDayDetailPage({
           </>
         }
       />
+
+      {/* WHEN THIS SEASON ACTUALLY RAN.
+          cwl_seasons stores only 'YYYY-MM' and the league, so the season has no
+          start or end of its own — but every war day carries both, synced since
+          the first CWL run and never once read. The span is the first day's
+          battle start to the last day's end, which is the season as a member
+          experienced it.
+
+          LocalTime, not a server-formatted string: these are the same kind of
+          value the war board treats as a deadline, and being five and a half
+          hours out is how somebody concludes they still have a day left. */}
+      {span && (
+        <p className="text-muted-foreground text-sm">
+          {span.state === "running" ? "Running since " : "Ran from "}
+          <LocalTime iso={span.from} style="date" />
+          {span.to && (
+            <>
+              {span.state === "running" ? ", latest day ends " : " to "}
+              <LocalTime iso={span.to} style={span.state === "running" ? "weekday" : "date"} />
+            </>
+          )}
+          .
+        </p>
+      )}
 
       <section className="cb-panel grid gap-4 rounded-lg border p-6 sm:grid-cols-3">
         <Stat
@@ -152,6 +182,15 @@ export default async function CwlDayDetailPage({
                   <span className={`text-xs ${active ? "" : "text-muted-foreground"}`}>
                     {dayOutcome(war.result, war.state)}
                   </span>
+                  {/* Which day of the month this was. Seven tabs reading
+                      "Day 1 / Won" say nothing about when any of it happened,
+                      and a member opening a preserved season a year later has
+                      no other way to place it. */}
+                  {war.startTime && (
+                    <span className={`text-[0.6875rem] ${active ? "opacity-80" : "text-muted-foreground"}`}>
+                      <LocalTime iso={war.startTime} style="date" />
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -167,6 +206,28 @@ export default async function CwlDayDetailPage({
                 </h2>
                 {resultBadge(selected.result, selected.state)}
               </div>
+              {/* The same three-way wording the war board uses for a regular
+                  war, so the two pages describe a war day the same way:
+                  preparation -> when battle day starts; live -> when it ends;
+                  over -> when it ended. */}
+              {(selected.startTime || selected.endTime) && (
+                <p className="text-muted-foreground text-sm">
+                  {selected.state === "preparation" ? (
+                    <>
+                      Battle day starts <LocalTime iso={selected.startTime} style="weekday" />
+                    </>
+                  ) : selected.state === "inWar" ? (
+                    <>
+                      Battle day ends <LocalTime iso={selected.endTime} style="weekday" />
+                    </>
+                  ) : (
+                    <>
+                      Ran <LocalTime iso={selected.startTime} style="datetime" /> to{" "}
+                      <LocalTime iso={selected.endTime} style="datetime" />
+                    </>
+                  )}
+                </p>
+              )}
               <div className="grid gap-4 sm:grid-cols-3">
                 <Stat label="Stars" value={`${selected.ourStars ?? 0} – ${selected.theirStars ?? 0}`} hint="us – them" />
                 <Stat
