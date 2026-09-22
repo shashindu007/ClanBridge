@@ -20,9 +20,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Castle, Mail, ShieldAlert, Undo2 } from "lucide-react";
+import { ArrowLeft, Castle, Crown, Mail, ShieldAlert, Undo2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { currentUserId } from "@/lib/auth";
+import { currentUserId, isPlatformAdmin } from "@/lib/auth";
+import { visibleClans } from "@/lib/clans";
 import { notifyUsers } from "@/lib/push";
 import { LocalTime } from "@/components/local-time";
 import {
@@ -30,6 +31,7 @@ import {
   removeAccount,
   restoreAccount,
   sendAccountMessage,
+  setClanRole,
   type AdminAccount,
 } from "@/repositories/accounts";
 import { sentTo } from "@/repositories/notifications";
@@ -133,6 +135,44 @@ async function restoreAccess(formData: FormData) {
   redirect(`${back}?ok=account-restored`);
 }
 
+const ROLES = ["member", "elder", "co-leader", "leader"] as const;
+type Role = (typeof ROLES)[number];
+
+/** How a role reads on this page, with what it lets the person do. */
+const ROLE_LABEL: Record<Role, string> = {
+  member: "Member",
+  elder: "Elder",
+  "co-leader": "Co-leader",
+  leader: "Leader",
+};
+
+async function changeRole(formData: FormData) {
+  "use server";
+
+  const supabase = await createClient();
+  const target = String(formData.get("userId") ?? "");
+  const clanId = String(formData.get("clanId") ?? "");
+  const raw = String(formData.get("role") ?? "");
+  const back = `/admin/members/${target}`;
+
+  if (!target || !clanId) redirect("/admin/members?error=bad-request");
+
+  // "" is "not in this clan". Anything else must be one of the four; a forged
+  // value is refused here rather than handed to the database to refuse.
+  const role = raw === "" ? null : (ROLES as readonly string[]).includes(raw) ? (raw as Role) : undefined;
+  if (role === undefined) redirect(`${back}?error=role-refused`);
+
+  // set_clan_role() (044) is the authority: admin or a leader of THAT clan,
+  // never yourself, and only the admin grants or removes leader.
+  if (!(await setClanRole(supabase, target, clanId, role))) {
+    redirect(`${back}?error=role-refused`);
+  }
+
+  revalidatePath(back);
+  revalidatePath("/admin/members");
+  redirect(`${back}?ok=role-updated`);
+}
+
 function statusLine(account: AdminAccount): string {
   if (account.removedAt) return "Access removed";
   if (account.status === "pending") {
@@ -178,6 +218,27 @@ export default async function AdminAccountPage({
 
   const isSelf = account.id === userId;
   const removable = !isSelf && !account.isPlatformAdmin && !account.removedAt;
+
+  // T12.9 — which clans this caller may set roles in. The platform admin, every
+  // clan on the platform (015's "platform admin reads all clans"); a leader,
+  // the clans they lead. The database checks the same rule again — this only
+  // decides which dropdowns to draw.
+  const [admin, callerClans] = await Promise.all([
+    isPlatformAdmin(supabase, userId),
+    visibleClans(supabase, userId),
+  ]);
+  const { data: allClanRows } = admin
+    ? await supabase.from("clans").select("id, tag, name").is("deleted_at", null).order("tag")
+    : { data: null };
+  const manageable = admin
+    ? ((allClanRows ?? []) as Array<{ id: string; tag: string; name: string }>)
+    : callerClans.filter((c) => c.role === "leader").map(({ id, tag, name }) => ({ id, tag, name }));
+  const roleIn = new Map(account.memberships.map((m) => [m.clanId, m.role as Role]));
+  const rolesEditable =
+    !isSelf &&
+    !account.removedAt &&
+    account.status === "approved" &&
+    !(account.isPlatformAdmin && !admin);
 
   return (
     <main className="mx-auto max-w-3xl space-y-8 p-4 sm:p-8">
@@ -280,6 +341,100 @@ export default async function AdminAccountPage({
             </ul>
           )}
         </div>
+      </section>
+
+      {/* ── Clan roles (T12.9) ───────────────────────────────────────────── */}
+      <section aria-labelledby="roles-title" className="cb-panel space-y-4 rounded-lg border p-6">
+        <div className="space-y-1">
+          <h2 id="roles-title" className="cb-title flex items-center gap-2 text-xl">
+            <Crown aria-hidden className="text-trim-shade size-5" />
+            Clan roles
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            What this person may do in each clan here. An in-game promotion never
+            changes this — it is set on purpose, by a leader, and every change goes
+            on the audit log.
+          </p>
+        </div>
+
+        {isSelf ? (
+          <p className="text-muted-foreground text-sm">
+            You cannot change your own role — ask the platform owner or another leader.
+          </p>
+        ) : account.removedAt ? (
+          <p className="text-muted-foreground text-sm">
+            This account is removed. Restore it and approve it again before giving it a role.
+          </p>
+        ) : account.status !== "approved" ? (
+          <p className="text-muted-foreground text-sm">
+            Approve this account first. Approving makes them a member of the clan they
+            verified in, and you can change the role from here after that.
+          </p>
+        ) : !rolesEditable ? (
+          <p className="text-muted-foreground text-sm">
+            Only the platform owner can change the platform owner&apos;s roles.
+          </p>
+        ) : manageable.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            You do not lead a clan, so there is nothing here you can change.
+          </p>
+        ) : (
+          <ul className="divide-y rounded-md border">
+            {manageable.map((clan) => {
+              const current = roleIn.get(clan.id) ?? null;
+              // A leader cannot touch another leader, or grant leader — only
+              // the platform owner can (044). Said here in words rather than
+              // offered and then refused.
+              const locked = !admin && current === "leader";
+              const selectId = `role-${clan.id}`;
+
+              return (
+                <li key={clan.id} className="flex flex-wrap items-center gap-3 p-3">
+                  <div className="min-w-0 flex-1">
+                    <label htmlFor={selectId} className="block truncate text-sm font-medium">
+                      {clan.name}
+                    </label>
+                    <span className="text-muted-foreground font-mono text-xs">{clan.tag}</span>
+                  </div>
+
+                  {locked ? (
+                    <span className="text-muted-foreground text-sm">
+                      Leader — only the platform owner can change this
+                    </span>
+                  ) : (
+                    <form action={changeRole} className="flex items-center gap-2">
+                      <input type="hidden" name="userId" value={account.id} />
+                      <input type="hidden" name="clanId" value={clan.id} />
+                      <select
+                        id={selectId}
+                        name="role"
+                        defaultValue={current ?? ""}
+                        className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 rounded-md border px-2 text-sm outline-none focus-visible:ring-[3px]"
+                      >
+                        <option value="">Not in this clan</option>
+                        {ROLES.filter((r) => admin || r !== "leader").map((r) => (
+                          <option key={r} value={r}>
+                            {ROLE_LABEL[r]}
+                          </option>
+                        ))}
+                      </select>
+                      <SubmitButton size="sm" variant="outline" pendingLabel="Saving">
+                        Save
+                      </SubmitButton>
+                    </form>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <dl className="text-muted-foreground grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
+          <div><dt className="text-foreground inline font-medium">Member</dt> <dd className="inline">— war board, polls, notices and layouts; claims war targets.</dd></div>
+          <div><dt className="text-foreground inline font-medium">Elder</dt> <dd className="inline">— plus CWL history, raids, Clan Games and the war contribution report.</dd></div>
+          <div><dt className="text-foreground inline font-medium">Co-leader</dt> <dd className="inline">— plus lineups, CWL rosters, targets, polls, notices and medals.</dd></div>
+          <div><dt className="text-foreground inline font-medium">Leader</dt> <dd className="inline">— plus admin, the audit log, and approving and managing accounts.</dd></div>
+        </dl>
       </section>
 
       {/* ── Say something ────────────────────────────────────────────────── */}

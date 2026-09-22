@@ -185,3 +185,30 @@ export async function restoreAccount(
 // every other. Two inboxes with two unread counts was the fragmentation that
 // phase existed to remove, and keeping a second set of readers here would have
 // been the quiet way to grow it back.
+
+/**
+ * T12.9 — set one member's role in one clan, or take them out of it (`null`).
+ *
+ * set_clan_role() (044) decides who may: the platform admin, or a leader of
+ * that clan; never on yourself; only the admin grants or removes leader. False
+ * covers every refusal and the caller must not try to tell them apart.
+ */
+export async function setClanRole(
+  supabase: SupabaseClient,
+  userId: string,
+  clanId: string,
+  role: "member" | "elder" | "co-leader" | "leader" | null,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc("set_clan_role", {
+    p_user: userId,
+    p_clan: clanId,
+    p_role: role,
+  });
+
+  if (error) {
+    safeMessage("set-clan-role", error, "");
+    return false;
+  }
+
+  return data === true;
+}

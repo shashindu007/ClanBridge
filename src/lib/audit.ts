@@ -45,7 +45,11 @@ export type AuditAction =
   // from "delete": R4 keeps the row, and "restore" is the act that undoes it.
   | "message"
   | "remove"
-  | "restore";
+  | "restore"
+  // T12.9 — set_clan_role() (044). `before` and `after` carry the two roles.
+  | "role"
+  // T12.5 — review_feedback() (042).
+  | "review";
 
 export const ACTION_LABELS: Record<string, string> = {
   create: "created",
@@ -59,6 +63,8 @@ export const ACTION_LABELS: Record<string, string> = {
   // "removed access from", not "deleted". The account still exists.
   remove: "removed access from",
   restore: "restored",
+  role: "changed the clan role of",
+  review: "reviewed",
 };
 
 export interface AuditEntry {

@@ -91,6 +91,9 @@ export const OK_MESSAGES: Record<string, string> = {
   "feedback-sent": "Thank you. The platform owner will read it.",
   "feedback-approved": "Approved. It is on the public home page now.",
   "feedback-hidden": "Kept private. It will not appear on the home page.",
+
+  // Clan roles (T12.9).
+  "role-updated": "Role saved. It takes effect on their next page load.",
   // T10.8d — set by dispatchWorkflow when GitHub accepts the run.
   dispatched: "Sync started. It takes a minute or two to show up.",
 };
@@ -156,6 +159,11 @@ export const ERROR_MESSAGES: Record<string, string> = {
   "feedback-too-long": "That is too long. Keep it under 500 characters.",
   "feedback-refused": "That was not sent. Only approved members can send feedback.",
   "bad-request": "Something was missing from that request.",
+
+  // Clan roles (T12.9). One sentence for every refusal, naming the rules
+  // rather than which one said no.
+  "role-refused":
+    "That role was not saved. You can only change roles in a clan you lead, never your own, and only the platform owner can make or unmake a leader.",
 };
 
 /**

@@ -125,7 +125,7 @@ export default async function AdminAccountsPage({
     <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
       <PageHeader
         title="Accounts"
-        description="Everyone who has signed up, whether they are waiting, active or removed. Open one to message the person or take their access away."
+        description="Everyone who has signed up, whether they are waiting, active or removed. Open one to change their clan role, message them, or take their access away."
       />
 
       {/* Errors and confirmations come through the shared toast
@@ -253,8 +253,9 @@ export default async function AdminAccountsPage({
 
       <p className="text-muted-foreground text-xs">
         Approving lets someone in as a <strong>member</strong> of the clan they
-        verified in. Promoting them to elder or co-leader is separate and
-        deliberate — an in-game promotion never changes what they can do here.
+        verified in. To make them an elder, co-leader or leader, or to add them
+        to another clan, <strong>open their account</strong> and use Clan roles.
+        An in-game promotion never changes what they can do here.
       </p>
     </main>
   );

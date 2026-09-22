@@ -106,6 +106,9 @@ export const PHASE1_MIGRATIONS = [
   // T12.5 feedback + public_feedback()/public_stats(), the first anon-callable
   // reads. Must follow 015 (auth_is_platform_admin) and 039 (removed accounts).
   "042_feedback_and_public_stats.sql",
+  // T12.9 set_clan_role() — the audited way a role is chosen. Must follow 015
+  // (auth_is_platform_admin) and 006 (auth_leader_clan_ids).
+  "044_set_clan_role.sql",
 ] as const;
 
 /**
