@@ -16,9 +16,10 @@
 // if the upload fails, which renders as a broken image on the member's own page
 // with no way for them to tell it apart from a bug.
 //
-// This way round the failure mode is an orphaned object in the bucket: ~40 KB
-// nobody references. That is a cost, not a defect, and it is the same trade 035's
-// missing DELETE policy already accepts in writing.
+// This way round the failure mode is an orphaned object in the bucket: ~5 KB
+// nobody references. That is a cost, not a defect. T12.7 added the other half:
+// once the pointer HAS moved, saveAvatar deletes the previous picture (043), and
+// `npm run avatars:cleanup` sweeps any orphan a failed save left behind.
 //
 // A CHANGED PICTURE IS A NEW OBJECT, never an overwrite. The uuid is fresh every
 // time, so no signed URL already in a browser can start serving different bytes,
@@ -28,7 +29,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { AVATAR_TARGET_BYTES, avatarPath, compressAvatar } from "@/lib/avatar-image";
+import { AVATAR_EDGE, AVATAR_TARGET_BYTES, avatarPath, compressAvatar } from "@/lib/avatar-image";
 import { ImageRejected } from "@/lib/layout-image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,8 +45,9 @@ export interface AvatarFormProps {
 
 type Status = "idle" | "working" | "error";
 
+/** One decimal place: at ~5 KB, "5 KB" and "4.6 KB" are different answers. */
 function kb(bytes: number): string {
-  return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
 export function AvatarForm({ userId, save }: AvatarFormProps) {
@@ -147,8 +149,8 @@ export function AvatarForm({ userId, save }: AvatarFormProps) {
           disabled={status === "working"}
         />
         <p className="text-muted-foreground text-xs">
-          Cropped to a square from the middle and shrunk to 256 pixels, in your
-          browser. Nothing but the pixels is uploaded — the location and camera
+          Cropped to a square from the middle and shrunk to {AVATAR_EDGE} pixels,
+          about 5 KB, in your browser. Nothing but the pixels is uploaded — the location and camera
           details a phone photo carries are left behind.
         </p>
       </div>
@@ -156,7 +158,7 @@ export function AvatarForm({ userId, save }: AvatarFormProps) {
       {preview && (
         <div className="flex items-center gap-4">
           {/* A raw img on a blob: URL. next/image cannot optimise one, and there
-              is nothing to optimise — the file is already 40 KB and local. */}
+              is nothing to optimise — the file is already about 5 KB and local. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={preview.url}
@@ -166,9 +168,9 @@ export function AvatarForm({ userId, save }: AvatarFormProps) {
           <div className="text-muted-foreground space-y-1 text-xs">
             <p>{kb(preview.size)}</p>
             {preview.size > AVATAR_TARGET_BYTES && (
-              // Not an error. compressAvatar returns the smallest it managed
-              // rather than refusing, and 035's 100 KB limit is the real boundary.
-              <p>Larger than usual, but well inside the limit.</p>
+              // Not an error. compressAvatar refuses anything over the 15 KB
+              // ceiling outright, so reaching this line means it is inside it.
+              <p>A little larger than usual, but inside the limit.</p>
             )}
             <p>This is how it will look.</p>
           </div>

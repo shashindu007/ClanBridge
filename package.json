@@ -30,7 +30,8 @@
     "migrations:bundle": "tsx scripts/build-migration-bundle.ts",
     "migrations:apply": "tsx --env-file=.env.local scripts/apply-migrations.ts",
     "restore:verify": "tsx --env-file=.env.local scripts/restore-verify.ts",
-    "types:db": "tsx --env-file=.env.local scripts/gen-db-types.ts"
+    "types:db": "tsx --env-file=.env.local scripts/gen-db-types.ts",
+    "avatars:cleanup": "tsx --env-file=.env.local scripts/cleanup-avatars.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",

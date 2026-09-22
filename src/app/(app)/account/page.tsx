@@ -61,6 +61,34 @@ function done(message: string): never {
   redirect(`${PATH}?ok=${encodeURIComponent(message)}`);
 }
 
+/** The picture the account points at right now, or null. */
+async function currentAvatarPath(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<string | null> {
+  const { data } = await supabase.from("users").select("avatar_path").eq("id", userId);
+  return ((data?.[0] as { avatar_path: string | null } | undefined)?.avatar_path) ?? null;
+}
+
+/**
+ * T12.7 — delete a picture the account no longer points at.
+ *
+ * Never throws and never fails the request. The member's change has already
+ * been saved by the time this runs; a file that could not be deleted is an
+ * orphan `npm run avatars:cleanup` will find, not an error to show them.
+ * `keep` guards the one way this could delete the live picture: saving the
+ * same path twice.
+ */
+async function deleteAvatarObject(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  path: string | null,
+  keep: string | null,
+): Promise<void> {
+  if (!path || path === keep) return;
+  const { error } = await supabase.storage.from("avatars").remove([path]);
+  if (error) console.error(`avatar: could not delete the previous picture — ${error.message}`);
+}
+
 export default async function AccountPage() {
   const supabase = await createClient();
   const userId = await currentUserId(supabase);
@@ -115,6 +143,8 @@ export default async function AccountPage() {
       return { error: "That picture does not belong to this account." };
     }
 
+    const previous = await currentAvatarPath(supabase, userId);
+
     const { error } = await supabase
       .from("users")
       .update({ avatar_path: input.avatarPath })
@@ -126,6 +156,11 @@ export default async function AccountPage() {
       };
     }
 
+    // T12.7 — AFTER the pointer moved, never before. If the update above had
+    // failed, the old picture would still be the live one and deleting it would
+    // leave the member with a broken image. See 043.
+    await deleteAvatarObject(supabase, previous, input.avatarPath);
+
     // "layout", because T11.10 puts the picture in the shell on every page — a
     // change that only took effect here would look like it did not save.
     revalidatePath("/", "layout");
@@ -135,9 +170,9 @@ export default async function AccountPage() {
   /**
    * Remove the picture.
    *
-   * Sets the column to null; the OBJECT STAYS (R4, and 035 defines no delete
-   * policy, so a hard delete would fail anyway). The cost is one orphaned ~40 KB
-   * object, which is the trade 029 and 035 both already accept.
+   * Sets the column to null, then deletes the file it pointed at (T12.7, 043).
+   * Same order as saveAvatar and for the same reason: the pointer moves first,
+   * so a failure never leaves the column naming a file that is gone.
    */
   async function removeAvatar() {
     "use server";
@@ -146,12 +181,16 @@ export default async function AccountPage() {
     const userId = await currentUserId(supabase);
     if (!userId) redirect("/login");
 
+    const previous = await currentAvatarPath(supabase, userId);
+
     const { error } = await supabase
       .from("users")
       .update({ avatar_path: null })
       .eq("id", userId);
 
     if (error) fail(safeMessage("account remove avatar", error, "Could not remove that picture."));
+
+    await deleteAvatarObject(supabase, previous, null);
 
     revalidatePath("/", "layout");
     done("Picture removed.");

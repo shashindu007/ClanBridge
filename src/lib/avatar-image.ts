@@ -31,25 +31,43 @@ import { ImageRejected, fitWithin, sniffImageType, type CompressedImage } from "
 /**
  * The stored edge length, in pixels. Square, so this is both dimensions.
  *
- * 256 rather than 128: the rail draws it at 32px and /account at 96px, but a
- * retina screen asks for twice that, and re-uploading is the only way to fix a
- * picture that was stored too small. 256 covers 2x at every size the product uses
- * and costs nothing at this file size.
+ * T12.7 — 128, down from 256. The largest place a picture is drawn is /account
+ * at 96px, and the rail draws it at 20px. 128 is sharp at 96 on an ordinary
+ * screen and acceptable on a 2x one; 256 bought retina crispness at the one
+ * size that matters least, for roughly four times the bytes. The storage plan
+ * is small, and every account carries a picture.
  */
-export const AVATAR_EDGE = 256;
-
-/** What this pipeline aims for. The bucket refuses at 100 KB (035) as a backstop. */
-export const AVATAR_TARGET_BYTES = 40 * 1024;
+export const AVATAR_EDGE = 128;
 
 /**
- * Quality steps tried in order until one comes in under target.
- *
- * Starts higher than the layout pipeline's 0.82 and stops shorter. A 256px square
- * is small enough that even 0.85 is usually well under 40 KB, and a face at 0.4
- * looks damaged in a way a base layout does not — below 0.5 the artefacts are the
- * first thing a member notices about their own picture.
+ * The fallback edge when no quality step at AVATAR_EDGE comes in under target.
+ * A very busy photo — confetti, foliage, a crowd — can defeat JPEG at 128px;
+ * 96px is exactly the largest display size, so it loses nothing anyone sees.
  */
-const AVATAR_QUALITY_STEPS = [0.85, 0.75, 0.65, 0.5];
+export const AVATAR_FALLBACK_EDGE = 96;
+
+/** What this pipeline aims for: about 5 KB for a typical face. */
+export const AVATAR_TARGET_BYTES = 6 * 1024;
+
+/**
+ * The hard ceiling. Above this the picture is REFUSED, not stored.
+ *
+ * The bucket enforces the same number (043's file_size_limit), because uploads
+ * go straight from the browser to Storage and this file is the only thing a
+ * modified browser could skip.
+ */
+export const AVATAR_MAX_BYTES = 15 * 1024;
+
+/**
+ * Quality steps tried in order, at each edge.
+ *
+ * Reaching lower than it used to (0.5) because the picture is smaller: JPEG
+ * artefacts are 8px blocks, and at 128px shown at 96 they are sub-pixel long
+ * before they are visible. A face at 0.4 and 128px looks better than a face at
+ * 0.85 and 256px scaled down in the browser, which is what the old pipeline
+ * was paying four times the storage for.
+ */
+export const AVATAR_QUALITY_STEPS = [0.8, 0.7, 0.6, 0.5, 0.4, 0.3];
 
 /**
  * The square to take out of a rectangular picture, in source pixels.
@@ -125,44 +143,69 @@ export async function compressAvatar(file: File): Promise<CompressedImage> {
   const bitmap = await createImageBitmap(file);
   const crop = squareCrop(bitmap.width, bitmap.height);
 
-  // fitWithin never enlarges, so a picture already smaller than 256px square is
-  // kept at its own size rather than blown up into a bigger file holding the same
-  // information. Passing the crop as a square means both returned edges agree.
-  const { width: edge } = fitWithin(crop.size, crop.size, AVATAR_EDGE);
+  try {
+    // T12.7 — two edges, and the smaller one only if the larger cannot reach
+    // target. The first result under target wins; failing that, the smallest
+    // result under the hard ceiling; failing THAT, a refusal. Never an
+    // oversized file: the old pipeline returned whatever q=0.5 produced, which
+    // is how "a 40 KB target" became no ceiling at all.
+    let bestUnderMax: CompressedImage | null = null;
 
+    for (const target of [AVATAR_EDGE, AVATAR_FALLBACK_EDGE]) {
+      // fitWithin never enlarges, so a picture already smaller than the target
+      // is kept at its own size rather than blown up.
+      const { width: edge } = fitWithin(crop.size, crop.size, target);
+      const canvas = drawSquare(bitmap, crop, edge);
+
+      for (const quality of AVATAR_QUALITY_STEPS) {
+        const blob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob(resolve, "image/jpeg", quality),
+        );
+        if (!blob) continue;
+        const result = { blob, width: edge, height: edge, quality };
+        if (blob.size <= AVATAR_TARGET_BYTES) return result;
+        if (blob.size <= AVATAR_MAX_BYTES && (!bestUnderMax || blob.size < bestUnderMax.blob.size)) {
+          bestUnderMax = result;
+        }
+      }
+    }
+
+    if (bestUnderMax) return bestUnderMax;
+
+    throw new ImageRejected(
+      "That picture has too much fine detail to shrink small enough. Try a simpler photo, or crop closer to your face.",
+    );
+  } finally {
+    bitmap.close();
+  }
+}
+
+/**
+ * One square draw of the crop at `edge`, on a white ground.
+ *
+ * White first because JPEG has no transparency: a transparent PNG avatar would
+ * otherwise encode its empty pixels as black, and a flat light ground also
+ * compresses smaller than noise would.
+ */
+function drawSquare(
+  bitmap: ImageBitmap,
+  crop: { x: number; y: number; size: number },
+  edge: number,
+): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = edge;
   canvas.height = edge;
 
   const context = canvas.getContext("2d");
-  if (!context) {
-    bitmap.close();
-    throw new ImageRejected("This browser could not process the image.");
-  }
+  if (!context) throw new ImageRejected("This browser could not process the image.");
 
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, edge, edge);
+  // A large downscale with the default smoothing aliases fine detail into
+  // high-frequency noise, which is the most expensive thing JPEG can be asked
+  // to encode. "high" costs a few milliseconds once, in the browser.
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
   context.drawImage(bitmap, crop.x, crop.y, crop.size, crop.size, 0, 0, edge, edge);
-  bitmap.close();
-
-  let last: Blob | null = null;
-  for (const quality of AVATAR_QUALITY_STEPS) {
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", quality),
-    );
-    if (!blob) continue;
-    last = blob;
-    if (blob.size <= AVATAR_TARGET_BYTES) return { blob, width: edge, height: edge, quality };
-  }
-
-  if (!last) throw new ImageRejected("This browser could not process the image.");
-
-  // Every step tried and still over. Returned rather than thrown, for the reason
-  // compressImage() gives: the bucket's own 100 KB limit (035) is the real
-  // boundary, and refusing here would reject a legitimate 45 KB picture for
-  // missing a target that was only ever a goal.
-  return {
-    blob: last,
-    width: edge,
-    height: edge,
-    quality: AVATAR_QUALITY_STEPS[AVATAR_QUALITY_STEPS.length - 1]!,
-  };
+  return canvas;
 }

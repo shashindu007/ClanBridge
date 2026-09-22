@@ -112,4 +112,23 @@ describe("the shared primitives are shared", () => {
     expect(AVATAR_EDGE).toBeLessThan(layout.MAX_EDGE);
     expect(avatar.AVATAR_TARGET_BYTES).toBeLessThan(layout.TARGET_BYTES);
   });
+
+  // T12.7 — the numbers the small storage plan depends on.
+  it("stores about 5 KB at 128px, and never more than 15 KB", () => {
+    expect(AVATAR_EDGE).toBe(128);
+    // Never smaller than the largest place the picture is drawn (/account, 96px).
+    expect(avatar.AVATAR_FALLBACK_EDGE).toBeGreaterThanOrEqual(96);
+    expect(avatar.AVATAR_FALLBACK_EDGE).toBeLessThan(AVATAR_EDGE);
+    expect(avatar.AVATAR_TARGET_BYTES).toBeLessThanOrEqual(6 * 1024);
+    expect(avatar.AVATAR_TARGET_BYTES).toBeLessThan(avatar.AVATAR_MAX_BYTES);
+    // 043's bucket file_size_limit is 15360 — the two must agree, or the
+    // browser accepts a picture Storage then refuses with an unexplained error.
+    expect(avatar.AVATAR_MAX_BYTES).toBe(15360);
+  });
+
+  it("tries qualities from best to worst", () => {
+    const steps = avatar.AVATAR_QUALITY_STEPS;
+    expect([...steps].sort((a, b) => b - a)).toEqual(steps);
+    expect(steps.every((q) => q > 0 && q <= 1)).toBe(true);
+  });
 });

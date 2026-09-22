@@ -132,6 +132,9 @@ export const LIVE_ONLY_MIGRATIONS = [
   // T11.5 the avatars bucket. Owner-scoped rather than clan-scoped, private, and
   // JPEG-only; its public-schema half (users.avatar_path) is 034 and IS tested.
   "035_avatars_storage.sql",
+  // T12.7 the 15 KB avatar ceiling and the owner-scoped delete policy that lets
+  // a replaced picture be removed instead of orphaned.
+  "043_avatar_storage_limits.sql",
 ] as const;
 
 /**
