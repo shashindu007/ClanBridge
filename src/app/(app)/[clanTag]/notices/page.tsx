@@ -154,7 +154,7 @@ export default async function NoticesPage({
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Announcements</h1>
+        <h1 className="cb-title text-3xl">Announcements</h1>
         <p className="text-muted-foreground text-sm">
           {clan.name} —{" "}
           {mayPost

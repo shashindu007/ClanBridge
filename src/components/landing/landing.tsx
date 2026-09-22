@@ -82,7 +82,7 @@ function Section({
     <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-20 space-y-6">
       <div className="max-w-2xl space-y-2">
         <p className="text-primary text-xs font-semibold tracking-wider uppercase">{eyebrow}</p>
-        <h2 id={`${id}-title`} className="text-2xl font-semibold tracking-tight sm:text-3xl">
+        <h2 id={`${id}-title`} className="cb-title text-3xl sm:text-4xl">
           {title}
         </h2>
         {intro && <p className="text-muted-foreground">{intro}</p>}
@@ -250,7 +250,7 @@ export function Landing({
             </p>
             <h1
               id="hero-title"
-              className="max-w-3xl text-3xl leading-tight font-semibold tracking-tight sm:text-5xl"
+              className="cb-title max-w-3xl text-4xl leading-tight sm:text-6xl"
             >
               Your clan&apos;s record, kept — even after the game deletes it.
             </h1>
@@ -299,7 +299,7 @@ export function Landing({
                 <span className="cb-emblem size-9 rounded-lg" style={{ "--emblem": "var(--warning)" } as React.CSSProperties}>
                   <Icon aria-hidden className="size-4.5" />
                 </span>
-                <h3 className="font-semibold">{title}</h3>
+                <h3 className="cb-title text-lg">{title}</h3>
                 <p className="text-muted-foreground text-sm">{body}</p>
               </li>
             ))}
@@ -318,7 +318,7 @@ export function Landing({
                 <span className="cb-emblem size-9 rounded-lg" style={{ "--emblem": "var(--primary)" } as React.CSSProperties}>
                   <Icon aria-hidden className="size-4.5" />
                 </span>
-                <h3 className="font-semibold">{title}</h3>
+                <h3 className="cb-title text-lg">{title}</h3>
                 <p className="text-muted-foreground text-sm">{body}</p>
               </li>
             ))}
@@ -363,7 +363,7 @@ export function Landing({
                   <Icon aria-hidden className="size-4.5" />
                 </span>
                 <div className="space-y-1">
-                  <h3 className="font-semibold">{title}</h3>
+                  <h3 className="cb-title text-lg">{title}</h3>
                   <p className="text-muted-foreground text-sm">{body}</p>
                 </div>
               </li>
@@ -413,7 +413,7 @@ export function Landing({
 
         {/* ── Final call to action ─────────────────────────────────────── */}
         <section aria-labelledby="cta-title" className="cb-hero rounded-2xl border px-6 py-12 text-center sm:px-12">
-          <h2 id="cta-title" className="text-2xl font-semibold tracking-tight sm:text-3xl">
+          <h2 id="cta-title" className="cb-title text-3xl sm:text-4xl">
             Ready when your clan is.
           </h2>
           <p className="text-muted-foreground mx-auto mt-2 max-w-xl">

@@ -63,7 +63,7 @@ export default async function AdminAuditPage({
   if (leaderOf.length === 0) {
     return (
       <main className="mx-auto max-w-7xl space-y-4 p-4 sm:p-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Audit log</h1>
+        <h1 className="cb-title text-3xl">Audit log</h1>
         <section className="cb-panel space-y-2 rounded-lg border p-6">
           <h2 className="font-medium">Leaders only</h2>
           <p className="text-muted-foreground text-sm">
@@ -99,7 +99,7 @@ export default async function AdminAuditPage({
   return (
     <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Audit log</h1>
+        <h1 className="cb-title text-3xl">Audit log</h1>
         <p className="text-muted-foreground text-sm">
           Who changed what, and when. Nothing here can be edited or removed — an
           audit log entries can be taken out of is not one (R4).

@@ -122,7 +122,7 @@ export default async function RosterSeasonsPage() {
   return (
     <main className="mx-auto max-w-4xl space-y-8 p-4 sm:p-8">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">CWL lineups</h1>
+        <h1 className="cb-title text-3xl">CWL lineups</h1>
         <p className="text-muted-foreground text-sm">
           Choose who plays Clan War League for each clan, then publish the lineup so
           that clan&apos;s members can see it. Every season is kept.
@@ -153,7 +153,7 @@ export default async function RosterSeasonsPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-xl font-semibold">{seasonLabel(season)}</h2>
+                  <h2 className="cb-title text-2xl">{seasonLabel(season)}</h2>
                   <Badge variant={season === thisMonth ? "info" : "secondary"}>
                     {season === thisMonth ? "This month" : "Upcoming"}
                   </Badge>

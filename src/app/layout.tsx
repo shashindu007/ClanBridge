@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Lilita_One } from "next/font/google";
 import "./globals.css";
 import { THEME_COLOR, THEME_INIT_SCRIPT } from "@/lib/theme";
 
@@ -53,6 +54,18 @@ export const viewport: Viewport = {
   ],
 };
 
+// T12.8 — the display face. Self-hosted by next/font at build time, so no
+// request to Google leaves a visitor's browser and there is no layout shift
+// while it loads. Exposed as --font-lilita and read ONLY through
+// --font-display in globals.css (.cb-title, .cb-btn-face): body text stays in
+// the system face.
+const display = Lilita_One({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-lilita",
+});
+
 export default function RootLayout({
   children,
 }: {
@@ -63,7 +76,7 @@ export default function RootLayout({
     // this element's class and style before React sees the document, so the
     // server's markup and the client's differ by design. The attribute does not
     // cascade — every element inside is still checked normally.
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={display.variable}>
       <head>
         {/* Before the first paint. See THEME_INIT_SCRIPT: anything later paints
             a frame of the wrong theme, on every navigation that reloads the

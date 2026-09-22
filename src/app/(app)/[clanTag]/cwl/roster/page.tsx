@@ -53,7 +53,7 @@ export default async function PublishedRosterPage({
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">CWL lineup</h1>
+        <h1 className="cb-title text-3xl">CWL lineup</h1>
         <p className="text-muted-foreground text-sm">
           {clan.name} — season {season} ·{" "}
           <Link className="underline" href={`/${encodeURIComponent(clan.tag)}/cwl`}>

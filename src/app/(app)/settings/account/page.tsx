@@ -120,7 +120,7 @@ export default async function AccountSettingsPage() {
   return (
     <main className="mx-auto max-w-2xl space-y-8 p-4 sm:p-8">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Account</h1>
+        <h1 className="cb-title text-3xl">Account</h1>
         <p className="text-muted-foreground text-sm">
           Signed in as {profile?.email}. Your email is what you sign in with and
           it cannot be changed here — ask a leader if it is wrong.

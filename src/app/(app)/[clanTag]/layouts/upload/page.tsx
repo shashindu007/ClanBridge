@@ -89,7 +89,7 @@ export default async function UploadLayoutPage({
   return (
     <main className="mx-auto max-w-2xl space-y-8 p-4 sm:p-8">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Share a layout</h1>
+        <h1 className="cb-title text-3xl">Share a layout</h1>
         <p className="text-muted-foreground text-sm">
           {clan.name} —{" "}
           <Link href={base} className="underline">

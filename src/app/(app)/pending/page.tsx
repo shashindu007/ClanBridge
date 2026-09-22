@@ -62,7 +62,7 @@ export default async function PendingApprovalPage() {
   if (removed) {
     return (
       <main className="mx-auto max-w-2xl space-y-6 p-4 sm:p-8">
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="cb-title text-3xl">
           This account has been removed
         </h1>
         <Alert variant="destructive">
@@ -84,7 +84,7 @@ export default async function PendingApprovalPage() {
   if (rejected) {
     return (
       <main className="mx-auto max-w-2xl space-y-6 p-4 sm:p-8">
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="cb-title text-3xl">
           This account was not approved
         </h1>
         <Alert variant="destructive">
@@ -101,7 +101,7 @@ export default async function PendingApprovalPage() {
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="cb-title text-3xl">
           Waiting for approval
         </h1>
         <p className="text-muted-foreground text-sm">

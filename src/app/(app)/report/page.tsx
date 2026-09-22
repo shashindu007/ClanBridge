@@ -73,7 +73,7 @@ export default async function CrossClanReportPage() {
   if (clans.length === 0) {
     return (
       <main className="mx-auto max-w-7xl space-y-4 p-4 sm:p-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Participation</h1>
+        <h1 className="cb-title text-3xl">Participation</h1>
         <p className="text-muted-foreground text-sm">
           {all.length === 0
             ? // T9.10 — being in no clan yet is not a permission problem, and
@@ -114,7 +114,7 @@ export default async function CrossClanReportPage() {
   return (
     <main className="mx-auto max-w-5xl space-y-8 p-4 sm:p-8">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Participation</h1>
+        <h1 className="cb-title text-3xl">Participation</h1>
         <p className="text-muted-foreground text-sm">
           Every member of {clans.length === 1 ? "your clan" : `all ${clans.length} clans`}, in
           one view. Members needing a look are listed first.

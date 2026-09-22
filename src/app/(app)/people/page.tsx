@@ -19,11 +19,12 @@
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Search, Users } from "lucide-react";
+import { Hourglass, Search, Users, Wifi } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { currentUserId } from "@/lib/auth";
 import { activeMembers, platformPresence } from "@/repositories/notifications";
 import { ago } from "@/services/freshness";
+import { GameStat } from "@/components/game-stat";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -73,18 +74,27 @@ export default async function PeoplePage() {
         description="Everyone with an account here, and when they were last around. Times are approximate — presence is recorded once every couple of minutes, not continuously."
       />
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        <Tally label="Accounts" value={presence.activeAccounts} hint="across every clan here" />
-        <Tally
-          label="Online now"
-          value={presence.onlineNow}
-          hint="active in the last five minutes"
-          live={presence.onlineNow > 0}
+      <section aria-label="People in numbers" className="grid gap-3 sm:grid-cols-3">
+        <GameStat
+          label="Accounts"
+          value={String(presence.activeAccounts)}
+          hint="across every clan here"
+          tone="var(--primary)"
+          Icon={Users}
         />
-        <Tally
+        <GameStat
+          label="Online now"
+          value={String(presence.onlineNow)}
+          hint="active in the last five minutes"
+          tone="var(--clan-3)"
+          Icon={Wifi}
+        />
+        <GameStat
           label="Waiting"
-          value={presence.pendingAccounts}
+          value={String(presence.pendingAccounts)}
           hint={presence.pendingAccounts === 0 ? "nobody to let in" : "still need approving"}
+          tone="var(--trim)"
+          Icon={Hourglass}
         />
       </section>
 
@@ -126,29 +136,6 @@ export default async function PeoplePage() {
   );
 }
 
-function Tally({
-  label,
-  value,
-  hint,
-  live = false,
-}: {
-  label: string;
-  value: number;
-  hint: string;
-  live?: boolean;
-}) {
-  return (
-    <div className="cb-panel space-y-1 rounded-lg border p-4">
-      <div className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium uppercase">
-        {live && <span aria-hidden className="bg-success size-2 shrink-0 rounded-full" />}
-        {label}
-      </div>
-      <p className="text-2xl font-semibold tabular-nums">{value}</p>
-      <p className="text-muted-foreground text-xs">{hint}</p>
-    </div>
-  );
-}
-
 function Group({
   title,
   people,
@@ -160,7 +147,7 @@ function Group({
 }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-semibold">
+      <h2 className="cb-title text-xl">
         {title}
         <span className="text-muted-foreground ml-2 text-sm font-normal tabular-nums">
           {people.length}

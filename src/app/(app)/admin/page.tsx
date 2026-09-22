@@ -327,7 +327,7 @@ export default async function AdminPage() {
 
       {unclaimed && (
         <section className="cb-panel space-y-3 rounded-lg border-2 border-dashed p-6">
-          <h2 className="text-lg font-semibold">First step: claim this platform</h2>
+          <h2 className="cb-title text-xl">First step: claim this platform</h2>
           <p className="text-muted-foreground text-sm">
             Nobody owns this installation yet. Claiming it makes you the platform owner,
             approves your account, and lets you add clans. It can only happen once, and only
@@ -412,7 +412,7 @@ export default async function AdminPage() {
       {/* ── Clans ────────────────────────────────────────────────────────── */}
       <section className="cb-panel space-y-5 rounded-lg border p-6">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Clans</h2>
+          <h2 className="cb-title text-xl">Clans</h2>
           <p className="text-muted-foreground text-sm">The clans this platform follows.</p>
         </div>
 
@@ -479,7 +479,7 @@ export default async function AdminPage() {
           never runs one here, because a Vercel function is killed at ten seconds. */}
       <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Sync game data now</h2>
+          <h2 className="cb-title text-xl">Sync game data now</h2>
           <p className="text-muted-foreground text-sm">
             Every job already runs on a schedule. Use these only to repair missing data — each
             starts a GitHub Actions run, and the result appears in the history a few minutes
@@ -518,7 +518,7 @@ export default async function AdminPage() {
       {/* T9.2 — the history. R9 says every job writes to sync_log; this makes it visible. */}
       <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Sync history</h2>
+          <h2 className="cb-title text-xl">Sync history</h2>
           <p className="text-muted-foreground text-sm">
             The last {runs.length} runs, newest first.{" "}
             <span className="text-foreground">Skipped</span> is normal — it means there was

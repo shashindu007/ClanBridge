@@ -138,7 +138,7 @@ export default async function ClanGamesPage({
     <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">Clan Games</h1>
+          <h1 className="cb-title text-3xl">Clan Games</h1>
           <DataFreshness freshness={fresh} canAdmin={isLeader(clan.role)} />
         </div>
         <p className="text-muted-foreground text-sm">

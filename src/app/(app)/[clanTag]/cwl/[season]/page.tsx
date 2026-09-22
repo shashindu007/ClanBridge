@@ -199,7 +199,7 @@ export default async function CwlDayDetailPage({
           {selected && (
             <section className="cb-panel space-y-4 rounded-lg border p-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-lg font-semibold">
+                <h2 className="cb-title text-xl">
                   Day {selected.dayNumber ?? "?"}{" "}
                   <span className="text-muted-foreground font-normal">vs</span>{" "}
                   {selected.opponentName ?? selected.opponentTag ?? "unknown opponent"}
@@ -246,7 +246,7 @@ export default async function CwlDayDetailPage({
 
           <section className="cb-panel space-y-4 rounded-lg border p-6">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-lg font-semibold">Did not attack</h2>
+              <h2 className="cb-title text-xl">Did not attack</h2>
               {roster.length > 0 && (
                 <Badge variant={missed.length === 0 ? "success" : "warning"}>
                   {missed.length === 0 ? "Everyone attacked" : `${missed.length} of ${roster.length} missed`}
@@ -277,7 +277,7 @@ export default async function CwlDayDetailPage({
 
           {roster.length > 0 && (
             <section className="cb-panel space-y-3 rounded-lg border p-6">
-              <h2 className="text-lg font-semibold">Every attack this day</h2>
+              <h2 className="cb-title text-xl">Every attack this day</h2>
               <div className="-mx-6 overflow-x-auto px-6">
                 <Table>
                   <TableHeader>

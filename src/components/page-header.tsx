@@ -41,7 +41,10 @@ export function PageHeader({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           {eyebrow && <p className="text-muted-foreground text-sm">{eyebrow}</p>}
-          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+          {/* T12.8 — the display face. This one line is what makes every
+              redesigned page's title match the game look, since they all
+              come through here. */}
+          <h1 className="cb-title text-3xl">{title}</h1>
           {description && <p className="text-muted-foreground max-w-2xl text-sm">{description}</p>}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

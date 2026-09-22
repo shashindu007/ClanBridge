@@ -128,7 +128,7 @@ export default async function NotificationSettingsPage() {
   return (
     <main className="mx-auto max-w-2xl space-y-8 p-4 sm:p-8">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Notifications</h1>
+        <h1 className="cb-title text-3xl">Notifications</h1>
         <p className="text-muted-foreground text-sm">
           Push notifications replace the WhatsApp messages nobody scrolls back
           through.

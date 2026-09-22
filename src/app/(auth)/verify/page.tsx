@@ -96,7 +96,7 @@ function VerifyForm() {
   if (status === "done") {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Verified</h1>
+        <h1 className="cb-title text-3xl">Verified</h1>
         <Alert>
           <AlertTitle>Your account is linked</AlertTitle>
           <AlertDescription>{message}</AlertDescription>
@@ -111,7 +111,7 @@ function VerifyForm() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Verify your account</h1>
+        <h1 className="cb-title text-3xl">Verify your account</h1>
         <p className="text-muted-foreground text-sm">
           This proves the Clash of Clans account is yours. It takes about a minute.
         </p>

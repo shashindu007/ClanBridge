@@ -93,7 +93,7 @@ export default async function OwnBaseReportPage({
 
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{label}</h1>
+            <h1 className="cb-title text-3xl">{label}</h1>
             {base.clanRole && <Badge variant="secondary">{base.clanRole}</Badge>}
             {base.verified && <Badge variant="outline">verified</Badge>}
             {base.leftAt && <Badge variant="destructive">left the clan</Badge>}

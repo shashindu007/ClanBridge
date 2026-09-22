@@ -79,7 +79,7 @@ export default async function MemberBaseDetailsPage({
 
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{player.name}</h1>
+            <h1 className="cb-title text-3xl">{player.name}</h1>
             <Badge variant="secondary">Base details</Badge>
             {player.clan_role && <Badge variant="outline">{player.clan_role}</Badge>}
             {player.left_at && <Badge variant="destructive">left the clan</Badge>}

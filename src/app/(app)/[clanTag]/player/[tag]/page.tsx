@@ -103,7 +103,7 @@ export default async function PlayerProfilePage({
     <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{player.name}</h1>
+          <h1 className="cb-title text-3xl">{player.name}</h1>
           {player.clan_role && <Badge variant="secondary">{player.clan_role}</Badge>}
           {player.verified && <Badge variant="outline">verified</Badge>}
           {player.left_at && <Badge variant="destructive">left the clan</Badge>}

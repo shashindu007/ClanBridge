@@ -57,7 +57,7 @@ export default async function AppNotFound() {
         </span>
 
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="cb-title text-3xl">
             That page is not here
           </h1>
           {/* Both causes, because the member cannot tell them apart and neither

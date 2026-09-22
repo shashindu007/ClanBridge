@@ -406,7 +406,7 @@ export default async function RosterBuilderPage({
 
         <section className="cb-panel min-w-0 space-y-4 rounded-lg border p-5">
           <div className="space-y-1">
-            <h2 className="text-lg font-semibold">Add players to {selectedClan.name}</h2>
+            <h2 className="cb-title text-xl">Add players to {selectedClan.name}</h2>
             <p className="text-muted-foreground text-sm">
               Everyone in the clans you lead. Players who said In are listed first, then
               the highest Town Hall.
@@ -577,7 +577,7 @@ function PageHeader({ title }: { title: string }) {
         </Link>
       </Button>
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">CWL lineups · {title}</h1>
+        <h1 className="cb-title text-3xl">CWL lineups · {title}</h1>
         <p className="text-muted-foreground text-sm">
           Pick who plays Clan War League for each clan this season.
         </p>

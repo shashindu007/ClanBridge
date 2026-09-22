@@ -396,7 +396,7 @@ function Bucket({
 function ReportHeader({ clanName, base }: { clanName: string; base: string }) {
   return (
     <div className="space-y-2">
-      <h1 className="text-2xl font-semibold tracking-tight">War report</h1>
+      <h1 className="cb-title text-3xl">War report</h1>
       <p className="text-muted-foreground text-sm">
         {clanName} ·{" "}
         <Link className="underline" href={`${base}/war`}>

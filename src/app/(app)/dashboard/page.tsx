@@ -72,6 +72,7 @@ import { activeMembers, feedFor, platformPresence, unreadCount } from "@/reposit
 import { adminAccounts } from "@/repositories/accounts";
 import { openWarAvailabilityPoll } from "@/services/polls";
 import { freshness, type Freshness } from "@/services/freshness";
+import { GameStat } from "@/components/game-stat";
 import { LocalTime } from "@/components/local-time";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -127,51 +128,6 @@ function isBehind(fresh: Freshness): boolean {
 /** "Crystal League III" → "Crystal III". The column says League already. */
 function shortLeague(league: string | null): string {
   return league ? league.replace(/\s*League\s*/i, " ").trim() : "—";
-}
-
-// ─── The summary strip ───────────────────────────────────────────────────────
-
-function Kpi({
-  label,
-  value,
-  hint,
-  Icon,
-  tone,
-  href,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  Icon: typeof Users;
-  tone: string;
-  href?: string;
-}) {
-  const body = (
-    <>
-      <span
-        className="cb-emblem size-10 shrink-0 rounded-lg"
-        style={{ "--emblem": tone } as React.CSSProperties}
-      >
-        <Icon aria-hidden className="size-5" />
-      </span>
-      <span className="min-w-0">
-        <span className="text-muted-foreground block text-xs font-medium tracking-wider uppercase">
-          {label}
-        </span>
-        <span className="block text-2xl leading-tight font-semibold tabular-nums">{value}</span>
-        <span className="text-muted-foreground block truncate text-xs">{hint}</span>
-      </span>
-    </>
-  );
-
-  const className = "cb-panel flex items-center gap-4 rounded-xl border p-4";
-  return href ? (
-    <Link href={href} className={`${className} cb-panel-interactive`}>
-      {body}
-    </Link>
-  ) : (
-    <div className={className}>{body}</div>
-  );
 }
 
 // ─── The clan table ──────────────────────────────────────────────────────────
@@ -269,7 +225,7 @@ function ClanRow({ summary }: { summary: ClanSummary }) {
         <div className="min-w-0">
           <Link
             href={base}
-            className="block truncate font-semibold after:absolute after:inset-0 after:content-[''] focus-visible:outline-none after:focus-visible:ring-[3px] after:focus-visible:ring-ring/50"
+            className="cb-title block truncate text-lg after:absolute after:inset-0 after:content-[''] focus-visible:outline-none after:focus-visible:ring-[3px] after:focus-visible:ring-ring/50"
           >
             {clan.name}
           </Link>
@@ -354,7 +310,7 @@ function Panel({
   return (
     <section aria-labelledby={id} className="cb-panel rounded-xl border">
       <div className="flex items-center justify-between gap-2 border-b px-5 py-3">
-        <h2 id={id} className="text-sm font-semibold">
+        <h2 id={id} className="cb-title text-base">
           {title}
         </h2>
         {href && (
@@ -433,9 +389,7 @@ export default async function DashboardPage() {
       {/* ── Header ───────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            Welcome back, {name}
-          </h1>
+          <h1 className="cb-title text-3xl sm:text-4xl">Welcome back, {name}</h1>
           <p className="text-muted-foreground">
             Here is where your {clans.length === 1 ? "clan stands" : `${clans.length} clans stand`}{" "}
             right now.
@@ -467,21 +421,25 @@ export default async function DashboardPage() {
 
       {/* ── Summary strip ────────────────────────────────────────────── */}
       <section aria-label="At a glance" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi
+        {/* Tile hues are decoration, so none of them is a status colour —
+            the first version had "Wars on" in --warning and "Online" in
+            --success, which made two ordinary numbers read as an alert and
+            an all-clear. */}
+        <GameStat
           label="Clans"
           value={String(clans.length)}
           hint={leads ? "you lead" : "you belong to"}
           Icon={Shield}
           tone="var(--primary)"
         />
-        <Kpi
+        <GameStat
           label="Members"
           value={String(totalMembers)}
           hint="across all of them"
           Icon={Users}
           tone="var(--clan-1)"
         />
-        <Kpi
+        <GameStat
           label="Wars on"
           value={String(warsOn.length)}
           hint={
@@ -492,14 +450,14 @@ export default async function DashboardPage() {
                 : "all in preparation"
           }
           Icon={Swords}
-          tone="var(--warning)"
+          tone="var(--foe)"
         />
-        <Kpi
+        <GameStat
           label="Online now"
           value={String(presence.onlineNow)}
           hint={`of ${presence.activeAccounts} accounts`}
           Icon={Wifi}
-          tone="var(--success)"
+          tone="var(--clan-3)"
           href="/people"
         />
       </section>
@@ -507,7 +465,7 @@ export default async function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         {/* ── Your clans ────────────────────────────────────────────── */}
         <section aria-labelledby="clans-title" className="space-y-3">
-          <h2 id="clans-title" className="text-lg font-semibold">
+          <h2 id="clans-title" className="cb-title text-2xl">
             Your clans
           </h2>
 

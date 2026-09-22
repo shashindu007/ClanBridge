@@ -86,7 +86,7 @@ export default async function PollsPage({
     <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Polls</h1>
+          <h1 className="cb-title text-3xl">Polls</h1>
           <p className="text-muted-foreground text-sm">
             {clan.name} — availability and questions for the clan.
           </p>

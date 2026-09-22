@@ -84,7 +84,7 @@ export default async function OwnBaseDetailsPage({
 
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{label}</h1>
+            <h1 className="cb-title text-3xl">{label}</h1>
             <Badge variant="secondary">Base details</Badge>
             {base.verified && <Badge variant="outline">verified</Badge>}
           </div>

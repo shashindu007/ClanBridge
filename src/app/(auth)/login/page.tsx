@@ -131,7 +131,7 @@ function LoginForm() {
   if (mode === "sent") {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Check your email</h1>
+        <h1 className="cb-title text-3xl">Check your email</h1>
         <Alert>
           <AlertTitle>Link sent to {email}</AlertTitle>
           <AlertDescription>
@@ -169,7 +169,7 @@ function LoginForm() {
             <path d="M40 47 h52" />
           </svg>
         </div>
-        <h1 className="pt-1 text-2xl font-semibold tracking-tight">ClanBridge</h1>
+        <h1 className="cb-title pt-1 text-3xl">ClanBridge</h1>
         <p className="text-muted-foreground text-sm">
           {mode === "signin"
             ? "Sign in with your email and password."

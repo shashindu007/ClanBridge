@@ -127,7 +127,7 @@ export default async function AccountSetupPage({
   return (
     <main className="mx-auto max-w-md space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Finish your account</h1>
+        <h1 className="cb-title text-3xl">Finish your account</h1>
         <p className="text-muted-foreground text-sm">
           Signed in as {profile?.email}. Choose a username and a password, and you
           can sign in from now on without waiting for an email.

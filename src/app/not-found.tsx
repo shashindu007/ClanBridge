@@ -26,7 +26,7 @@ export default function RootNotFound() {
     <main className="mx-auto max-w-md p-4 sm:p-8">
       <div className="cb-panel space-y-4 rounded-xl border p-6 sm:p-8">
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="cb-title text-3xl">
             That page is not here
           </h1>
           <p className="text-muted-foreground text-sm">

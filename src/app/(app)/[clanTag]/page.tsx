@@ -33,6 +33,7 @@ import {
   Megaphone,
   Search,
   Shield,
+  Star,
   Swords,
   Target,
   TrendingUp,
@@ -44,6 +45,7 @@ import {
   Wifi,
 } from "lucide-react";
 import { DataFreshness } from "@/components/data-freshness";
+import { GameStat } from "@/components/game-stat";
 import { LocalTime } from "@/components/local-time";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -79,96 +81,52 @@ import { DISPLAY_ZONE } from "@/lib/display-time";
 export const dynamic = "force-dynamic";
 
 /**
- * A stat tile.
+ * One side of the war scoreboard.
  *
- * `tone` picks the icon's hue and is IDENTITY — which of the four this is —
- * not a judgement about the number. The value itself stays in ink: a figure
- * rendered in the tile's colour reads as a status the moment one tile is red,
- * and none of these four is ever a status.
+ * The star count is the headline and says so in words as well as in the
+ * number ("12 stars"), so a screen reader hears a score rather than a digit.
+ * Destruction is a gauge AND a percentage, never the bar alone.
  */
-function Stat({
-  label,
-  value,
-  hint,
+function ScoreSide({
+  name,
+  stars,
+  destruction,
   tone,
-  Icon,
-  href,
+  align = "start",
 }: {
-  label: string;
-  value: string;
-  hint?: string;
+  name: string;
+  stars: number;
+  destruction: number;
   tone: string;
-  Icon: typeof Users;
-  /**
-   * T12.4 — optional, and only the two presence tiles pass it.
-   *
-   * The other four are game facts with nowhere more detailed to go; these two
-   * are a count whose whole point is the list behind it. A tile that is a link
-   * only when it leads somewhere is better than four dead links for symmetry.
-   */
-  href?: string;
+  align?: "start" | "end";
 }) {
-  const body = (
-    <div
-      // `isolate` is load-bearing: the wash below is an absolutely positioned
-      // child, and a positioned child paints ABOVE the in-flow text beside it.
-      // Pushing it to -z-10 fixes that, but a negative z-index escapes upward
-      // unless something here makes a stacking context.
-      className="cb-panel isolate overflow-hidden rounded-xl border p-4"
-      style={{ "--emblem": tone } as React.CSSProperties}
-    >
-      {/* The wash. A solid fill of the tile’s own hue at 8% opacity, and NOT a
-          `color-mix` — see the block in globals.css about what Lightning CSS
-          does to those. An inline style would escape that particular hazard,
-          since the build never sees it, but it would fail the same way on the
-          same old browsers and for less obvious reasons.
+  const end = align === "end";
+  const pct = Math.max(0, Math.min(100, destruction));
 
-          This is what makes four tiles read as four different things at a
-          glance instead of one grey strip you have to read the labels of. 8%
-          and no more: past about 12% the tint starts competing with the status
-          tints, and a stat tile that looks like a status badge is precisely
-          what the comment at the top of this file forbids. */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 opacity-[0.08]"
-        style={{ background: `linear-gradient(180deg, ${tone} 0%, transparent 62%)` }}
-      />
-      {/* Fading down rather than a flat bar: a solid full-strength rail down
-          the side of a tile with a soft wash inside it reads as two unrelated
-          decisions that happened to land on the same box. */}
-      <span
-        aria-hidden
-        className="absolute inset-y-0 left-0 w-1.5"
-        style={{ background: `linear-gradient(180deg, ${tone} 0%, transparent 190%)` }}
-      />
-      <div className="flex items-start justify-between gap-2 pl-2.5">
-        <div className="min-w-0">
-          <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
-            {label}
-          </p>
-          {/* Still ink, never the tile's colour. A figure rendered in the
-              tile's hue reads as a status the moment one tile is red, and none
-              of these four is ever a status. */}
-          <p className="mt-1.5 text-3xl leading-none font-semibold tabular-nums">
-            {value}
-          </p>
-        </div>
-        <span className="cb-emblem size-8 shrink-0 rounded-lg">
-          <Icon aria-hidden className="size-4" />
-        </span>
-      </div>
-      {hint && <p className="text-muted-foreground mt-2 pl-2.5 text-xs">{hint}</p>}
-    </div>
-  );
-
-  if (!href) return body;
-
-  // `block` so the anchor takes the tile's shape rather than collapsing to the
-  // width of its content and leaving most of the card unclickable.
   return (
-    <Link href={href} className="cb-panel-interactive block rounded-xl">
-      {body}
-    </Link>
+    <div className={`min-w-0 space-y-2 ${end ? "text-right" : ""}`}>
+      <p className="truncate text-sm font-semibold" title={name}>
+        {name}
+      </p>
+      <p className={`flex items-center gap-1.5 ${end ? "justify-end" : ""}`}>
+        <Star aria-hidden className="fill-trim text-trim-shade size-6 shrink-0 sm:size-7" />
+        <span className="cb-title text-3xl leading-none tabular-nums sm:text-4xl">{stars}</span>
+        <span className="sr-only">stars</span>
+      </p>
+      <div
+        className="cb-gauge h-2.5"
+        role="img"
+        aria-label={`${pct.toFixed(1)}% destruction`}
+        style={{ "--gauge": tone } as React.CSSProperties}
+      >
+        <span
+          style={{ width: `${pct}%`, marginLeft: end ? "auto" : undefined }}
+        />
+      </div>
+      <p className="text-muted-foreground text-xs tabular-nums">
+        {pct.toFixed(1)}% destroyed
+      </p>
+    </div>
   );
 }
 
@@ -427,14 +385,18 @@ export default async function ClanDashboardPage({
                 <img
                   src={clan.badgeUrl}
                   alt=""
-                  className="size-14 shrink-0 drop-shadow-[0_2px_4px_oklch(0_0_0/0.25)]"
+                  className="size-16 shrink-0 drop-shadow-[0_3px_5px_oklch(0_0_0/0.35)] sm:size-20"
                 />
               )}
               <div className="min-w-0">
-                <h1 className="text-3xl font-semibold tracking-tight">{clan.name}</h1>
-                <p className="text-muted-foreground mt-1 text-sm">
-                  <span className="font-mono text-xs">{clan.tag}</span> · you are{" "}
-                  {clan.role}
+                <h1 className="cb-title text-3xl sm:text-4xl">{clan.name}</h1>
+                {/* Tag and role as chips — the two facts a member checks to
+                    be sure they are on the right clan, and the right account. */}
+                <p className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="cb-sunken rounded-md px-2 py-1 font-mono">{clan.tag}</span>
+                  <span className="border-trim rounded-md border px-2 py-1 font-semibold capitalize">
+                    {clan.role}
+                  </span>
                 </p>
               </div>
             </div>
@@ -461,43 +423,36 @@ export default async function ClanDashboardPage({
           </p>
         </section>
       ) : (
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {/* Every tile now carries a line saying what its number IS. Three of
-              the four had none, which left a first-time reader four large
-              figures and four two-word labels — "CWL SEASONS 2" tells somebody
-              who has never used this app nothing at all, and it happens to be
-              the number that explains why the app exists. */}
-          <Stat
+        // Six tiles, so a grid of 2 or 3: both divide six evenly. It was 4
+        // columns, which left two tiles alone on a second row beside two empty
+        // cells — the same broken-row problem the home dashboard had.
+        <section aria-label="Clan at a glance" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <GameStat
             label="Members"
             value={String(reported ?? held)}
             hint={memberHint ?? "people in the clan right now"}
-            tone="var(--info)"
+            tone="var(--clan-1)"
             Icon={Users}
           />
-          <Stat
+          <GameStat
             label="Clan level"
             value={detail?.level ? String(detail.level) : "—"}
             hint="rises as the clan finishes wars and games"
             tone="var(--clan-2)"
             Icon={TrendingUp}
           />
-          <Stat
+          <GameStat
             label="War league"
             value={detail?.warLeague ?? "—"}
             hint="the tier this clan is placed in each CWL"
-            tone="var(--success)"
+            tone="var(--trim-shade)"
             Icon={Swords}
           />
-          {/* T12.3 / T12.4 — the platform, not the clan.
-
-              The other three tiles are game facts about one clan; these two are
-              about the PEOPLE using this app, which is a question members
-              actually ask ("is anyone else on?") and which nothing in the
-              product answered. Counts only — platform_presence() never returns
-              a list, because every approved member can call it and `users`
-              holds email addresses. WHO those people are is /people, which
-              calls active_members() (041) and is what these two link to. */}
-          <Stat
+          {/* T12.3 / T12.4 — the platform, not the clan. Counts only:
+              platform_presence() never returns a list, because every approved
+              member can call it and `users` holds email addresses. WHO those
+              people are is /people, which these two link to. */}
+          <GameStat
             label="On ClanBridge"
             value={String(presence.activeAccounts)}
             hint={
@@ -505,11 +460,11 @@ export default async function ClanDashboardPage({
                 ? `accounts, and ${presence.pendingAccounts} waiting to be let in`
                 : "accounts across every clan here"
             }
-            tone="var(--clan-1)"
+            tone="var(--primary)"
             Icon={UserRound}
             href="/people"
           />
-          <Stat
+          <GameStat
             label="Online now"
             value={String(presence.onlineNow)}
             hint={
@@ -517,23 +472,22 @@ export default async function ClanDashboardPage({
                 ? "active in the last five minutes"
                 : "nobody has opened the app recently"
             }
-            tone="var(--info)"
+            tone="var(--clan-3)"
             Icon={Wifi}
             href="/people"
           />
-          <Stat
+          {/* The one number on this page worth explaining twice. Clash deletes
+              a league season when it ends and it can never be fetched again —
+              this count is the whole reason the project exists. */}
+          <GameStat
             label="CWL seasons"
             value={String(seasons.length)}
-            // The one number on this page worth explaining twice. Clash deletes
-            // a league season when it ends and it can never be fetched again —
-            // this count is the whole reason the project exists, and it read as
-            // a bare "2" next to three ordinary game statistics.
             hint={
               seasons.length
                 ? `saved here for good — newest ${seasons[0]!.season}`
                 : "none saved yet — the game deletes its own"
             }
-            tone="var(--clan-3)"
+            tone="var(--trim)"
             Icon={Trophy}
           />
         </section>
@@ -581,7 +535,7 @@ export default async function ClanDashboardPage({
       {/* ── War, live ──────────────────────────────────────────────────────── */}
       <section className="cb-panel space-y-4 rounded-xl border p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2.5 text-lg font-semibold tracking-tight">
+          <h2 className="cb-title flex items-center gap-2.5 text-xl">
             <span
               className="cb-emblem size-8 rounded-lg"
               style={{ "--emblem": "var(--primary)" } as React.CSSProperties}
@@ -607,33 +561,31 @@ export default async function ClanDashboardPage({
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-baseline gap-x-8 gap-y-3">
-              <div>
-                <p className="text-muted-foreground text-xs tracking-wide uppercase">
-                  Stars
-                </p>
-                <p className="text-2xl font-semibold tabular-nums">
-                  {war.ourStars ?? 0}
-                  <span className="text-muted-foreground mx-1.5 font-normal">–</span>
-                  {war.theirStars ?? 0}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs tracking-wide uppercase">
-                  Destruction
-                </p>
-                <p className="text-lg font-semibold tabular-nums">
-                  {(war.ourDestruction ?? 0).toFixed(1)}%
-                  <span className="text-muted-foreground mx-1.5 font-normal">vs</span>
-                  {(war.theirDestruction ?? 0).toFixed(1)}%
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs tracking-wide uppercase">
-                  Against
-                </p>
-                <p className="text-lg font-medium">{war.opponentName ?? "—"}</p>
-              </div>
+            {/* T12.8 — a scoreboard, the way the game shows one: this clan on
+                the left in its own colour, the opponent on the right, a VS
+                medallion between them, and destruction as two gauges. The
+                stars are the headline because stars decide a war; percent
+                only breaks a tie. */}
+            <div className="cb-sunken grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-xl p-4 sm:gap-6 sm:p-5">
+              <ScoreSide
+                name={clan.name}
+                stars={war.ourStars ?? 0}
+                destruction={war.ourDestruction ?? 0}
+                tone={accent.color}
+              />
+              <span
+                className="cb-medal size-11 rounded-full sm:size-14"
+                style={{ "--medal": "var(--wood-2)" } as React.CSSProperties}
+              >
+                <span className="cb-btn-face text-base sm:text-lg">VS</span>
+              </span>
+              <ScoreSide
+                name={war.opponentName ?? "Opponent"}
+                stars={war.theirStars ?? 0}
+                destruction={war.theirDestruction ?? 0}
+                tone="var(--foe)"
+                align="end"
+              />
             </div>
 
             {/* THE NUMBER THIS CARD EXISTS FOR. Attacks, not people — a war
@@ -678,7 +630,7 @@ export default async function ClanDashboardPage({
       {/* ── Announcement ───────────────────────────────────────────────────── */}
       <section className="cb-panel space-y-3 rounded-xl border p-6">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2.5 text-lg font-semibold tracking-tight">
+          <h2 className="cb-title flex items-center gap-2.5 text-xl">
             <span
               className="cb-emblem size-8 rounded-lg"
               style={{ "--emblem": "var(--primary)" } as React.CSSProperties}
@@ -727,7 +679,7 @@ export default async function ClanDashboardPage({
           is therefore not a missed feature, it is a month that never happened. */}
       <section className="cb-panel space-y-3 rounded-xl border p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2.5 text-lg font-semibold tracking-tight">
+          <h2 className="cb-title flex items-center gap-2.5 text-xl">
             <span
               className="cb-emblem size-8 rounded-lg"
               style={{ "--emblem": "var(--primary)" } as React.CSSProperties}

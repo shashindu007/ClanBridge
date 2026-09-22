@@ -76,7 +76,7 @@ export default async function CrossClanSearchPage({
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Search members</h1>
+        <h1 className="cb-title text-3xl">Search members</h1>
         <p className="text-muted-foreground text-sm">
           Across {clans.length === 1 ? "the family's clan" : `all ${clans.length} clans in the family`}.
           Search a name, or paste a full tag beginning with #.
