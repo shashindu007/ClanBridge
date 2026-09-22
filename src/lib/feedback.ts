@@ -86,6 +86,11 @@ export const OK_MESSAGES: Record<string, string> = {
   "account-removed": "Access removed. Their clan roles are revoked and the reason is on the record.",
   "account-restored": "Account restored. It is back in the approval queue and needs approving again.",
   "notifications-cleared": "All caught up.",
+
+  // Member feedback (T12.5).
+  "feedback-sent": "Thank you. The platform owner will read it.",
+  "feedback-approved": "Approved. It is on the public home page now.",
+  "feedback-hidden": "Kept private. It will not appear on the home page.",
   // T10.8d — set by dispatchWorkflow when GitHub accepts the run.
   dispatched: "Sync started. It takes a minute or two to show up.",
 };
@@ -144,6 +149,13 @@ export const ERROR_MESSAGES: Record<string, string> = {
   "restore-refused":
     "The database refused that. Either that account was not removed, or it is not one you administer.",
   "no-reason": "Say why you are removing this account. It goes on the record.",
+
+  // Member feedback (T12.5).
+  "feedback-no-rating": "Pick a rating from one to five stars.",
+  "feedback-too-short": "Write a little more — at least 10 characters.",
+  "feedback-too-long": "That is too long. Keep it under 500 characters.",
+  "feedback-refused": "That was not sent. Only approved members can send feedback.",
+  "bad-request": "Something was missing from that request.",
 };
 
 /**

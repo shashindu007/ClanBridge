@@ -15,7 +15,7 @@
 
 import { describe, expect, it } from "vitest";
 import { config } from "@/middleware";
-import { isPublicPath, PUBLIC_PATHS } from "@/lib/supabase/middleware";
+import { isPublicPath, PUBLIC_EXACT_PATHS, PUBLIC_PATHS } from "@/lib/supabase/middleware";
 
 describe("PUBLIC_PATHS", () => {
   // The regression. If this fails, the Sign in button does nothing.
@@ -32,8 +32,18 @@ describe("PUBLIC_PATHS", () => {
   // The gate's actual job. Everything holding clan data still needs a session,
   // and /api is NOT public wholesale — /api/verify and /api/push/subscribe both
   // identify the caller before they do anything.
+  // T12.5 — the landing page, and ONLY the landing page. Exact match, so the
+  // whole app beneath "/" does not come with it.
+  it("makes the landing page public by exact match", () => {
+    expect(isPublicPath("/")).toBe(true);
+    expect(PUBLIC_EXACT_PATHS).toEqual(["/"]);
+  });
+
   it.each([
-    "/",
+    "/dashboard",
+    "/feedback",
+    "/people",
+    "/notifications",
     "/roster",
     "/report",
     "/admin",

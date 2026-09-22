@@ -49,7 +49,7 @@ describe("T5.1 — announcements", () => {
   beforeEach(async () => {
     await h.asSuperuser();
     await h.db.exec(`
-      truncate notifications, announcements, audit_log, clan_roles, users, clans cascade;
+      truncate feedback, notifications, announcements, audit_log, clan_roles, users, clans cascade;
       delete from auth.users;
 
       insert into auth.users (id, email) values

@@ -105,7 +105,7 @@ describe("T7.4 — Clan Games scoring", () => {
 
     await h.asSuperuser();
     await h.db.exec(`
-      truncate notifications, clan_games_scores, clan_games,
+      truncate feedback, notifications, clan_games_scores, clan_games,
                member_snapshots, players, sync_log, users, clans cascade;
       delete from auth.users;
       insert into clans (id, tag, name) values ('${CLAN_A}', '#2PP0JCCL', 'Synthetic Clan');

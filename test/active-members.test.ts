@@ -44,7 +44,7 @@ describe("041 — active_members", () => {
   beforeEach(async () => {
     await h.asSuperuser();
     await h.db.exec(`
-      truncate notifications, clan_roles, users, clans cascade;
+      truncate feedback, notifications, clan_roles, users, clans cascade;
       delete from auth.users;
 
       insert into clans (id, tag, name) values ('${CLAN_A}', '#2PP0JCCL', 'Clan A');

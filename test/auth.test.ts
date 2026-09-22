@@ -98,7 +98,7 @@ describe("T3.5 / T3.8 — requireRole against real Postgres", () => {
   beforeEach(async () => {
     await h.asSuperuser();
     await h.db.exec(`
-      truncate notifications, member_snapshots, clan_roles, players, users, clans cascade;
+      truncate feedback, notifications, member_snapshots, clan_roles, players, users, clans cascade;
       delete from auth.users;
 
       insert into clans (id, tag, name) values

@@ -40,7 +40,13 @@ const OPTIONS: ReadonlyArray<{
   { value: "dark", label: "Dark", hint: "Always the night theme", Icon: Moon },
 ];
 
-export function ThemeToggle() {
+/**
+ * @param compact  T12.5 — no visible "Appearance" heading and no padding, for
+ *                 the landing page header where the control sits in a row. The
+ *                 radiogroup keeps its aria-label either way, so a screen reader
+ *                 hears the same name in both places.
+ */
+export function ThemeToggle({ compact = false }: { compact?: boolean } = {}) {
   const [preference, setPreference] = useState<ThemePreference | null>(null);
 
   useEffect(() => {
@@ -68,8 +74,10 @@ export function ThemeToggle() {
   }
 
   return (
-    <div className="px-2.5 py-2">
-      <p className="text-muted-foreground mb-1.5 text-xs font-medium">Appearance</p>
+    <div className={compact ? "" : "px-2.5 py-2"}>
+      {!compact && (
+        <p className="text-muted-foreground mb-1.5 text-xs font-medium">Appearance</p>
+      )}
       <div
         role="radiogroup"
         aria-label="Appearance"

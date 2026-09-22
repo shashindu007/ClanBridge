@@ -165,9 +165,9 @@ export default async function AppLayout({
               product has, and a header with no mark at all reads as a page
               rather than an app. */}
           <Link
-            href="/"
+            href="/dashboard"
             className="text-wood-ink hover:text-wood-ink flex shrink-0 items-center gap-2 text-[1.0625rem] font-semibold tracking-tight"
-            title="ClanBridge — go to your first clan"
+            title="ClanBridge home — all your clans"
           >
             {/* The same shield the backdrop tiles, once, at full strength. The
                 product had no mark of its own anywhere — the word "ClanBridge"

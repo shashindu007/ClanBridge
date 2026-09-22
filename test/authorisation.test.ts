@@ -66,7 +66,7 @@ describe("T3.7 — cross-clan authorisation", () => {
   beforeEach(async () => {
     await h.asSuperuser();
     await h.db.exec(`
-      truncate notifications, member_snapshots, clan_roles, players, announcements, base_layouts,
+      truncate feedback, notifications, member_snapshots, clan_roles, players, announcements, base_layouts,
                cwl_attacks, cwl_war_members, cwl_wars, cwl_seasons,
                wars, sync_log, audit_log, users, clans cascade;
       delete from auth.users;

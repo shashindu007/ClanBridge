@@ -106,7 +106,7 @@ describe("T7.1 — the capital raid sync", () => {
 
     await h.asSuperuser();
     await h.db.exec(`
-      truncate notifications, raid_participants, raid_seasons,
+      truncate feedback, notifications, raid_participants, raid_seasons,
                member_snapshots, players, sync_log, users, clans cascade;
       delete from auth.users;
       insert into clans (id, tag, name) values ('${CLAN_A}', '${OUR_TAG}', 'Synthetic Clan');

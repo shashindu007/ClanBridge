@@ -609,7 +609,7 @@ describe("repositories/war — against real Postgres", () => {
   beforeEach(async () => {
     await h.asSuperuser();
     await h.db.exec(`
-      truncate notifications, war_attacks, war_targets, war_members, war_lineup_members,
+      truncate feedback, notifications, war_attacks, war_targets, war_members, war_lineup_members,
                war_lineups, wars, clan_roles, players, users, clans cascade;
       delete from auth.users;
 

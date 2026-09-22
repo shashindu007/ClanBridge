@@ -103,6 +103,9 @@ export const PHASE1_MIGRATIONS = [
   // T12.4 active_members() — who is here by name, with last_seen_at. Must
   // follow 040, which adds the column and the five-minute window it shares.
   "041_active_members.sql",
+  // T12.5 feedback + public_feedback()/public_stats(), the first anon-callable
+  // reads. Must follow 015 (auth_is_platform_admin) and 039 (removed accounts).
+  "042_feedback_and_public_stats.sql",
 ] as const;
 
 /**
@@ -290,6 +293,7 @@ export const PHASE1_TABLES = [
   "cwl_seasons",
   "cwl_war_members",
   "cwl_wars",
+  "feedback",
   "member_snapshots",
   "notification_preferences",
   "notifications",

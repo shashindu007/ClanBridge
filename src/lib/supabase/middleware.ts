@@ -29,6 +29,15 @@ import { PATHNAME_HEADER, USER_ID_HEADER } from "@/lib/request-headers";
 export const PUBLIC_PATHS = ["/login", "/auth", "/api/auth"];
 
 /**
+ * T12.5 — paths public by EXACT match only. Today, just the landing page.
+ *
+ * A separate list because "/" can never go into PUBLIC_PATHS: those are
+ * segment-prefix matched, and every path in the product starts with "/". The
+ * landing page is public; "/roster" beneath it is not.
+ */
+export const PUBLIC_EXACT_PATHS = ["/"];
+
+/**
  * Is this path reachable without a session?
  *
  * Segment-prefix matched, the same rule lib/gate.ts uses, so "/auth" covers
@@ -38,6 +47,7 @@ export const PUBLIC_PATHS = ["/login", "/auth", "/api/auth"];
  * else in the suite would notice.
  */
 export function isPublicPath(pathname: string): boolean {
+  if (PUBLIC_EXACT_PATHS.includes(pathname)) return true;
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 

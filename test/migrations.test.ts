@@ -188,6 +188,11 @@ async function seedFixtures(h: Harness) {
       ('${USER_A}', '${USER_B}', '${CLAN_A}', 'Missed war attacks', 'Please use both attacks.'),
       ('${USER_B}', '${USER_A}', '${CLAN_B}', 'Missed war attacks', 'Please use both attacks.');
 
+    -- 042. One per user, like everything else here.
+    insert into feedback (user_id, rating, body) values
+      ('${USER_A}', 5, 'Keeps our CWL record safe.'),
+      ('${USER_B}', 4, 'War board saves us so much time.');
+
     -- 040. account_messages above is a tombstone now; these are the live feed.
     -- One per clan, like everything else here.
     insert into notifications (recipient_id, sender_id, clan_id, kind, title, body, url) values

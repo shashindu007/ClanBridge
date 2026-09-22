@@ -51,7 +51,13 @@ function LoginForm() {
   // anyone can write.
   const next = safeNext(params.get("next"));
 
-  const [mode, setMode] = useState<Mode>("signin");
+  // T12.5 — the landing page's "Join your clan" arrives with ?mode=signup, so a
+  // newcomer lands on the form that works for them. A password form is useless
+  // to somebody who has no password yet. Only ever "signin" or "signup" from
+  // the URL — "sent" is a state the form reaches, never one a link can claim.
+  const [mode, setMode] = useState<Mode>(
+    params.get("mode") === "signup" ? "signup" : "signin",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);

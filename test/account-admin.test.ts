@@ -62,7 +62,7 @@ describe("039 — account administration", () => {
   beforeEach(async () => {
     await h.asSuperuser();
     await h.db.exec(`
-      truncate notifications, account_messages, audit_log, player_nicknames, players,
+      truncate feedback, notifications, account_messages, audit_log, player_nicknames, players,
                clan_roles, users, clans cascade;
       delete from auth.users;
 

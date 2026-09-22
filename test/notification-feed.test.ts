@@ -62,7 +62,7 @@ describe("040 — the notification feed", () => {
   beforeEach(async () => {
     await h.asSuperuser();
     await h.db.exec(`
-      truncate notifications, notification_preferences, push_subscriptions,
+      truncate feedback, notifications, notification_preferences, push_subscriptions,
                account_messages, audit_log, clan_roles, users, clans cascade;
       delete from auth.users;
 

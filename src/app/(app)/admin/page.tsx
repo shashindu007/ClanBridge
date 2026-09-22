@@ -42,6 +42,7 @@ import {
   Castle,
   CheckCircle2,
   CircleAlert,
+  MessageSquareHeart,
   Plus,
   RefreshCw,
   ScrollText,
@@ -373,6 +374,14 @@ export default async function AdminPage() {
           title="Accounts"
           description="Approve people waiting to join, message a member, or remove access."
         />
+        {admin && (
+          <LinkCard
+            href="/admin/feedback"
+            icon={<MessageSquareHeart aria-hidden className="size-5" />}
+            title="Feedback"
+            description="Read what members think and choose what appears on the public home page."
+          />
+        )}
         <LinkCard
           href="/admin/audit"
           icon={<ScrollText aria-hidden className="size-5" />}
