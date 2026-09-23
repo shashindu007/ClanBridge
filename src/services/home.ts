@@ -42,8 +42,22 @@ export interface HomeClan {
    * their own for a member, everybody's for leadership (010's RLS asymmetry,
    * documented on responsesForPoll). Both uses below are correct under it.
    */
-  openPolls: Array<{ id: string; title: string; closesAt: string | null; responders: string[] }>;
+  openPolls: Array<{
+    id: string;
+    title: string;
+    closesAt: string | null;
+    responders: string[];
+    /** A family poll is ONE poll asked of every clan (010), so it reaches here once per clan. */
+    scope?: "clan" | "family";
+  }>;
   memberCount: number;
+  /**
+   * The current members' player ids — loaded for clans the caller helps run,
+   * where "who has not answered" is counted. Without it the count falls back to
+   * memberCount minus responders, which is only right for a clan-scoped poll:
+   * a family poll's responders span every clan.
+   */
+  memberIds?: string[];
 }
 
 export interface NeedsYouInput {
@@ -65,11 +79,23 @@ export type NeedKind =
   | "approvals"
   | "unread";
 
+/** One clan an item concerns, with how many of the thing are in it when that varies. */
+export interface NeedClan {
+  id: string;
+  name: string;
+  count?: number;
+}
+
 export interface NeedItem {
   kind: NeedKind;
-  /** Null for platform-wide items (approvals, unread). */
+  /** The first clan in `clans`. Null for platform-wide items (approvals, unread). */
   clanId: string | null;
   clanName: string | null;
+  /**
+   * Every clan the item concerns. One for most items; several for a family
+   * poll, which is one poll and therefore one row, not one row per clan.
+   */
+  clans: NeedClan[];
   title: string;
   meta: string | null;
   href: string;
@@ -111,7 +137,7 @@ export function needsYou(input: NeedsYouInput): NeedItem[] {
   for (const clan of input.clans) {
     const base = `/${encodeURIComponent(clan.tag)}`;
     const leads = isLeadership(clan.role);
-    const iAmHere = input.myPlayers.some((p) => p.clanId === clan.id);
+    const here = [{ id: clan.id, name: clan.name }];
 
     // ── War ────────────────────────────────────────────────────────────────
     if (clan.war?.state === "inWar") {
@@ -125,6 +151,7 @@ export function needsYou(input: NeedsYouInput): NeedItem[] {
           kind: "war-attacks",
           clanId: clan.id,
           clanName: clan.name,
+          clans: here,
           title: `You have ${plural(myLeft, "attack", "attacks")} left`,
           meta: ends ? `War ends ${ends}` : null,
           href: `${base}/war`,
@@ -140,6 +167,7 @@ export function needsYou(input: NeedsYouInput): NeedItem[] {
             kind: "lead-attacks",
             clanId: clan.id,
             clanName: clan.name,
+            clans: here,
             title: `${plural(clanLeft, "attack", "attacks")} still unused`,
             meta: ends ? `War ends ${ends}` : null,
             href: `${base}/war`,
@@ -154,6 +182,7 @@ export function needsYou(input: NeedsYouInput): NeedItem[] {
         kind: "war-soon",
         clanId: clan.id,
         clanName: clan.name,
+        clans: here,
         title: "You are in the next war",
         meta: starts ? `Battle day starts ${starts}` : "Preparation day",
         href: `${base}/war`,
@@ -161,42 +190,9 @@ export function needsYou(input: NeedsYouInput): NeedItem[] {
         urgency: URGENCY["war-soon"],
       });
     }
-
-    // ── Polls ──────────────────────────────────────────────────────────────
-    for (const poll of clan.openPolls) {
-      const closes = timeUntil(poll.closesAt, now);
-      const answered = poll.responders.some((id) => mine.has(id));
-
-      if (iAmHere && !answered) {
-        items.push({
-          kind: "poll",
-          clanId: clan.id,
-          clanName: clan.name,
-          title: `Answer: ${poll.title}`,
-          meta: closes ? `Closes ${closes}` : null,
-          href: `${base}/polls/${encodeURIComponent(poll.id)}`,
-          actionLabel: "Answer",
-          urgency: URGENCY.poll,
-        });
-      }
-
-      if (leads) {
-        const missing = clan.memberCount - new Set(poll.responders).size;
-        if (missing > 0) {
-          items.push({
-            kind: "lead-poll",
-            clanId: clan.id,
-            clanName: clan.name,
-            title: `${plural(missing, "member hasn't", "members haven't")} answered ${poll.title}`,
-            meta: closes ? `Closes ${closes}` : null,
-            href: `${base}/polls/${encodeURIComponent(poll.id)}`,
-            actionLabel: "See answers",
-            urgency: URGENCY["lead-poll"],
-          });
-        }
-      }
-    }
   }
+
+  items.push(...pollNeeds(input, mine, now));
 
   // ── Platform-wide ────────────────────────────────────────────────────────
   if (input.waitingAccounts > 0) {
@@ -204,6 +200,7 @@ export function needsYou(input: NeedsYouInput): NeedItem[] {
       kind: "approvals",
       clanId: null,
       clanName: null,
+      clans: [],
       title: `${plural(input.waitingAccounts, "account is", "accounts are")} waiting for approval`,
       meta: null,
       href: "/admin/members",
@@ -217,6 +214,7 @@ export function needsYou(input: NeedsYouInput): NeedItem[] {
       kind: "unread",
       clanId: null,
       clanName: null,
+      clans: [],
       title: `${plural(input.unread, "unread notification", "unread notifications")}`,
       meta: null,
       href: "/notifications",
@@ -232,11 +230,95 @@ export function needsYou(input: NeedsYouInput): NeedItem[] {
     .map(({ item }) => item);
 }
 
+/**
+ * Polls, ONE ROW PER POLL rather than one per clan.
+ *
+ * A family poll (every CWL availability poll) is a single row in `polls` that
+ * pollsForClan() returns for every clan, so the per-clan loop above used to ask
+ * a member with villages in four clans to answer the same poll four times —
+ * four rows, four buttons, all opening the same page. Grouping by poll id makes
+ * it one row naming the clans it concerns.
+ *
+ * Answers are per VILLAGE (the poll page asks each of yours), so the member row
+ * stays until every one of your villages in those clans has answered — not
+ * until the first one has.
+ */
+function pollNeeds(input: NeedsYouInput, mine: Set<string>, now: Date): NeedItem[] {
+  const groups = new Map<string, { poll: HomeClan["openPolls"][number]; clans: HomeClan[] }>();
+  for (const clan of input.clans) {
+    for (const poll of clan.openPolls) {
+      const group = groups.get(poll.id);
+      if (group) group.clans.push(clan);
+      else groups.set(poll.id, { poll, clans: [clan] });
+    }
+  }
+
+  const items: NeedItem[] = [];
+  for (const { poll, clans } of groups.values()) {
+    const closes = timeUntil(poll.closesAt, now);
+    const hrefIn = (clan: HomeClan) =>
+      `/${encodeURIComponent(clan.tag)}/polls/${encodeURIComponent(poll.id)}`;
+    // Leadership sees everybody's answers and a member only their own, so the
+    // union across the clans' copies is the most the caller can see (010).
+    const responders = new Set(clans.flatMap((c) => c.openPolls.find((p) => p.id === poll.id)!.responders));
+
+    // ── Yours ──
+    const pending = input.myPlayers.filter(
+      (p) => !responders.has(p.id) && clans.some((c) => c.id === p.clanId),
+    );
+    if (pending.length > 0) {
+      const owed = clans.filter((c) => pending.some((p) => p.clanId === c.id));
+      items.push({
+        kind: "poll",
+        clanId: owed[0]!.id,
+        clanName: owed[0]!.name,
+        clans: owed.map((c) => ({ id: c.id, name: c.name })),
+        title: `Answer: ${poll.title}`,
+        meta:
+          [closes ? `Closes ${closes}` : null, pending.length > 1 ? `${pending.length} villages to answer` : null]
+            .filter(Boolean)
+            .join(" · ") || null,
+        href: hrefIn(owed[0]!),
+        actionLabel: "Answer",
+        urgency: URGENCY.poll,
+      });
+    }
+
+    // ── Leadership: who has not answered, counted per clan ──
+    const chase = clans
+      .filter((c) => isLeadership(c.role))
+      .map((c) => ({
+        clan: c,
+        missing: c.memberIds
+          ? c.memberIds.filter((id) => !responders.has(id)).length
+          : Math.max(0, c.memberCount - responders.size),
+      }))
+      .filter((x) => x.missing > 0);
+    if (chase.length > 0) {
+      const total = chase.reduce((sum, x) => sum + x.missing, 0);
+      // The action goes where the most chasing is; the reminder is per clan.
+      const worst = chase.reduce((a, b) => (b.missing > a.missing ? b : a));
+      items.push({
+        kind: "lead-poll",
+        clanId: worst.clan.id,
+        clanName: worst.clan.name,
+        clans: chase.map((x) => ({ id: x.clan.id, name: x.clan.name, count: x.missing })),
+        title: `${plural(total, "member hasn't", "members haven't")} answered ${poll.title}`,
+        meta: closes ? `Closes ${closes}` : null,
+        href: hrefIn(worst.clan),
+        actionLabel: "See answers",
+        urgency: URGENCY["lead-poll"],
+      });
+    }
+  }
+  return items;
+}
+
 /** How many items belong to each clan — the badge on each clan tab. */
 export function countsByClan(items: NeedItem[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const item of items) {
-    if (item.clanId) counts.set(item.clanId, (counts.get(item.clanId) ?? 0) + 1);
+    for (const clan of item.clans) counts.set(clan.id, (counts.get(clan.id) ?? 0) + 1);
   }
   return counts;
 }

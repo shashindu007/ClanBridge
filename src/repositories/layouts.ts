@@ -16,7 +16,7 @@ export type LayoutType = "war" | "farming" | "trophy";
 export const LAYOUT_TYPES: LayoutType[] = ["war", "farming", "trophy"];
 
 /** The Town Hall levels worth offering. Below 9 nobody shares a base. */
-export const TH_LEVELS = [17, 16, 15, 14, 13, 12, 11, 10, 9] as const;
+export const TH_LEVELS = [18, 17, 16, 15, 14, 13, 12, 11, 10, 9] as const;
 
 export interface LayoutRow {
   id: string;

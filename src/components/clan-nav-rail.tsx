@@ -1,6 +1,6 @@
 "use client";
 
-// The two nav rows on the wooden rail: the clan switcher, and the section tabs.
+// The two nav rows on the wooden rail: the clan menu, and the section tabs.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // WHY THIS IS A CLIENT COMPONENT IN AN OTHERWISE SERVER-RENDERED APP
@@ -35,9 +35,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { House } from "lucide-react";
+import { Castle, Check, ChevronDown, House } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { activeNav, CLAN_SECTIONS, currentClanTag, sectionHref } from "@/lib/clan-nav";
+import { useDetailsMenu } from "@/components/use-details-menu";
 
 /** One clan, flattened to what the rail needs. Serialisable — it crosses the RSC boundary. */
 export interface RailClan {
@@ -85,88 +86,89 @@ export function HomeLink() {
 }
 
 /**
- * The clan switcher.
+ * The clan menu: ONE control on the rail, where there was a row of pills.
  *
- * Scrolls rather than wraps: the rail is sticky and sits above every page, so a
- * wrapping rail is vertical space taken from the content on the narrowest
- * screens — which, given manifest.json declares this app portrait and
- * standalone, is most of them.
+ * A pill per clan was the widest thing on the rail, and it grew with every clan
+ * added. At four it was scrolling sideways inside the beam, and the leadership
+ * links and the bell were being squeezed to make room for it. A menu costs one
+ * control however many clans there are, and its label is the answer to the
+ * question the pills were really there for — which clan am I looking at?
+ *
+ * So the summary names the current clan, lit like a current tab, with its own
+ * colour; off a clan's pages it says "Clans". The list marks the current clan
+ * with a check as well as aria-current, and ends with the way to all of them.
+ *
+ * <details>, as the account menu is: no dropdown primitive exists here, and a
+ * <details> works from the keyboard and with no JavaScript at all.
  */
-export function ClanSwitcher({ clans }: { clans: RailClan[] }) {
+export function ClanMenu({ clans }: { clans: RailClan[] }) {
   const current = currentClanTag(usePathname());
-  const activeRef = useRef<HTMLAnchorElement>(null);
-
-  // Drag the current clan into view.
-  //
-  // THE ONE PILL THAT MUST NEVER BE HIDDEN IS THE ONE THAT WAS. A fourth clan
-  // pushed the row past the space it had, and because the pills are in tag
-  // order rather than in any order that puts the current one first, the clan the
-  // member was actually looking at clipped off the right-hand edge — leaving a
-  // switcher showing three clans they were NOT in.
-  //
-  // "nearest" so a pill already on screen is left alone: scrolling the rail on
-  // every navigation when nothing needed moving is its own kind of wrong.
-  useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [current]);
+  const ref = useRef<HTMLDetailsElement>(null);
+  useDetailsMenu(ref);
 
   if (clans.length === 0) return null;
+  const here = clans.find((c) => c.tag === current) ?? null;
 
   return (
-    // A recess cut into the beam, with the pills inside it. See `.cb-well` in
-    // globals.css: which clan you are looking at is the most consequential
-    // state on any page here, and it used to render as three links at the same
-    // weight as "Rosters" and "Participation" sitting beside them.
-    <div className="cb-well flex min-w-0 shrink items-center gap-1.5 rounded-lg py-1 pr-1 pl-2">
-      {/* The word is for the member who has not worked out yet that these are
-          clans rather than sections. Hidden on a phone, where the space is
-          worth more than the label and the coloured dots already group them. */}
-      <span
-        aria-hidden
-        className="text-wood-ink-muted hidden shrink-0 text-[0.6875rem] font-semibold tracking-widest uppercase sm:inline"
+    <details ref={ref} className="group relative min-w-0 shrink">
+      <summary
+        className={`flex min-w-0 cursor-pointer list-none items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[0.9375rem] transition-colors [&::-webkit-details-marker]:hidden ${
+          here ? `${ACTIVE} font-semibold` : `${IDLE} group-open:bg-accent group-open:text-accent-foreground`
+        }`}
+        aria-label={here ? `Clan: ${here.name}. Switch clan` : "Switch clan"}
+        title={here ? `${here.name} — you are ${here.role}` : "Your clans"}
       >
-        Clan
-      </span>
-      <div
-        className="cb-scroll-x flex min-w-0 shrink items-center gap-1"
-        aria-label="Switch clan"
-        role="navigation"
-      >
-        {clans.map((clan) => {
-          const active = current === clan.tag;
-          return (
-            <Link
-              key={clan.id}
-              ref={active ? activeRef : undefined}
-              href={`/${encodeURIComponent(clan.tag)}`}
-              aria-current={active ? "page" : undefined}
-              className={
-                "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-[0.9375rem] transition-colors " +
-                // Bolder as well as lit. Weight survives a glance from across a
-                // desk where a background tint does not, and this is the one
-                // pill a member has to find without reading all of them.
-                (active ? `${ACTIVE} font-semibold` : IDLE)
-              }
-              title={`${clan.name} — you are ${clan.role}`}
-            >
-              {/* This clan's own colour, derived from its id — see
-                  lib/clan-accent.ts on why there is no lookup table. It is
-                  never the only thing distinguishing them: the name is right
-                  beside it, which is the mitigation the aqua slot needs. */}
-              <span
-                aria-hidden
-                className={
-                  "shrink-0 rounded-full transition-all " +
-                  (active ? "size-2.5" : "size-2")
-                }
-                style={{ background: clan.color }}
-              />
-              {clan.name}
-            </Link>
-          );
-        })}
+        {here ? (
+          <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: here.color }} />
+        ) : (
+          <Castle aria-hidden className="size-4 shrink-0" />
+        )}
+        <span data-clan-summary className="max-w-[8rem] truncate sm:max-w-[12rem]">
+          {here ? here.name : "Clans"}
+        </span>
+        <ChevronDown aria-hidden className="size-3.5 shrink-0 transition-transform group-open:rotate-180" />
+      </summary>
+
+      <div className="cb-panel absolute left-0 z-50 mt-2 w-64 rounded-lg border p-2 text-left shadow-lg">
+        <p className="text-muted-foreground px-2 pt-1 pb-1.5 text-xs font-medium tracking-wide uppercase">
+          Your clans
+        </p>
+        <nav aria-label="Switch clan" className="flex flex-col gap-0.5">
+          {clans.map((clan) => {
+            const active = clan.tag === current;
+            return (
+              <Link
+                key={clan.id}
+                href={`/${encodeURIComponent(clan.tag)}`}
+                aria-current={active ? "page" : undefined}
+                data-clan={clan.name}
+                className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.9375rem] transition-colors hover:bg-accent hover:text-accent-foreground ${
+                  active ? "bg-muted font-semibold" : ""
+                }`}
+              >
+                {/* This clan's own colour, derived from its id — see
+                    lib/clan-accent.ts on why there is no lookup table. It is
+                    never the only thing distinguishing them: the name is right
+                    beside it. */}
+                <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: clan.color }} />
+                <span className="min-w-0 flex-1 truncate">{clan.name}</span>
+                <span className="text-muted-foreground shrink-0 text-xs capitalize">{clan.role}</span>
+                <Check aria-hidden className={`size-4 shrink-0 ${active ? "" : "invisible"}`} />
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="mt-1 border-t pt-1">
+          <Link
+            href="/dashboard"
+            className="text-muted-foreground flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
+            <House aria-hidden className="size-4 shrink-0" />
+            All clans on Home
+          </Link>
+        </div>
       </div>
-    </div>
+    </details>
   );
 }
 

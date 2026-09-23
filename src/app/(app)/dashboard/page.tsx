@@ -37,6 +37,7 @@ import {
   Bell,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   ClipboardList,
   Flame,
   Megaphone,
@@ -67,12 +68,20 @@ import {
 import { attacksForWar, currentWar, membersOfWar, type WarRow } from "@/repositories/war";
 import { myPlayers, pollsForClan, responsesForPoll, type Poll } from "@/repositories/polls";
 import { latestRun } from "@/repositories/sync-log";
+import { membersForClan } from "@/repositories/members";
 import { activeMembers, unreadCount } from "@/repositories/notifications";
 import { adminAccounts } from "@/repositories/accounts";
 import { isOpen } from "@/services/polls";
 import { warRecord, type MemberWarRecord } from "@/services/war";
 import { freshness, type Freshness } from "@/services/freshness";
-import { countsByClan, needsYou, timeUntil, type NeedItem, type NeedKind } from "@/services/home";
+import {
+  countsByClan,
+  needsYou,
+  timeUntil,
+  type NeedClan,
+  type NeedItem,
+  type NeedKind,
+} from "@/services/home";
 import { EmptyState, ListRow, Panel, SectionHeader } from "@/components/kit";
 import { WarScoreboard } from "@/components/war-scoreboard";
 import { LocalTime } from "@/components/local-time";
@@ -93,6 +102,8 @@ interface LoadedClan {
   /** Only for a war that is on. Empty otherwise. */
   record: MemberWarRecord[];
   openPolls: Array<{ poll: Poll; responders: string[] }>;
+  /** Current members' player ids — only for a clan the caller helps run, where non-responders are counted. */
+  memberIds: string[];
   notices: Announcement[];
 }
 
@@ -106,13 +117,16 @@ function isLive(war: WarRow | null): boolean {
 }
 
 async function loadClan(supabase: Supabase, clan: VisibleClan): Promise<LoadedClan> {
-  const [detail, held, run, war, polls, notices] = await Promise.all([
+  const [detail, held, run, war, polls, notices, roster] = await Promise.all([
     clanDetail(supabase, clan.id),
     currentMemberCount(supabase, clan.id),
     latestRun(supabase, "clans", clan.id),
     currentWar(supabase, clan.id),
     pollsForClan(supabase, clan.id),
     announcementsForClan(supabase, clan.id),
+    // Who SHOULD answer, per clan. A family poll's responders span every
+    // clan, so "members minus responders" undercounts; see services/home.ts.
+    isLeadership(clan.role) ? membersForClan(supabase, clan.id) : Promise.resolve([]),
   ]);
 
   const open = polls.filter((p) => isOpen(p));
@@ -139,6 +153,7 @@ async function loadClan(supabase: Supabase, clan: VisibleClan): Promise<LoadedCl
       poll,
       responders: responses[i]!.map((r) => r.playerId),
     })),
+    memberIds: roster.map((m) => m.playerId),
     notices: notices.slice(0, 2),
   };
 }
@@ -194,8 +209,10 @@ export default async function DashboardPage({
         title: poll.title,
         closesAt: poll.closesAt,
         responders,
+        scope: poll.scope,
       })),
       memberCount: l.memberCount,
+      memberIds: isLeadership(l.clan.role) ? l.memberIds : undefined,
     })),
     myPlayers: mine.map((p) => ({ id: p.id, clanId: p.clanId })),
     unread,
@@ -225,116 +242,62 @@ export default async function DashboardPage({
     .filter(Boolean)
     .join(" · ");
 
+  // Three rows, then the rest behind "Show more": the list is a to-do, and a
+  // to-do list longer than the screen pushes the clan below it out of sight.
+  const FIRST = 3;
+  const needRow = (item: NeedItem, i: number) => {
+    const style = KIND_STYLE[item.kind];
+    return (
+      <ListRow
+        key={`${item.kind}-${item.clanId ?? "all"}-${i}`}
+        icon={style.icon}
+        tone={style.tone}
+        context={item.clans.length > 0 ? <ClanChips clans={item.clans} /> : undefined}
+        title={item.title}
+        meta={item.meta ?? undefined}
+        action={{ href: item.href, label: item.actionLabel, primary: i === 0 }}
+      />
+    );
+  };
+
   return (
-    <main className="mx-auto max-w-6xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-6xl space-y-8 p-4 sm:p-8">
       <div className="space-y-1">
         <h1 className="cb-title text-3xl sm:text-4xl">Welcome back, {name}</h1>
         <p className="text-muted-foreground">{summary}</p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
-        <div className="min-w-0 space-y-6">
-          {/* ── Needs you ─────────────────────────────────────────────── */}
-          <Panel aria-labelledby="needs-title" className="space-y-4">
-            <SectionHeader id="needs-title" title="Needs you" count={items.length} />
-            {items.length === 0 ? (
-              <EmptyState
-                icon={CheckCircle2}
-                title="You're all caught up"
-                body="No war attacks waiting, no polls to answer, nothing unread."
-              />
-            ) : (
-              <ul className="divide-y">
-                {items.map((item: NeedItem, i) => {
-                  const style = KIND_STYLE[item.kind];
-                  return (
-                    <ListRow
-                      key={`${item.kind}-${item.clanId ?? "all"}-${i}`}
-                      icon={style.icon}
-                      tone={style.tone}
-                      context={item.clanName ?? undefined}
-                      title={item.title}
-                      meta={item.meta ?? undefined}
-                      action={{ href: item.href, label: item.actionLabel, primary: i === 0 }}
-                    />
-                  );
-                })}
-              </ul>
-            )}
-          </Panel>
-
-          {/* ── Clans ─────────────────────────────────────────────────── */}
-          {loaded.length === 0 ? (
-            <Panel>
-              <EmptyState
-                icon={Shield}
-                title={admin ? "No clans on the platform yet" : "You are not in a clan yet"}
-                body={
-                  admin
-                    ? "Add the first one by its tag. Its members arrive with the next sync."
-                    : "Your account is approved, but a leader still needs to add you to a clan. Ask them in game."
-                }
-                action={
-                  admin ? (
-                    <Button asChild>
-                      <Link href="/admin">
-                        <Plus aria-hidden />
-                        Add your first clan
-                      </Link>
-                    </Button>
-                  ) : undefined
-                }
-              />
-            </Panel>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        {/* ── Needs you ─────────────────────────────────────────────── */}
+        <Panel aria-labelledby="needs-title" className="min-w-0 space-y-4">
+          <SectionHeader id="needs-title" title="Needs you" count={items.length} />
+          {items.length === 0 ? (
+            <EmptyState
+              icon={CheckCircle2}
+              title="You're all caught up"
+              body="No war attacks waiting, no polls to answer, nothing unread."
+            />
           ) : (
-            <section aria-labelledby="clans-title" className="space-y-3">
-              <h2 id="clans-title" className="text-lg font-semibold">
-                Your clans
-              </h2>
-
-              <nav aria-label="Choose a clan" className="cb-scroll-x -mx-1 flex gap-2 px-1 pb-1">
-                {loaded.map(({ clan }) => {
-                  const on = selected?.clan.id === clan.id;
-                  const count = perClan.get(clan.id) ?? 0;
-                  return (
-                    <Link
-                      key={clan.id}
-                      href={`/dashboard?clan=${encodeURIComponent(clan.tag)}`}
-                      aria-current={on ? "page" : undefined}
-                      scroll={false}
-                      className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                        on
-                          ? "cb-panel border-trim font-semibold"
-                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                      }`}
-                    >
-                      <span
-                        aria-hidden
-                        className="size-2.5 shrink-0 rounded-full"
-                        style={{ background: clanAccent(clan.id).color }}
-                      />
-                      {clan.name}
-                      {count > 0 && (
-                        <span className="bg-info-tint text-info-ink rounded-full px-1.5 text-xs font-semibold tabular-nums">
-                          {count}
-                          <span className="sr-only"> {count === 1 ? "thing needs" : "things need"} you</span>
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}
-              </nav>
-
-              {selected && (
-                <ClanPanel
-                  loaded={selected}
-                  myIds={myIds}
-                  canLead={isLeadership(selected.clan.role)}
-                />
+            <>
+              <ul className="divide-y">{items.slice(0, FIRST).map(needRow)}</ul>
+              {items.length > FIRST && (
+                // Native <details>: no JavaScript, and the page stays a server
+                // component. The toggle sits above what it reveals — the one
+                // place <details> allows a summary to be.
+                <details className="group">
+                  <summary className="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex cursor-pointer list-none items-center justify-center gap-1.5 rounded-lg border border-dashed py-2 text-sm font-medium transition-colors [&::-webkit-details-marker]:hidden">
+                    <span className="group-open:hidden">Show {items.length - FIRST} more</span>
+                    <span className="hidden group-open:inline">Show fewer</span>
+                    <ChevronDown aria-hidden className="size-4 transition-transform group-open:rotate-180" />
+                  </summary>
+                  <ul className="mt-4 divide-y">
+                    {items.slice(FIRST).map((item, i) => needRow(item, i + FIRST))}
+                  </ul>
+                </details>
               )}
-            </section>
+            </>
           )}
-        </div>
+        </Panel>
 
         {/* ── The side column ─────────────────────────────────────────── */}
         <aside className="space-y-4" aria-label="More">
@@ -388,7 +351,105 @@ export default async function DashboardPage({
           </Panel>
         </aside>
       </div>
+
+      {/* ── Clans ─────────────────────────────────────────────────────
+          Full width, under the to-do list rather than beside the side column:
+          one clan in full is the widest thing on the page, and in the left
+          column it left a gap beside it once the side column ran out. */}
+      {loaded.length === 0 ? (
+        <Panel>
+          <EmptyState
+            icon={Shield}
+            title={admin ? "No clans on the platform yet" : "You are not in a clan yet"}
+            body={
+              admin
+                ? "Add the first one by its tag. Its members arrive with the next sync."
+                : "Your account is approved, but a leader still needs to add you to a clan. Ask them in game."
+            }
+            action={
+              admin ? (
+                <Button asChild>
+                  <Link href="/admin">
+                    <Plus aria-hidden />
+                    Add your first clan
+                  </Link>
+                </Button>
+              ) : undefined
+            }
+          />
+        </Panel>
+      ) : (
+        <section aria-labelledby="clans-title" className="space-y-3">
+          <h2 id="clans-title" className="text-lg font-semibold">
+            Your clans
+          </h2>
+
+          <Panel padded={false} className="overflow-hidden">
+            {/* The tabs are the top edge of the card they switch, so which
+                clan the card shows is never in doubt. The chosen tab is
+                underlined in that clan's own colour. */}
+            <nav aria-label="Choose a clan" className="cb-scroll-x flex gap-1 border-b px-3">
+              {loaded.map(({ clan }) => {
+                const on = selected?.clan.id === clan.id;
+                const count = perClan.get(clan.id) ?? 0;
+                const color = clanAccent(clan.id).color;
+                return (
+                  <Link
+                    key={clan.id}
+                    href={`/dashboard?clan=${encodeURIComponent(clan.tag)}`}
+                    aria-current={on ? "page" : undefined}
+                    scroll={false}
+                    className={`-mb-px flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-sm transition-colors ${
+                      on
+                        ? "text-foreground font-semibold"
+                        : "text-muted-foreground hover:text-foreground border-transparent"
+                    }`}
+                    style={on ? { borderColor: color } : undefined}
+                  >
+                    <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: color }} />
+                    {clan.name}
+                    {count > 0 && (
+                      <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-xs font-semibold tabular-nums">
+                        {count}
+                        <span className="sr-only"> {count === 1 ? "thing needs" : "things need"} you</span>
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {selected && (
+              <ClanPanel loaded={selected} myIds={myIds} canLead={isLeadership(selected.clan.role)} />
+            )}
+          </Panel>
+        </section>
+      )}
     </main>
+  );
+}
+
+/**
+ * The clans a to-do concerns, as small chips: a family poll is one row that
+ * names each clan, where it used to be one row per clan. Three at most, then
+ * "+N" — the row's job is the action, not the list.
+ */
+function ClanChips({ clans }: { clans: NeedClan[] }) {
+  const shown = clans.slice(0, 3);
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      {shown.map((c) => (
+        <span
+          key={c.id}
+          className="bg-muted/60 inline-flex max-w-[12rem] items-center gap-1 rounded-full px-1.5 py-px"
+        >
+          <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: clanAccent(c.id).color }} />
+          <span className="truncate">{c.name}</span>
+          {c.count !== undefined && <span className="tabular-nums opacity-80">· {c.count}</span>}
+        </span>
+      ))}
+      {clans.length > shown.length && <span>+{clans.length - shown.length}</span>}
+    </span>
   );
 }
 
@@ -428,161 +489,184 @@ function ClanPanel({
   const clanLeft = loaded.record.reduce((sum, r) => sum + r.attacksRemaining, 0);
   const inWar = war?.state === "inWar";
 
+  // One filled "Answer" in the card, on the first poll still owed — a column
+  // of identical bright buttons has no first thing to do.
+  const firstOwed = loaded.openPolls.find(({ responders }) => !responders.some((id) => myIds.has(id)))
+    ?.poll.id;
+
+  // Facts as one quiet line under the name. Three boxes the size of the war
+  // section made members, level and league look like the point of the card.
+  const facts: Array<{ icon: LucideIcon; text: string }> = [
+    { icon: Users, text: `${loaded.memberCount} ${loaded.memberCount === 1 ? "member" : "members"}` },
+    ...(loaded.level ? [{ icon: Shield, text: `Level ${loaded.level}` }] : []),
+    ...(loaded.warLeague ? [{ icon: Trophy, text: loaded.warLeague }] : []),
+  ];
+
   return (
-    <Panel padded={false} aria-label={clan.name} className="overflow-hidden">
-      {/* The clan's own colour along the top edge — the same hue as its tab. */}
-      <div aria-hidden className="h-1.5" style={{ background: accent }} />
-
-      <div className="space-y-6 p-5">
-        {/* Header */}
-        <div className="flex flex-wrap items-center gap-4">
-          {clan.badgeUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={clan.badgeUrl} alt="" className="size-14 shrink-0" />
-          ) : (
-            <span aria-hidden className="bg-muted flex size-14 items-center justify-center rounded-xl">
-              <Shield className="text-muted-foreground size-6" />
-            </span>
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="text-xl font-semibold">{clan.name}</p>
-            <p className="text-muted-foreground text-sm">
-              <span className="font-mono">{clan.tag}</span> · you are{" "}
-              <span className="capitalize">{clan.role}</span>
-            </p>
-          </div>
-          <Button asChild>
-            <Link href={base}>
-              Open clan
-              <ArrowRight aria-hidden />
-            </Link>
-          </Button>
-        </div>
-
-        {/* Three plain facts, label above value — no table, nothing to align. */}
-        <dl className="grid grid-cols-3 gap-3">
-          <Fact label="Members" value={String(loaded.memberCount)} />
-          <Fact label="Clan level" value={loaded.level ? String(loaded.level) : "—"} />
-          <Fact label="War league" value={loaded.warLeague ?? "—"} />
-        </dl>
-
-        {behind && (
-          <p className="text-warning-ink flex items-center gap-2 text-sm">
-            <TriangleAlert aria-hidden className="size-4 shrink-0" />
-            Game data {loaded.fresh.label} — numbers here may be out of date.
-          </p>
+    <div aria-label={clan.name} className="space-y-6 p-5">
+      {/* Header */}
+      <div className="flex flex-wrap items-center gap-4">
+        {clan.badgeUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={clan.badgeUrl} alt="" className="size-14 shrink-0" />
+        ) : (
+          <span aria-hidden className="bg-muted flex size-14 items-center justify-center rounded-xl">
+            <Shield className="text-muted-foreground size-6" />
+          </span>
         )}
-
-        {/* War */}
-        <section aria-labelledby="war-title" className="space-y-3">
-          <SectionHeader
-            id="war-title"
-            title="War"
-            icon={Swords}
-            action={{ href: `${base}/war`, label: "War board" }}
-          />
-          {war && isLive(war) ? (
-            <div className="space-y-3">
-              <WarScoreboard
-                us={{ name: clan.name, stars: war.ourStars, destruction: war.ourDestruction }}
-                them={{
-                  name: war.opponentName,
-                  stars: war.theirStars,
-                  destruction: war.theirDestruction,
-                }}
-                accent={accent}
-              />
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                <Badge variant={war.state === "inWar" ? "warning" : "info"}>
-                  {war.state === "inWar" ? (
-                    <>
-                      <Flame aria-hidden />
-                      Battle day
-                    </>
-                  ) : (
-                    <>
-                      <CalendarDays aria-hidden />
-                      Preparation day
-                    </>
-                  )}
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="text-xl font-semibold">{clan.name}</span>
+            <span className="text-muted-foreground text-sm">
+              <span className="font-mono">{clan.tag}</span> ·{" "}
+              <span className="capitalize">{clan.role}</span>
+            </span>
+          </p>
+          <ul className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            {facts.map(({ icon: Icon, text }) => (
+              <li key={text} className="flex items-center gap-1.5">
+                <Icon aria-hidden className="size-3.5 shrink-0" />
+                <span className="text-foreground/90 font-medium tabular-nums">{text}</span>
+              </li>
+            ))}
+            {behind && (
+              <li>
+                <Badge
+                  variant="warning"
+                  title={`Game data ${loaded.fresh.label} — numbers here may be out of date.`}
+                >
+                  <TriangleAlert aria-hidden />
+                  Data {loaded.fresh.label}
                 </Badge>
-                {inWar && war.endTime && timeUntil(war.endTime, new Date()) && (
-                  <span className="text-muted-foreground">
-                    Ends {timeUntil(war.endTime, new Date())}
-                  </span>
-                )}
-                {inWar && myLeft > 0 && (
-                  <span className="font-medium">
-                    · You have {myLeft} {myLeft === 1 ? "attack" : "attacks"} left
-                  </span>
-                )}
-                {inWar && canLead && clanLeft > 0 && (
-                  <span className="text-muted-foreground">
-                    · {clanLeft} unused in the clan
-                  </span>
+              </li>
+            )}
+          </ul>
+        </div>
+        <Button asChild variant="outline">
+          <Link href={base}>
+            Open clan
+            <ArrowRight aria-hidden />
+          </Link>
+        </Button>
+      </div>
+
+      <div className="grid gap-x-8 gap-y-6 border-t pt-6 lg:grid-cols-2">
+        <div className="min-w-0 space-y-6">
+          {/* War */}
+          <section aria-labelledby="war-title" className="space-y-3">
+            <SectionHeader
+              id="war-title"
+              title="War"
+              icon={Swords}
+              action={{ href: `${base}/war`, label: "War board" }}
+            />
+            {war && isLive(war) ? (
+              <div className="space-y-3">
+                <WarScoreboard
+                  us={{ name: clan.name, stars: war.ourStars, destruction: war.ourDestruction }}
+                  them={{
+                    name: war.opponentName,
+                    stars: war.theirStars,
+                    destruction: war.theirDestruction,
+                  }}
+                  accent={accent}
+                />
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <Badge variant={war.state === "inWar" ? "warning" : "info"}>
+                    {war.state === "inWar" ? (
+                      <>
+                        <Flame aria-hidden />
+                        Battle day
+                      </>
+                    ) : (
+                      <>
+                        <CalendarDays aria-hidden />
+                        Preparation day
+                      </>
+                    )}
+                  </Badge>
+                  {inWar && war.endTime && timeUntil(war.endTime, new Date()) && (
+                    <span className="text-muted-foreground">
+                      Ends {timeUntil(war.endTime, new Date())}
+                    </span>
+                  )}
+                  {inWar && myLeft > 0 && (
+                    <span className="font-medium">
+                      · You have {myLeft} {myLeft === 1 ? "attack" : "attacks"} left
+                    </span>
+                  )}
+                  {inWar && canLead && clanLeft > 0 && (
+                    <span className="text-muted-foreground">
+                      · {clanLeft} unused in the clan
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="cb-sunken flex flex-wrap items-center justify-between gap-3 rounded-lg px-4 py-3">
+                <p className="text-muted-foreground text-sm">
+                  {war?.state === "warEnded"
+                    ? `Last war against ${war.opponentName ?? "an opponent"}: ${war.ourStars ?? 0}–${war.theirStars ?? 0} stars${
+                        war.result ? ` (${war.result === "win" ? "won" : war.result === "lose" ? "lost" : "tie"})` : ""
+                      }.`
+                    : "No war on right now."}
+                </p>
+                {canLead && (
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`${base}/war/lineup`}>Plan the next lineup</Link>
+                  </Button>
                 )}
               </div>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-muted-foreground text-sm">
-                {war?.state === "warEnded"
-                  ? `Last war against ${war.opponentName ?? "an opponent"}: ${war.ourStars ?? 0}–${war.theirStars ?? 0} stars${
-                      war.result ? ` (${war.result === "win" ? "won" : war.result === "lose" ? "lost" : "tie"})` : ""
-                    }.`
-                  : "No war on right now."}
-              </p>
-              {canLead && (
-                <Button asChild size="sm" variant="outline">
-                  <Link href={`${base}/war/lineup`}>Plan the next lineup</Link>
-                </Button>
-              )}
-            </div>
-          )}
-        </section>
+            )}
+          </section>
 
-        {/* Polls */}
-        <section aria-labelledby="polls-title" className="space-y-3">
-          <SectionHeader
-            id="polls-title"
-            title="Open polls"
-            icon={Vote}
-            count={loaded.openPolls.length}
-            action={{ href: `${base}/polls`, label: "All polls" }}
-          />
-          {loaded.openPolls.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No poll is open.</p>
-          ) : (
-            <ul className="divide-y">
-              {loaded.openPolls.map(({ poll, responders }) => {
-                const answered = responders.some((id) => myIds.has(id));
-                const closes = timeUntil(poll.closesAt, new Date());
-                const href = `${base}/polls/${encodeURIComponent(poll.id)}`;
-                return (
-                  <ListRow
-                    key={poll.id}
-                    icon={answered ? CheckCircle2 : Vote}
-                    tone={answered ? "var(--success)" : "var(--info)"}
-                    title={poll.title}
-                    meta={[answered ? "You answered" : "You have not answered", closes ? `closes ${closes}` : null]
-                      .filter(Boolean)
-                      .join(" · ")}
-                    action={
-                      answered
-                        ? canLead
-                          ? { href, label: "See answers" }
-                          : { href, label: "View" }
-                        : { href, label: "Answer", primary: true }
-                    }
-                  />
-                );
-              })}
-            </ul>
-          )}
-        </section>
+          {/* Polls */}
+          <section aria-labelledby="polls-title" className="space-y-3">
+            <SectionHeader
+              id="polls-title"
+              title="Open polls"
+              icon={Vote}
+              count={loaded.openPolls.length}
+              action={{ href: `${base}/polls`, label: "All polls" }}
+            />
+            {loaded.openPolls.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No poll is open.</p>
+            ) : (
+              <ul className="divide-y">
+                {loaded.openPolls.map(({ poll, responders }) => {
+                  const answered = responders.some((id) => myIds.has(id));
+                  const closes = timeUntil(poll.closesAt, new Date());
+                  const href = `${base}/polls/${encodeURIComponent(poll.id)}`;
+                  return (
+                    <ListRow
+                      key={poll.id}
+                      icon={answered ? CheckCircle2 : Vote}
+                      tone={answered ? "var(--success)" : "var(--info)"}
+                      title={poll.title}
+                      meta={[
+                        answered ? "You answered" : "You have not answered",
+                        poll.scope === "family" ? "all clans" : null,
+                        closes ? `closes ${closes}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                      action={
+                        answered
+                          ? canLead
+                            ? { href, label: "See answers" }
+                            : { href, label: "View" }
+                          : { href, label: "Answer", primary: poll.id === firstOwed }
+                      }
+                    />
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        </div>
 
         {/* Announcements */}
-        <section aria-labelledby="notices-title" className="space-y-3">
+        <section aria-labelledby="notices-title" className="min-w-0 space-y-3">
           <SectionHeader
             id="notices-title"
             title="Announcements"
@@ -592,9 +676,9 @@ function ClanPanel({
           {loaded.notices.length === 0 ? (
             <p className="text-muted-foreground text-sm">Nothing posted yet.</p>
           ) : (
-            <ul className="space-y-4">
+            <ul className="space-y-3">
               {loaded.notices.map((notice) => (
-                <li key={notice.id} className="space-y-1">
+                <li key={notice.id} className="cb-sunken space-y-1 rounded-lg px-4 py-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-medium">{notice.title}</p>
                     {notice.pinned && <Badge variant="info">Pinned</Badge>}
@@ -612,25 +696,14 @@ function ClanPanel({
             </ul>
           )}
         </section>
-
-        {canLead && (
-          <p className="text-muted-foreground border-t pt-4 text-xs">
-            <Users aria-hidden className="mr-1 inline size-3.5 align-[-2px]" />
-            You help run {clan.name}: leader tasks for it appear under Needs you.
-          </p>
-        )}
       </div>
-    </Panel>
-  );
-}
 
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="cb-sunken min-w-0 rounded-lg px-3 py-2">
-      <dt className="text-muted-foreground text-xs">{label}</dt>
-      <dd className="truncate font-semibold tabular-nums" title={value}>
-        {value}
-      </dd>
+      {canLead && (
+        <p className="text-muted-foreground border-t pt-4 text-xs">
+          <Users aria-hidden className="mr-1 inline size-3.5 align-[-2px]" />
+          You help run {clan.name}: leader tasks for it appear under Needs you.
+        </p>
+      )}
     </div>
   );
 }

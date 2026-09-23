@@ -31,7 +31,7 @@ import { Toaster } from "@/components/toaster";
 import { Badge } from "@/components/ui/badge";
 import {
   ClanSectionTabs,
-  ClanSwitcher,
+  ClanMenu,
   HomeLink,
   type RailClan,
 } from "@/components/clan-nav-rail";
@@ -191,7 +191,7 @@ export default async function AppLayout({
 
           {approved && <HomeLink />}
 
-          <ClanSwitcher clans={railClans} />
+          <ClanMenu clans={railClans} />
 
           {/* Everything after the clan switcher, aligned as one group.
 

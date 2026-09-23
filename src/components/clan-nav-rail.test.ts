@@ -40,7 +40,7 @@ vi.mock("next/link", () => ({
   } & Record<string, unknown>) => createElement("a", { href, ...rest }, children as never),
 }));
 
-const { ClanSectionTabs, ClanSwitcher } = await import("@/components/clan-nav-rail");
+const { ClanSectionTabs, ClanMenu } = await import("@/components/clan-nav-rail");
 
 const CLANS = [
   { id: "a", tag: "#2PP0JCCL", name: "Dark Heaven", role: "leader", color: "var(--clan-1)" },
@@ -62,45 +62,67 @@ beforeEach(() => {
   pathname = "/";
 });
 
-describe("ClanSwitcher — the reported bug", () => {
+/** The clan the menu marks current: the one link with aria-current, by its data-clan. */
+function currentClan(html: string): string | null {
+  const match = /<a(?=[^>]*aria-current="page")[^>]*data-clan="([^"]*)"/.exec(html);
+  return match ? match[1]! : null;
+}
+
+/** What the closed menu says — the answer to "which clan am I looking at?". */
+function summaryLabel(html: string): string | null {
+  const match = /<span[^>]*data-clan-summary[^>]*>(.*?)<\/span>/s.exec(html);
+  return match ? match[1]!.trim() : null;
+}
+
+describe("ClanMenu — the reported bug", () => {
   // THE REGRESSION, stated the way it was reported: pick DH CWL ONLY, and
   // Dark Heaven stays lit.
   it("marks the clan in the path, not the first one in the list", () => {
     pathname = "/%232G8YQYRGJ";
-    expect(currentLabel(render(createElement(ClanSwitcher, { clans: CLANS })))).toBe(
-      "DH CWL ONLY",
-    );
+    const html = render(createElement(ClanMenu, { clans: CLANS }));
+    expect(currentClan(html)).toBe("DH CWL ONLY");
+    expect(summaryLabel(html)).toBe("DH CWL ONLY");
   });
 
   it("follows the path to each clan in turn", () => {
     for (const clan of CLANS) {
       pathname = `/${encodeURIComponent(clan.tag)}`;
-      expect(currentLabel(render(createElement(ClanSwitcher, { clans: CLANS })))).toBe(
-        clan.name,
-      );
+      const html = render(createElement(ClanMenu, { clans: CLANS }));
+      expect(currentClan(html)).toBe(clan.name);
+      expect(summaryLabel(html)).toBe(clan.name);
     }
   });
 
-  // The switcher must stay lit on the pages INSIDE a clan, not only its
+  // The menu must stay on the clan on the pages INSIDE a clan, not only its
   // dashboard — otherwise a member on /members is shown no current clan at all.
   it("stays on the clan while inside its pages", () => {
     pathname = "/%232G8YQYRGJ/war/lineup";
-    expect(currentLabel(render(createElement(ClanSwitcher, { clans: CLANS })))).toBe(
-      "DH CWL ONLY",
-    );
+    expect(currentClan(render(createElement(ClanMenu, { clans: CLANS })))).toBe("DH CWL ONLY");
   });
 
-  it("marks nothing on a cross-clan page", () => {
+  it("marks nothing on a cross-clan page, and says Clans", () => {
     for (const path of ["/roster", "/report", "/admin", "/guide"]) {
       pathname = path;
-      expect(currentLabel(render(createElement(ClanSwitcher, { clans: CLANS })))).toBeNull();
+      const html = render(createElement(ClanMenu, { clans: CLANS }));
+      expect(currentClan(html)).toBeNull();
+      expect(summaryLabel(html)).toBe("Clans");
     }
   });
 
   it("marks exactly one clan, never two", () => {
     pathname = "/%232Y9J20JCY";
-    const html = render(createElement(ClanSwitcher, { clans: CLANS }));
+    const html = render(createElement(ClanMenu, { clans: CLANS }));
     expect(html.match(/aria-current="page"/g)).toHaveLength(1);
+  });
+
+  it("links every clan, and the way back to all of them", () => {
+    const html = render(createElement(ClanMenu, { clans: CLANS }));
+    for (const clan of CLANS) expect(html).toContain(`href="/${encodeURIComponent(clan.tag)}"`);
+    expect(html).toContain('href="/dashboard"');
+  });
+
+  it("renders nothing for a member with no clans", () => {
+    expect(render(createElement(ClanMenu, { clans: [] }))).toBe("");
   });
 });
 

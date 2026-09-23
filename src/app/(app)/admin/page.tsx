@@ -28,6 +28,8 @@ import { InvalidTagError, normaliseTag } from "@/lib/tags";
 import { isUniqueViolation, safeMessage } from "@/lib/errors";
 import { failedRuns, recentRuns, type SyncRunRecord } from "@/repositories/sync-log";
 import { ago, freshness } from "@/services/freshness";
+import { groupFailures } from "@/services/sync-failures";
+import { clanAccent } from "@/lib/clan-accent";
 import { DISPATCHABLE, dispatchConfig, dispatchWorkflow, isDispatchable } from "@/lib/github";
 import { SYNC_TRIGGER_LIMIT, sharedRateLimiter } from "@/lib/rate-limit";
 import { Button } from "@/components/ui/button";
@@ -35,6 +37,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Panel, SectionHeader } from "@/components/kit";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
 import {
@@ -42,12 +45,15 @@ import {
   Castle,
   CheckCircle2,
   CircleAlert,
+  History,
   MessageSquareHeart,
   Plus,
   RefreshCw,
   ScrollText,
   TriangleAlert,
   UserCheck,
+  Wrench,
+  type LucideIcon,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -256,7 +262,12 @@ function RunRow({ run, clanNames }: { run: SyncRunRecord; clanNames: Map<string,
   );
 }
 
-export default async function AdminPage() {
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ history?: string }>;
+}) {
+  const { history } = await searchParams;
   const supabase = await createClient();
 
   const userId = await currentUserId(supabase);
@@ -315,8 +326,45 @@ export default async function AdminPage() {
     );
   }
 
+  const problems = groupFailures(runs);
+  const tagNames = new Map(clanRows.map((c) => [c.tag, c.name]));
+  // The sync writes the clan TAG into its messages; a person knows the name.
+  const named = (error: string) =>
+    error.replace(/#[0-9A-Z]{4,}/g, (tag) => (tagNames.has(tag) ? `${tagNames.get(tag)} (${tag})` : tag));
+
+  const allHistory = history === "all";
+  const HISTORY_FIRST = 10;
+  const shownRuns = allHistory ? runs : runs.slice(0, HISTORY_FIRST);
+
+  // Only the cards this person can use, and a grid as wide as there are cards —
+  // three cards in two columns left a hole the size of a card.
+  const links = [
+    {
+      href: "/admin/members",
+      icon: UserCheck,
+      title: "Accounts",
+      description: "Approve people, set roles, remove access.",
+    },
+    ...(admin
+      ? [
+          {
+            href: "/admin/feedback",
+            icon: MessageSquareHeart,
+            title: "Feedback",
+            description: "Read it, choose what the home page shows.",
+          },
+        ]
+      : []),
+    {
+      href: "/admin/audit",
+      icon: ScrollText,
+      title: "Audit log",
+      description: "Who changed what, and when.",
+    },
+  ];
+
   return (
-    <main className="mx-auto max-w-5xl space-y-8 p-4 sm:p-8">
+    <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8">
       <PageHeader
         title="Admin"
         description="Set up clans, keep game data syncing, and review accounts and changes."
@@ -326,7 +374,7 @@ export default async function AdminPage() {
           which every page shares — the page no longer repeats them inline. */}
 
       {unclaimed && (
-        <section className="cb-panel space-y-3 rounded-lg border-2 border-dashed p-6">
+        <Panel className="space-y-3 border-2 border-dashed">
           <h2 className="text-lg font-semibold">First step: claim this platform</h2>
           <p className="text-muted-foreground text-sm">
             Nobody owns this installation yet. Claiming it makes you the platform owner,
@@ -336,189 +384,209 @@ export default async function AdminPage() {
           <form action={claimOwnership}>
             <SubmitButton pendingLabel="Claiming">Claim ownership</SubmitButton>
           </form>
-        </section>
+        </Panel>
       )}
 
       {/* ── At a glance ─────────────────────────────────────────────────── */}
-      <section className="grid gap-3 sm:grid-cols-3">
+      <section aria-label="At a glance" className="grid gap-3 sm:grid-cols-3">
         <GlanceCard
-          icon={<Castle aria-hidden className="size-5" />}
+          icon={Castle}
           label="Clans"
           value={String(clanRows.length)}
           hint={clanRows.length === 0 ? "Add your first clan below" : "on this platform"}
         />
         <GlanceCard
-          icon={
-            failed.length > 0 ? (
-              <TriangleAlert aria-hidden className="text-destructive size-5" />
-            ) : (
-              <CheckCircle2 aria-hidden className="text-success size-5" />
-            )
-          }
+          icon={failed.length > 0 ? TriangleAlert : CheckCircle2}
+          tone={failed.length > 0 ? "text-destructive" : "text-success"}
           label="Sync health"
           value={failed.length > 0 ? `${failed.length} failed` : runs.length === 0 ? "Not started" : "Healthy"}
-          hint={failed.length > 0 ? "See the details below" : "in the last 50 runs"}
+          hint={
+            failed.length > 0
+              ? `${problems.length} ${problems.length === 1 ? "problem" : "problems"} in the last ${runs.length} runs`
+              : `in the last ${runs.length} runs`
+          }
+          href={failed.length > 0 ? "#sync-problems" : undefined}
         />
         <GlanceCard
-          icon={<RefreshCw aria-hidden className="size-5" />}
+          icon={RefreshCw}
           label="Last sync"
           value={lastRunMinutes === null ? "Never" : ago(lastRunMinutes)}
           hint={lastRun ? jobLabel(lastRun.jobType) : "No job has run yet"}
         />
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2">
-        <LinkCard
-          href="/admin/members"
-          icon={<UserCheck aria-hidden className="size-5" />}
-          title="Accounts"
-          description="Approve people waiting to join, set member roles, message a member, or remove access."
-        />
-        {admin && (
-          <LinkCard
-            href="/admin/feedback"
-            icon={<MessageSquareHeart aria-hidden className="size-5" />}
-            title="Feedback"
-            description="Read what members think and choose what appears on the public home page."
-          />
-        )}
-        <LinkCard
-          href="/admin/audit"
-          icon={<ScrollText aria-hidden className="size-5" />}
-          title="Audit log"
-          description="Who changed what, and when. Nothing in it can be edited or removed."
-        />
-      </section>
+      <nav
+        aria-label="Admin pages"
+        className={`grid gap-3 ${links.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}
+      >
+        {links.map((link) => (
+          <LinkCard key={link.href} {...link} />
+        ))}
+      </nav>
 
-      {failed.length > 0 && (
-        <Alert variant="destructive">
-          <TriangleAlert aria-hidden />
-          <AlertTitle>
-            {failed.length === 1 ? "1 sync job failed recently" : `${failed.length} sync jobs failed recently`}
-          </AlertTitle>
-          <AlertDescription>
-            <ul className="mt-1 space-y-1">
-              {failed.slice(0, 5).map((run) => (
-                <li key={run.id} className="text-sm">
-                  <span className="font-medium">{jobLabel(run.jobType)}</span>
-                  {run.error ? ` — ${run.error.slice(0, 160)}` : ""}
+      {/* ── Sync problems: one row per PROBLEM, not per failed run ─────────── */}
+      {problems.length > 0 && (
+        <Panel id="sync-problems" aria-labelledby="problems-title" className="border-destructive/40 space-y-4">
+          <SectionHeader
+            id="problems-title"
+            title="Sync problems"
+            icon={TriangleAlert}
+            count={problems.length}
+            action={{ href: "/admin?history=all#sync-history", label: "Full history" }}
+          />
+          <ul className="divide-y">
+            {problems.map((problem) => (
+              <li
+                key={`${problem.jobType}-${problem.clanId ?? "all"}-${problem.error}`}
+                className="flex items-start gap-3 py-3 first:pt-0 last:pb-0"
+              >
+                <span className="cb-emblem size-9 shrink-0 rounded-lg" style={{ "--emblem": "var(--destructive)" } as React.CSSProperties}>
+                  <TriangleAlert aria-hidden className="size-4.5" />
+                </span>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                    <span className="font-medium">{jobLabel(problem.jobType)}</span>
+                    <span className="text-muted-foreground">
+                      {problem.clanId ? (clanNames.get(problem.clanId) ?? "A clan") : "All clans"}
+                    </span>
+                    <Badge variant="destructive" title={`Failed ${problem.count} times in the last ${runs.length} runs`}>
+                      ×{problem.count}
+                    </Badge>
+                    <span className="text-muted-foreground text-xs">
+                      last {ago(Math.max(0, Math.floor((Date.now() - new Date(problem.lastAt).getTime()) / 60_000)))}
+                    </span>
+                  </p>
+                  <p className="text-sm break-words">{named(problem.error).slice(0, 240)}</p>
+                  {problem.fix && (
+                    <p className="text-muted-foreground flex items-start gap-1.5 text-sm">
+                      <Wrench aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+                      {problem.fix}
+                    </p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        {/* ── Clans ──────────────────────────────────────────────────────── */}
+        <Panel aria-labelledby="clans-title" className="space-y-4">
+          <div className="space-y-1">
+            <SectionHeader id="clans-title" title="Clans" icon={Castle} count={clanRows.length} />
+            <p className="text-muted-foreground text-sm">The clans this platform follows.</p>
+          </div>
+
+          {clanRows.length === 0 ? (
+            <p className="text-muted-foreground rounded-lg border border-dashed p-4 text-sm">
+              No clans yet. Add the first one below; its members arrive with the next hourly sync,
+              or press <span className="font-medium">Run now</span> on Clan members.
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {clanRows.map((clan) => (
+                <li key={clan.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                  <span
+                    aria-hidden
+                    className="size-2.5 shrink-0 rounded-full"
+                    style={{ background: clanAccent(clan.id).color }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{clan.name}</p>
+                    <p className="text-muted-foreground font-mono text-xs">{clan.tag}</p>
+                  </div>
+                  {myClanIds.has(clan.id) ? (
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/${encodeURIComponent(clan.tag)}`}>Open</Link>
+                    </Button>
+                  ) : (
+                    admin && (
+                      <form action={grantSelfLeader}>
+                        <input type="hidden" name="clanId" value={clan.id} />
+                        <SubmitButton variant="outline" size="sm" pendingLabel="Granting">
+                          Make me leader
+                        </SubmitButton>
+                      </form>
+                    )
+                  )}
                 </li>
               ))}
             </ul>
-          </AlertDescription>
-        </Alert>
-      )}
+          )}
 
-      {/* ── Clans ────────────────────────────────────────────────────────── */}
-      <section className="cb-panel space-y-5 rounded-lg border p-6">
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Clans</h2>
-          <p className="text-muted-foreground text-sm">The clans this platform follows.</p>
-        </div>
-
-        {clanRows.length === 0 ? (
-          <p className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
-            No clans yet. Add the first one below; its members arrive with the next hourly sync,
-            or press <span className="font-medium">Run now</span> on Clan members.
-          </p>
-        ) : (
-          <ul className="grid gap-2 sm:grid-cols-2">
-            {clanRows.map((clan) => (
-              <li key={clan.id} className="bg-card flex items-center gap-3 rounded-md border p-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{clan.name}</p>
-                  <p className="text-muted-foreground font-mono text-xs">{clan.tag}</p>
-                </div>
-                {myClanIds.has(clan.id) ? (
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/${encodeURIComponent(clan.tag)}`}>Open</Link>
-                  </Button>
-                ) : (
-                  admin && (
-                    <form action={grantSelfLeader}>
-                      <input type="hidden" name="clanId" value={clan.id} />
-                      <SubmitButton variant="outline" size="sm" pendingLabel="Granting">
-                        Make me leader
-                      </SubmitButton>
-                    </form>
-                  )
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {admin && (
-          <form action={addClan} className="space-y-3 border-t pt-5">
-            <div className="space-y-1">
-              <h3 className="font-medium">Add a clan</h3>
-              <p className="text-muted-foreground text-sm">
-                Only the tag matters. The real name, badge and members are filled in by the
-                sync — the name you type is just a placeholder until then.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="tag">Clan tag</Label>
-                <Input id="tag" name="tag" required placeholder="#2PP0JCCL" autoCapitalize="characters" />
+          {admin && (
+            <form action={addClan} className="space-y-3 border-t pt-4">
+              <div className="space-y-1">
+                <h3 className="font-medium">Add a clan</h3>
+                <p className="text-muted-foreground text-sm">
+                  Only the tag matters. The real name, badge and members are filled in by the
+                  sync — the name you type is just a placeholder until then.
+                </p>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="name">Name for now</Label>
-                <Input id="name" name="name" required placeholder="Clan name" />
-              </div>
-              <SubmitButton pendingLabel="Adding">
-                <Plus aria-hidden />
-                Add clan
-              </SubmitButton>
-            </div>
-          </form>
-        )}
-      </section>
-
-      {/* T9.2 — run a sync now. R2: this asks GitHub Actions to run the job; it
-          never runs one here, because a Vercel function is killed at ten seconds. */}
-      <section className="cb-panel space-y-4 rounded-lg border p-6">
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Sync game data now</h2>
-          <p className="text-muted-foreground text-sm">
-            Every job already runs on a schedule. Use these only to repair missing data — each
-            starts a GitHub Actions run, and the result appears in the history a few minutes
-            later. Limited to a few per hour.
-          </p>
-        </div>
-
-        {canDispatch ? (
-          <ul className="grid gap-2 sm:grid-cols-2">
-            {(Object.keys(DISPATCHABLE) as Array<keyof typeof DISPATCHABLE>).map((job) => (
-              <li key={job} className="bg-card flex items-center gap-3 rounded-md border p-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{jobLabel(job)}</p>
-                  <p className="text-muted-foreground text-xs">{JOB_LABELS[job]?.schedule}</p>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="min-w-[9rem] flex-1 space-y-1.5">
+                  <Label htmlFor="tag">Clan tag</Label>
+                  <Input id="tag" name="tag" required placeholder="#2PP0JCCL" autoCapitalize="characters" />
                 </div>
-                <form action={triggerSync}>
-                  <input type="hidden" name="job" value={job} />
-                  <SubmitButton variant="outline" size="sm" pendingLabel="Requesting">
-                    Run now
-                  </SubmitButton>
-                </form>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          // Unconfigured is a state, not an error. A button that always fails teaches
-          // an operator that the page is broken.
-          <p className="text-muted-foreground text-sm">
-            Manual runs are not set up. Set <code>GITHUB_DISPATCH_TOKEN</code> and{" "}
-            <code>GITHUB_DISPATCH_REPO</code> to turn them on. Until then, use{" "}
-            <strong>Run workflow</strong> on the Actions tab in GitHub.
-          </p>
-        )}
-      </section>
+                <div className="min-w-[9rem] flex-1 space-y-1.5">
+                  <Label htmlFor="name">Name for now</Label>
+                  <Input id="name" name="name" required placeholder="Clan name" />
+                </div>
+                <SubmitButton pendingLabel="Adding">
+                  <Plus aria-hidden />
+                  Add clan
+                </SubmitButton>
+              </div>
+            </form>
+          )}
+        </Panel>
+
+        {/* T9.2 — run a sync now. R2: this asks GitHub Actions to run the job; it
+            never runs one here, because a Vercel function is killed at ten seconds. */}
+        <Panel aria-labelledby="sync-now-title" className="space-y-4">
+          <div className="space-y-1">
+            <SectionHeader id="sync-now-title" title="Sync game data now" icon={RefreshCw} />
+            <p className="text-muted-foreground text-sm">
+              Every job already runs on a schedule. Use these only to repair missing data — each
+              starts a GitHub Actions run, and the result appears in the history a few minutes
+              later. Limited to a few per hour.
+            </p>
+          </div>
+
+          {canDispatch ? (
+            <ul className="divide-y">
+              {(Object.keys(DISPATCHABLE) as Array<keyof typeof DISPATCHABLE>).map((job) => (
+                <li key={job} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">{jobLabel(job)}</p>
+                    <p className="text-muted-foreground text-xs">{JOB_LABELS[job]?.schedule}</p>
+                  </div>
+                  <form action={triggerSync}>
+                    <input type="hidden" name="job" value={job} />
+                    <SubmitButton variant="outline" size="sm" pendingLabel="Requesting">
+                      Run now
+                    </SubmitButton>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            // Unconfigured is a state, not an error. A button that always fails teaches
+            // an operator that the page is broken.
+            <p className="text-muted-foreground text-sm">
+              Manual runs are not set up. Set <code>GITHUB_DISPATCH_TOKEN</code> and{" "}
+              <code>GITHUB_DISPATCH_REPO</code> to turn them on. Until then, use{" "}
+              <strong>Run workflow</strong> on the Actions tab in GitHub.
+            </p>
+          )}
+        </Panel>
+      </div>
 
       {/* T9.2 — the history. R9 says every job writes to sync_log; this makes it visible. */}
-      <section className="cb-panel space-y-4 rounded-lg border p-6">
+      <Panel id="sync-history" aria-labelledby="history-title" className="space-y-4">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Sync history</h2>
+          <SectionHeader id="history-title" title="Sync history" icon={History} />
           <p className="text-muted-foreground text-sm">
             The last {runs.length} runs, newest first.{" "}
             <span className="text-foreground">Skipped</span> is normal — it means there was
@@ -532,72 +600,105 @@ export default async function AdminPage() {
             every attempt appears here.
           </p>
         ) : (
-          <div className="-mx-6 overflow-x-auto px-6">
-            <table className="w-full min-w-[40rem] text-left">
-              <thead>
-                <tr className="text-muted-foreground border-b text-xs uppercase">
-                  <th className="py-2 pr-4 font-medium">Job</th>
-                  <th className="py-2 pr-4 font-medium">Result</th>
-                  <th className="py-2 pr-4 font-medium">Clan</th>
-                  <th className="py-2 pr-4 font-medium">Started</th>
-                  <th className="py-2 pr-4 font-medium">Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runs.map((run) => (
-                  <RunRow key={run.id} run={run} clanNames={clanNames} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="-mx-5 overflow-x-auto px-5">
+              <table className="w-full min-w-[40rem] text-left">
+                <thead>
+                  <tr className="text-muted-foreground border-b text-xs uppercase">
+                    <th className="py-2 pr-4 font-medium">Job</th>
+                    <th className="py-2 pr-4 font-medium">Result</th>
+                    <th className="py-2 pr-4 font-medium">Clan</th>
+                    <th className="py-2 pr-4 font-medium">Started</th>
+                    <th className="py-2 pr-4 font-medium">Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shownRuns.map((run) => (
+                    <RunRow key={run.id} run={run} clanNames={clanNames} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {runs.length > HISTORY_FIRST && (
+              // A link rather than a client toggle: the page stays a server
+              // component, and the anchor brings the member back to the table.
+              <Link
+                href={allHistory ? "/admin#sync-history" : "/admin?history=all#sync-history"}
+                scroll={false}
+                className="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex items-center justify-center gap-1.5 rounded-lg border border-dashed py-2 text-sm font-medium transition-colors"
+              >
+                {allHistory ? "Show the latest 10" : `Show all ${runs.length} runs`}
+              </Link>
+            )}
+          </>
         )}
-      </section>
+      </Panel>
     </main>
   );
 }
 
 function GlanceCard({
-  icon,
+  icon: Icon,
+  tone = "text-muted-foreground",
   label,
   value,
   hint,
+  href,
 }: {
-  icon: React.ReactNode;
+  icon: LucideIcon;
+  tone?: string;
   label: string;
   value: string;
   hint: string;
+  href?: string;
 }) {
-  return (
-    <div className="cb-panel space-y-1 rounded-lg border p-4">
-      <div className="text-muted-foreground flex items-center justify-between gap-2 text-xs font-medium uppercase">
+  const body = (
+    <>
+      <div className="text-muted-foreground flex items-center justify-between gap-2 text-xs font-medium tracking-wide uppercase">
         {label}
-        {icon}
+        <Icon aria-hidden className={`size-5 ${tone}`} />
       </div>
-      <p className="text-2xl font-semibold">{value}</p>
+      <p className="cb-title text-2xl">{value}</p>
       <p className="text-muted-foreground text-xs">{hint}</p>
-    </div>
+    </>
+  );
+  return href ? (
+    <Link href={href} className="cb-panel hover:bg-accent/40 block space-y-1 rounded-xl border p-5 transition-colors">
+      {body}
+    </Link>
+  ) : (
+    <Panel as="div" className="space-y-1">
+      {body}
+    </Panel>
   );
 }
 
 function LinkCard({
   href,
-  icon,
+  icon: Icon,
   title,
   description,
 }: {
   href: string;
-  icon: React.ReactNode;
+  icon: LucideIcon;
   title: string;
   description: string;
 }) {
   return (
-    <Link href={href} className="cb-panel hover:bg-accent group flex items-start gap-3 rounded-lg border p-4 transition-colors">
-      <span className="bg-muted flex size-9 shrink-0 items-center justify-center rounded-md">{icon}</span>
-      <span className="min-w-0 flex-1 space-y-0.5">
-        <span className="block font-medium">{title}</span>
-        <span className="text-muted-foreground block text-sm">{description}</span>
+    <Link
+      href={href}
+      className="cb-panel hover:bg-accent hover:text-accent-foreground group flex items-center gap-3 rounded-xl border p-4 transition-colors"
+    >
+      <span className="bg-muted text-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
+        <Icon aria-hidden className="size-4.5" />
       </span>
-      <ArrowRight aria-hidden className="text-muted-foreground mt-1 size-4 transition-transform group-hover:translate-x-0.5" />
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium">{title}</span>
+        <span className="text-muted-foreground group-hover:text-accent-foreground/80 block truncate text-sm">
+          {description}
+        </span>
+      </span>
+      <ArrowRight aria-hidden className="text-muted-foreground size-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
     </Link>
   );
 }
