@@ -147,7 +147,7 @@ function Group({
 }) {
   return (
     <section className="space-y-3">
-      <h2 className="cb-title text-xl">
+      <h2 className="text-lg font-semibold">
         {title}
         <span className="text-muted-foreground ml-2 text-sm font-normal tabular-nums">
           {people.length}

@@ -269,7 +269,7 @@ export default async function AdminAccountPage({
 
       {/* ── Who they are ─────────────────────────────────────────────────── */}
       <section className="cb-panel space-y-4 rounded-lg border p-6">
-        <h2 className="cb-title text-xl">Account</h2>
+        <h2 className="text-lg font-semibold">Account</h2>
 
         <dl className="grid gap-4 sm:grid-cols-2">
           <Field label="Email">
@@ -346,7 +346,7 @@ export default async function AdminAccountPage({
       {/* ── Clan roles (T12.9) ───────────────────────────────────────────── */}
       <section aria-labelledby="roles-title" className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="space-y-1">
-          <h2 id="roles-title" className="cb-title flex items-center gap-2 text-xl">
+          <h2 id="roles-title" className="flex items-center gap-2 text-lg font-semibold">
             <Crown aria-hidden className="text-trim-shade size-5" />
             Clan roles
           </h2>
@@ -440,7 +440,7 @@ export default async function AdminAccountPage({
       {/* ── Say something ────────────────────────────────────────────────── */}
       <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="space-y-1">
-          <h2 className="cb-title text-xl">Send a message</h2>
+          <h2 className="text-lg font-semibold">Send a message</h2>
           <p className="text-muted-foreground text-sm">
             It appears under the bell on their Notifications page and stays there.
             If they have push switched on they also get a nudge on their phone — but
@@ -513,7 +513,7 @@ export default async function AdminAccountPage({
       {/* ── Take access away ─────────────────────────────────────────────── */}
       <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="space-y-1">
-          <h2 className="cb-title text-xl">
+          <h2 className="text-lg font-semibold">
             {account.removedAt ? "Restore this account" : "Remove access"}
           </h2>
           <p className="text-muted-foreground text-sm">

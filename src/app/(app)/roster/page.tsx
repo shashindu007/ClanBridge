@@ -153,7 +153,7 @@ export default async function RosterSeasonsPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="cb-title text-2xl">{seasonLabel(season)}</h2>
+                  <h2 className="text-xl font-semibold">{seasonLabel(season)}</h2>
                   <Badge variant={season === thisMonth ? "info" : "secondary"}>
                     {season === thisMonth ? "This month" : "Upcoming"}
                   </Badge>

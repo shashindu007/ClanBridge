@@ -187,7 +187,7 @@ export default async function CwlSeasonReportPage({
       {/* ── T4B.11 — plan versus reality ───────────────────────────────────── */}
       <section className="cb-panel space-y-5 rounded-lg border p-6">
         <div className="space-y-1">
-          <h2 className="cb-title text-xl">Picked versus played</h2>
+          <h2 className="text-lg font-semibold">Picked versus played</h2>
           <p className="text-muted-foreground text-sm">
             Your lineup compared with the players the game actually put in the wars.
           </p>
@@ -247,7 +247,7 @@ export default async function CwlSeasonReportPage({
       {/* ── T4B.12 — contribution ──────────────────────────────────────────── */}
       <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="space-y-1">
-          <h2 className="cb-title text-xl">What each player contributed</h2>
+          <h2 className="text-lg font-semibold">What each player contributed</h2>
           <p className="text-muted-foreground text-sm">
             <span className="text-foreground font-medium">Missed</span> counts war days a
             player was in and did not attack — not days they were left out of.
@@ -310,7 +310,7 @@ export default async function CwlSeasonReportPage({
       {leadership && contributions.length > 0 && (
         <section className="cb-panel space-y-5 rounded-lg border p-6">
           <div className="space-y-1">
-            <h2 className="cb-title flex items-center gap-2 text-xl">
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
               <Medal aria-hidden className="size-5" />
               Bonus medals
             </h2>

@@ -32,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   ClanSectionTabs,
   ClanSwitcher,
+  HomeLink,
   type RailClan,
 } from "@/components/clan-nav-rail";
 import { PATHNAME_HEADER } from "@/lib/request-headers";
@@ -187,6 +188,8 @@ export default async function AppLayout({
             </svg>
             <span className="hidden sm:inline">ClanBridge</span>
           </Link>
+
+          {approved && <HomeLink />}
 
           <ClanSwitcher clans={railClans} />
 

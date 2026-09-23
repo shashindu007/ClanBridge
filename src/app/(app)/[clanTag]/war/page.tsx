@@ -191,7 +191,7 @@ export default async function WarBoardPage({
       <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8">
         {header}
         <section className="cb-panel space-y-3 rounded-lg border p-6">
-          <h2 className="cb-title text-xl">No war right now</h2>
+          <h2 className="text-lg font-semibold">No war right now</h2>
           {/* T9.10 — not being at war is the ordinary state, so this says what
               to do rather than apologising for an empty page. */}
           <p className="text-muted-foreground text-sm">
@@ -259,7 +259,7 @@ export default async function WarBoardPage({
                   real timezone rather than the clan default. */}
               <LocalTime iso={preparation ? war.startTime : war.endTime} style="weekday" />
             </p>
-            <h2 className="cb-title text-2xl">
+            <h2 className="text-xl font-semibold">
               {clan.name} <span className="text-muted-foreground font-normal">vs</span>{" "}
               {war.opponentName ?? "unknown opponent"}
             </h2>
@@ -298,7 +298,7 @@ export default async function WarBoardPage({
       {myRecord.length > 0 && (
         <section className="cb-panel space-y-4 rounded-lg border p-6">
           <div className="space-y-1">
-            <h2 className="cb-title text-xl">Your attacks</h2>
+            <h2 className="text-lg font-semibold">Your attacks</h2>
             <p className="text-muted-foreground text-sm">
               {leadership
                 ? "Your own villages in this war."
@@ -381,7 +381,7 @@ export default async function WarBoardPage({
       {!preparation && (
         <section className="cb-panel space-y-4 rounded-lg border p-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="cb-title text-xl">Still to attack</h2>
+            <h2 className="text-lg font-semibold">Still to attack</h2>
             <Badge variant={attacksLeft === 0 ? "success" : "warning"}>
               {attacksLeft === 0 ? "All attacks used" : `${attacksLeft} attack${attacksLeft === 1 ? "" : "s"} left`}
             </Badge>
@@ -413,7 +413,7 @@ export default async function WarBoardPage({
       {/* ── T6.5 — the plan and the outcome, adjacent and never merged ───── */}
       <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="space-y-1">
-          <h2 className="cb-title text-xl">Our lineup: plan and result</h2>
+          <h2 className="text-lg font-semibold">Our lineup: plan and result</h2>
           <p className="text-muted-foreground text-sm">
             <span className="text-foreground font-medium">Target</span> is the base a member
             was told to hit, or claimed. <span className="text-foreground font-medium">Attacked</span>{" "}
@@ -549,7 +549,7 @@ export default async function WarBoardPage({
       {/* ── T6.3 — the other side ─────────────────────────────────────────── */}
       <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="space-y-1">
-          <h2 className="cb-title text-xl">Their bases: {war.opponentName ?? "the opposition"}</h2>
+          <h2 className="text-lg font-semibold">Their bases: {war.opponentName ?? "the opposition"}</h2>
           <p className="text-muted-foreground text-sm">
             <span className="text-foreground font-medium">Free</span> means nobody is assigned
             to it and nobody has attacked it yet.

@@ -264,7 +264,7 @@ export default async function PollDetailPage({
       ) : (
         <section className="cb-panel space-y-4 rounded-lg border p-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="cb-title text-xl">{mine.length > 1 ? "Your answers" : "Your answer"}</h2>
+            <h2 className="text-lg font-semibold">{mine.length > 1 ? "Your answers" : "Your answer"}</h2>
             {allAnswered ? (
               <Badge variant="success">
                 <CheckCircle2 aria-hidden />
@@ -370,7 +370,7 @@ export default async function PollDetailPage({
       {/* ── Results ───────────────────────────────────────────────────────── */}
       <section className="cb-panel space-y-4 rounded-lg border p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="cb-title text-xl">Results so far</h2>
+          <h2 className="text-lg font-semibold">Results so far</h2>
           <span className="text-muted-foreground text-sm tabular-nums">
             {totalVotes} answer{totalVotes === 1 ? "" : "s"}
             {/* Branched like the count beside it. Reachable with one eligible
@@ -417,7 +417,7 @@ export default async function PollDetailPage({
         <div className="grid items-start gap-6 md:grid-cols-2">
           <section className="cb-panel space-y-4 rounded-lg border p-6">
             <div className="space-y-1">
-              <h2 className="cb-title text-xl">
+              <h2 className="text-lg font-semibold">
                 Not answered yet{" "}
                 <span className="text-muted-foreground text-base font-normal tabular-nums">
                   {breakdown.notAnswered.length} of {breakdown.totalEligible}
@@ -464,7 +464,7 @@ export default async function PollDetailPage({
 
           <section className="cb-panel space-y-4 rounded-lg border p-6">
             <div className="space-y-1">
-              <h2 className="cb-title text-xl">Who answered what</h2>
+              <h2 className="text-lg font-semibold">Who answered what</h2>
               <p className="text-muted-foreground text-sm">Grouped by answer. Notes are shown under names.</p>
             </div>
             {breakdown.answered.length === 0 ? (

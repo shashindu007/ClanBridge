@@ -33,7 +33,6 @@ import {
   Megaphone,
   Search,
   Shield,
-  Star,
   Swords,
   Target,
   TrendingUp,
@@ -46,6 +45,7 @@ import {
 } from "lucide-react";
 import { DataFreshness } from "@/components/data-freshness";
 import { GameStat } from "@/components/game-stat";
+import { WarScoreboard } from "@/components/war-scoreboard";
 import { LocalTime } from "@/components/local-time";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -79,56 +79,6 @@ import { outstandingAttacks, warRecord } from "@/services/war";
 import { DISPLAY_ZONE } from "@/lib/display-time";
 
 export const dynamic = "force-dynamic";
-
-/**
- * One side of the war scoreboard.
- *
- * The star count is the headline and says so in words as well as in the
- * number ("12 stars"), so a screen reader hears a score rather than a digit.
- * Destruction is a gauge AND a percentage, never the bar alone.
- */
-function ScoreSide({
-  name,
-  stars,
-  destruction,
-  tone,
-  align = "start",
-}: {
-  name: string;
-  stars: number;
-  destruction: number;
-  tone: string;
-  align?: "start" | "end";
-}) {
-  const end = align === "end";
-  const pct = Math.max(0, Math.min(100, destruction));
-
-  return (
-    <div className={`min-w-0 space-y-2 ${end ? "text-right" : ""}`}>
-      <p className="truncate text-sm font-semibold" title={name}>
-        {name}
-      </p>
-      <p className={`flex items-center gap-1.5 ${end ? "justify-end" : ""}`}>
-        <Star aria-hidden className="fill-trim text-trim-shade size-6 shrink-0 sm:size-7" />
-        <span className="cb-title text-3xl leading-none tabular-nums sm:text-4xl">{stars}</span>
-        <span className="sr-only">stars</span>
-      </p>
-      <div
-        className="cb-gauge h-2.5"
-        role="img"
-        aria-label={`${pct.toFixed(1)}% destruction`}
-        style={{ "--gauge": tone } as React.CSSProperties}
-      >
-        <span
-          style={{ width: `${pct}%`, marginLeft: end ? "auto" : undefined }}
-        />
-      </div>
-      <p className="text-muted-foreground text-xs tabular-nums">
-        {pct.toFixed(1)}% destroyed
-      </p>
-    </div>
-  );
-}
 
 /** One destination in the nav grid. */
 function Go({
@@ -535,13 +485,8 @@ export default async function ClanDashboardPage({
       {/* ── War, live ──────────────────────────────────────────────────────── */}
       <section className="cb-panel space-y-4 rounded-xl border p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="cb-title flex items-center gap-2.5 text-xl">
-            <span
-              className="cb-emblem size-8 rounded-lg"
-              style={{ "--emblem": "var(--primary)" } as React.CSSProperties}
-            >
-              <Swords aria-hidden className="size-4" />
-            </span>
+          <h2 className="flex items-center gap-2.5 text-lg font-semibold">
+            <Swords aria-hidden className="text-muted-foreground size-4.5" />
             War
           </h2>
           {war && warStateBadge(war)}
@@ -566,27 +511,15 @@ export default async function ClanDashboardPage({
                 medallion between them, and destruction as two gauges. The
                 stars are the headline because stars decide a war; percent
                 only breaks a tie. */}
-            <div className="cb-sunken grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-xl p-4 sm:gap-6 sm:p-5">
-              <ScoreSide
-                name={clan.name}
-                stars={war.ourStars ?? 0}
-                destruction={war.ourDestruction ?? 0}
-                tone={accent.color}
-              />
-              <span
-                className="cb-medal size-11 rounded-full sm:size-14"
-                style={{ "--medal": "var(--wood-2)" } as React.CSSProperties}
-              >
-                <span className="cb-btn-face text-base sm:text-lg">VS</span>
-              </span>
-              <ScoreSide
-                name={war.opponentName ?? "Opponent"}
-                stars={war.theirStars ?? 0}
-                destruction={war.theirDestruction ?? 0}
-                tone="var(--foe)"
-                align="end"
-              />
-            </div>
+            <WarScoreboard
+              us={{ name: clan.name, stars: war.ourStars, destruction: war.ourDestruction }}
+              them={{
+                name: war.opponentName,
+                stars: war.theirStars,
+                destruction: war.theirDestruction,
+              }}
+              accent={accent.color}
+            />
 
             {/* THE NUMBER THIS CARD EXISTS FOR. Attacks, not people — a war
                 gives two each, so fifteen members who used one apiece is a
@@ -630,13 +563,8 @@ export default async function ClanDashboardPage({
       {/* ── Announcement ───────────────────────────────────────────────────── */}
       <section className="cb-panel space-y-3 rounded-xl border p-6">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="cb-title flex items-center gap-2.5 text-xl">
-            <span
-              className="cb-emblem size-8 rounded-lg"
-              style={{ "--emblem": "var(--primary)" } as React.CSSProperties}
-            >
-              <Megaphone aria-hidden className="size-4" />
-            </span>
+          <h2 className="flex items-center gap-2.5 text-lg font-semibold">
+            <Megaphone aria-hidden className="text-muted-foreground size-4.5" />
             Latest announcement
           </h2>
           {announcement?.pinned && (
@@ -679,13 +607,8 @@ export default async function ClanDashboardPage({
           is therefore not a missed feature, it is a month that never happened. */}
       <section className="cb-panel space-y-3 rounded-xl border p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="cb-title flex items-center gap-2.5 text-xl">
-            <span
-              className="cb-emblem size-8 rounded-lg"
-              style={{ "--emblem": "var(--primary)" } as React.CSSProperties}
-            >
-              <Trophy aria-hidden className="size-4" />
-            </span>
+          <h2 className="flex items-center gap-2.5 text-lg font-semibold">
+            <Trophy aria-hidden className="text-muted-foreground size-4.5" />
             Clan War League
           </h2>
           {phase === "signup" && (

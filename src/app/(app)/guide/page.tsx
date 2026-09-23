@@ -86,7 +86,7 @@ export default function MemberGuidePage() {
           process becomes a finite one the moment somebody can see how many steps
           are left. */}
       <section className="space-y-5">
-        <h2 className="cb-title text-xl">Getting in, the first time</h2>
+        <h2 className="text-lg font-semibold">Getting in, the first time</h2>
         <p className="text-muted-foreground text-sm">
           Four steps. You need your phone with Clash of Clans on it for step 3.
         </p>
@@ -189,7 +189,7 @@ export default function MemberGuidePage() {
 
       {/* ── Installing ──────────────────────────────────────────────────────── */}
       <section className="space-y-5">
-        <h2 className="cb-title text-xl">Installing it on your phone</h2>
+        <h2 className="text-lg font-semibold">Installing it on your phone</h2>
         <p className="text-muted-foreground text-sm">
           Optional on Android, and required on iPhone if you want notifications.
         </p>
@@ -240,7 +240,7 @@ export default function MemberGuidePage() {
 
       {/* ── Notifications ───────────────────────────────────────────────────── */}
       <section className="space-y-4">
-        <h2 className="cb-title text-xl">Turning on notifications</h2>
+        <h2 className="text-lg font-semibold">Turning on notifications</h2>
         <p className="text-muted-foreground text-sm">
           Go to{" "}
           <Link href="/settings/notifications" className="underline">
@@ -263,7 +263,7 @@ export default function MemberGuidePage() {
 
       {/* ── What it is for ──────────────────────────────────────────────────── */}
       <section className="space-y-4">
-        <h2 className="cb-title text-xl">What this replaces</h2>
+        <h2 className="text-lg font-semibold">What this replaces</h2>
         <ul className="text-muted-foreground list-disc space-y-2 pl-5 text-sm">
           <li>
             <strong>CWL history that used to be lost.</strong> Clash deletes the
@@ -300,7 +300,7 @@ export default function MemberGuidePage() {
           gate-exempt and a member reading it while waiting for approval has no
           clan to link into yet. */}
       <section className="space-y-4">
-        <h2 className="cb-title text-xl">What each page is for</h2>
+        <h2 className="text-lg font-semibold">What each page is for</h2>
         <p className="text-muted-foreground text-sm">
           Everything below sits under whichever clan you are looking at — the
           names on the dark bar at the top. Switch clans there; the same pages

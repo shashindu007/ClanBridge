@@ -399,7 +399,7 @@ export default async function WarLineupPage({
           <input type="hidden" name="clanId" value={clan.id} />
           <input type="hidden" name="action" value="create" />
           <div className="space-y-1">
-            <h2 className="cb-title text-xl">Start a lineup</h2>
+            <h2 className="text-lg font-semibold">Start a lineup</h2>
             <p className="text-muted-foreground text-sm">
               Choose the size you will declare in game. The lineup saves as you go and stays
               private until you publish it.
@@ -473,7 +473,7 @@ export default async function WarLineupPage({
 
           <section className="cb-panel min-w-0 space-y-4 rounded-lg border p-5">
             <div className="space-y-1">
-              <h2 className="cb-title text-xl">Add players</h2>
+              <h2 className="text-lg font-semibold">Add players</h2>
               <p className="text-muted-foreground text-sm">
                 Everyone in {clan.name} not yet in this lineup. Players who said In come
                 first, then the highest Town Hall.

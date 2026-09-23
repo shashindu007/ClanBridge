@@ -15,9 +15,10 @@ import { cn } from "@/lib/utils"
 // four pixels while the `sm` beside it sank two would read as two different
 // controls.
 //
-// T12.8 — the raised variants also wear the display face (.cb-btn-face), the
-// way a game's buttons carry its lettering. Ghost and link do not: they are
-// the quiet options, and a row of them in the display face would shout.
+// T12.10 — buttons are in the BODY face. T12.8 put the display face on them,
+// and with it on titles, numbers and buttons alike nothing stood out; a button
+// has to be read, not admired. The raised plinth is what makes it a game
+// button, and that stays.
 //
 // `--raise-shade` is what each variant contributes; `.cb-raised` reads it. A
 // variant that sets none gets `transparent` and quietly degrades to a flat
@@ -32,16 +33,16 @@ const buttonVariants = cva(
         // sitting over the textured backdrop lets the shield motif show
         // through the face of the button, which looks like a rendering bug.
         default:
-          "cb-raised cb-btn-face [--raise-shade:var(--primary-shade)] bg-primary text-primary-foreground [text-shadow:0_1px_0_oklch(0_0_0/0.3)] hover:brightness-110",
+          "cb-raised [--raise-shade:var(--primary-shade)] bg-primary text-primary-foreground hover:brightness-110",
         destructive:
-          "cb-raised cb-btn-face [--raise-shade:var(--destructive-shade)] bg-destructive text-white [text-shadow:0_1px_0_oklch(0_0_0/0.3)] hover:brightness-110 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
+          "cb-raised [--raise-shade:var(--destructive-shade)] bg-destructive text-white hover:brightness-110 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
         outline:
           // `border-2`-weight without the width: a full-strength border rather
           // than the 60%-opacity default, so the four clan chips on every
           // roster row read as pressable rather than as table decoration.
-          "cb-raised cb-btn-face [--raise-shade:var(--surface-shade)] border border-border bg-card hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "cb-raised [--raise-shade:var(--surface-shade)] border border-border bg-card hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
-          "cb-raised cb-btn-face [--raise-shade:var(--secondary-shade)] bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "cb-raised [--raise-shade:var(--secondary-shade)] bg-secondary text-secondary-foreground hover:bg-secondary/80",
         // No plinth: there is no body to raise. A ghost button is a hover
         // target, and giving it depth at rest would make every toolbar look
         // like a row of solid buttons someone forgot to fill in.

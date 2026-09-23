@@ -35,6 +35,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { House } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { activeNav, CLAN_SECTIONS, currentClanTag, sectionHref } from "@/lib/clan-nav";
 
@@ -55,6 +56,33 @@ export interface RailClan {
 const ACTIVE =
   "bg-accent text-accent-foreground shadow-[inset_0_1px_0_oklch(1_0_0/0.5)] font-medium";
 const IDLE = "text-wood-ink-dim hover:bg-accent hover:text-accent-foreground";
+
+/**
+ * T12.10 — the way back to the home page, as a control that looks like one.
+ *
+ * Home existed from T12.6 and the only way to reach it was the ClanBridge
+ * wordmark, which reads as a logo rather than a button. A member who left the
+ * dashboard could not find their way back — recognition over recall, lost.
+ *
+ * A client component for the same reason as ClanSwitcher below: the layout's
+ * pathname goes stale on a soft navigation, and the lit state must not.
+ */
+export function HomeLink() {
+  const active = usePathname() === "/dashboard";
+  return (
+    <Link
+      href="/dashboard"
+      aria-label="Home"
+      aria-current={active ? "page" : undefined}
+      className={`flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[0.9375rem] transition-colors ${
+        active ? ACTIVE : IDLE
+      }`}
+    >
+      <House aria-hidden className="size-4" />
+      <span className="hidden sm:inline">Home</span>
+    </Link>
+  );
+}
 
 /**
  * The clan switcher.
