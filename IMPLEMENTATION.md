@@ -499,7 +499,7 @@ Never overwrite a plan with the outcome.
 | Prisma | Heavy cold starts on serverless |
 | Vercel Cron | Hobby tier allows daily only; CWL needs 2-hourly |
 | Redis as data cache | The database is the cache |
-| `sharp` | Compress in the browser before upload instead |
+| `sharp` at runtime | Compress in the browser before upload instead. (Allowed as a devDependency for one developer-only step, `npm run game-art`, which resizes the Fan Kit once — see `public/game/README.md`.) |
 | A separate backend service | Route handlers are enough |
 
 ---
