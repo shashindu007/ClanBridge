@@ -1,6 +1,6 @@
 "use client";
 
-// The two nav rows on the wooden rail: the clan menu, and the section tabs.
+// The two nav rows on the night-blue rail: the clan menu, and the section tabs.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // WHY THIS IS A CLIENT COMPONENT IN AN OTHERWISE SERVER-RENDERED APP

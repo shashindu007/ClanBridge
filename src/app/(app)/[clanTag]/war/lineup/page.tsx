@@ -366,7 +366,7 @@ export default async function WarLineupPage({
                 key={l.id}
                 href={`${path}${lineupSearch(current, l.id)}`}
                 aria-current={active ? "page" : undefined}
-                className={`flex min-w-40 flex-col gap-1 rounded-lg border px-4 py-2.5 transition-colors ${
+                className={`flex min-w-40 flex-col gap-1 rounded-control border px-4 py-2.5 transition-colors ${
                   active ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-accent"
                 }`}
               >

@@ -27,7 +27,6 @@ import {
   usernameProblem,
 } from "@/lib/account";
 import { isUniqueViolation, safeMessage } from "@/lib/errors";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,13 +39,7 @@ function fail(message: string): never {
   redirect(`${PATH}?error=${encodeURIComponent(message)}`);
 }
 
-export default async function AccountSetupPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
-  const { error } = await searchParams;
-
+export default async function AccountSetupPage() {
   const supabase = await createClient();
   const userId = await currentUserId(supabase);
   if (!userId) redirect("/login");
@@ -134,14 +127,9 @@ export default async function AccountSetupPage({
         </p>
       </div>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Not saved</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <form action={save} className="space-y-4">
+      {/* No inline "Not saved" Alert: the toast mounted by the (app) layout
+          already shows every ?error=, and the page said it twice. */}
+      <form action={save} className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="space-y-2">
           <Label htmlFor="username">Username</Label>
           <Input

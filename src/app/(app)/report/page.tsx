@@ -49,6 +49,11 @@ import {
   recentSnapshots,
 } from "@/repositories/members";
 import { clanSummaries, participation, type ClanInput } from "@/services/cross-clan";
+import { Activity, Eye, Users } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
+import { Disclosure, EmptyState, FactRow, Panel, SectionHeader } from "@/components/kit";
+import { TownHall } from "@/components/game/town-hall";
+import { clanAccent } from "@/lib/clan-accent";
 
 export const dynamic = "force-dynamic";
 
@@ -72,16 +77,22 @@ export default async function CrossClanReportPage() {
 
   if (clans.length === 0) {
     return (
-      <main className="mx-auto max-w-page space-y-4 p-4 sm:p-6">
-        <h1 className="cb-title text-3xl">Participation</h1>
-        <p className="text-muted-foreground text-sm">
-          {all.length === 0
-            ? // T9.10 — being in no clan yet is not a permission problem, and
-              // saying "not permitted" to someone waiting to be added is both
-              // wrong and discouraging.
-              "You are not in any clan yet, so there is nothing to report on. A leader needs to add you to one."
-            : "This report is for leaders and co-leaders. It lists every member with the reasons they were flagged, which is not a view of your own clan you are meant to have."}
-        </p>
+      <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
+        <PageHeader title="Participation" />
+        <Panel>
+          <EmptyState
+            icon={Activity}
+            title={all.length === 0 ? "You are not in a clan yet" : "For leaders and co-leaders"}
+            body={
+              all.length === 0
+                ? // T9.10 — being in no clan yet is not a permission problem, and
+                  // saying "not permitted" to someone waiting to be added is both
+                  // wrong and discouraging.
+                  "There is nothing to report on until a leader adds you to a clan."
+                : "This report lists every member with the reasons they were flagged, which is not a view of your own clan you are meant to have."
+            }
+          />
+        </Panel>
       </main>
     );
   }
@@ -109,143 +120,151 @@ export default async function CrossClanReportPage() {
 
   const rows = participation(inputs);
   const summaries = clanSummaries(rows);
-  const flaggedCount = rows.filter((r) => r.flags.length > 0).length;
+
+  const flagged = rows.filter((r) => r.flags.length > 0);
+  const others = rows.filter((r) => r.flags.length === 0);
 
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
-      <div className="space-y-2">
-        <h1 className="cb-title text-3xl">Participation</h1>
-        <p className="text-muted-foreground text-sm">
-          Every member of {clans.length === 1 ? "your clan" : `all ${clans.length} clans`}, in
-          one view. Members needing a look are listed first.
-        </p>
-      </div>
+      <PageHeader
+        title="Participation"
+        description={`Every member of ${clans.length === 1 ? "your clan" : `all ${clans.length} clans you help run`}, in one view — the ones worth a look first.`}
+      />
 
       {rows.length === 0 ? (
         // T9.10 — clans exist but no members have synced yet. Day one of a fresh
         // install, and the fix is a sync rather than anything on this page.
-        <section className="cb-panel rounded-panel border p-5">
-          <p className="text-muted-foreground text-sm">
-            No members have been synced yet. Once <code>sync:clans</code> has run,
-            everybody appears here.
-          </p>
-        </section>
+        <Panel>
+          <EmptyState
+            icon={Users}
+            title="No members synced yet"
+            body="Once sync:clans has run, everybody appears here."
+          />
+        </Panel>
       ) : (
         <>
-          <section className="space-y-4">
-            <h2 className="text-lg font-semibold">By clan</h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {/* One line per clan. They were cards of three tiny numbers each,
+              laid out like a dashboard of their own. */}
+          <Panel aria-labelledby="by-clan" className="space-y-3">
+            <SectionHeader id="by-clan" title="By clan" />
+            <ul className="divide-y">
               {summaries.map((clan) => (
-                <div key={clan.clanId} className="space-y-2 rounded-lg border p-4">
+                <li key={clan.clanId} className="flex flex-wrap items-center gap-x-6 gap-y-2 py-2.5 first:pt-0 last:pb-0">
                   <Link
                     href={`/${encodeURIComponent(clan.clanTag)}`}
-                    className="font-medium hover:underline"
+                    className="flex min-w-40 items-center gap-2 font-medium hover:underline"
                   >
+                    <span
+                      aria-hidden
+                      className="size-2.5 rounded-full"
+                      style={{ background: clanAccent(clan.clanId).color }}
+                    />
                     {clan.clanName}
                   </Link>
-                  <dl className="text-muted-foreground space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <dt>Members</dt>
-                      <dd className="text-foreground">{clan.members}</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      {/* Median, not mean. One member donating 40,000 drags a
-                          mean far above what a typical member there is doing,
-                          and the leader reads that as "this clan is fine". */}
-                      <dt>Median ratio</dt>
-                      <dd className="text-foreground">{ratioLabel(clan.medianRatio)}</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt>Needs a look</dt>
-                      <dd className="text-foreground">{clan.needsAttention}</dd>
-                    </div>
-                  </dl>
-                </div>
+                  <FactRow
+                    items={[
+                      { label: "members", value: clan.members },
+                      // Median, not mean. One member donating 40,000 drags a mean
+                      // far above what a typical member there is doing.
+                      { label: "median ratio", value: ratioLabel(clan.medianRatio) },
+                      { label: "worth a look", value: clan.needsAttention },
+                    ]}
+                  />
+                </li>
               ))}
-            </div>
-          </section>
+            </ul>
+          </Panel>
 
-          <section className="space-y-4">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-lg font-semibold">Every member</h2>
-              <p className="text-muted-foreground text-sm">
-                {flaggedCount === 0
-                  ? "Nobody is flagged."
-                  : `${flaggedCount} of ${rows.length} worth a look.`}
-              </p>
-            </div>
+          {/* Flagged members were SORTED first in one long table; now they are
+              their own section, open, and everyone else folds beneath. */}
+          <Disclosure title="Worth a look" icon={Eye} count={flagged.length} defaultOpen>
+            {flagged.length === 0 ? (
+              <p className="text-muted-foreground text-sm">Nobody is flagged.</p>
+            ) : (
+              <MemberTable list={flagged} />
+            )}
+          </Disclosure>
 
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Member</TableHead>
-                    <TableHead>Clan</TableHead>
-                    <TableHead className="text-right">TH</TableHead>
-                    <TableHead className="text-right">Given</TableHead>
-                    <TableHead className="text-right">Ratio</TableHead>
-                    <TableHead>Needs a look</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((row) => (
-                    <TableRow key={row.playerId}>
-                      <TableCell>
-                        <Link
-                          href={`/${encodeURIComponent(row.clanTag)}/player/${encodeURIComponent(row.tag)}`}
-                          className="font-medium hover:underline"
-                        >
-                          {row.name}
-                        </Link>
-                        <span className="text-muted-foreground block font-mono text-xs">
-                          {row.tag}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {row.clanName}
-                      </TableCell>
-                      <TableCell className="text-right text-sm">
-                        {row.thLevel ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-right text-sm">
-                        {/* "—" rather than 0: a member the sync has not reached
-                            has no reading, and a zero there is indistinguishable
-                            from genuinely having donated nothing. */}
-                        {row.activity.donations ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-right text-sm">
-                        {row.activity.lowRatio ? (
-                          <Badge variant="destructive">
-                            {ratioLabel(row.activity.ratio)}
-                          </Badge>
-                        ) : (
-                          ratioLabel(row.activity.ratio)
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {row.flags.length === 0 ? (
-                          <span className="text-muted-foreground text-sm">—</span>
-                        ) : (
-                          // The reasons in full, never a bare score. A leader who
-                          // cannot see why somebody was flagged cannot defend the
-                          // decision to them.
-                          <ul className="space-y-1">
-                            {row.flags.map((flag) => (
-                              <li key={flag} className="text-sm">
-                                {flag}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </section>
+          {others.length > 0 && (
+            <Disclosure title="Everyone else" icon={Users} count={others.length}>
+              <MemberTable list={others} />
+            </Disclosure>
+          )}
         </>
       )}
     </main>
+  );
+}
+
+function MemberTable({ list }: { list: ReturnType<typeof participation> }) {
+  return (
+    <div className="-mx-5 overflow-x-auto px-5">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Member</TableHead>
+            <TableHead>Clan</TableHead>
+            <TableHead className="text-right">TH</TableHead>
+            <TableHead className="text-right">Given</TableHead>
+            <TableHead className="text-right">Ratio</TableHead>
+            <TableHead>Needs a look</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {list.map((row) => (
+            <TableRow key={row.playerId}>
+              <TableCell>
+                <Link
+                  href={`/${encodeURIComponent(row.clanTag)}/player/${encodeURIComponent(row.tag)}`}
+                  className="font-medium hover:underline"
+                >
+                  {row.name}
+                </Link>
+                <span className="text-muted-foreground block font-mono text-xs">
+                  {row.tag}
+                </span>
+              </TableCell>
+              <TableCell className="text-muted-foreground text-sm">
+                {row.clanName}
+              </TableCell>
+              <TableCell className="text-right">
+                <TownHall level={row.thLevel} />
+              </TableCell>
+              <TableCell className="text-right text-sm">
+                {/* "—" rather than 0: a member the sync has not reached
+                    has no reading, and a zero there is indistinguishable
+                    from genuinely having donated nothing. */}
+                {row.activity.donations ?? "—"}
+              </TableCell>
+              <TableCell className="text-right text-sm">
+                {row.activity.lowRatio ? (
+                  <Badge variant="destructive">
+                    {ratioLabel(row.activity.ratio)}
+                  </Badge>
+                ) : (
+                  ratioLabel(row.activity.ratio)
+                )}
+              </TableCell>
+              <TableCell>
+                {row.flags.length === 0 ? (
+                  <span className="text-muted-foreground text-sm">—</span>
+                ) : (
+                  // The reasons in full, never a bare score. A leader who
+                  // cannot see why somebody was flagged cannot defend the
+                  // decision to them.
+                  <ul className="space-y-1">
+                    {row.flags.map((flag) => (
+                      <li key={flag} className="text-sm">
+                        {flag}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

@@ -21,6 +21,7 @@ import { currentUserId } from "@/lib/auth";
 import { PushToggle } from "@/components/push-toggle";
 import { SubmitButton } from "@/components/submit-button";
 import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -127,13 +128,13 @@ export default async function NotificationSettingsPage() {
 
   return (
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
-      <div className="space-y-2">
-        <h1 className="cb-title text-3xl">Notifications</h1>
-        <p className="text-muted-foreground text-sm">
-          Push notifications replace the WhatsApp messages nobody scrolls back
-          through.
-        </p>
-      </div>
+      {/* "Notification settings", not "Notifications": the feed has that name,
+          and two pages with one title is two pages nobody can tell apart. */}
+      <PageHeader
+        back={{ href: "/notifications", label: "Notifications" }}
+        title="Notification settings"
+        description="What reaches this phone as a push. Everything is kept in your Notifications feed either way."
+      />
 
       <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="space-y-1">

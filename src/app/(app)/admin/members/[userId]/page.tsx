@@ -19,8 +19,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect, notFound } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, Castle, Crown, Mail, ShieldAlert, Undo2 } from "lucide-react";
+import { Castle, Crown, Mail, ShieldAlert, Undo2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { currentUserId, isPlatformAdmin } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
@@ -38,7 +37,6 @@ import { sentTo } from "@/repositories/notifications";
 import { SubmitButton } from "@/components/submit-button";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -242,16 +240,11 @@ export default async function AdminAccountPage({
 
   return (
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
-      <Button asChild variant="ghost" size="sm" className="-ml-2">
-        <Link href="/admin/members">
-          <ArrowLeft aria-hidden />
-          All accounts
-        </Link>
-      </Button>
-
+      {/* The shared back link, where this page built its own. The status line
+          stays in the Account section below, where it was said a second time. */}
       <PageHeader
+        back={{ href: "/admin/members", label: "Accounts" }}
         title={account.username ?? account.displayName ?? account.email}
-        description={statusLine(account)}
       />
 
       {account.removedAt && (

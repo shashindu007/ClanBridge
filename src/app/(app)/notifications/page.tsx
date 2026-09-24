@@ -41,6 +41,8 @@ import { SubmitButton } from "@/components/submit-button";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState, Panel } from "@/components/kit";
+import { DISPLAY_ZONE } from "@/lib/display-time";
 
 export const dynamic = "force-dynamic";
 
@@ -108,45 +110,46 @@ export default async function NotificationsPage() {
       <PageHeader
         title="Notifications"
         description="Everything this app has told you, kept. Nothing here depends on your phone having been switched on at the time."
+        actions={
+          // The preferences page, one click away — a member whose feed is
+          // noisy is exactly the member who wants it.
+          <Button asChild size="sm" variant="outline">
+            <Link href="/settings/notifications">
+              <Settings aria-hidden />
+              Notification settings
+            </Link>
+          </Button>
+        }
       />
 
-      <div className="flex flex-wrap items-center gap-3">
-        {unread > 0 && (
-          <>
-            <p className="text-sm font-medium">
-              {unread === 1 ? "1 unread" : `${unread} unread`}
-            </p>
-            <form action={clearAll}>
-              <SubmitButton size="sm" variant="outline" pendingLabel="Clearing">
-                <CheckCheck aria-hidden />
-                Mark all as read
-              </SubmitButton>
-            </form>
-          </>
-        )}
-        {/* The preferences page, which is where the bell used to go. Kept one
-            click away rather than removed — a member whose feed is noisy is
-            exactly the member who wants it. */}
-        <Button asChild size="sm" variant="ghost" className="ml-auto">
-          <Link href="/settings/notifications">
-            <Settings aria-hidden />
-            Settings
-          </Link>
-        </Button>
-      </div>
+      {unread > 0 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <Badge variant="info">{unread === 1 ? "1 unread" : `${unread} unread`}</Badge>
+          <form action={clearAll}>
+            <SubmitButton size="sm" variant="outline" pendingLabel="Clearing">
+              <CheckCheck aria-hidden />
+              Mark all as read
+            </SubmitButton>
+          </form>
+        </div>
+      )}
 
       {feed.length === 0 ? (
-        <div className="rounded-panel border border-dashed p-8 text-center">
-          <BellOff aria-hidden className="text-muted-foreground mx-auto size-6" />
-          <p className="mt-2 text-sm font-medium">Nothing yet</p>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Announcements, war and CWL reminders, and anything a leader sends you
-            directly will appear here.
-          </p>
-        </div>
+        <Panel>
+          <EmptyState
+            icon={BellOff}
+            title="Nothing yet"
+            body="Announcements, war and CWL reminders, and anything a leader sends you directly will appear here."
+          />
+        </Panel>
       ) : (
+        // GROUPED BY DAY: Today, Yesterday, then dates. A flat feed of cards
+        // gave no sense of when anything happened until each timestamp was read.
+        byDay(feed).map(({ day, items }) => (
+        <section key={day} aria-label={day} className="space-y-3">
+        <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{day}</h2>
         <ul className="space-y-3">
-          {feed.map((item) => {
+          {items.map((item) => {
             const { label, Icon } = KINDS[item.kind] ?? GENERIC;
 
             return (
@@ -154,12 +157,12 @@ export default async function NotificationsPage() {
                 key={item.id}
                 // Unread carries the weight, because they are the reason
                 // somebody opened this page.
-                className={`cb-panel space-y-3 rounded-panel border p-5 ${
+                className={`cb-panel space-y-3 rounded-panel border p-4 ${
                   item.readAt ? "" : "border-info/40 shadow-sm"
                 }`}
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-md">
+                  <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-control">
                     <Icon aria-hidden className="size-4" />
                   </span>
                   <div className="min-w-0 flex-1">
@@ -200,7 +203,36 @@ export default async function NotificationsPage() {
             );
           })}
         </ul>
+        </section>
+        ))
       )}
     </main>
   );
+}
+
+/** Today / Yesterday / "Mon 21 Sep", in the clan's display zone, newest first. */
+function byDay<T extends { createdAt: string }>(feed: T[]): Array<{ day: string; items: T[] }> {
+  const key = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: DISPLAY_ZONE });
+  const today = key(new Date());
+  const yesterday = key(new Date(Date.now() - 24 * 60 * 60 * 1000));
+  const groups: Array<{ day: string; items: T[] }> = [];
+  for (const item of feed) {
+    const at = new Date(item.createdAt);
+    const k = key(at);
+    const day =
+      k === today
+        ? "Today"
+        : k === yesterday
+          ? "Yesterday"
+          : at.toLocaleDateString("en-GB", {
+              weekday: "short",
+              day: "numeric",
+              month: "short",
+              timeZone: DISPLAY_ZONE,
+            });
+    const last = groups[groups.length - 1];
+    if (last && last.day === day) last.items.push(item);
+    else groups.push({ day, items: [item] });
+  }
+  return groups;
 }

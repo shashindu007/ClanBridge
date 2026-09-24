@@ -242,7 +242,7 @@ export function Landing({
 
       <main id="main" className="mx-auto max-w-page space-y-20 px-4 py-10 sm:py-16">
         {/* ── Hero ─────────────────────────────────────────────────────── */}
-        <section aria-labelledby="hero-title" className="cb-hero rounded-2xl border">
+        <section aria-labelledby="hero-title" className="cb-hero rounded-hero border">
           <div className="cb-hero-stripe" />
           <div className="space-y-6 px-6 py-12 sm:px-12 sm:py-16">
             <p className="text-primary text-xs font-semibold tracking-wider uppercase">
@@ -258,12 +258,11 @@ export function Landing({
               Wars, league seasons, rosters, polls and notices for every clan in
               the family, in one place that does not get buried in chat.
             </p>
+            {/* One call to action. "I already have an account" beside it was
+                the rail's Sign in again, a few centimetres lower. */}
             <div className="flex flex-wrap gap-3">
-              <Button asChild size="lg">
+              <Button asChild variant="gold" size="cta">
                 <Link href={JOIN_HREF}>Join your clan</Link>
-              </Button>
-              <Button asChild size="lg" variant="outline">
-                <Link href={SIGN_IN_HREF}>I already have an account</Link>
               </Button>
             </div>
           </div>
@@ -273,13 +272,14 @@ export function Landing({
             would be a false claim, and an empty strip is worse than none. */}
         {statItems.length > 0 && (
           <section aria-label="ClanBridge in numbers">
-            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {/* One strip, not four cards of one number each. */}
+            <dl className="cb-panel grid grid-cols-2 divide-x divide-y rounded-panel border sm:grid-cols-4 sm:divide-y-0">
               {statItems.map((item) => (
-                <div key={item.label} className="cb-panel rounded-panel border p-5 text-center">
-                  <dd className="text-3xl font-semibold tabular-nums">
+                <div key={item.label} className="flex flex-col-reverse items-center p-4 text-center">
+                  <dt className="text-muted-foreground mt-1 text-sm">{item.label}</dt>
+                  <dd className="cb-title text-3xl tabular-nums">
                     {numberFormat.format(item.value)}
                   </dd>
-                  <dt className="text-muted-foreground mt-1 text-sm">{item.label}</dt>
                 </div>
               ))}
             </dl>
@@ -296,7 +296,7 @@ export function Landing({
           <ul className="grid gap-4 md:grid-cols-3">
             {PROBLEMS.map(({ Icon, title, body }) => (
               <li key={title} className="cb-panel space-y-3 rounded-panel border p-5">
-                <span className="cb-emblem size-9 rounded-lg" style={{ "--emblem": "var(--warning)" } as React.CSSProperties}>
+                <span className="cb-emblem size-9 rounded-control" style={{ "--emblem": "var(--warning)" } as React.CSSProperties}>
                   <Icon aria-hidden className="size-4.5" />
                 </span>
                 <h3 className="cb-title text-lg">{title}</h3>
@@ -315,7 +315,7 @@ export function Landing({
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {FEATURES.map(({ Icon, title, body }) => (
               <li key={title} className="cb-panel space-y-3 rounded-panel border p-5">
-                <span className="cb-emblem size-9 rounded-lg" style={{ "--emblem": "var(--primary)" } as React.CSSProperties}>
+                <span className="cb-emblem size-9 rounded-control" style={{ "--emblem": "var(--primary)" } as React.CSSProperties}>
                   <Icon aria-hidden className="size-4.5" />
                 </span>
                 <h3 className="cb-title text-lg">{title}</h3>
@@ -344,9 +344,6 @@ export function Landing({
               </li>
             ))}
           </ol>
-          <Button asChild>
-            <Link href={JOIN_HREF}>Start with step one</Link>
-          </Button>
         </Section>
 
         {/* ── Vision ───────────────────────────────────────────────────── */}
@@ -359,7 +356,7 @@ export function Landing({
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {PRINCIPLES.map(({ Icon, title, body }) => (
               <li key={title} className="flex gap-3">
-                <span className="cb-emblem size-9 shrink-0 rounded-lg" style={{ "--emblem": "var(--success)" } as React.CSSProperties}>
+                <span className="cb-emblem size-9 shrink-0 rounded-control" style={{ "--emblem": "var(--success)" } as React.CSSProperties}>
                   <Icon aria-hidden className="size-4.5" />
                 </span>
                 <div className="space-y-1">
@@ -393,7 +390,7 @@ export function Landing({
 
         {/* ── FAQ ─────────────────────────────────────────────────────── */}
         <Section id="faq" eyebrow="Questions" title="Before you sign up">
-          <div className="max-w-3xl divide-y rounded-xl border">
+          <div className="cb-panel max-w-3xl divide-y rounded-panel border">
             {FAQ.map((item) => (
               <details key={item.q} className="group p-5">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-medium [&::-webkit-details-marker]:hidden">
@@ -412,7 +409,7 @@ export function Landing({
         </Section>
 
         {/* ── Final call to action ─────────────────────────────────────── */}
-        <section aria-labelledby="cta-title" className="cb-hero rounded-2xl border px-6 py-12 text-center sm:px-12">
+        <section aria-labelledby="cta-title" className="cb-hero rounded-hero border px-6 py-12 text-center sm:px-12">
           <h2 id="cta-title" className="cb-title text-3xl sm:text-4xl">
             Ready when your clan is.
           </h2>
@@ -420,11 +417,8 @@ export function Landing({
             Create your account, link your village, and your leader does the rest.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Button asChild size="lg">
+            <Button asChild variant="gold" size="cta">
               <Link href={JOIN_HREF}>Join your clan</Link>
-            </Button>
-            <Button asChild size="lg" variant="outline">
-              <Link href={SIGN_IN_HREF}>Sign in</Link>
             </Button>
           </div>
         </section>

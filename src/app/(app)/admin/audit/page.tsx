@@ -26,11 +26,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { auditActorEmails, auditEntriesForClan, describeAudit } from "@/lib/audit";
-import { currentUserId } from "@/lib/auth";
+import { currentUserId, isPlatformAdmin } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
 import { isLeader } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import { DISPLAY_ZONE } from "@/lib/display-time";
+import { AdminNav } from "@/components/admin-nav";
+import { EmptyState, Panel } from "@/components/kit";
+import { PageHeader } from "@/components/page-header";
+import { ScrollText } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -56,25 +60,25 @@ export default async function AdminAuditPage({
   const userId = await currentUserId(supabase);
   if (!userId) redirect("/login");
 
-  const clans = await visibleClans(supabase, userId);
+  const [clans, admin] = await Promise.all([
+    visibleClans(supabase, userId),
+    isPlatformAdmin(supabase, userId),
+  ]);
   const leaderOf = clans.filter((c) => isLeader(c.role));
 
   // Nothing to show, and the reason matters. A co-leader here has not hit a bug.
   if (leaderOf.length === 0) {
     return (
-      <main className="mx-auto max-w-page space-y-4 p-4 sm:p-6">
-        <h1 className="cb-title text-3xl">Audit log</h1>
-        <section className="cb-panel space-y-2 rounded-panel border p-5">
-          <h2 className="text-lg font-semibold">Leaders only</h2>
-          <p className="text-muted-foreground text-sm">
-            The audit log records who changed what, and that includes entries
-            about co-leaders and members. Only a clan&rsquo;s leader can read it,
-            enforced by the database rather than by this page.
-          </p>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/admin">Back to admin</Link>
-          </Button>
-        </section>
+      <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
+        <PageHeader title="Audit log" />
+        <AdminNav current="audit" showFeedback={admin} />
+        <Panel>
+          <EmptyState
+            icon={ScrollText}
+            title="Leaders only"
+            body="The audit log records who changed what, including entries about co-leaders and members. Only a clan's leader can read it, enforced by the database rather than by this page."
+          />
+        </Panel>
       </main>
     );
   }
@@ -98,50 +102,43 @@ export default async function AdminAuditPage({
 
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
-      <div className="space-y-2">
-        <h1 className="cb-title text-3xl">Audit log</h1>
-        <p className="text-muted-foreground text-sm">
-          Who changed what, and when. Nothing here can be edited or removed — an
-          audit log entries can be taken out of is not one (R4).
-        </p>
-      </div>
+      <PageHeader
+        title="Audit log"
+        description="Who changed what, and when. Nothing here can be edited or removed — an audit log entries can be taken out of is not one (R4)."
+      />
+      <AdminNav current="audit" showFeedback={admin} />
 
+      {/* Clan and filter as one kind of chip; they were a row of buttons and a
+          row of underlined words for the same job. */}
       {leaderOf.length > 1 && (
-        <div className="flex flex-wrap gap-2">
+        <nav aria-label="Clan" className="cb-scroll-x flex gap-2">
           {leaderOf.map((clan) => (
             <Button
               key={clan.id}
               asChild
-              size="sm"
+              size="xs"
               variant={clan.id === selected.id ? "default" : "outline"}
             >
-              <Link href={href({ clan: clan.tag })}>{clan.name}</Link>
+              <Link href={href({ clan: clan.tag })} aria-current={clan.id === selected.id ? "page" : undefined}>
+                {clan.name}
+              </Link>
             </Button>
           ))}
-        </div>
+        </nav>
       )}
 
       {entities.length > 1 && (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Filter:</span>
-          <Link
-            href={href({})}
-            className={entity ? "underline underline-offset-2" : "font-medium"}
-          >
-            all
-          </Link>
+        <nav aria-label="Filter by what changed" className="cb-scroll-x flex items-center gap-2">
+          <span className="text-muted-foreground shrink-0 text-sm">Show</span>
+          <Button asChild size="xs" variant={entity ? "outline" : "default"}>
+            <Link href={href({})}>everything</Link>
+          </Button>
           {entities.map((name) => (
-            <Link
-              key={name}
-              href={href({ entity: name })}
-              className={
-                entity === name ? "font-medium" : "underline underline-offset-2"
-              }
-            >
-              {name.replace(/_/g, " ")}
-            </Link>
+            <Button key={name} asChild size="xs" variant={entity === name ? "default" : "outline"}>
+              <Link href={href({ entity: name })}>{name.replace(/_/g, " ")}</Link>
+            </Button>
           ))}
-        </div>
+        </nav>
       )}
 
       {entries.length === 0 ? (
@@ -156,7 +153,7 @@ export default async function AdminAuditPage({
           </p>
         </section>
       ) : (
-        <section className="rounded-lg border">
+        <section className="cb-panel rounded-panel border">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -195,11 +192,8 @@ export default async function AdminAuditPage({
       <p className="text-muted-foreground text-xs">
         Showing the most recent {entries.length} entr{entries.length === 1 ? "y" : "ies"}
         {entity ? ` for ${entity.replace(/_/g, " ")}` : ""}. Sync jobs are not
-        recorded here — they act for no user, and their history is in{" "}
-        <Link className="underline" href="/admin">
-          sync health
-        </Link>
-        .
+        recorded here — they act for no user, and their history is on the
+        Overview tab.
       </p>
     </main>
   );

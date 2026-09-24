@@ -37,23 +37,19 @@ import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Panel, SectionHeader } from "@/components/kit";
+import { FactRow, Panel, SectionHeader } from "@/components/kit";
+import { AdminNav } from "@/components/admin-nav";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
 import {
-  ArrowRight,
   Castle,
   CheckCircle2,
   CircleAlert,
   History,
-  MessageSquareHeart,
   Plus,
   RefreshCw,
-  ScrollText,
   TriangleAlert,
-  UserCheck,
   Wrench,
-  type LucideIcon,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -336,39 +332,16 @@ export default async function AdminPage({
   const HISTORY_FIRST = 10;
   const shownRuns = allHistory ? runs : runs.slice(0, HISTORY_FIRST);
 
-  // Only the cards this person can use, and a grid as wide as there are cards —
-  // three cards in two columns left a hole the size of a card.
-  const links = [
-    {
-      href: "/admin/members",
-      icon: UserCheck,
-      title: "Accounts",
-      description: "Approve people, set roles, remove access.",
-    },
-    ...(admin
-      ? [
-          {
-            href: "/admin/feedback",
-            icon: MessageSquareHeart,
-            title: "Feedback",
-            description: "Read it, choose what the home page shows.",
-          },
-        ]
-      : []),
-    {
-      href: "/admin/audit",
-      icon: ScrollText,
-      title: "Audit log",
-      description: "Who changed what, and when.",
-    },
-  ];
-
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <PageHeader
         title="Admin"
         description="Set up clans, keep game data syncing, and review accounts and changes."
       />
+      {/* The admin pages' own tab row. It replaces three link cards that were
+          the ONLY way between these pages — from Accounts, the audit log was the
+          browser's Back button away. */}
+      <AdminNav current="overview" showFeedback={admin} />
 
       {/* Errors and "sync requested" come through the toast (lib/feedback.ts),
           which every page shares — the page no longer repeats them inline. */}
@@ -387,42 +360,37 @@ export default async function AdminPage({
         </Panel>
       )}
 
-      {/* ── At a glance ─────────────────────────────────────────────────── */}
-      <section aria-label="At a glance" className="grid gap-3 sm:grid-cols-3">
-        <GlanceCard
-          icon={Castle}
-          label="Clans"
-          value={String(clanRows.length)}
-          hint={clanRows.length === 0 ? "Add your first clan below" : "on this platform"}
+      {/* ── At a glance, in one line ────────────────────────────────────────
+          Three big cards were two numbers and a word, and the first — how many
+          clans — is the count on the Clans heading further down. Sync health is
+          a STATUS, so it is a status badge with an icon and words; the last run
+          is a fact beside it. */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+        {failed.length > 0 ? (
+          <Link href="#sync-problems">
+            <Badge variant="destructive">
+              <TriangleAlert aria-hidden />
+              {failed.length} failed in the last {runs.length} runs —{" "}
+              {problems.length} {problems.length === 1 ? "problem" : "problems"}
+            </Badge>
+          </Link>
+        ) : (
+          <Badge variant={runs.length === 0 ? "secondary" : "success"}>
+            <CheckCircle2 aria-hidden />
+            {runs.length === 0 ? "Sync not started" : `Sync healthy · last ${runs.length} runs`}
+          </Badge>
+        )}
+        <FactRow
+          items={[
+            {
+              label: lastRun ? `· last sync, ${jobLabel(lastRun.jobType)}` : "· no job has run yet",
+              value: lastRunMinutes === null ? "Never" : ago(lastRunMinutes),
+              icon: RefreshCw,
+              title: "Last sync",
+            },
+          ]}
         />
-        <GlanceCard
-          icon={failed.length > 0 ? TriangleAlert : CheckCircle2}
-          tone={failed.length > 0 ? "text-destructive" : "text-success"}
-          label="Sync health"
-          value={failed.length > 0 ? `${failed.length} failed` : runs.length === 0 ? "Not started" : "Healthy"}
-          hint={
-            failed.length > 0
-              ? `${problems.length} ${problems.length === 1 ? "problem" : "problems"} in the last ${runs.length} runs`
-              : `in the last ${runs.length} runs`
-          }
-          href={failed.length > 0 ? "#sync-problems" : undefined}
-        />
-        <GlanceCard
-          icon={RefreshCw}
-          label="Last sync"
-          value={lastRunMinutes === null ? "Never" : ago(lastRunMinutes)}
-          hint={lastRun ? jobLabel(lastRun.jobType) : "No job has run yet"}
-        />
-      </section>
-
-      <nav
-        aria-label="Admin pages"
-        className={`grid gap-3 ${links.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}
-      >
-        {links.map((link) => (
-          <LinkCard key={link.href} {...link} />
-        ))}
-      </nav>
+      </div>
 
       {/* ── Sync problems: one row per PROBLEM, not per failed run ─────────── */}
       {problems.length > 0 && (
@@ -440,7 +408,7 @@ export default async function AdminPage({
                 key={`${problem.jobType}-${problem.clanId ?? "all"}-${problem.error}`}
                 className="flex items-start gap-3 py-3 first:pt-0 last:pb-0"
               >
-                <span className="cb-emblem size-9 shrink-0 rounded-lg" style={{ "--emblem": "var(--destructive)" } as React.CSSProperties}>
+                <span className="cb-emblem size-9 shrink-0 rounded-control" style={{ "--emblem": "var(--destructive)" } as React.CSSProperties}>
                   <TriangleAlert aria-hidden className="size-4.5" />
                 </span>
                 <div className="min-w-0 flex-1 space-y-1">
@@ -634,71 +602,5 @@ export default async function AdminPage({
         )}
       </Panel>
     </main>
-  );
-}
-
-function GlanceCard({
-  icon: Icon,
-  tone = "text-muted-foreground",
-  label,
-  value,
-  hint,
-  href,
-}: {
-  icon: LucideIcon;
-  tone?: string;
-  label: string;
-  value: string;
-  hint: string;
-  href?: string;
-}) {
-  const body = (
-    <>
-      <div className="text-muted-foreground flex items-center justify-between gap-2 text-xs font-medium tracking-wide uppercase">
-        {label}
-        <Icon aria-hidden className={`size-5 ${tone}`} />
-      </div>
-      <p className="cb-title text-2xl">{value}</p>
-      <p className="text-muted-foreground text-xs">{hint}</p>
-    </>
-  );
-  return href ? (
-    <Link href={href} className="cb-panel hover:bg-accent/40 block space-y-1 rounded-panel border p-5 transition-colors">
-      {body}
-    </Link>
-  ) : (
-    <Panel as="div" className="space-y-1">
-      {body}
-    </Panel>
-  );
-}
-
-function LinkCard({
-  href,
-  icon: Icon,
-  title,
-  description,
-}: {
-  href: string;
-  icon: LucideIcon;
-  title: string;
-  description: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="cb-panel hover:bg-accent hover:text-accent-foreground group flex items-center gap-3 rounded-panel border p-4 transition-colors"
-    >
-      <span className="bg-muted text-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
-        <Icon aria-hidden className="size-4.5" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block font-medium">{title}</span>
-        <span className="text-muted-foreground group-hover:text-accent-foreground/80 block truncate text-sm">
-          {description}
-        </span>
-      </span>
-      <ArrowRight aria-hidden className="text-muted-foreground size-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
-    </Link>
   );
 }

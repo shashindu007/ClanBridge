@@ -50,7 +50,7 @@ export default async function AppNotFound() {
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
       <div className="cb-panel space-y-4 rounded-panel border p-5 sm:p-8">
         <span
-          className="cb-emblem size-11 rounded-xl"
+          className="cb-emblem size-11 rounded-control"
           style={{ "--emblem": "var(--primary)" } as React.CSSProperties}
         >
           <Compass aria-hidden className="size-5" />

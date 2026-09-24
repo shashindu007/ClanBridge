@@ -29,8 +29,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-/** Which door is showing. `sent` is the confirmation panel after a link goes out. */
-type Mode = "signin" | "signup" | "sent";
+/**
+ * Which door is showing. `sent` is the confirmation panel after a link goes out.
+ *
+ * `reset` is its own mode although it sends the same link as `signup`. It used
+ * to BE signup: "Forgotten your password?" switched to the new-member form, and
+ * a returning member who had only forgotten a password was greeted with "New
+ * here?" — told, in effect, that they did not have an account.
+ */
+type Mode = "signin" | "signup" | "reset" | "sent";
 
 function LoginForm() {
   const params = useSearchParams();
@@ -152,7 +159,7 @@ function LoginForm() {
         {/* The mark, the same shield the app shell and the page backdrop use.
             The sign-in screen carried no branding at all beyond the word. */}
         <div
-          className="cb-emblem text-primary size-11 rounded-xl"
+          className="cb-emblem text-primary size-11 rounded-control"
           style={{ "--emblem": "var(--primary)" } as React.CSSProperties}
         >
           <svg
@@ -173,7 +180,9 @@ function LoginForm() {
         <p className="text-muted-foreground text-sm">
           {mode === "signin"
             ? "Sign in with your email and password."
-            : "New here? Give us your email and we will send you a link. You choose a password once you are in."}
+            : mode === "reset"
+              ? "Forgotten your password? Enter your email and we will send you a sign-in link. You can set a new password once you are in."
+              : "New here? Give us your email and we will send you a link. You choose a password once you are in."}
         </p>
       </div>
 
@@ -226,7 +235,7 @@ function LoginForm() {
           </Alert>
         )}
 
-        <Button type="submit" className="w-full" disabled={busy}>
+        <Button type="submit" variant="gold" className="w-full" disabled={busy}>
           {mode === "signin"
             ? busy
               ? "Signing in…"
@@ -258,7 +267,7 @@ function LoginForm() {
           <button
             type="button"
             className="text-muted-foreground text-xs underline"
-            onClick={() => switchTo("signup")}
+            onClick={() => switchTo("reset")}
             disabled={busy}
           >
             Forgotten your password? Get a sign-in link instead.

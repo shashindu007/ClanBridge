@@ -128,7 +128,7 @@ export default async function FeedbackPage() {
       {mine.length > 0 && (
         <section aria-labelledby="mine-title" className="space-y-3">
           <h2 id="mine-title" className="text-lg font-semibold">What you have sent</h2>
-          <ul className="divide-y rounded-lg border">
+          <ul className="cb-panel divide-y rounded-panel border">
             {mine.map((item) => (
               <li key={item.id} className="space-y-1.5 p-4">
                 <div className="flex flex-wrap items-center gap-2">

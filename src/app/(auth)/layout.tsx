@@ -28,7 +28,7 @@ export default function AuthLayout({
   // The panel is the whole visual change here, and /login is the page it
   // matters most on: it is the first thing anybody sees and it was a column of
   // form fields floating on a flat page. On the textured backdrop it now reads
-  // as a sheet of parchment sitting on a table.
+  // as a card resting on the page.
   //
   // Still synchronous. Nothing above is a data call and nothing below is
   // either — see the comment above on why that is worth protecting.

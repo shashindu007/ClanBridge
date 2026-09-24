@@ -56,7 +56,7 @@ export default function AppError({
         {/* --destructive, and it is the correct reserved meaning here: this is
             the "something is broken" case the palette reserves red for. */}
         <span
-          className="cb-emblem size-11 rounded-xl"
+          className="cb-emblem size-11 rounded-control"
           style={{ "--emblem": "var(--destructive)" } as React.CSSProperties}
         >
           <TriangleAlert aria-hidden className="size-5" />

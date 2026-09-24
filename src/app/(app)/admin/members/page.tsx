@@ -36,6 +36,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AdminNav } from "@/components/admin-nav";
 
 export const dynamic = "force-dynamic";
 
@@ -127,12 +128,16 @@ export default async function AdminAccountsPage({
         title="Accounts"
         description="Everyone who has signed up, whether they are waiting, active or removed. Open one to change their clan role, message them, or take their access away."
       />
+      <AdminNav
+        current="accounts"
+        showFeedback={accounts.some((a) => a.id === userId && a.isPlatformAdmin)}
+      />
 
       {/* Errors and confirmations come through the shared toast
           (lib/feedback.ts), so this page does not repeat them inline. */}
 
       {waiting.length > 0 && (
-        <div className="bg-muted/50 flex items-center gap-3 rounded-lg border p-4">
+        <div className="bg-muted/50 flex items-center gap-3 rounded-panel border p-4">
           <UserCheck aria-hidden className="size-5 shrink-0" />
           <p className="text-sm">
             <strong>
@@ -184,14 +189,14 @@ export default async function AdminAccountsPage({
           </p>
         </div>
       ) : (
-        <ul className="divide-y rounded-lg border">
+        <ul className="cb-panel divide-y rounded-panel border">
           {accounts.map((account) => (
             <li key={account.id} className="flex flex-wrap items-center gap-3 p-4">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <Link
                     href={`/admin/members/${account.id}`}
-                    className="truncate text-sm font-medium hover:underline"
+                    className="text-primary truncate text-sm font-medium hover:underline"
                   >
                     {account.username ?? account.displayName ?? account.email}
                   </Link>
@@ -239,12 +244,9 @@ export default async function AdminAccountsPage({
                     </form>
                   </>
                 )}
-                <Button asChild size="sm" variant="ghost">
-                  <Link href={`/admin/members/${account.id}`}>
-                    Open
-                    <ArrowRight aria-hidden />
-                  </Link>
-                </Button>
+                {/* No "Open" button: the name is the link, and a second link to
+                    the same account on every row was one more thing to read. */}
+                <ArrowRight aria-hidden className="text-muted-foreground size-4 self-center" />
               </div>
             </li>
           ))}

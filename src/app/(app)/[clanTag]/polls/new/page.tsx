@@ -180,7 +180,7 @@ export default async function CreatePollPage({
                 key={t}
                 href={`${back}/new?type=${t}`}
                 aria-current={active ? "page" : undefined}
-                className={`flex flex-col gap-2 rounded-lg border-2 p-4 transition-colors ${
+                className={`flex flex-col gap-2 rounded-panel border-2 p-4 transition-colors ${
                   active ? "border-primary bg-accent" : "bg-card hover:bg-accent/50"
                 }`}
               >

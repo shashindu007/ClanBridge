@@ -375,7 +375,7 @@ export default async function RosterBuilderPage({
                 key={roster.id}
                 href={`${base}${builderSearch(current, { clan: clan.tag })}`}
                 aria-current={active ? "page" : undefined}
-                className={`flex min-w-40 flex-col gap-1 rounded-lg border px-4 py-2.5 text-left transition-colors ${
+                className={`flex min-w-40 flex-col gap-1 rounded-control border px-4 py-2.5 text-left transition-colors ${
                   active
                     ? "border-primary bg-primary text-primary-foreground"
                     : "bg-card hover:bg-accent"

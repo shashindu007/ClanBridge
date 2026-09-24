@@ -112,7 +112,7 @@ export function Toaster() {
         <div
           role={kind === "error" ? "alert" : "status"}
           className={
-            "cb-panel pointer-events-auto flex max-w-sm items-start gap-3 rounded-lg border p-4 shadow-lg " +
+            "cb-popover pointer-events-auto flex max-w-sm items-start gap-3 rounded-panel p-4 " +
             // The reserved status palette, and an icon AND a word beside the
             // colour — globals.css requires that of every status colour in this
             // product, because one in eight men reads red and green alike.

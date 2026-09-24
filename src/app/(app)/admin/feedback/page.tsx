@@ -16,6 +16,9 @@ import { SubmitButton } from "@/components/submit-button";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AdminNav } from "@/components/admin-nav";
+import { EmptyState, Panel } from "@/components/kit";
+import { MessageSquareHeart } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -78,13 +81,18 @@ export default async function AdminFeedbackPage() {
         title="Feedback"
         description="Approve what may appear on the public home page. Approved quotes show the member's username and clan — never their email."
       />
+      <AdminNav current="feedback" showFeedback />
 
       {items.length === 0 ? (
-        <p className="text-muted-foreground rounded-panel border border-dashed p-6 text-center text-sm">
-          No feedback yet. Members send it from the Feedback page.
-        </p>
+        <Panel>
+          <EmptyState
+            icon={MessageSquareHeart}
+            title="No feedback yet"
+            body="Members send it from the Feedback page in the account menu."
+          />
+        </Panel>
       ) : (
-        <ul className="divide-y rounded-lg border">
+        <ul className="cb-panel divide-y rounded-panel border">
           {items.map((item) => (
             <li key={item.id} className="space-y-3 p-4">
               <div className="flex flex-wrap items-center gap-2">

@@ -324,7 +324,7 @@ export default async function PollDetailPage({
                     {options.map((option) => (
                       <label
                         key={option.id}
-                        className="has-checked:border-primary has-checked:bg-accent has-checked:ring-primary/30 flex cursor-pointer items-center gap-3 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-colors has-checked:ring-2 hover:bg-accent/50"
+                        className="has-checked:border-primary has-checked:bg-accent has-checked:ring-primary/30 flex cursor-pointer items-center gap-3 rounded-control border-2 px-4 py-3 text-sm font-medium transition-colors has-checked:ring-2 hover:bg-accent/50"
                       >
                         <input
                           type="radio"

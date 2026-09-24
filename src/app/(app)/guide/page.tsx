@@ -11,13 +11,21 @@
 // the moment it matters, because before installation the APIs are simply absent,
 // so it has to be written down somewhere and linked to.
 //
-// Static and gate-exempt (lib/gate.ts): a member stuck at "pending" is exactly
-// who needs to read the approval section, and putting it behind the gate would
-// hide the explanation from the only people asking for it.
+// Gate-exempt (lib/gate.ts): a member stuck at "pending" is exactly who needs to
+// read the approval section, and putting it behind the gate would hide the
+// explanation from the only people asking for it.
+//
+// THE PAGE MAP LINKS, for anyone with a clan. It was a list of names — a map
+// you could read and not use — because the page is gate-exempt and a pending
+// member has no clan to link into. Both are true: with a clan, every entry
+// opens that page in your first clan; without one, it stays a list.
 
 import Link from "next/link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { cardLabelOf, cardsInGroup, CLAN_GROUPS } from "@/lib/clan-nav";
+import { cardLabelOf, cardsInGroup, CLAN_GROUPS, sectionHref } from "@/lib/clan-nav";
+import { createClient } from "@/lib/supabase/server";
+import { currentUserId } from "@/lib/auth";
+import { visibleClans } from "@/lib/clans";
 
 export const metadata = {
   title: "Guide — ClanBridge",
@@ -45,7 +53,12 @@ function Step({
   );
 }
 
-export default function MemberGuidePage() {
+export default async function MemberGuidePage() {
+  const supabase = await createClient();
+  const userId = await currentUserId(supabase);
+  const firstClan = userId ? ((await visibleClans(supabase, userId))[0] ?? null) : null;
+  const clanBase = firstClan ? `/${encodeURIComponent(firstClan.tag)}` : null;
+
   return (
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
       <div className="space-y-2">
@@ -303,8 +316,9 @@ export default function MemberGuidePage() {
         <h2 className="text-lg font-semibold">What each page is for</h2>
         <p className="text-muted-foreground text-sm">
           Everything below sits under whichever clan you are looking at — the
-          names on the dark bar at the top. Switch clans there; the same pages
-          follow.
+          Clans menu on the bar at the top. Switch clans there; the same pages
+          follow, as the row of tabs under the bar.
+          {firstClan && ` Each name below opens it in ${firstClan.name}.`}
         </p>
 
         <div className="space-y-5">
@@ -312,7 +326,7 @@ export default function MemberGuidePage() {
             <div key={group.id} className="space-y-2">
               <h3 className="font-medium">{group.label}</h3>
               <p className="text-muted-foreground text-sm">{group.blurb}</p>
-              <dl className="divide-border divide-y rounded-lg border">
+              <dl className="cb-panel divide-border divide-y rounded-panel border">
                 {cardsInGroup(group.id).map((section) => (
                   <div
                     key={section.path}
@@ -323,7 +337,16 @@ export default function MemberGuidePage() {
                         aria-hidden
                         className="text-muted-foreground size-3.5 shrink-0"
                       />
-                      {cardLabelOf(section)}
+                      {clanBase ? (
+                        <Link
+                          href={sectionHref(clanBase, section)}
+                          className="text-primary underline-offset-2 hover:underline"
+                        >
+                          {cardLabelOf(section)}
+                        </Link>
+                      ) : (
+                        cardLabelOf(section)
+                      )}
                     </dt>
                     <dd className="text-muted-foreground text-sm">
                       {section.hint}
