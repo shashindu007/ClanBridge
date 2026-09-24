@@ -27,9 +27,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { ArrowRight, CalendarPlus } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { ArrowRight, CalendarPlus, ClipboardList, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState, Panel, SectionHeader, Tile } from "@/components/kit";
+import { Ribbon } from "@/components/game/ribbon";
+import { clanAccent } from "@/lib/clan-accent";
 import { SubmitButton } from "@/components/submit-button";
 import { LineupStatus, SlotMeter } from "@/components/lineup-parts";
 import { currentUserId } from "@/lib/auth";
@@ -121,75 +124,87 @@ export default async function RosterSeasonsPage() {
 
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
-      <div className="space-y-1">
-        <h1 className="cb-title text-3xl">CWL lineups</h1>
-        <p className="text-muted-foreground text-sm">
-          Choose who plays Clan War League for each clan, then publish the lineup so
-          that clan&apos;s members can see it. Every season is kept.
-        </p>
-      </div>
+      <PageHeader
+        title="CWL lineups"
+        description="Choose who plays Clan War League for each clan, then publish the lineup so that clan's members can see it. Every season is kept."
+      />
 
       {leads.length === 0 && (
-        <section className="cb-panel space-y-3 rounded-panel border p-5">
-          <h2 className="font-medium">Lineups are picked by leaders</h2>
-          <p className="text-muted-foreground text-sm">
-            Once your leader publishes a lineup, you can see it on your clan&apos;s CWL
-            page.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {clans.map((clan) => (
-              <Button key={clan.id} asChild variant="outline" size="sm">
-                <Link href={`/${encodeURIComponent(clan.tag)}/cwl/roster`}>{clan.name} lineup</Link>
-              </Button>
-            ))}
-          </div>
-        </section>
+        <Panel>
+          <EmptyState
+            icon={ClipboardList}
+            title="Lineups are picked by leaders"
+            body="Once your leader publishes a lineup, you can see it on your clan's CWL page."
+            action={
+              <div className="flex flex-wrap justify-center gap-2">
+                {clans.map((clan) => (
+                  <Button key={clan.id} asChild variant="outline" size="sm">
+                    <Link href={`/${encodeURIComponent(clan.tag)}/cwl/roster`}>{clan.name} lineup</Link>
+                  </Button>
+                ))}
+              </div>
+            }
+          />
+        </Panel>
       )}
 
-      {open.map(({ season, rosters }) => {
+      {open.map(({ season, rosters }, i) => {
         const published = rosters.filter((r) => r.status === "published").length;
         return (
-          <section key={season} className="cb-panel space-y-5 rounded-panel border p-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+          <Tile
+            as="section"
+            key={season}
+            accent="var(--ribbon-cwl)"
+            ribbon={
+              <Ribbon tone={season === thisMonth ? "cwl" : "neutral"} icon={Trophy}>
+                {season === thisMonth ? "This month" : "Upcoming"}
+              </Ribbon>
+            }
+            className="space-y-5"
+          >
+            <div className="flex flex-wrap items-end justify-between gap-3 pr-24">
               <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-xl font-semibold">{seasonLabel(season)}</h2>
-                  <Badge variant={season === thisMonth ? "info" : "secondary"}>
-                    {season === thisMonth ? "This month" : "Upcoming"}
-                  </Badge>
-                </div>
+                <h2 className="cb-title text-2xl">{seasonLabel(season)}</h2>
                 <p className="text-muted-foreground text-sm">{publishedSummary(published, rosters.length)}</p>
               </div>
-              {leads.length > 0 && (
-                <Button asChild>
-                  <Link href={`/roster/${season}`}>
-                    Continue picking
-                    <ArrowRight aria-hidden />
-                  </Link>
-                </Button>
-              )}
             </div>
 
             <ul className="grid gap-3 sm:grid-cols-2">
               {rosters.map((r) => (
-                <li key={r.id} className="bg-card space-y-3 rounded-panel border p-4">
+                <li key={r.id} className="cb-sunken space-y-3 rounded-panel p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium">{clanById.get(r.clanId)?.name}</span>
+                    <span className="flex items-center gap-2 font-medium">
+                      <span
+                        aria-hidden
+                        className="size-2.5 rounded-full"
+                        style={{ background: clanAccent(r.clanId).color }}
+                      />
+                      {clanById.get(r.clanId)?.name}
+                    </span>
                     <LineupStatus status={r.status} />
                   </div>
                   <SlotMeter filled={filled.get(r.id) ?? 0} slots={r.slotCount} />
                 </li>
               ))}
             </ul>
-          </section>
+
+            {leads.length > 0 && (
+              <Button asChild variant={i === 0 ? "gold" : "outline"} size={i === 0 ? "cta" : "default"}>
+                <Link href={`/roster/${season}`}>
+                  Continue picking
+                  <ArrowRight aria-hidden />
+                </Link>
+              </Button>
+            )}
+          </Tile>
         );
       })}
 
       {canStart.length > 0 && (
         <form action={startSeason} className="cb-panel space-y-4 rounded-panel border border-dashed p-5">
           <div className="space-y-1">
-            <h2 className="flex items-center gap-2 font-medium">
-              <CalendarPlus aria-hidden className="size-5" />
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
+              <CalendarPlus aria-hidden className="text-muted-foreground size-5" />
               {open.length === 0 ? "Start this season's lineups" : "Start another season"}
             </h2>
             <p className="text-muted-foreground text-sm">
@@ -219,8 +234,8 @@ export default async function RosterSeasonsPage() {
         </form>
       )}
 
-      <section className="space-y-3">
-        <h2 className="font-medium">Past seasons</h2>
+      <section className="space-y-3" aria-labelledby="past-title">
+        <SectionHeader id="past-title" title="Past seasons" count={past.length} />
         {past.length === 0 ? (
           <p className="text-muted-foreground text-sm">
             {seasons.length === 0

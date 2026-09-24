@@ -35,10 +35,11 @@
 //     rather than an empty builder telling them to run a sync.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { PageHeader } from "@/components/page-header";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { ArrowLeft, CircleAlert } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -195,7 +196,7 @@ export default async function RosterBuilderPage({
     const visible = rosters.filter((r) => r.status === "published").sort(byClanName);
     return (
       <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
-        <PageHeader title={title} />
+        <RosterHeader title={title} />
         <Alert variant="info">
           <CircleAlert aria-hidden />
           <AlertTitle>Only leaders and co-leaders pick lineups</AlertTitle>
@@ -315,7 +316,7 @@ export default async function RosterBuilderPage({
 
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
-      <PageHeader title={title} />
+      <RosterHeader title={title} />
 
       <HowItWorks open={nobodyPickedYet}>
         <Step n={1} title="Check who is available">
@@ -567,21 +568,17 @@ export default async function RosterBuilderPage({
   );
 }
 
-function PageHeader({ title }: { title: string }) {
+/**
+ * The builder's header. It used to be a local component ALSO called
+ * PageHeader, shadowing the shared one with a hand-built copy of it; now it is
+ * the shared one, with the back link it always had.
+ */
+function RosterHeader({ title }: { title: string }) {
   return (
-    <div className="space-y-3">
-      <Button asChild variant="ghost" size="xs" className="-ml-2">
-        <Link href="/roster">
-          <ArrowLeft aria-hidden className="size-4" />
-          All CWL seasons
-        </Link>
-      </Button>
-      <div className="space-y-1">
-        <h1 className="cb-title text-3xl">CWL lineups · {title}</h1>
-        <p className="text-muted-foreground text-sm">
-          Pick who plays Clan War League for each clan this season.
-        </p>
-      </div>
-    </div>
+    <PageHeader
+      back={{ href: "/roster", label: "All CWL seasons" }}
+      title={`CWL lineups · ${title}`}
+      description="Pick who plays Clan War League for each clan this season."
+    />
   );
 }

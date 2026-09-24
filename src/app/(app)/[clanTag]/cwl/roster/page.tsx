@@ -10,8 +10,12 @@
 // says so honestly.
 
 import Link from "next/link";
+import { ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState, Panel, SectionHeader } from "@/components/kit";
+import { TownHall } from "@/components/game/town-hall";
 import { requireClanByTag } from "@/lib/clans";
 import { isLeadership } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
@@ -52,48 +56,48 @@ export default async function PublishedRosterPage({
 
   return (
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
-      <div className="space-y-2">
-        <h1 className="cb-title text-3xl">CWL lineup</h1>
-        <p className="text-muted-foreground text-sm">
-          {clan.name} — season {season} ·{" "}
-          <Link className="underline" href={`/${encodeURIComponent(clan.tag)}/cwl`}>
-            CWL results
-          </Link>
-        </p>
-      </div>
+      {/* "CWL results" used to sit here as a link: it is the Seasons tab one
+          row up. */}
+      <PageHeader
+        eyebrow={clan.name}
+        title="CWL lineup"
+        description={`Who your leader picked for season ${season}. Read-only; it appears once it is published.`}
+      />
 
       {seasons.length > 1 && (
-        <nav className="flex flex-wrap gap-2">
+        <nav aria-label="Choose a season" className="cb-scroll-x flex gap-2">
           {seasons.map((s) => (
-            <Button key={s} asChild size="sm" variant={s === season ? "default" : "outline"}>
-              <Link href={`${base}?season=${encodeURIComponent(s)}`}>{s}</Link>
+            <Button key={s} asChild size="xs" variant={s === season ? "default" : "outline"}>
+              <Link
+                href={`${base}?season=${encodeURIComponent(s)}`}
+                aria-current={s === season ? "page" : undefined}
+              >
+                {s}
+              </Link>
             </Button>
           ))}
         </nav>
       )}
 
       {!roster ? (
-        <section className="cb-panel space-y-3 rounded-panel border p-5">
-          <h2 className="font-medium">Nothing published for {season}</h2>
-          <p className="text-muted-foreground text-sm">
-            The lineup appears here once your leader publishes it. If they are still
-            deciding, it is deliberately not visible yet.
-          </p>
-          {isLeadership(clan.role) && (
-            <Button asChild size="sm">
-              <Link href={`/roster/${encodeURIComponent(season)}`}>Build the roster</Link>
-            </Button>
-          )}
-        </section>
+        <Panel>
+          <EmptyState
+            icon={ClipboardList}
+            title={`Nothing published for ${season}`}
+            body="The lineup appears here once your leader publishes it. If they are still deciding, it is deliberately not visible yet."
+            action={
+              isLeadership(clan.role) ? (
+                <Button asChild variant="gold">
+                  <Link href={`/roster/${encodeURIComponent(season)}`}>Build the lineup</Link>
+                </Button>
+              ) : undefined
+            }
+          />
+        </Panel>
       ) : (
-        <section className="cb-panel space-y-4 rounded-panel border p-5">
+        <Panel className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-medium">
-              Selected{" "}
-              <span className="text-muted-foreground font-normal tabular-nums">
-                ({members.length} of {roster.slotCount})
-              </span>
-            </h2>
+            <SectionHeader title={`Selected · ${members.length} of ${roster.slotCount}`} />
             {roster.publishedAt && (
               <Badge variant="secondary">published {when(roster.publishedAt)}</Badge>
             )}
@@ -117,9 +121,7 @@ export default async function PublishedRosterPage({
                   >
                     {m.name}
                   </Link>
-                  <span className="text-muted-foreground text-sm tabular-nums">
-                    TH{m.thLevel ?? "—"}
-                  </span>
+                  <TownHall level={m.thLevel} />
                   <span className="text-muted-foreground font-mono text-xs">{m.tag}</span>
                 </li>
               ))}
@@ -130,7 +132,7 @@ export default async function PublishedRosterPage({
             If you are on this list, you are expected to use all seven attacks. If you
             cannot, tell your leader now rather than on day four.
           </p>
-        </section>
+        </Panel>
       )}
     </main>
   );

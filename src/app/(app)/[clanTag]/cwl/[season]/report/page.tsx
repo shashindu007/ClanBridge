@@ -31,6 +31,7 @@ import { CheckCircle2, CircleAlert, Medal, UserPlus, UserX } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FactRow } from "@/components/kit";
 import { PageHeader } from "@/components/page-header";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
@@ -193,26 +194,30 @@ export default async function CwlSeasonReportPage({
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <OutcomeCard
-            icon={<CheckCircle2 aria-hidden className="text-success size-5" />}
-            count={played.length}
-            label="Picked and played"
-            hint="The plan worked for these."
-          />
-          <OutcomeCard
-            icon={<UserX aria-hidden className="text-destructive size-5" />}
-            count={absent.length}
-            label="Picked but did not play"
-            hint="Worth a conversation."
-          />
-          <OutcomeCard
-            icon={<UserPlus aria-hidden className="text-warning-ink size-5" />}
-            count={unplanned.length}
-            label="Played without being picked"
-            hint="Each took a spot someone else was promised."
-          />
-        </div>
+        {/* Three counts in a line. They were three cards of a big number each,
+            and the lists below then printed the same three numbers again. */}
+        <FactRow
+          items={[
+            {
+              label: "picked and played",
+              value: played.length,
+              art: <CheckCircle2 aria-hidden className="text-success size-4" />,
+              title: "The plan worked for these.",
+            },
+            {
+              label: "picked, did not play",
+              value: absent.length,
+              art: <UserX aria-hidden className="text-destructive size-4" />,
+              title: "Worth a conversation.",
+            },
+            {
+              label: "played, not picked",
+              value: unplanned.length,
+              art: <UserPlus aria-hidden className="text-warning-ink size-4" />,
+              title: "Each took a spot someone else was promised.",
+            },
+          ]}
+        />
 
         {(absent.length > 0 || unplanned.length > 0) && (
           <div className="grid gap-6 md:grid-cols-2">
@@ -406,29 +411,6 @@ export default async function CwlSeasonReportPage({
   );
 }
 
-function OutcomeCard({
-  icon,
-  count,
-  label,
-  hint,
-}: {
-  icon: React.ReactNode;
-  count: number;
-  label: string;
-  hint: string;
-}) {
-  return (
-    <div className="bg-card space-y-1 rounded-panel border p-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-3xl font-semibold tabular-nums">{count}</span>
-        {icon}
-      </div>
-      <p className="text-sm font-medium">{label}</p>
-      <p className="text-muted-foreground text-xs">{hint}</p>
-    </div>
-  );
-}
-
 function NameList({
   title,
   empty,
@@ -442,13 +424,12 @@ function NameList({
 }) {
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-medium">
-        {title} <span className="text-muted-foreground tabular-nums">({rows.length})</span>
-      </h3>
+      {/* The count is in the line of facts above; not repeated here. */}
+      <h3 className="text-sm font-medium">{title}</h3>
       {rows.length === 0 ? (
         <p className="text-muted-foreground text-sm">{empty}</p>
       ) : (
-        <ul className="divide-y rounded-md border">
+        <ul className="divide-y rounded-control border">
           {rows.map((r) => (
             <li key={r.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
               <Link className="min-w-0 truncate underline-offset-2 hover:underline" href={`${clanBase}/player/${encodeURIComponent(r.tag)}`}>

@@ -7,10 +7,21 @@
 // is the NORMAL view, not an edge case. It says "not in CWL" rather than "no
 // data", because those mean very different things to a leader wondering whether
 // the sync is broken.
+//
+// A RUNNING SEASON LEADS. It used to be one row among the rest, marked only by
+// "· running" in a date cell — during the one week a month when this page
+// matters most, the way into it looked like the way into last March. Now it is
+// a tile with its league's art, its record so far and the page's one gold
+// button; the past seasons are a table under it, each opened by name.
 
 import Link from "next/link";
+import { Trophy } from "lucide-react";
 import { DataFreshness } from "@/components/data-freshness";
 import { LocalTime } from "@/components/local-time";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState, FactRow, Panel, SectionHeader, Tile } from "@/components/kit";
+import { GameArt } from "@/components/game/game-art";
+import { Ribbon } from "@/components/game/ribbon";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -21,6 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { requireClanByTag } from "@/lib/clans";
+import { artKeyForLeague } from "@/lib/game-art";
 import { isLeader } from "@/lib/visibility";
 import { cwlPhase, nextCwlWindow } from "@/lib/coc-time";
 import { createClient } from "@/lib/supabase/server";
@@ -30,6 +42,17 @@ import { seasonSpan, seasonTotals } from "@/services/cwl";
 import { freshness } from "@/services/freshness";
 
 export const dynamic = "force-dynamic";
+
+function LeagueArt({ league, size }: { league: string | null; size: number }) {
+  return (
+    <GameArt
+      art={artKeyForLeague(league)}
+      size={size}
+      alt=""
+      fallback={<Trophy aria-hidden className="text-muted-foreground size-4 shrink-0" />}
+    />
+  );
+}
 
 export default async function CwlSeasonListPage({
   params,
@@ -42,6 +65,7 @@ export default async function CwlSeasonListPage({
   // Resolves the segment AND proves the caller may see this clan. A tag they do
   // not belong to is a 404 here, before any query runs (R3, T3.7).
   const clan = await requireClanByTag(supabase, clanTag);
+  const base = `/${encodeURIComponent(clan.tag)}`;
 
   const seasons = await seasonsForClan(supabase, clan.id);
   const runs = freshness(await latestRun(supabase, "cwl", clan.id));
@@ -53,8 +77,7 @@ export default async function CwlSeasonListPage({
     seasons.map(async (season) => {
       const wars = await warsInSeason(supabase, season.id);
       // Both derived from the same read. The span costs nothing extra here —
-      // the wars were already being loaded for the totals, and their start and
-      // end times had simply never been selected (T12.2).
+      // the wars were already being loaded for the totals.
       return { season, totals: seasonTotals(wars), span: seasonSpan(wars) };
     }),
   );
@@ -66,98 +89,131 @@ export default async function CwlSeasonListPage({
   const next = nextCwlWindow(now);
   const phase = cwlPhase(now);
 
+  const running = rows.find((r) => r.span?.state === "running") ?? null;
+  const past = rows.filter((r) => r !== running);
+
   return (
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="cb-title text-3xl">Clan War League</h1>
-          <DataFreshness freshness={runs} canAdmin={isLeader(clan.role)} />
-        </div>
-        <p className="text-muted-foreground text-sm">
-          {clan.name} — every season captured, oldest kept forever.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow={clan.name}
+        title="Clan War League"
+        description="Every season this clan has played, kept for good — the game deletes its own when a season ends."
+        actions={<DataFreshness freshness={runs} canAdmin={isLeader(clan.role)} />}
+      />
+
+      {running && (
+        <Tile
+          as="section"
+          accent="var(--ribbon-cwl)"
+          ribbon={
+            <Ribbon tone="cwl" icon={Trophy}>
+              Running now
+            </Ribbon>
+          }
+          className="space-y-4"
+        >
+          <div className="flex items-center gap-3">
+            <LeagueArt league={running.season.league} size={48} />
+            <div>
+              <h2 className="cb-title text-2xl">{running.season.season}</h2>
+              {running.season.league && (
+                <p className="text-muted-foreground text-sm">{running.season.league}</p>
+              )}
+            </div>
+          </div>
+          <FactRow
+            items={[
+              {
+                label: "won–lost–drawn so far",
+                value: `${running.totals.wins}–${running.totals.losses}–${running.totals.ties}`,
+              },
+              {
+                label: "stars for / against",
+                value: `${running.totals.stars} / ${running.totals.starsAgainst}`,
+              },
+            ]}
+          />
+          <Button asChild variant="gold" size="cta">
+            <Link href={`${base}/cwl/${running.season.season}`}>Open the war days</Link>
+          </Button>
+        </Tile>
+      )}
 
       {rows.length === 0 ? (
-        <section className="cb-panel space-y-3 rounded-panel border p-5">
-          <h2 className="font-medium">No CWL seasons recorded yet</h2>
-          <p className="text-muted-foreground text-sm">
-            CWL runs for about a week at the start of each month. For the rest of
-            the month there is nothing to show, and that is normal — this page
-            fills in on its own once the season starts and the sync job runs.
-          </p>
-          {/* T4.4 — the date the API never supplies.
-              An empty page that says WHEN it will stop being empty answers the
-              question the reader actually arrived with. Worded as the usual
-              calendar rather than a promise: see cwlWindow() in lib/coc-time.ts
-              on why the guess is safe here and why it is never written down. */}
-          <p className="text-muted-foreground text-sm">
-            {phase
-              ? "A league is running right now, so this page should fill in within two hours of the sync job's next run."
-              : null}
-            {!phase && (
+        <Panel>
+          <EmptyState
+            icon={Trophy}
+            title="No CWL seasons recorded yet"
+            body={
               <>
-                The next one usually opens for signup around{" "}
-                <LocalTime iso={next.signupOpens.toISOString()} style="date" />,
-                with war days from about{" "}
-                <LocalTime iso={next.warsStart.toISOString()} style="date" />. The
-                game does not publish these dates, so they are the usual calendar
-                rather than a promise.
+                CWL runs for about a week at the start of each month; for the rest of the
+                month this page is empty, and that is normal.{" "}
+                {/* T4.4 — the date the API never supplies. Worded as the usual
+                    calendar rather than a promise: see cwlWindow() in
+                    lib/coc-time.ts. */}
+                {phase ? (
+                  "A league is running right now, so this page should fill in within two hours of the sync job's next run."
+                ) : (
+                  <>
+                    The next one usually opens for sign-up around{" "}
+                    <LocalTime iso={next.signupOpens.toISOString()} style="date" />, with war
+                    days from about <LocalTime iso={next.warsStart.toISOString()} style="date" />.
+                  </>
+                )}{" "}
+                If a season has been and gone and this is still empty, the sync job is not
+                running — worth fixing today, because the game cannot give that season back.
               </>
-            )}
-          </p>
-          <p className="text-muted-foreground text-sm">
-            If a CWL season has been and gone and this is still empty, the sync
-            job is not running. That is worth fixing today: Supercell deletes CWL
-            data when the season ends and it cannot be recovered afterwards.
-          </p>
-        </section>
-      ) : (
-        <section className="rounded-lg border">
+            }
+          />
+        </Panel>
+      ) : past.length > 0 ? (
+        <Panel padded={false} aria-labelledby="past-title">
+          <div className="p-5 pb-2">
+            <SectionHeader id="past-title" title="Past seasons" count={past.length} />
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Season</TableHead>
-                <TableHead>When</TableHead>
-                <TableHead className="text-right">W</TableHead>
-                <TableHead className="text-right">L</TableHead>
-                <TableHead className="text-right">T</TableHead>
+                <TableHead className="pl-5">Season</TableHead>
+                <TableHead>League</TableHead>
+                <TableHead className="text-right">W–L–D</TableHead>
                 <TableHead className="text-right">Stars</TableHead>
-                <TableHead />
+                <TableHead className="pr-5" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map(({ season, totals, span }) => (
+              {past.map(({ season, totals, span }) => (
                 <TableRow key={season.id}>
-                  <TableCell className="font-medium">{season.season}</TableCell>
-                  {/* A preserved season is worth little if nobody can tell when
-                      it happened. "2026-09" is a key, not a date a member
-                      recognises a year later. */}
-                  <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                    {span ? (
-                      <>
-                        <LocalTime iso={span.from} style="date" />
-                        {span.state === "running" && (
-                          <span className="text-warning-ink"> · running</span>
-                        )}
-                      </>
-                    ) : (
-                      "—"
+                  <TableCell className="pl-5">
+                    <span className="font-medium">{season.season}</span>
+                    {/* "2026-09" is a key, not a date a member recognises a
+                        year later. */}
+                    {span && (
+                      <span className="text-muted-foreground block text-xs">
+                        from <LocalTime iso={span.from} style="date" />
+                      </span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">{totals.wins}</TableCell>
-                  <TableCell className="text-right">{totals.losses}</TableCell>
-                  <TableCell className="text-right">{totals.ties}</TableCell>
+                  <TableCell>
+                    <span className="flex items-center gap-2 text-sm">
+                      <LeagueArt league={season.league} size={24} />
+                      {season.league ?? <span className="text-muted-foreground">—</span>}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {totals.wins}–{totals.losses}–{totals.ties}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {totals.stars}
                     <span className="text-muted-foreground"> / {totals.starsAgainst}</span>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="pr-5 text-right">
                     <Button asChild variant="outline" size="sm">
                       <Link
-                        href={`/${encodeURIComponent(clan.tag)}/cwl/${season.season}`}
+                        href={`${base}/cwl/${season.season}`}
+                        aria-label={`Open ${season.season}`}
                       >
-                        Days
+                        Open
                       </Link>
                     </Button>
                   </TableCell>
@@ -165,8 +221,8 @@ export default async function CwlSeasonListPage({
               ))}
             </TableBody>
           </Table>
-        </section>
-      )}
+        </Panel>
+      ) : null}
     </main>
   );
 }

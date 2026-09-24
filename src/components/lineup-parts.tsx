@@ -207,7 +207,7 @@ export function LineupPanel({
     <section aria-label={`${title} lineup`} className="cb-panel space-y-4 rounded-panel border p-5">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="cb-title text-xl">{title}</h2>
+          <h2 className="text-lg font-semibold">{title}</h2>
           <LineupStatus status={status} />
         </div>
         <p className="text-muted-foreground text-xs">

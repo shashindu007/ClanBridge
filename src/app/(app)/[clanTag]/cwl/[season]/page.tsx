@@ -24,7 +24,14 @@ import { DataFreshness } from "@/components/data-freshness";
 import { LocalTime } from "@/components/local-time";
 import { TownHall } from "@/components/lineup-parts";
 import { PageHeader } from "@/components/page-header";
-import { Stars, Stat } from "@/components/stars";
+import { Stars } from "@/components/stars";
+import { Trophy } from "lucide-react";
+import { Disclosure, EmptyState, FactRow, Panel } from "@/components/kit";
+import { GameArt } from "@/components/game/game-art";
+import { Ribbon } from "@/components/game/ribbon";
+import { WarScoreboard } from "@/components/war-scoreboard";
+import { clanAccent } from "@/lib/clan-accent";
+import { artKeyForLeague } from "@/lib/game-art";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -108,6 +115,21 @@ export default async function CwlDayDetailPage({
         back={{ href: `${clanBase}/cwl`, label: "All CWL seasons" }}
         eyebrow={clan.name}
         title={`CWL · ${seasonLabel(season.season)}`}
+        art={
+          <GameArt
+            art={artKeyForLeague(season.league)}
+            size={56}
+            alt=""
+            fallback={<Trophy aria-hidden className="text-muted-foreground size-8" />}
+          />
+        }
+        ribbons={
+          span?.state === "running" ? (
+            <Ribbon tone="cwl" icon={Trophy}>
+              Running now
+            </Ribbon>
+          ) : undefined
+        }
         description="Each war day's result, and who did not use their attack."
         actions={
           <>
@@ -129,6 +151,35 @@ export default async function CwlDayDetailPage({
           LocalTime, not a server-formatted string: these are the same kind of
           value the war board treats as a deadline, and being five and a half
           hours out is how somebody concludes they still have a day left. */}
+      {/* The season in a line of facts — it was a panel of three stat blocks,
+          one of them spent on the league's name. */}
+      <FactRow
+        items={[
+          {
+            label: "won–lost–drawn",
+            value: `${totals.wins}–${totals.losses}–${totals.ties}`,
+            title: `${wars.length} war day${wars.length === 1 ? "" : "s"} recorded`,
+          },
+          { label: "stars for – against", value: `${totals.stars} – ${totals.starsAgainst}` },
+          ...(season.league
+            ? [
+                {
+                  label: "league",
+                  value: season.league,
+                  art: (
+                    <GameArt
+                      art={artKeyForLeague(season.league)}
+                      size={20}
+                      alt=""
+                      fallback={<Trophy aria-hidden className="text-muted-foreground size-4" />}
+                    />
+                  ),
+                },
+              ]
+            : []),
+        ]}
+      />
+
       {span && (
         <p className="text-muted-foreground text-sm">
           {span.state === "running" ? "Running since " : "Ran from "}
@@ -143,27 +194,14 @@ export default async function CwlDayDetailPage({
         </p>
       )}
 
-      <section className="cb-panel grid gap-4 rounded-panel border p-5 sm:grid-cols-3">
-        <Stat
-          label="Wins – losses – ties"
-          value={`${totals.wins} – ${totals.losses} – ${totals.ties}`}
-          hint={`${wars.length} war day${wars.length === 1 ? "" : "s"} recorded`}
-        />
-        <Stat label="Stars" value={`${totals.stars} – ${totals.starsAgainst}`} hint="ours – theirs, all days" />
-        <Stat
-          label="League"
-          value={<span className="text-lg">{season.league ?? "Unknown"}</span>}
-        />
-      </section>
-
       {wars.length === 0 ? (
-        <section className="cb-panel space-y-2 rounded-panel border p-5">
-          <h2 className="font-medium">No war days recorded for this season</h2>
-          <p className="text-muted-foreground text-sm">
-            The season exists but no wars were captured. If CWL has already run, the sync
-            was not working that week.
-          </p>
-        </section>
+        <Panel>
+          <EmptyState
+            icon={Trophy}
+            title="No war days recorded for this season"
+            body="The season exists but no wars were captured. If CWL has already run, the sync was not working that week."
+          />
+        </Panel>
       ) : (
         <>
           <nav aria-label="War days" className="grid grid-cols-4 gap-2 sm:grid-cols-7">
@@ -174,8 +212,8 @@ export default async function CwlDayDetailPage({
                   key={war.id}
                   href={`${base}?day=${war.dayNumber ?? ""}`}
                   aria-current={active ? "page" : undefined}
-                  className={`flex flex-col items-center gap-0.5 rounded-lg border px-2 py-2 text-center transition-colors ${
-                    active ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-accent"
+                  className={`flex flex-col items-center gap-0.5 rounded-control border px-2 py-2 text-center transition-colors ${
+                    active ? "border-primary bg-primary text-primary-foreground" : "bg-tile hover:bg-accent"
                   }`}
                 >
                   <span className="text-sm font-medium">Day {war.dayNumber ?? "?"}</span>
@@ -228,19 +266,29 @@ export default async function CwlDayDetailPage({
                   )}
                 </p>
               )}
-              <div className="grid gap-4 sm:grid-cols-3">
-                <Stat label="Stars" value={`${selected.ourStars ?? 0} – ${selected.theirStars ?? 0}`} hint="us – them" />
-                <Stat
-                  label="Destruction"
-                  value={`${(selected.ourDestruction ?? 0).toFixed(1)}%`}
-                  hint={`them ${(selected.theirDestruction ?? 0).toFixed(1)}%`}
-                />
-                <Stat
-                  label="Attacks used"
-                  value={`${roster.length - missed.length} of ${roster.length}`}
-                  hint="one attack each in CWL"
-                />
-              </div>
+              {/* The same scoreboard as a regular war, badges and all. */}
+              <WarScoreboard
+                size="compact"
+                us={{
+                  name: clan.name,
+                  stars: selected.ourStars,
+                  destruction: selected.ourDestruction,
+                  badgeUrl: clan.badgeUrl,
+                }}
+                them={{
+                  name: selected.opponentName ?? selected.opponentTag,
+                  stars: selected.theirStars,
+                  destruction: selected.theirDestruction,
+                  badgeUrl: selected.opponentBadgeUrl,
+                }}
+                accent={clanAccent(clan.id).color}
+              />
+              <p className="text-muted-foreground text-sm">
+                <span className="text-foreground font-semibold tabular-nums">
+                  {roster.length - missed.length} of {roster.length}
+                </span>{" "}
+                attacks used — one each in CWL.
+              </p>
             </section>
           )}
 
@@ -258,7 +306,7 @@ export default async function CwlDayDetailPage({
             ) : missed.length === 0 ? (
               <p className="text-muted-foreground text-sm">Everyone in the lineup used their attack.</p>
             ) : (
-              <ul className="divide-y rounded-md border">
+              <ul className="divide-y rounded-control border">
                 {missed.map((m) => (
                   <li key={m.playerId} className="flex items-center gap-3 px-3 py-2">
                     <span className="text-muted-foreground w-8 text-xs tabular-nums">#{m.mapPosition ?? "?"}</span>
@@ -276,9 +324,8 @@ export default async function CwlDayDetailPage({
           </section>
 
           {roster.length > 0 && (
-            <section className="cb-panel space-y-3 rounded-panel border p-5">
-              <h2 className="text-lg font-semibold">Every attack this day</h2>
-              <div className="-mx-6 overflow-x-auto px-6">
+            <Disclosure title="Every attack this day" count={roster.length}>
+              <div className="-mx-5 overflow-x-auto px-5">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -318,7 +365,7 @@ export default async function CwlDayDetailPage({
                   </TableBody>
                 </Table>
               </div>
-            </section>
+            </Disclosure>
           )}
         </>
       )}
