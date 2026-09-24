@@ -31,15 +31,16 @@ import { useRef } from "react";
 import { useDetailsMenu } from "@/components/use-details-menu";
 import {
   Activity,
-  Castle,
+  BookOpen,
   ChevronDown,
-  CircleHelp,
   CircleUser,
   ClipboardList,
   KeyRound,
   LogOut,
+  MessageSquare,
   ShieldCheck,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import { SignOutButton } from "@/components/sign-out-button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -61,33 +62,45 @@ export interface AccountMenuProps {
 }
 
 const ITEM =
-  "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.9375rem] transition-colors hover:bg-accent hover:text-accent-foreground";
+  "flex items-center gap-2.5 rounded-control px-2.5 py-2 text-[0.9375rem] transition-colors hover:bg-accent hover:text-accent-foreground";
 
 /**
- * One square in the grid of the member's own destinations.
+ * One destination: an icon and the page's own name.
  *
- * Icon above label rather than beside it: at half the menu's width a row would
- * truncate the longer names, and stacking gives the icon room to do the work it
- * is there for. Labels are one word each for the same reason — "Sign-in and
- * password" does not fit a tile, and the page it opens says the rest.
+ * THE LABEL IS THE PAGE'S TITLE, word for word. The grid this replaced said
+ * "My bases" for a page titled "Your account", "Sign-in" for one titled
+ * "Account" and "Help" for "Getting started" — so the thing a member clicked
+ * and the thing they landed on never matched, and /people was reachable as
+ * "0/18", "People" and "Everyone" from one screen. One page, one name,
+ * everywhere it is linked.
  */
-function TileLink({
+function MenuLink({
   href,
   Icon,
   label,
+  className = "",
 }: {
   href: string;
-  Icon: typeof Castle;
+  Icon: LucideIcon;
   label: string;
+  className?: string;
 }) {
   return (
-    <Link
-      href={href}
-      className="hover:bg-accent hover:text-accent-foreground flex flex-col items-center gap-1.5 rounded-md border px-2 py-3 text-center text-xs transition-colors"
-    >
-      <Icon aria-hidden className="text-muted-foreground size-4.5" />
+    <Link href={href} className={`${ITEM} ${className}`}>
+      <Icon aria-hidden className="text-muted-foreground size-4 shrink-0" />
       {label}
     </Link>
+  );
+}
+
+function Group({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5 border-t pt-1.5 pb-1">
+      <p className="text-muted-foreground px-2.5 pb-0.5 text-xs font-medium tracking-wide uppercase">
+        {label}
+      </p>
+      {children}
+    </div>
   );
 }
 
@@ -110,7 +123,7 @@ export function AccountMenu({
         // The control says WHOSE account it is. The bug that started T10 was a
         // member with two accounts who could not tell which one they were signed
         // in as, so the name is the label rather than a generic avatar.
-        className="text-rail-ink-dim hover:text-rail-ink flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1.5 text-[0.9375rem] transition-colors group-open:bg-white/10 group-open:text-rail-ink [&::-webkit-details-marker]:hidden"
+        className="text-rail-ink-dim hover:text-rail-ink flex cursor-pointer list-none items-center gap-1.5 rounded-control px-2 py-1.5 text-[0.9375rem] transition-colors hover:bg-white/8 group-open:bg-white/12 group-open:text-rail-ink [&::-webkit-details-marker]:hidden"
         aria-label={`Account and settings for ${label}`}
         title={email ?? undefined}
       >
@@ -140,86 +153,57 @@ export function AccountMenu({
         />
       </summary>
 
-      <div className="cb-panel absolute right-0 z-50 mt-2 flex w-60 flex-col gap-0.5 rounded-lg border p-2 text-left shadow-lg">
+      {/* .cb-popover, not .cb-panel: a menu hanging over Home's own panels
+          used to wear exactly their surface and frame, so it read as if it
+          were cutting their text off rather than floating above them. The
+          popover tier is lighter, ringed and deeply shadowed, and nothing on a
+          page uses it. Capped to the viewport and scrolls inside itself, so on
+          a short phone the way out is never below the fold. */}
+      <div className="cb-popover absolute right-0 z-50 mt-2 flex max-h-[calc(100dvh-5rem)] w-64 flex-col overflow-y-auto rounded-panel p-2 text-left">
         {/* Which account, spelled out. The username is on the control above;
-            this is the email behind it, which is the thing that actually
-            distinguishes two accounts belonging to the same person. */}
-        {email && (
-          <p className="text-muted-foreground truncate border-b px-2 pt-1 pb-2 text-xs">
-            Signed in as {email}
-          </p>
-        )}
-
-        {/* Leadership destinations. They are shown on the rail itself from `md`
-            up, so these two are the narrow-screen path to the same pages —
-            rendered here rather than hidden entirely, so the menu is always the
-            COMPLETE list and the rail is a set of shortcuts on top of it. */}
-        {showLeadership && (
-          <>
-            <Link href="/roster" className={`${ITEM} md:hidden`}>
-              <ClipboardList aria-hidden className="text-muted-foreground size-4" />
-              Rosters
-            </Link>
-            <Link href="/report" className={`${ITEM} md:hidden`}>
-              <Activity aria-hidden className="text-muted-foreground size-4" />
-              Participation
-            </Link>
-          </>
-        )}
-
-        {showAdmin && (
-          <Link href="/admin" className={ITEM}>
-            <ShieldCheck aria-hidden className="text-muted-foreground size-4" />
-            Admin
-          </Link>
-        )}
-
-        {/* ── The member's own four, as a grid ─────────────────────────────
-            T12.4 — NOTIFICATIONS IS NOT HERE, AND THAT IS THE POINT.
-
-            T12.3 put it in this menu on the "the menu is always the COMPLETE
-            list" rule that the two leadership links follow. That rule earns
-            its keep for those, because they are hidden from the rail below
-            `md` and the menu is the only way to reach them on a phone. The
-            bell is NOT hidden at any width — only its label is — so the menu
-            entry was never a narrow-screen path to anything. It was a second
-            button to a page that already had one, sitting directly under the
-            first, and "What to notify me about" made it three controls for one
-            subject.
-
-            So the feed is reached by the bell, and the settings for it are
-            reached from the feed's own Settings button — see the notifications
-            page. Both are one click, neither is duplicated, and this menu goes
-            back to being the things that have nowhere else to live.
-
-            A grid rather than four more rows: these are the member's OWN
-            things and they are peers, so two columns says that in a way a
-            vertical list of one-line links does not, and it halves the height
-            of a menu that hangs over the page. Four is the right number for
-            it — at three it reads as a ragged list, and at six it stops being
-            scannable. */}
-        <div className="mt-1 grid grid-cols-2 gap-1">
-          {/* T11.8 — the member's own villages and their picture. First
-              because it is the one of these they open more than once. */}
-          <TileLink href="/account" Icon={Castle} label="My bases" />
-          <TileLink href="/people" Icon={Users} label="People" />
-          {/* Renamed from "Account". Two items a word apart — "Account" and
-              "My bases" — is a menu a member has to guess at, and "Account"
-              never described that page anyway: it changes a username and a
-              password. */}
-          <TileLink href="/settings/account" Icon={KeyRound} label="Sign-in" />
-          <TileLink href="/guide" Icon={CircleHelp} label="Help" />
+            the email is the thing that actually distinguishes two accounts
+            belonging to the same person. */}
+        <div className="px-2.5 pt-1 pb-2">
+          <p className="truncate text-sm font-semibold">{label}</p>
+          {email && <p className="text-muted-foreground truncate text-xs">{email}</p>}
         </div>
 
-        {/* Appearance sits below the destinations and above the way out. It is
-            a SETTING, not a place, so it does not belong among the links — and
-            it is the only setting here that takes effect without leaving the
-            menu, which is why it is a control rather than another row. */}
-        <div className="mt-1 border-t pt-1">
+        <Group label="You">
+          {/* T11.8 — the member's own villages and their picture. */}
+          <MenuLink href="/account" Icon={CircleUser} label="Profile" />
+          <MenuLink href="/settings/account" Icon={KeyRound} label="Sign-in & password" />
+        </Group>
+
+        <Group label="ClanBridge">
+          <MenuLink href="/people" Icon={Users} label="People" />
+          {/* Leadership destinations. On the rail itself from `md` up, so these
+              are the narrow-screen path to the same pages — here rather than
+              hidden, so the menu is always the COMPLETE list. */}
+          {showLeadership && (
+            <>
+              <MenuLink href="/roster" Icon={ClipboardList} label="CWL lineups" className="md:hidden" />
+              <MenuLink href="/report" Icon={Activity} label="Participation" className="md:hidden" />
+            </>
+          )}
+          {showAdmin && <MenuLink href="/admin" Icon={ShieldCheck} label="Admin" />}
+          <MenuLink href="/guide" Icon={BookOpen} label="Guide" />
+          {/* Home's "Go to" panel was the only way here; that panel is gone,
+              and a member with something to say should not have to hunt. */}
+          <MenuLink href="/feedback" Icon={MessageSquare} label="Feedback" />
+        </Group>
+
+        {/* T12.4 — NOTIFICATIONS IS NOT HERE, AND THAT IS THE POINT. The bell
+            is on the rail at every width, so a menu entry would be a second
+            button to a page that already has one. The settings for it are
+            reached from the feed itself. */}
+
+        {/* Appearance is a SETTING, not a place, and the only one that takes
+            effect without leaving the menu — so a control, not another row. */}
+        <div className="border-t pt-1">
           <ThemeToggle />
         </div>
 
-        <div className="mt-1 border-t pt-1">
+        <div className="border-t pt-1">
           <SignOutButton className={`${ITEM} w-full text-destructive no-underline hover:no-underline`}>
             <LogOut aria-hidden className="size-4" />
             Sign out

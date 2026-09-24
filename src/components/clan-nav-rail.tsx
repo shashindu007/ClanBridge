@@ -50,13 +50,18 @@ export interface RailClan {
   color: string;
 }
 
-// The current tab is a lit parchment tile cut into the wood; everything else is
-// ink on wood. The hover has to carry BOTH colours — bg-accent alone puts dim
-// tan text on a light tan chip, which is the one combination in this palette
-// that disappears.
+// The current tab is a lit plate on the night rail with a gold line under it;
+// everything else is dim ink. Written in the RAIL's own terms (white washes,
+// rail inks) rather than the page's --accent, because the rail is the same
+// night-blue in both themes and --accent is not: in light mode it is a pale
+// chip, which put dark ink in a bright box on a dark beam.
+//
+// Defined once, here, and used by every lit control on the rail — Home, the
+// clan menu and the section tabs — so "you are here" looks the same wherever
+// it is said.
 const ACTIVE =
-  "bg-accent text-accent-foreground shadow-[inset_0_1px_0_oklch(1_0_0/0.5)] font-medium";
-const IDLE = "text-rail-ink-dim hover:bg-accent hover:text-accent-foreground";
+  "bg-white/12 text-rail-ink font-medium shadow-[inset_0_-2px_0_var(--gold)]";
+const IDLE = "text-rail-ink-dim hover:bg-white/8 hover:text-rail-ink";
 
 /**
  * T12.10 — the way back to the home page, as a control that looks like one.
@@ -75,7 +80,7 @@ export function HomeLink() {
       href="/dashboard"
       aria-label="Home"
       aria-current={active ? "page" : undefined}
-      className={`flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[0.9375rem] transition-colors ${
+      className={`flex shrink-0 items-center gap-1.5 rounded-control px-2.5 py-1.5 text-[0.9375rem] transition-colors ${
         active ? ACTIVE : IDLE
       }`}
     >
@@ -112,8 +117,8 @@ export function ClanMenu({ clans }: { clans: RailClan[] }) {
   return (
     <details ref={ref} className="group relative min-w-0 shrink">
       <summary
-        className={`flex min-w-0 cursor-pointer list-none items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[0.9375rem] transition-colors [&::-webkit-details-marker]:hidden ${
-          here ? `${ACTIVE} font-semibold` : `${IDLE} group-open:bg-accent group-open:text-accent-foreground`
+        className={`flex min-w-0 cursor-pointer list-none items-center gap-1.5 rounded-control px-2.5 py-1.5 text-[0.9375rem] transition-colors [&::-webkit-details-marker]:hidden ${
+          here ? `${ACTIVE} font-semibold` : `${IDLE} group-open:bg-white/12 group-open:text-rail-ink`
         }`}
         aria-label={here ? `Clan: ${here.name}. Switch clan` : "Switch clan"}
         title={here ? `${here.name} — you are ${here.role}` : "Your clans"}
@@ -129,7 +134,9 @@ export function ClanMenu({ clans }: { clans: RailClan[] }) {
         <ChevronDown aria-hidden className="size-3.5 shrink-0 transition-transform group-open:rotate-180" />
       </summary>
 
-      <div className="cb-panel absolute left-0 z-50 mt-2 w-64 rounded-lg border p-2 text-left shadow-lg">
+      {/* The popover tier — see account-menu.tsx on why a menu must not wear
+          a panel's surface. */}
+      <div className="cb-popover absolute left-0 z-50 mt-2 w-64 rounded-panel p-2 text-left">
         <p className="text-muted-foreground px-2 pt-1 pb-1.5 text-xs font-medium tracking-wide uppercase">
           Your clans
         </p>
@@ -142,7 +149,7 @@ export function ClanMenu({ clans }: { clans: RailClan[] }) {
                 href={`/${encodeURIComponent(clan.tag)}`}
                 aria-current={active ? "page" : undefined}
                 data-clan={clan.name}
-                className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.9375rem] transition-colors hover:bg-accent hover:text-accent-foreground ${
+                className={`flex items-center gap-2.5 rounded-control px-2.5 py-2 text-[0.9375rem] transition-colors hover:bg-accent hover:text-accent-foreground ${
                   active ? "bg-muted font-semibold" : ""
                 }`}
               >
@@ -161,10 +168,10 @@ export function ClanMenu({ clans }: { clans: RailClan[] }) {
         <div className="mt-1 border-t pt-1">
           <Link
             href="/dashboard"
-            className="text-muted-foreground flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+            className="text-muted-foreground flex items-center gap-2.5 rounded-control px-2.5 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
           >
             <House aria-hidden className="size-4 shrink-0" />
-            All clans on Home
+            All clans
           </Link>
         </div>
       </div>
@@ -216,7 +223,7 @@ export function ClanSectionTabs({ clans }: { clans: RailClan[] }) {
 
   return (
     <div className="border-t border-white/10">
-      <div className="mx-auto max-w-7xl px-4">
+      <div className="mx-auto max-w-page px-4">
         {/* The `title` is the destination's own hint, verbatim from
             lib/clan-nav.ts. It costs nothing and it is the whole plain-language
             layer for a member who has not learned the product yet. */}
@@ -235,7 +242,7 @@ export function ClanSectionTabs({ clans }: { clans: RailClan[] }) {
                 aria-current={active ? "page" : undefined}
                 title={section.hint}
                 className={
-                  "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-[0.9375rem] transition-colors " +
+                  "flex shrink-0 items-center gap-1.5 rounded-control px-3 py-1.5 text-[0.9375rem] transition-colors " +
                   (active ? ACTIVE : IDLE)
                 }
               >
@@ -246,7 +253,7 @@ export function ClanSectionTabs({ clans }: { clans: RailClan[] }) {
           })}
         </div>
 
-        {/* Underline rather than another parchment tile: two identical
+        {/* Underline rather than another lit plate: two identical
             treatments stacked read as two peer rows, and these are subordinate
             to the one above. */}
         {nav.section.children && (
@@ -263,7 +270,7 @@ export function ClanSectionTabs({ clans }: { clans: RailClan[] }) {
                   className={
                     "shrink-0 rounded-sm px-1 py-0.5 text-[0.8125rem] transition-colors " +
                     (active
-                      ? "text-rail-ink font-medium underline decoration-2 underline-offset-4"
+                      ? "text-rail-ink font-medium underline decoration-gold decoration-2 underline-offset-4"
                       : "text-rail-ink-dim hover:text-rail-ink")
                   }
                 >

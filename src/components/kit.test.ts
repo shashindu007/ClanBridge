@@ -19,11 +19,20 @@ vi.mock("next/image", () => ({
 }));
 
 const html = (el: Parameters<typeof renderToStaticMarkup>[0]) => renderToStaticMarkup(el);
+
+/** createElement for a component whose children are required, passed as children. */
+function withChildren<P extends { children: React.ReactNode }>(
+  type: React.ComponentType<P>,
+  props: Omit<P, "children">,
+  ...children: React.ReactNode[]
+) {
+  return createElement(type as React.ComponentType<Omit<P, "children">>, props, ...children);
+}
 const count = (haystack: string, needle: string) => haystack.split(needle).length - 1;
 
 describe("Ribbon", () => {
   it("carries its words, and its tone only as decoration", () => {
-    const out = html(createElement(Ribbon, { tone: "war", icon: Swords, children: "WAR · 12h" }));
+    const out = html(withChildren(Ribbon, { tone: "war", icon: Swords }, "WAR · 12h"));
     expect(out).toContain("WAR · 12h");
     expect(out).toContain('data-tone="war"');
     expect(out).toContain("--ribbon:var(--ribbon-war)");
@@ -59,7 +68,7 @@ describe("FactRow", () => {
 describe("Tile", () => {
   it("is one link, named, when it has an href", () => {
     const out = html(
-      createElement(Tile, { href: "/2G8YQYRGJ", label: "Open DH CWL ONLY", children: "DH CWL ONLY" }),
+      withChildren(Tile, { href: "/2G8YQYRGJ", label: "Open DH CWL ONLY" }, "DH CWL ONLY"),
     );
     expect(count(out, "<a ")).toBe(1);
     expect(out).toContain('aria-label="Open DH CWL ONLY"');
@@ -67,11 +76,11 @@ describe("Tile", () => {
 
   it("never nests a link inside its link", () => {
     const out = html(
-      createElement(Tile, {
-        href: "/clan",
-        label: "Open clan",
-        children: createElement("a", { href: "/clan/war", className: "relative z-10" }, "Attack"),
-      }),
+      withChildren(
+        Tile,
+        { href: "/clan", label: "Open clan" },
+        createElement("a", { href: "/clan/war", className: "relative z-10" }, "Attack"),
+      ),
     );
     // Two anchors, side by side: the stretched one closes before the button.
     expect(count(out, "<a ")).toBe(2);
@@ -80,11 +89,7 @@ describe("Tile", () => {
 
   it("puts the accent on the top edge and leaves room for art", () => {
     const out = html(
-      createElement(Tile, {
-        accent: "var(--clan-1)",
-        art: createElement("i", null, "badge"),
-        children: "x",
-      }),
+      withChildren(Tile, { accent: "var(--clan-1)", art: createElement("i", null, "badge") }, "x"),
     );
     expect(out).toContain("--tile-accent:var(--clan-1)");
     expect(out).toContain("-top-7");
@@ -93,7 +98,7 @@ describe("Tile", () => {
 
 describe("Disclosure", () => {
   it("shows its title and count while folded", () => {
-    const out = html(createElement(Disclosure, { title: "Their bases", count: 30, children: "table" }));
+    const out = html(withChildren(Disclosure, { title: "Their bases", count: 30 }, "table"));
     expect(out).toContain("<details");
     expect(out).not.toContain("<details open");
     expect(out).toContain("Their bases");
@@ -101,7 +106,7 @@ describe("Disclosure", () => {
   });
 
   it("opens by default when asked", () => {
-    const out = html(createElement(Disclosure, { title: "Our lineup", defaultOpen: true, children: "t" }));
+    const out = html(withChildren(Disclosure, { title: "Our lineup", defaultOpen: true }, "t"));
     expect(out).toContain("<details open");
   });
 });

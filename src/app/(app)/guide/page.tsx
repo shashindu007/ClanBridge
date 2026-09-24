@@ -49,7 +49,7 @@ export default function MemberGuidePage() {
   return (
     <main className="mx-auto max-w-2xl space-y-10 p-4 sm:p-8">
       <div className="space-y-2">
-        <h1 className="cb-title text-3xl">Getting started</h1>
+        <h1 className="cb-title text-3xl">Guide</h1>
         {/* WHAT IT IS, BEFORE WHAT TO DO. This page opened with "Five minutes,
             once" and went straight into instructions, which assumes the reader
             already knows why they are following them. They usually do not: they

@@ -18,7 +18,7 @@ import { Suspense } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Activity, Bell, ClipboardList } from "lucide-react";
+import { Activity, Bell, ClipboardList, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { accountProfile, currentUserId, needsAccountSetup } from "@/lib/auth";
 import { platformPresence, touchLastSeen, unreadCount } from "@/repositories/notifications";
@@ -150,16 +150,18 @@ export default async function AppLayout({
     // bottom), so a second min-h-screen here would guarantee a scrollbar on
     // every page: a full viewport of shell, plus the footer underneath it.
     <div>
-      {/* The rail. A dark wooden beam across the top, which is the one place
-          this app's chrome stops being a document and starts being furniture —
-          see the decorative block in globals.css for why the depth is bought
-          with light and grain rather than with a picture of anything.
+      {/* The rail. A night-blue beam with a gold seam, the same in both
+          themes — the chrome is the brand, and the page is what lies under it.
 
           Sticky, because the clan switcher is the control members use most and
           it was previously scrolled off the top of every long roster. z-30 sits
           above page content and below any dialog. */}
       <header className="cb-rail sticky top-0 z-30">
-        <nav className="mx-auto flex max-w-7xl items-center gap-x-4 gap-y-2 px-4 py-3">
+        {/* max-w-page is every page's width too, so the rail's edges and the
+            content's line up. They did not (7xl here, 6xl on Home), and the
+            account menu, pinned to the rail's right edge, landed 64px inside
+            Home's side column and appeared to cut its text off. */}
+        <nav className="mx-auto flex max-w-page items-center gap-x-4 gap-y-2 px-4 py-3">
           {/* shrink-0 so the brand never compresses, and the wordmark drops
               below `sm` where the space it costs is space the clan switcher
               needs. The shield stays at every width — it is the only mark this
@@ -218,17 +220,19 @@ export default async function AppLayout({
               complete list — see account-menu.tsx. */}
           {showLeadershipLinks && (
             <div className="text-rail-ink-dim hidden shrink-0 items-center gap-1 md:flex">
+              {/* "CWL lineups", the page's own title — it was "Rosters" here and
+                  "CWL lineups" on Home, one page under two names. */}
               <Link
                 href="/roster"
-                className="hover:bg-accent hover:text-accent-foreground flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors"
-                title="Pick the CWL roster across every clan you run"
+                className="hover:text-rail-ink flex items-center gap-1.5 rounded-control px-2 py-1 transition-colors hover:bg-white/8"
+                title="Pick the CWL lineup across every clan you run"
               >
                 <ClipboardList aria-hidden className="size-4" />
-                Rosters
+                CWL lineups
               </Link>
               <Link
                 href="/report"
-                className="hover:bg-accent hover:text-accent-foreground flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors"
+                className="hover:text-rail-ink flex items-center gap-1.5 rounded-control px-2 py-1 transition-colors hover:bg-white/8"
                 title="Who across all your clans has stopped turning up"
               >
                 <Activity aria-hidden className="size-4" />
@@ -257,13 +261,27 @@ export default async function AppLayout({
 
               The count is rendered as a label rather than a bare dot: "3" is a
               quantity of things to do, and a dot only says "something". */}
+          {/* Search members, as an icon. Home's "Go to" panel held the only
+              link to it; that panel is gone, and finding a player is something
+              a member does from anywhere. */}
+          {approved && (
+            <Link
+              href="/search"
+              aria-label="Search members"
+              title="Search members across every clan"
+              className="hover:text-rail-ink flex shrink-0 items-center rounded-control px-2 py-1.5 transition-colors hover:bg-white/8"
+            >
+              <Search aria-hidden className="size-4" />
+            </Link>
+          )}
+
           <Link
             href="/notifications"
             aria-label={
               unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
             }
             title="Announcements, reminders and anything sent to you"
-            className={`hover:bg-accent hover:text-accent-foreground flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 transition-colors ${
+            className={`hover:text-rail-ink flex shrink-0 items-center gap-1.5 rounded-control px-2 py-1 transition-colors hover:bg-white/8 ${
               unread > 0 ? "text-rail-ink font-medium" : "text-rail-ink-dim"
             }`}
           >
@@ -277,32 +295,25 @@ export default async function AppLayout({
 
           {/* T12.3 — how many people are actually here.
 
-              Small, quiet, and numbers only. It answers a question members ask
-              constantly about a platform this size — "is anyone else around?" —
-              and it is the shell's version of the two tiles on the clan
-              dashboard. Hidden below `lg`: it is the least important thing in
-              this row and the clan switcher is the most, and that row has twice
-              been redesigned to stop the switcher being squeezed.
-
-              A dot rather than a word for the state, because "12 online" is
-              already the sentence. */}
+              IN WORDS: "3 online". It was "0/18", with the meaning only in a
+              hover title no phone can show — a fraction nobody could read,
+              leading to a page the menu calls "People". The full sentence is
+              the accessible name. Hidden below `md`, where the clan menu needs
+              the width; People is in the account menu at every size. */}
           {approved && presence.totalAccounts > 0 && (
             <Link
               href="/people"
               title={`${presence.onlineNow} of ${presence.activeAccounts} members active in the last five minutes`}
-              aria-label={`${presence.onlineNow} members online out of ${presence.activeAccounts}. See who is here.`}
-              className="text-rail-ink-dim hover:bg-accent hover:text-accent-foreground hidden shrink-0 items-center gap-1.5 rounded-md px-2 py-1 transition-colors lg:flex"
+              aria-label={`People: ${presence.onlineNow} of ${presence.activeAccounts} online`}
+              className="text-rail-ink-dim hover:text-rail-ink hidden shrink-0 items-center gap-1.5 rounded-control px-2 py-1 transition-colors hover:bg-white/8 md:flex"
             >
               <span
                 aria-hidden
                 className={`size-2 shrink-0 rounded-full ${
-                  presence.onlineNow > 0 ? "bg-success" : "bg-muted-foreground/50"
+                  presence.onlineNow > 0 ? "bg-success" : "bg-rail-ink-dim/50"
                 }`}
               />
-              <span className="tabular-nums">
-                {presence.onlineNow}
-                <span className="text-rail-ink-dim/70">/{presence.activeAccounts}</span>
-              </span>
+              <span className="tabular-nums">{presence.onlineNow} online</span>
             </Link>
           )}
 

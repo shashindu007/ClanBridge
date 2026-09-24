@@ -36,11 +36,40 @@ export function useDetailsMenu(ref: RefObject<HTMLDetailsElement | null>) {
         el.querySelector("summary")?.focus();
       }
     };
+    // Close when the PAGE scrolls. The rail is sticky, so an open menu stayed
+    // pinned in place while the content slid underneath it — a panel apparently
+    // eating whatever passed below. Capturing, so a scroll anywhere is seen;
+    // scrolls inside the menu itself (it scrolls on a short phone) are ignored;
+    // and only past 24px of travel, so the rubber-band bounce iOS adds when a
+    // menu opens near the top does not snap it shut.
+    let openedAt: number | null = null;
+    const onScroll = (event: Event) => {
+      const el = ref.current;
+      if (!el?.open) {
+        openedAt = null;
+        return;
+      }
+      if (event.target instanceof Node && el.contains(event.target)) return;
+      openedAt ??= window.scrollY;
+      if (Math.abs(window.scrollY - openedAt) > 24) {
+        el.open = false;
+        openedAt = null;
+      }
+    };
+    const onToggle = () => {
+      openedAt = ref.current?.open ? window.scrollY : null;
+    };
+    const details = ref.current;
+
     document.addEventListener("pointerdown", onPointer);
     document.addEventListener("keydown", onKey);
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    details?.addEventListener("toggle", onToggle);
     return () => {
       document.removeEventListener("pointerdown", onPointer);
       document.removeEventListener("keydown", onKey);
+      document.removeEventListener("scroll", onScroll, { capture: true });
+      details?.removeEventListener("toggle", onToggle);
     };
   }, [ref]);
 }

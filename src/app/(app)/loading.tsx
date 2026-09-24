@@ -31,7 +31,7 @@ export default function AppLoading() {
       role="status"
       aria-busy="true"
       aria-label="Loading"
-      className="mx-auto max-w-5xl space-y-8 p-4 sm:p-8"
+      className="mx-auto max-w-page space-y-8 p-4 sm:p-6"
     >
       <div className="space-y-3">
         <Bar className="h-7 w-56" />

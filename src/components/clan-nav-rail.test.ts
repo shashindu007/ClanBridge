@@ -119,6 +119,7 @@ describe("ClanMenu — the reported bug", () => {
     const html = render(createElement(ClanMenu, { clans: CLANS }));
     for (const clan of CLANS) expect(html).toContain(`href="/${encodeURIComponent(clan.tag)}"`);
     expect(html).toContain('href="/dashboard"');
+    expect(html).toContain("All clans</a>");
   });
 
   it("renders nothing for a member with no clans", () => {
