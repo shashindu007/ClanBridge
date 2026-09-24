@@ -109,6 +109,9 @@ export const PHASE1_MIGRATIONS = [
   // T12.9 set_clan_role() — the audited way a role is chosen. Must follow 015
   // (auth_is_platform_admin) and 006 (auth_leader_clan_ids).
   "044_set_clan_role.sql",
+  // The opponent's badge on wars and cwl_wars, going forward only. Must follow
+  // 002 and 003, which create both tables.
+  "045_war_opponent_badge.sql",
 ] as const;
 
 /**

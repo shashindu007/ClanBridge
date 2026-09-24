@@ -7,7 +7,7 @@
 -- BEGIN/COMMIT means a failure anywhere rolls the entire thing back, so you
 -- cannot end up with a half-applied schema.
 --
--- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql
+-- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql
 --
 -- Two numbers are absent, retired rather than reused so that apply order
 -- stays equal to numeric order: 009 (cwl_signups, superseded by Phase 4B)
@@ -7775,6 +7775,49 @@ comment on function set_clan_role(uuid, uuid, text) is
 --   select set_clan_role('<member of A>', '<A>', null);          -- true: out of A
 --   select action, before, after from audit_log where action = 'role';
 -- ---------------------------------------------------------------------------
+
+-- ========================================================================
+-- 045_war_opponent_badge.sql
+-- ========================================================================
+
+-- The opponent's badge, on every war and CWL war synced from now on.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- WHY
+--
+-- The war board, the clan page and Home draw a war the way the game does: two
+-- clans facing each other, each under its badge. Our own badge has been stored
+-- since 001 (clans.badge_url). The opponent's never was. The API sends it on
+-- every war response (clan.badgeUrls / opponent.badgeUrls), and mapWarSide()
+-- dropped it, so the other side of every war was a name in a cell, the one
+-- thing on the board a member could not recognise at a glance.
+--
+-- A URL on api-assets.clashofclans.com, exactly as the API returns it. It is the
+-- second of the two sources globals.css allows art from. Nothing is copied or
+-- stored beyond the address.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- ONLY GOING FORWARD, AND THAT IS CORRECT
+--
+-- Both sync jobs refuse to touch a war once it has ended. For wars that is the
+-- `settled.state === 'warEnded'` return in scripts/sync/war.ts; for CWL it is
+-- settledWarTags(). That is R5, and a new column is no reason to reopen
+-- history. So a war that ended before this migration keeps NULL here forever,
+-- and the page draws the product's own shield in the opponent's colour
+-- (components/game/clan-badge.tsx). A war that is still running when this lands
+-- gets its badge on the next sync.
+--
+-- No backfill, no RLS change. Both tables' row policies cover every column, and
+-- the sync role's table-level grants (014) include a column added later.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+alter table public.wars add column if not exists opponent_badge_url text;
+alter table public.cwl_wars add column if not exists opponent_badge_url text;
+
+comment on column public.wars.opponent_badge_url is
+  'The opponent clan''s badge (API badgeUrls.medium, else small). NULL for wars that ended before 045.';
+comment on column public.cwl_wars.opponent_badge_url is
+  'The opponent clan''s badge (API badgeUrls.medium, else small). NULL for wars that ended before 045.';
 
 commit;
 

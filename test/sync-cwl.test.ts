@@ -52,6 +52,7 @@ const CWL_WAR = JSON.parse(
 interface ApiWarSideFixture {
   tag: string;
   stars: number;
+  badgeUrls?: { small?: string; medium?: string };
   members: Array<{
     tag: string;
     mapPosition: number;
@@ -283,8 +284,12 @@ describe("T4.1 — the CWL sync", () => {
         result: string;
         state: string;
         opponent_tag: string;
+        opponent_badge_url: string | null;
         day_number: number;
-      }>(`select our_stars, their_stars, result, state, opponent_tag, day_number from cwl_wars`);
+      }>(
+        `select our_stars, their_stars, result, state, opponent_tag, opponent_badge_url,
+                day_number from cwl_wars`,
+      );
 
       const war = rows.rows[0]!;
       expect(war.our_stars).toBe(OURS.stars);
@@ -297,6 +302,7 @@ describe("T4.1 — the CWL sync", () => {
       );
       expect(war.state).toBe("warEnded");
       expect(war.opponent_tag).toBe(THEIR_TAG);
+      expect(war.opponent_badge_url).toBe(THEIRS.badgeUrls!.medium);
 
       // The trap this test exists for: fetched by war tag, the API returns the
       // two sides in no guaranteed order, and reading `clan` as "ours" records

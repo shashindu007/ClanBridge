@@ -37,6 +37,8 @@ export interface WarRow {
   clanId: string;
   opponentTag: string | null;
   opponentName: string | null;
+  /** Null for wars that ended before migration 045. */
+  opponentBadgeUrl: string | null;
   teamSize: number | null;
   state: WarStateRow | null;
   ourStars: number | null;
@@ -112,7 +114,7 @@ export interface LineupMember {
 }
 
 const WAR_COLUMNS =
-  "id, clan_id, opponent_tag, opponent_name, team_size, state, our_stars, " +
+  "id, clan_id, opponent_tag, opponent_name, opponent_badge_url, team_size, state, our_stars, " +
   "their_stars, our_destruction, their_destruction, result, start_time, end_time";
 
 const LINEUP_COLUMNS =
@@ -124,6 +126,7 @@ function toWar(r: Record<string, unknown>): WarRow {
     clanId: r.clan_id as string,
     opponentTag: (r.opponent_tag as string | null) ?? null,
     opponentName: (r.opponent_name as string | null) ?? null,
+    opponentBadgeUrl: (r.opponent_badge_url as string | null) ?? null,
     teamSize: (r.team_size as number | null) ?? null,
     state: (r.state as WarStateRow | null) ?? null,
     ourStars: (r.our_stars as number | null) ?? null,

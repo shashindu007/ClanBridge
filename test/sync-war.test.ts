@@ -69,6 +69,7 @@ interface WarFixture {
 
 interface WarSideFixture {
   tag: string;
+  badgeUrls?: { small?: string; medium?: string };
   stars: number;
   destructionPercentage: number;
   members: Array<{
@@ -221,9 +222,10 @@ describe("T6.1 — the clan war sync", () => {
         result: string;
         state: string;
         opponent_tag: string;
+        opponent_badge_url: string | null;
         team_size: number;
       }>(`select our_stars, their_stars, our_destruction, result, state,
-                 opponent_tag, team_size from wars`);
+                 opponent_tag, opponent_badge_url, team_size from wars`);
 
       const war = rows.rows[0]!;
       expect(war.our_stars).toBe(OURS.stars);
@@ -235,6 +237,8 @@ describe("T6.1 — the clan war sync", () => {
       expect(war.result).toBe("win");
       expect(war.state).toBe(IN_WAR.state);
       expect(war.opponent_tag).toBe(THEIR_TAG);
+      // 045 — theirs, not ours: the board draws it on the right-hand side.
+      expect(war.opponent_badge_url).toBe(THEIRS.badgeUrls!.medium);
       expect(war.team_size).toBe(ROSTER_SIZE);
     });
 

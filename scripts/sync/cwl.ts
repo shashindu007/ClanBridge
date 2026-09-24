@@ -205,6 +205,7 @@ async function upsertWar(
         day_number: dayNumber ?? null,
         opponent_tag: theirs.tag ?? null,
         opponent_name: theirs.name ?? null,
+        opponent_badge_url: theirs.badgeUrl ?? null,
         team_size: war.teamSize ?? null,
         state: storedState(war.state),
         our_stars: ours.stars ?? null,

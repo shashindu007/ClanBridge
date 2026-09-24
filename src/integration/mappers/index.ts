@@ -202,6 +202,9 @@ function mapWarSide(api: NonNullable<ApiWar["clan"]>): WarSide {
   return {
     tag: api.tag ? normaliseTag(api.tag) : undefined,
     name: api.name,
+    // Medium first, as mapClan does for our own badge: 200px, the size the
+    // war board draws at. Stored as the URL only (045).
+    badgeUrl: api.badgeUrls?.medium ?? api.badgeUrls?.small,
     stars: api.stars,
     destruction: api.destructionPercentage,
     attackCount: api.attacks,

@@ -114,6 +114,7 @@ async function upsertWar(
         clan_id: clan.id,
         opponent_tag: theirs.tag ?? null,
         opponent_name: theirs.name ?? null,
+        opponent_badge_url: theirs.badgeUrl ?? null,
         team_size: war.teamSize ?? null,
         // 003_war.sql:19 has no 'notInWar' in its CHECK, and mapWar collapses
         // any unrecognised state to exactly that string. Passed straight through

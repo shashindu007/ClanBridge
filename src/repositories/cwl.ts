@@ -37,6 +37,8 @@ export interface CwlWar {
   dayNumber: number | null;
   opponentName: string | null;
   opponentTag: string | null;
+  /** Null for wars that ended before migration 045. */
+  opponentBadgeUrl: string | null;
   teamSize: number | null;
   state: string | null;
   ourStars: number | null;
@@ -123,9 +125,9 @@ export async function warsInSeason(
   const { data, error } = await supabase
     .from("cwl_wars")
     .select(
-      "id, war_tag, day_number, opponent_name, opponent_tag, team_size, state, " +
-        "our_stars, their_stars, our_destruction, their_destruction, result, " +
-        "start_time, end_time",
+      "id, war_tag, day_number, opponent_name, opponent_tag, opponent_badge_url, " +
+        "team_size, state, our_stars, their_stars, our_destruction, their_destruction, " +
+        "result, start_time, end_time",
     )
     .eq("season_id", seasonId)
     .is("deleted_at", null)
@@ -138,6 +140,7 @@ export async function warsInSeason(
     dayNumber: (r.day_number as number | null) ?? null,
     opponentName: (r.opponent_name as string | null) ?? null,
     opponentTag: (r.opponent_tag as string | null) ?? null,
+    opponentBadgeUrl: (r.opponent_badge_url as string | null) ?? null,
     teamSize: (r.team_size as number | null) ?? null,
     state: (r.state as string | null) ?? null,
     ourStars: (r.our_stars as number | null) ?? null,

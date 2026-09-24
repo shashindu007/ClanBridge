@@ -221,6 +221,25 @@ describe("mapWar", () => {
   const api = warSchema.parse(fixture("cwlwar.json"));
   const war = mapWar(api);
 
+  // 045 — the opponent's badge, which the board draws beside its name. Medium
+  // first, the size the board uses; the API also sends small and large.
+  it("keeps each side's badge, medium size first", () => {
+    expect(war.opponent!.badgeUrl).toBe(api.opponent!.badgeUrls!.medium);
+    expect(war.clan!.badgeUrl).toBe(api.clan!.badgeUrls!.medium);
+  });
+
+  it("falls back to the small badge, and to nothing", () => {
+    const small = mapWar(
+      warSchema.parse({
+        state: "inWar",
+        clan: { tag: "#2PP", badgeUrls: { small: "s.png" }, members: [] },
+        opponent: { tag: "#8QU", members: [] },
+      }),
+    );
+    expect(small.clan!.badgeUrl).toBe("s.png");
+    expect(small.opponent!.badgeUrl).toBeUndefined();
+  });
+
   it("parses Supercell timestamps into real Dates", () => {
     expect(war.startTime).toBeInstanceOf(Date);
     expect(war.endTime).toBeInstanceOf(Date);

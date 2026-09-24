@@ -556,6 +556,7 @@ export interface Database {
           day_number: number | null;
           opponent_tag: string | null;
           opponent_name: string | null;
+          opponent_badge_url: string | null;
           team_size: number | null;
           state: string | null;
           our_stars: number | null;
@@ -576,6 +577,7 @@ export interface Database {
           day_number?: number | null;
           opponent_tag?: string | null;
           opponent_name?: string | null;
+          opponent_badge_url?: string | null;
           team_size?: number | null;
           state?: string | null;
           our_stars?: number | null;
@@ -596,6 +598,7 @@ export interface Database {
           day_number?: number | null;
           opponent_tag?: string | null;
           opponent_name?: string | null;
+          opponent_badge_url?: string | null;
           team_size?: number | null;
           state?: string | null;
           our_stars?: number | null;
@@ -1396,6 +1399,7 @@ export interface Database {
           clan_id: string;
           opponent_tag: string | null;
           opponent_name: string | null;
+          opponent_badge_url: string | null;
           team_size: number | null;
           state: string | null;
           our_stars: number | null;
@@ -1414,6 +1418,7 @@ export interface Database {
           clan_id: string;
           opponent_tag?: string | null;
           opponent_name?: string | null;
+          opponent_badge_url?: string | null;
           team_size?: number | null;
           state?: string | null;
           our_stars?: number | null;
@@ -1432,6 +1437,7 @@ export interface Database {
           clan_id?: string;
           opponent_tag?: string | null;
           opponent_name?: string | null;
+          opponent_badge_url?: string | null;
           team_size?: number | null;
           state?: string | null;
           our_stars?: number | null;

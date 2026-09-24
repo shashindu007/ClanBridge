@@ -46,6 +46,7 @@ function war(overrides: Partial<CwlWar> = {}): CwlWar {
     dayNumber: 1,
     opponentName: "Them",
     opponentTag: "#T1",
+    opponentBadgeUrl: null,
     teamSize: 15,
     state: "warEnded",
     ourStars: 30,

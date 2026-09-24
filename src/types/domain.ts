@@ -98,6 +98,8 @@ export interface War {
 export interface WarSide {
   tag?: string;
   name?: string;
+  /** The clan's badge on api-assets.clashofclans.com (medium, else small). */
+  badgeUrl?: string;
   stars?: number;
   destruction?: number;
   attackCount?: number;
