@@ -65,7 +65,7 @@ export default async function AdminAuditPage({
       <main className="mx-auto max-w-page space-y-4 p-4 sm:p-6">
         <h1 className="cb-title text-3xl">Audit log</h1>
         <section className="cb-panel space-y-2 rounded-panel border p-5">
-          <h2 className="font-medium">Leaders only</h2>
+          <h2 className="text-lg font-semibold">Leaders only</h2>
           <p className="text-muted-foreground text-sm">
             The audit log records who changed what, and that includes entries
             about co-leaders and members. Only a clan&rsquo;s leader can read it,
@@ -146,7 +146,7 @@ export default async function AdminAuditPage({
 
       {entries.length === 0 ? (
         <section className="cb-panel space-y-2 rounded-panel border p-5">
-          <h2 className="font-medium">Nothing recorded yet</h2>
+          <h2 className="text-lg font-semibold">Nothing recorded yet</h2>
           <p className="text-muted-foreground text-sm">
             {entity
               ? `No ${entity.replace(/_/g, " ")} changes in ${selected.name}.`

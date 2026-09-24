@@ -22,7 +22,10 @@
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Castle } from "lucide-react";
+import { Castle, Hash, History } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
+import { FactRow } from "@/components/kit";
+import { TownHall } from "@/components/game/town-hall";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -101,32 +104,46 @@ export default async function PlayerProfilePage({
 
   return (
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="cb-title text-3xl">{player.name}</h1>
-          {player.clan_role && <Badge variant="secondary">{player.clan_role}</Badge>}
-          {player.verified && <Badge variant="outline">verified</Badge>}
-          {player.left_at && <Badge variant="destructive">left the clan</Badge>}
-          {/* T11B.10 — leadership only, matching the details page's own gate, so
-              nobody is shown a button that leads to a 404. */}
-          {canSeeBaseDetails(clan.role) && (
-            <Button asChild size="sm" className="ml-auto">
+      {/* The player at a glance: their Town Hall as the picture, then who they
+          are in a line of facts. There used to be no summary at all — the Town
+          Hall was a clause in a sentence — and a "{clan} CWL" link sat in the
+          middle of it, which is the CWL tab one row up. */}
+      <PageHeader
+        back={{ href: `/${encodedTag}/members`, label: "Members" }}
+        eyebrow={clan.name}
+        title={player.name}
+        art={<TownHall level={player.th_level} size="lg" />}
+        ribbons={
+          player.clan_role || player.verified || player.left_at ? (
+            <>
+              {player.clan_role && <Badge variant="secondary">{player.clan_role}</Badge>}
+              {player.verified && <Badge variant="outline">verified</Badge>}
+              {player.left_at && <Badge variant="destructive">left the clan</Badge>}
+            </>
+          ) : undefined
+        }
+        actions={
+          // T11B.10 — leadership only, matching the details page's own gate, so
+          // nobody is shown a button that leads to a 404.
+          canSeeBaseDetails(clan.role) ? (
+            <Button asChild variant="outline">
               <Link href={`/${encodedTag}/player/${encodeTag(player.tag)}/details`}>
                 <Castle aria-hidden />
                 Base details
               </Link>
             </Button>
-          )}
-        </div>
-        <p className="text-muted-foreground text-sm">
-          <span className="font-mono text-xs">{player.tag}</span>
-          {player.th_level ? ` · Town Hall ${player.th_level}` : ""} ·{" "}
-          <Link className="underline" href={`/${encodedTag}/cwl`}>
-            {clan.name} CWL
-          </Link>
-          {report.lastSeen && ` · last activity seen ${dayLabel(report.lastSeen)}`}
-        </p>
-      </div>
+          ) : undefined
+        }
+      />
+
+      <FactRow
+        items={[
+          { label: "tag", value: <span className="font-mono text-xs">{player.tag}</span>, icon: Hash },
+          ...(report.lastSeen
+            ? [{ label: "last activity seen", value: dayLabel(report.lastSeen), icon: History }]
+            : []),
+        ]}
+      />
 
       <PlayerReportSections
         report={report}

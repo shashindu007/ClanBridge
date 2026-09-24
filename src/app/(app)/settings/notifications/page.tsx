@@ -137,7 +137,7 @@ export default async function NotificationSettingsPage() {
 
       <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="space-y-1">
-          <h2 className="font-medium">This device</h2>
+          <h2 className="text-lg font-semibold">This device</h2>
           <p className="text-muted-foreground text-sm">
             Turn notifications on for the browser or phone you are using now.
           </p>
@@ -148,7 +148,7 @@ export default async function NotificationSettingsPage() {
 
       <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="space-y-1">
-          <h2 className="font-medium">What to send</h2>
+          <h2 className="text-lg font-semibold">What to send</h2>
           <p className="text-muted-foreground text-sm">
             Applies to every device you have turned on. Everything is on until
             you change it.

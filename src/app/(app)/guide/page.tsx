@@ -337,7 +337,7 @@ export default function MemberGuidePage() {
       </section>
 
       <section className="space-y-2 border-t pt-6">
-        <h2 className="font-medium">Something is wrong</h2>
+        <h2 className="text-lg font-semibold">Something is wrong</h2>
         <p className="text-muted-foreground text-sm">
           Ask a leader in game. If a page shows data that looks out of date, check
           the &ldquo;updated N minutes ago&rdquo; note on it — the app refreshes

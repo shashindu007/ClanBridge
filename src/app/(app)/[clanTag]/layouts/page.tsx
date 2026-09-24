@@ -25,7 +25,6 @@ import { revalidatePath } from "next/cache";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/submit-button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { currentUserId } from "@/lib/auth";
 import { requireClanByTag } from "@/lib/clans";
 import { isLeadership } from "@/lib/visibility";
@@ -40,6 +39,10 @@ import {
   type LayoutRow,
   type LayoutType,
 } from "@/repositories/layouts";
+import { LayoutGrid } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState, Panel } from "@/components/kit";
+import { TownHall } from "@/components/game/town-hall";
 
 export const dynamic = "force-dynamic";
 
@@ -108,7 +111,7 @@ function LayoutCard({
   canRemove: boolean;
 }) {
   return (
-    <article className="space-y-3 rounded-lg border p-4">
+    <article className="cb-tile space-y-3 rounded-tile border p-4">
       {imageUrl ? (
         // next/image cannot optimise a signed URL that expires, and proxying it
         // through the optimiser would cache clan material on a public CDN path.
@@ -116,17 +119,17 @@ function LayoutCard({
         <img
           src={imageUrl}
           alt={`Town Hall ${layout.thLevel} ${layout.layoutType} base`}
-          className="bg-muted aspect-video w-full rounded object-cover"
+          className="bg-muted aspect-video w-full rounded-control object-cover"
           loading="lazy"
         />
       ) : (
-        <div className="bg-muted text-muted-foreground flex aspect-video w-full items-center justify-center rounded text-sm">
+        <div className="bg-muted text-muted-foreground flex aspect-video w-full items-center justify-center rounded-control text-sm">
           No screenshot
         </div>
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary">TH{layout.thLevel}</Badge>
+        <TownHall level={layout.thLevel} size="sm" />
         <Badge variant="outline">{layout.layoutType}</Badge>
         <span className="text-muted-foreground ml-auto text-sm tabular-nums">
           {layout.votes} {layout.votes === 1 ? "vote" : "votes"}
@@ -174,15 +177,20 @@ function LayoutCard({
   );
 }
 
+/** One filter chip; the same shape the rail's section tabs use. */
+const CHIP = "rounded-chip px-2.5 py-1 text-sm transition-colors";
+const CHIP_ON = "bg-primary text-primary-foreground font-medium";
+const CHIP_OFF = "bg-muted hover:bg-accent hover:text-accent-foreground";
+
 export default async function LayoutsPage({
   params,
   searchParams,
 }: {
   params: Promise<{ clanTag: string }>;
-  searchParams: Promise<{ th?: string; type?: string; error?: string }>;
+  searchParams: Promise<{ th?: string; type?: string }>;
 }) {
   const { clanTag } = await params;
-  const { th, type, error } = await searchParams;
+  const { th, type } = await searchParams;
 
   const supabase = await createClient();
   const clan = await requireClanByTag(supabase, clanTag);
@@ -222,33 +230,24 @@ export default async function LayoutsPage({
 
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <h1 className="cb-title text-3xl">Base layouts</h1>
-          <p className="text-muted-foreground text-sm">
-            {clan.name} — shared by members, ranked by votes.
-          </p>
-        </div>
-        <Button asChild>
-          <Link href={`${base}/upload`}>Share a layout</Link>
-        </Button>
-      </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>That did not work</AlertTitle>
-          <AlertDescription>
-            {error === "unknown-action" ? "Unrecognised action." : error}
-          </AlertDescription>
-        </Alert>
-      )}
+      {/* No inline error Alert: the toast already shows every ?error=. */}
+      <PageHeader
+        eyebrow={clan.name}
+        title="Base layouts"
+        description="Shared by members, ranked by votes. Open one straight into the game."
+        actions={
+          <Button asChild variant="gold">
+            <Link href={`${base}/upload`}>Share a layout</Link>
+          </Button>
+        }
+      />
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-muted-foreground text-sm">Town Hall</span>
           <Link
             href={filterHref({ th: null })}
-            className={`rounded-md px-2 py-1 text-sm ${thLevel === null ? "bg-accent font-medium" : "hover:bg-accent"}`}
+            className={`${CHIP} ${thLevel === null ? CHIP_ON : CHIP_OFF}`}
           >
             Any
           </Link>
@@ -256,7 +255,7 @@ export default async function LayoutsPage({
             <Link
               key={level}
               href={filterHref({ th: level })}
-              className={`rounded-md px-2 py-1 text-sm ${thLevel === level ? "bg-accent font-medium" : "hover:bg-accent"}`}
+              className={`${CHIP} ${thLevel === level ? CHIP_ON : CHIP_OFF}`}
             >
               {level}
             </Link>
@@ -267,7 +266,7 @@ export default async function LayoutsPage({
           <span className="text-muted-foreground text-sm">Type</span>
           <Link
             href={filterHref({ type: null })}
-            className={`rounded-md px-2 py-1 text-sm ${layoutType === null ? "bg-accent font-medium" : "hover:bg-accent"}`}
+            className={`${CHIP} ${layoutType === null ? CHIP_ON : CHIP_OFF}`}
           >
             Any
           </Link>
@@ -275,7 +274,7 @@ export default async function LayoutsPage({
             <Link
               key={t}
               href={filterHref({ type: t })}
-              className={`rounded-md px-2 py-1 text-sm ${layoutType === t ? "bg-accent font-medium" : "hover:bg-accent"}`}
+              className={`${CHIP} ${layoutType === t ? CHIP_ON : CHIP_OFF}`}
             >
               {t}
             </Link>
@@ -286,20 +285,24 @@ export default async function LayoutsPage({
       {layouts.length === 0 ? (
         // T9.10 — an empty library is the normal state of a new clan, and the
         // two reasons for it need different answers.
-        <section className="cb-panel space-y-3 rounded-panel border p-5">
-          <h2 className="font-medium">
-            {thLevel || layoutType ? "Nothing matches that filter" : "No layouts yet"}
-          </h2>
-          <p className="text-muted-foreground text-sm">
-            {thLevel || layoutType ? (
-              <>
-                Try <Link href={base} className="underline">clearing the filters</Link>.
-              </>
-            ) : (
-              "Nobody has shared a base yet. Copy a layout link in game, take a screenshot, and add the first one."
-            )}
-          </p>
-        </section>
+        <Panel>
+          <EmptyState
+            icon={LayoutGrid}
+            title={thLevel || layoutType ? "Nothing matches that filter" : "No layouts yet"}
+            body={
+              thLevel || layoutType
+                ? "Try another Town Hall or type, or clear the filters."
+                : "Nobody has shared a base yet. Copy a layout link in game, take a screenshot, and add the first one."
+            }
+            action={
+              thLevel || layoutType ? (
+                <Button asChild variant="outline" size="sm">
+                  <Link href={base}>Clear the filters</Link>
+                </Button>
+              ) : undefined
+            }
+          />
+        </Panel>
       ) : (
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {layouts.map((layout) => (

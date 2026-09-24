@@ -102,7 +102,7 @@ export function PlayerReportSections({
     <>
       <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-medium">Clan War League</h2>
+          <h2 className="text-lg font-semibold">Clan War League</h2>
           {cwlSeasons.length > 0 && (
             <p className="text-muted-foreground text-sm tabular-nums">
               {cwlTotals.attacksUsed} of {cwlTotals.warsRostered} attacks used ·{" "}
@@ -183,7 +183,7 @@ export function PlayerReportSections({
           decides whether these numbers are right. */}
       <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-medium">Donations</h2>
+          <h2 className="text-lg font-semibold">Donations</h2>
           <p className="text-muted-foreground text-sm">
             last {Math.round(HISTORY_DAYS / 30)} months
           </p>
@@ -241,7 +241,7 @@ export function PlayerReportSections({
           RLS still limits the answer to clans the reader belongs to. */}
       {movementRows.length > 1 && (
         <section className="cb-panel space-y-4 rounded-panel border p-5">
-          <h2 className="font-medium">Clan movement</h2>
+          <h2 className="text-lg font-semibold">Clan movement</h2>
           <Table>
             <TableHeader>
               <TableRow>
@@ -278,7 +278,7 @@ export function PlayerReportSections({
           from one pass and the detail is a link. */}
       <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-medium">Clan war</h2>
+          <h2 className="text-lg font-semibold">Clan war</h2>
           <Link className="text-sm underline" href={`/${clanTag}/war/report`}>
             full report
           </Link>
@@ -351,7 +351,7 @@ export function PlayerReportSections({
           whether there have been four weekends or fourteen. */}
       <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-medium">Raid weekends</h2>
+          <h2 className="text-lg font-semibold">Raid weekends</h2>
           <Link className="text-sm underline" href={`/${clanTag}/raids`}>
             all weekends
           </Link>
@@ -397,7 +397,7 @@ export function PlayerReportSections({
           so the gap between them stays visible. */}
       <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-medium">Clan Games</h2>
+          <h2 className="text-lg font-semibold">Clan Games</h2>
           <Link className="text-sm underline" href={`/${clanTag}/games`}>
             every month
           </Link>

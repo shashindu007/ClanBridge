@@ -37,6 +37,10 @@ import {
 import { clanRoles, currentUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { familyClanRoster, familyClans } from "@/repositories/family";
+import { Search, UserRoundSearch } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState, Panel } from "@/components/kit";
+import { TownHall } from "@/components/game/town-hall";
 
 export const dynamic = "force-dynamic";
 
@@ -75,41 +79,47 @@ export default async function CrossClanSearchPage({
 
   return (
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
-      <div className="space-y-2">
-        <h1 className="cb-title text-3xl">Search members</h1>
-        <p className="text-muted-foreground text-sm">
-          Across {clans.length === 1 ? "the family's clan" : `all ${clans.length} clans in the family`}.
-          Search a name, or paste a full tag beginning with #.
-        </p>
-      </div>
+      <PageHeader
+        title="Search members"
+        description={`Across ${clans.length === 1 ? "the family's clan" : `all ${clans.length} clans in the family`}. Search a name, or paste a full tag beginning with #.`}
+      />
 
-      <form className="flex flex-wrap gap-2" action="/search" method="get">
+      <form className="flex flex-wrap gap-2" action="/search" method="get" role="search">
         <Input
           name="q"
           defaultValue={term}
           placeholder="Name or #TAG"
           aria-label="Name or tag"
           className="max-w-xs"
+          autoFocus={!term}
         />
-        <Button type="submit">Search</Button>
+        <Button type="submit">
+          <Search aria-hidden />
+          Search
+        </Button>
       </form>
 
       {!term ? (
-        <p className="text-muted-foreground text-sm">
-          Type a name to begin. Partial names work; tags have to be exact, because
-          a partial tag is not a meaningful query.
-        </p>
+        <Panel>
+          <EmptyState
+            icon={Search}
+            title="Find anyone in the family"
+            body="Partial names work. Tags have to be exact, because a partial tag is not a meaningful query."
+          />
+        </Panel>
       ) : hits.length === 0 ? (
-        <section className="cb-panel space-y-2 rounded-panel border p-5">
-          <h2 className="font-medium">No match for &ldquo;{term}&rdquo;</h2>
-          <p className="text-muted-foreground text-sm">
-            Nobody in the family matches that. If you are searching a tag, check
-            it is exact and remember tags never contain the letter O — what looks
-            like one is a zero.
-          </p>
-        </section>
+        <Panel>
+          <EmptyState
+            icon={UserRoundSearch}
+            title={`No match for “${term}”`}
+            body="Nobody in the family matches that. If you are searching a tag, check it is exact — tags never contain the letter O; what looks like one is a zero."
+          />
+        </Panel>
       ) : (
-        <section className="rounded-lg border">
+        <Panel padded={false}>
+          <p className="text-muted-foreground px-5 pt-4 text-sm">
+            {hits.length} {hits.length === 1 ? "match" : "matches"}
+          </p>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -166,8 +176,8 @@ export default async function CrossClanSearchPage({
                       <TableCell className="text-muted-foreground text-sm">
                         {hit.clanRole ?? "—"}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {hit.thLevel ?? "—"}
+                      <TableCell className="text-right">
+                        <TownHall level={hit.thLevel} />
                       </TableCell>
                     </TableRow>
                   );
@@ -175,7 +185,7 @@ export default async function CrossClanSearchPage({
               </TableBody>
             </Table>
           </div>
-        </section>
+        </Panel>
       )}
 
       <p className="text-muted-foreground text-xs">

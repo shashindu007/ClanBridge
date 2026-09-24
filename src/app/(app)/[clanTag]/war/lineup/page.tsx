@@ -225,7 +225,7 @@ export default async function WarLineupPage({
 
         {!published ? (
           <section className="cb-panel space-y-2 rounded-panel border p-5">
-            <h2 className="font-medium">No lineup published yet</h2>
+            <h2 className="text-lg font-semibold">No lineup published yet</h2>
             {/* Honest about WHY it is empty: a leader mid-decision has a draft this
                 page genuinely cannot see. */}
             <p className="text-muted-foreground text-sm">

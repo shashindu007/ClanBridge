@@ -26,7 +26,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { Castle, Plus } from "lucide-react";
+import { Castle, Plus, ScrollText } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { accountProfile, clanRoles, currentUserId } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
@@ -45,6 +45,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState, Panel, SectionHeader, Tile } from "@/components/kit";
+import { TownHall } from "@/components/game/town-hall";
 
 export const dynamic = "force-dynamic";
 
@@ -241,28 +244,90 @@ export default async function AccountPage() {
 
   return (
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
-      <div className="space-y-2">
-        <h1 className="cb-title text-3xl">Profile</h1>
-        <p className="text-muted-foreground text-sm">
-          {profile?.username ? (
-            <>
-              You appear as <strong>{profile.username}</strong>. Signed in as{" "}
-              {profile.email}.
-            </>
-          ) : (
-            <>Signed in as {profile?.email}.</>
-          )}{" "}
-          Your password and username live in{" "}
-          <Link href="/settings/account" className="underline">
-            sign-in and password
-          </Link>
-          .
-        </p>
-      </div>
+      {/* YOUR BASES FIRST. The page opened with the profile picture — set once
+          and rarely touched — and put the villages a member comes here for
+          below it. The picture is now the header's art and its settings are at
+          the foot. */}
+      <PageHeader
+        title="Profile"
+        art={
+          avatarUrl ? (
+            // A raw img: next/image cannot optimise a signed URL that expires.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatarUrl} alt="" className="size-16 rounded-full border object-cover" />
+          ) : undefined
+        }
+        description={
+          <>
+            {profile?.username ? (
+              <>
+                You appear as <strong>{profile.username}</strong>. Signed in as {profile.email}.
+              </>
+            ) : (
+              <>Signed in as {profile?.email}.</>
+            )}{" "}
+            Your password and username live in{" "}
+            <Link href="/settings/account" className="underline">
+              Sign-in &amp; password
+            </Link>
+            .
+          </>
+        }
+      />
 
-      <section className="cb-panel space-y-4 rounded-panel border p-5">
+      <section aria-labelledby="bases-title" className="space-y-3">
+        {/* "Add another base" was a whole panel around one button; it is this
+            section's action now. ?next= so Continue returns here instead of the
+            approval page, which is where /verify sends a first-time member. */}
+        <SectionHeader
+          id="bases-title"
+          title="Your bases"
+          count={bases.length}
+          action={{ href: "/verify?next=%2Faccount", label: "+ Link a village" }}
+        />
+        <p className="text-muted-foreground text-sm">
+          Every village you have proved you own. Give each one a name if you have more
+          than one — only you see these names.
+        </p>
+
+        {bases.length === 0 ? (
+          // Named for what it is rather than shown as an empty list. A member with
+          // no linked base is not looking at a feature that failed; they are
+          // looking at a step they have not done yet.
+          <Panel>
+            <EmptyState
+              icon={Castle}
+              title="No village linked yet"
+              body="Linking one is how a leader knows who you are in game. It takes the API token from the game's settings, and about a minute."
+              action={
+                <Button asChild variant="gold">
+                  <Link href="/verify?next=%2Faccount">
+                    <Plus aria-hidden className="size-4" />
+                    Link a village
+                  </Link>
+                </Button>
+              }
+            />
+          </Panel>
+        ) : (
+          <ul className="space-y-4">
+            {bases.map((base) => (
+              <BaseRow
+                key={base.playerId}
+                base={base}
+                clanName={base.clanId ? clanNames.get(base.clanId) : undefined}
+                inClan={Boolean(base.clanId && roles.has(base.clanId))}
+                save={saveNickname}
+              />
+            ))}
+          </ul>
+        )}
+      </section>
+
+
+      <Panel className="space-y-4">
         <div className="space-y-1">
-          <h2 className="font-medium">Profile picture</h2>
+          <h2 className="text-lg font-semibold">Profile picture</h2>
           <p className="text-muted-foreground text-sm">
             One picture for the account, not one per base. Only you can see it —
             your clanmates cannot.
@@ -299,57 +364,7 @@ export default async function AccountPage() {
         )}
 
         <AvatarForm userId={userId} save={saveAvatar} />
-      </section>
-
-      <section className="cb-panel space-y-4 rounded-panel border p-5">
-        <div className="space-y-1">
-          <h2 className="font-medium">Your bases</h2>
-          <p className="text-muted-foreground text-sm">
-            Every village you have proved you own. Give each one a name if you
-            have more than one — only you see these names.
-          </p>
-        </div>
-
-        {bases.length === 0 ? (
-          // Named for what it is rather than shown as an empty list. A member with
-          // no linked base is not looking at a feature that failed; they are
-          // looking at a step they have not done yet.
-          <p className="text-muted-foreground text-sm">
-            You have not linked a village yet. Linking one is how a leader knows
-            who you are in game.
-          </p>
-        ) : (
-          <ul className="divide-y">
-            {bases.map((base) => (
-              <BaseRow
-                key={base.playerId}
-                base={base}
-                clanName={base.clanId ? clanNames.get(base.clanId) : undefined}
-                inClan={Boolean(base.clanId && roles.has(base.clanId))}
-                save={saveNickname}
-              />
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="cb-panel space-y-4 rounded-panel border p-5">
-        <div className="space-y-1">
-          <h2 className="font-medium">Add another base</h2>
-          <p className="text-muted-foreground text-sm">
-            One account can hold as many villages as you play. Proving a new one
-            takes the API token from its own game settings, and about a minute.
-          </p>
-        </div>
-        {/* ?next= so Continue returns here instead of the approval page, which is
-            where /verify sends a first-time member. T11.13 adds that half. */}
-        <Button asChild variant="outline">
-          <Link href="/verify?next=%2Faccount">
-            <Plus aria-hidden className="size-4" />
-            Link a village
-          </Link>
-        </Button>
-      </section>
+      </Panel>
     </main>
   );
 }
@@ -383,10 +398,15 @@ function BaseRow({
   const named = label !== base.name;
   const field = `nickname-${base.playerId}`;
 
+  // A TILE, with the village's Town Hall standing on it. The row this replaced
+  // stacked a name, a line of badges, a full-width button, a link, a form and
+  // a hint — six things at the same weight, in a list of however many bases.
+  // Now: who the base is, then its two destinations side by side, and the
+  // rename form folded until it is wanted.
   return (
-    <li className="space-y-3 py-4 first:pt-0 last:pb-0">
+    <Tile as="li" art={<TownHall level={base.thLevel} size="lg" />} className="space-y-3">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <span className="font-medium">{label}</span>
+        <span className="cb-title text-xl">{label}</span>
         {/* The in-game name stays visible whenever a label overrides it. Without
             it a member who called a base "alt" has no way to tell which village
             that is from this page. */}
@@ -395,9 +415,6 @@ function BaseRow({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        {base.thLevel !== null && (
-          <span className="text-muted-foreground">Town Hall {base.thLevel}</span>
-        )}
         {clanName && <Badge variant="secondary">{clanName}</Badge>}
         {base.clanRole && <Badge variant="outline">{base.clanRole}</Badge>}
         {base.verified && <Badge variant="outline">verified</Badge>}
@@ -407,24 +424,26 @@ function BaseRow({
       {/* T11B.10. Shown for EVERY base, not only those with a report: progress
           is readable by ownership alone (036), so a village outside the member's
           clans still has details even when it has no report. */}
-      <Button asChild size="sm">
-        <Link href={`/account/bases/${encodeTag(base.tag)}/details`}>
-          <Castle aria-hidden />
-          Base details
-        </Link>
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/account/bases/${encodeTag(base.tag)}/details`}>
+            <Castle aria-hidden />
+            Base details
+          </Link>
+        </Button>
+        {/* T11.12. The tag is encoded here rather than in the route, because a
+            tag is #2PP0JCCL and an unencoded hash would be read as a fragment. */}
+        {inClan && (
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/account/bases/${encodeTag(base.tag)}`}>
+              <ScrollText aria-hidden />
+              Report
+            </Link>
+          </Button>
+        )}
+      </div>
 
-      {inClan ? (
-        // T11.12. The tag is encoded here rather than in the route, because a tag
-        // is #2PP0JCCL and an unencoded hash would be read as a fragment — the
-        // same reason every clan link in this app goes through encodeTag.
-        <Link
-          href={`/account/bases/${encodeTag(base.tag)}`}
-          className="block text-sm underline underline-offset-2"
-        >
-          Report for this base →
-        </Link>
-      ) : (
+      {!inClan && (
         <p className="text-muted-foreground text-sm">
           {base.clanId
             ? // Cannot name the clan — see the note above this component.
@@ -433,7 +452,11 @@ function BaseRow({
         </p>
       )}
 
-      <form action={save} className="flex flex-wrap items-end gap-2">
+      <details className="group">
+        <summary className="text-muted-foreground hover:text-foreground cursor-pointer list-none text-sm underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">
+          {named ? "Rename this base" : "Give this base a name"}
+        </summary>
+      <form action={save} className="mt-2 flex flex-wrap items-end gap-2">
         <input type="hidden" name="playerId" value={base.playerId} />
         <div className="min-w-48 flex-1 space-y-1">
           <Label htmlFor={field} className="text-xs">
@@ -449,9 +472,10 @@ function BaseRow({
         </div>
         <SubmitButton variant="outline">Save</SubmitButton>
       </form>
-      <p className="text-muted-foreground text-xs">
+      <p className="text-muted-foreground mt-1 text-xs">
         Leave the box empty to go back to the in-game name.
       </p>
-    </li>
+      </details>
+    </Tile>
   );
 }

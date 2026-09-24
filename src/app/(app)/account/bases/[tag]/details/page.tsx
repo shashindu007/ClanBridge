@@ -20,7 +20,8 @@
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ScrollText } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { BaseDetails, villageParam } from "@/components/base-details";
 import { VillageExportPaste } from "@/components/village-export-paste";
 import { Badge } from "@/components/ui/badge";
@@ -69,31 +70,26 @@ export default async function OwnBaseDetailsPage({
 
   return (
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
-      <div className="space-y-3">
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="ghost" size="xs" className="-ml-2">
-            <Link href="/account">
-              <ArrowLeft aria-hidden className="size-4" />
-              Your bases
-            </Link>
-          </Button>
-          <Button asChild variant="ghost" size="xs">
-            <Link href={`/account/bases/${encoded}`}>Report for this base</Link>
-          </Button>
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="cb-title text-3xl">{label}</h1>
-            <Badge variant="secondary">Base details</Badge>
-            {base.verified && <Badge variant="outline">verified</Badge>}
-          </div>
-          <p className="text-muted-foreground text-sm">
+      <PageHeader
+        back={{ href: "/account", label: "Profile" }}
+        eyebrow="Base details"
+        title={label}
+        ribbons={base.verified ? <Badge variant="outline">verified</Badge> : undefined}
+        description={
+          <>
             {named && <>{base.name} · </>}
             <span className="font-mono text-xs">{base.tag}</span>
-          </p>
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/account/bases/${encoded}`}>
+              <ScrollText aria-hidden />
+              Report
+            </Link>
+          </Button>
+        }
+      />
 
       <VillageExportPaste tag={base.tag} label={label} />
 

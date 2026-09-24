@@ -133,7 +133,7 @@ export default async function CrossClanReportPage() {
       ) : (
         <>
           <section className="space-y-4">
-            <h2 className="font-medium">By clan</h2>
+            <h2 className="text-lg font-semibold">By clan</h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {summaries.map((clan) => (
                 <div key={clan.clanId} className="space-y-2 rounded-lg border p-4">
@@ -167,7 +167,7 @@ export default async function CrossClanReportPage() {
 
           <section className="space-y-4">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="font-medium">Every member</h2>
+              <h2 className="text-lg font-semibold">Every member</h2>
               <p className="text-muted-foreground text-sm">
                 {flaggedCount === 0
                   ? "Nobody is flagged."

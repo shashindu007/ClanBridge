@@ -22,7 +22,6 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { CircleAlert, MessageSquare, Shield, Swords } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -171,7 +170,7 @@ export default async function CreatePollPage({
       {/* Step 1. Changing the type reloads with a different template rather than
           doing it in the browser, so this page stays a Server Component. */}
       <section className="space-y-3">
-        <h2 className="font-medium">1. What do you want to ask?</h2>
+        <h2 className="text-lg font-semibold">1. What do you want to ask?</h2>
         <nav aria-label="Kind of poll" className="grid gap-3 sm:grid-cols-3">
           {POLL_TYPES.map((t) => {
             const info = TYPE_INFO[t];
@@ -197,7 +196,7 @@ export default async function CreatePollPage({
       </section>
 
       <form action={submit} className="cb-panel space-y-5 rounded-panel border p-5">
-        <h2 className="font-medium">2. The details</h2>
+        <h2 className="text-lg font-semibold">2. The details</h2>
         <input type="hidden" name="clanTag" value={clanTag} />
         <input type="hidden" name="pollType" value={selectedType} />
 
@@ -277,11 +276,12 @@ export default async function CreatePollPage({
           </p>
         </div>
 
+        {/* No Cancel beside it: "All polls" at the top of the page is the same
+            link, and two ways out of one form is one too many. */}
         <div className="flex flex-wrap gap-3 border-t pt-5">
-          <SubmitButton pendingLabel="Opening">Open the poll</SubmitButton>
-          <Button asChild variant="outline">
-            <Link href={back}>Cancel</Link>
-          </Button>
+          <SubmitButton variant="gold" pendingLabel="Opening">
+            Open the poll
+          </SubmitButton>
         </div>
       </form>
     </main>

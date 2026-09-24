@@ -26,11 +26,12 @@
 // normal state.
 
 import Link from "next/link";
-import { CalendarClock, Gamepad2, HelpCircle, Trophy } from "lucide-react";
+import { CalendarClock, Crown, Gamepad2, HelpCircle, Trophy, Users } from "lucide-react";
 import { DataFreshness } from "@/components/data-freshness";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState, FactRow, Panel } from "@/components/kit";
+import { Ribbon } from "@/components/game/ribbon";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { clanGamesWindow, isDuringClanGames } from "@/lib/coc-time";
 import { requireClanByTag } from "@/lib/clans";
 import { isLeader } from "@/lib/visibility";
@@ -136,94 +137,81 @@ export default async function ClanGamesPage({
 
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="cb-title text-3xl">Clan Games</h1>
-          <DataFreshness freshness={fresh} canAdmin={isLeader(clan.role)} />
-        </div>
-        <p className="text-muted-foreground text-sm">
-          {clan.name} ·{" "}
-          <Link className="underline underline-offset-2" href={base}>
-            back to the clan
-          </Link>
-        </p>
-      </div>
-
-      {/* The period status, whether or not there is data. T9.10 — "no games on"
-          is the state three weeks in four and has to look deliberate. */}
-      <Alert variant={running ? "warning" : "info"}>
-        {running ? <Gamepad2 aria-hidden /> : <CalendarClock aria-hidden />}
-        <AlertTitle>
-          {running
-            ? "Clan Games are running now"
-            : `Next Clan Games open ${when(nextWindow.start.toISOString())}`}
-        </AlertTitle>
-        <AlertDescription>
-          <p>
-            {running
-              ? `Points are counted until ${when(nextWindow.end.toISOString())}. The table below fills in once the period closes — the score is a difference between two readings, and the second has not been taken yet.`
-              : "Scores appear here the day after a period ends."}
-          </p>
-        </AlertDescription>
-      </Alert>
+      {/* The period's state is a RIBBON under the title, where it was an Alert
+          on every visit — amber, the reserved "look at this" hue, for the
+          ordinary fact that the games are on. "back to the clan" (the Overview
+          tab) and the Raids/Members buttons at the foot were tabs repeated. */}
+      <PageHeader
+        eyebrow={clan.name}
+        title="Clan Games"
+        ribbons={
+          running ? (
+            <Ribbon tone="prep" icon={Gamepad2}>
+              On now · until {when(nextWindow.end.toISOString())}
+            </Ribbon>
+          ) : (
+            <Ribbon tone="neutral" icon={CalendarClock}>
+              Next · {when(nextWindow.start.toISOString())}
+            </Ribbon>
+          )
+        }
+        description={
+          running
+            ? "Scores fill in once the period closes — each is the difference between two readings, and the second has not been taken yet."
+            : "Scores appear here the day after a period ends."
+        }
+        actions={<DataFreshness freshness={fresh} canAdmin={isLeader(clan.role)} />}
+      />
 
       {!games ? (
-        <section className="space-y-3 rounded-panel border border-dashed p-6">
-          <h2 className="font-medium">No Clan Games recorded yet</h2>
-          <p className="text-muted-foreground text-sm">
-            {fresh.level === "never"
-              ? "The Clan Games sync has never run. It goes out daily and does nothing outside the monthly period, so the first scores appear after the next games finish."
-              : "The sync has run but no period has completed yet. The first month's scores appear the day after it closes."}
-          </p>
-          {/* Worth saying plainly: this is the one number in the whole project
-              that cannot be backfilled, so a missed month is a missed month. */}
-          <p className="text-muted-foreground text-sm">
-            Clan Games scores are derived from two snapshots taken six days
-            apart. A period the sync missed the start of cannot be recovered
-            afterwards — there is no history in the game API to read back.
-          </p>
-        </section>
+        <Panel>
+          <EmptyState
+            icon={Gamepad2}
+            title="No Clan Games recorded yet"
+            body={
+              <>
+                {fresh.level === "never"
+                  ? "The Clan Games sync has never run. It goes out daily and does nothing outside the monthly period, so the first scores appear after the next games finish."
+                  : "The sync has run but no period has completed yet. The first month's scores appear the day after it closes."}{" "}
+                {/* The one number in the project that cannot be backfilled. */}
+                Scores come from two snapshots six days apart, so a period the sync
+                missed the start of cannot be recovered afterwards.
+              </>
+            }
+          />
+        </Panel>
       ) : (
         <>
           {/* ── The month ──────────────────────────────────────────────────── */}
           <section className="cb-panel space-y-4 rounded-panel border p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="font-medium">{monthName(games.season)}</h2>
+              <h2 className="text-lg font-semibold">{monthName(games.season)}</h2>
               {settledBadge(games)}
             </div>
 
-            <div className="flex flex-wrap items-baseline gap-x-8 gap-y-3">
-              <div>
-                <p className="text-muted-foreground text-xs tracking-wide uppercase">
-                  Clan total
-                </p>
-                <p className="text-2xl font-semibold tabular-nums">
-                  {totals.points.toLocaleString("en-GB")}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs tracking-wide uppercase">
-                  Best score
-                </p>
-                <p className="text-lg font-semibold tabular-nums">
-                  {totals.best === null ? "—" : totals.best.toLocaleString("en-GB")}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs tracking-wide uppercase">
-                  Measured
-                </p>
-                <p className="text-lg font-semibold tabular-nums">{totals.scored}</p>
-                {/* Never present a partial total as a complete one. */}
-                {(totals.pending > 0 || totals.unmeasured > 0) && (
-                  <p className="text-muted-foreground text-xs">
-                    {totals.pending > 0 && `${totals.pending} pending`}
-                    {totals.pending > 0 && totals.unmeasured > 0 && ", "}
-                    {totals.unmeasured > 0 && `${totals.unmeasured} not measured`}
-                  </p>
-                )}
-              </div>
-            </div>
+            <FactRow
+              items={[
+                { label: "clan points", value: totals.points.toLocaleString("en-GB"), icon: Trophy },
+                {
+                  label: "best score",
+                  value: totals.best === null ? "—" : totals.best.toLocaleString("en-GB"),
+                  icon: Crown,
+                },
+                {
+                  label: "members measured",
+                  value: totals.scored,
+                  icon: Users,
+                },
+              ]}
+            />
+            {/* Never present a partial total as a complete one. */}
+            {(totals.pending > 0 || totals.unmeasured > 0) && (
+              <p className="text-muted-foreground text-xs">
+                {totals.pending > 0 && `${totals.pending} pending`}
+                {totals.pending > 0 && totals.unmeasured > 0 && ", "}
+                {totals.unmeasured > 0 && `${totals.unmeasured} not measured`} — not in the total.
+              </p>
+            )}
 
             {!isSettled(games) && (
               <p className="text-warning-ink text-sm">
@@ -235,7 +223,7 @@ export default async function ClanGamesPage({
 
           {/* ── The leaderboard ────────────────────────────────────────────── */}
           <section className="cb-panel space-y-4 rounded-panel border p-5">
-            <h2 className="font-medium">Scores</h2>
+            <h2 className="text-lg font-semibold">Scores</h2>
 
             {ranked.length === 0 ? (
               <p className="text-muted-foreground text-sm">
@@ -244,7 +232,7 @@ export default async function ClanGamesPage({
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="text-muted-foreground border-b text-left">
+                  <thead className="text-muted-foreground border-b text-left text-xs uppercase">
                     <tr>
                       <th className="py-2 pr-3 text-right font-medium">#</th>
                       <th className="py-2 pr-3 font-medium">Member</th>
@@ -312,13 +300,14 @@ export default async function ClanGamesPage({
       {/* ── History ────────────────────────────────────────────────────────── */}
       {months.length > 1 && (
         <section className="cb-panel space-y-3 rounded-panel border p-5">
-          <h2 className="font-medium">Past months</h2>
+          <h2 className="text-lg font-semibold">Past months</h2>
           <ul className="divide-y">
             {months.map((m) => (
               <li key={m.id} className="flex flex-wrap items-center gap-3 py-2">
                 <Link
                   className="min-w-0 flex-1 text-sm underline-offset-2 hover:underline"
                   href={`?season=${encodeURIComponent(m.season)}`}
+                  aria-current={m.id === games?.id ? "page" : undefined}
                 >
                   {monthName(m.season)}
                 </Link>
@@ -330,14 +319,6 @@ export default async function ClanGamesPage({
         </section>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        <Button asChild size="sm" variant="outline">
-          <Link href={`${base}/raids`}>Raid weekends</Link>
-        </Button>
-        <Button asChild size="sm" variant="outline">
-          <Link href={`${base}/members`}>Members</Link>
-        </Button>
-      </div>
     </main>
   );
 }

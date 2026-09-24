@@ -19,13 +19,13 @@
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Hourglass, Search, Users, Wifi } from "lucide-react";
+import { Hourglass, Search, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { currentUserId } from "@/lib/auth";
 import { activeMembers, platformPresence } from "@/repositories/notifications";
 import { ago } from "@/services/freshness";
-import { GameStat } from "@/components/game-stat";
 import { PageHeader } from "@/components/page-header";
+import { Disclosure, EmptyState, FactRow, Panel, SectionHeader } from "@/components/kit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -69,43 +69,44 @@ export default async function PeoplePage() {
 
   return (
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
+      {/* The other directory is one click away, in the header rather than a
+          bordered box of its own at the foot of the page. These are ACCOUNTS —
+          people who signed in; /search is VILLAGES, who is in the clan in game.
+          Genuinely different lists; a member with no account is in only one. */}
       <PageHeader
         title="People"
-        description="Everyone with an account here, and when they were last around. Times are approximate — presence is recorded once every couple of minutes, not continuously."
+        description="Everyone with an account here, and when they were last around. Times are approximate — presence is recorded every couple of minutes."
+        actions={
+          <Button asChild variant="outline" size="sm">
+            <Link href="/search">
+              <Search aria-hidden />
+              Search members by village
+            </Link>
+          </Button>
+        }
       />
 
-      <section aria-label="People in numbers" className="grid gap-3 sm:grid-cols-3">
-        <GameStat
-          label="Accounts"
-          value={String(presence.activeAccounts)}
-          hint="across every clan here"
-          tone="var(--primary)"
-          Icon={Users}
-        />
-        <GameStat
-          label="Online now"
-          value={String(presence.onlineNow)}
-          hint="active in the last five minutes"
-          tone="var(--clan-3)"
-          Icon={Wifi}
-        />
-        <GameStat
-          label="Waiting"
-          value={String(presence.pendingAccounts)}
-          hint={presence.pendingAccounts === 0 ? "nobody to let in" : "still need approving"}
-          tone="var(--trim)"
-          Icon={Hourglass}
-        />
-      </section>
+      {/* Two facts in a line. They were three framed tiles, and the third —
+          "Online now" — is the count on the "Here now" heading just below. */}
+      <FactRow
+        items={[
+          { label: "accounts across every clan", value: presence.activeAccounts, icon: Users },
+          {
+            label: presence.pendingAccounts === 0 ? "waiting — nobody to let in" : "waiting for approval",
+            value: presence.pendingAccounts,
+            icon: Hourglass,
+          },
+        ]}
+      />
 
       {people.length === 0 ? (
-        <div className="rounded-panel border border-dashed p-8 text-center">
-          <Users aria-hidden className="text-muted-foreground mx-auto size-6" />
-          <p className="mt-2 text-sm font-medium">Nobody to show</p>
-          <p className="text-muted-foreground mt-1 text-sm">
-            You need a role in a clan before you can see who else is here.
-          </p>
-        </div>
+        <Panel>
+          <EmptyState
+            icon={Users}
+            title="Nobody to show"
+            body="You need a role in a clan before you can see who else is here."
+          />
+        </Panel>
       ) : (
         <>
           <Group
@@ -113,25 +114,15 @@ export default async function PeoplePage() {
             empty="Nobody has opened the app in the last five minutes."
             people={online}
           />
-          {away.length > 0 && <Group title="Away" people={away} />}
+          {/* Folded when long: "Away" is everyone else on the platform, and at
+              eighteen accounts it was most of the page. */}
+          {away.length > 0 && (
+            <Disclosure title="Away" count={away.length} defaultOpen={away.length <= 8}>
+              <PeopleList people={away} />
+            </Disclosure>
+          )}
         </>
       )}
-
-      {/* The other directory. These are ACCOUNTS — people who signed in; that
-          one is VILLAGES, which is who is in the clan in game. They are
-          genuinely different lists and a member with no account is in exactly
-          one of them. */}
-      <div className="rounded-lg border p-4">
-        <p className="text-muted-foreground text-sm">
-          Looking for someone by their village name or tag instead?
-        </p>
-        <Button asChild size="sm" variant="outline" className="mt-2">
-          <Link href="/search">
-            <Search aria-hidden />
-            Search the member directory
-          </Link>
-        </Button>
-      </div>
     </main>
   );
 }
@@ -146,25 +137,25 @@ function Group({
   empty?: string;
 }) {
   return (
-    <section className="space-y-3">
-      <h2 className="text-lg font-semibold">
-        {title}
-        <span className="text-muted-foreground ml-2 text-sm font-normal tabular-nums">
-          {people.length}
-        </span>
-      </h2>
-
+    <Panel className="space-y-3">
+      <SectionHeader title={title} count={people.length} />
       {people.length === 0 ? (
-        <p className="text-muted-foreground rounded-panel border border-dashed p-4 text-sm">
-          {empty}
-        </p>
+        <p className="text-muted-foreground text-sm">{empty}</p>
       ) : (
-        <ul className="divide-y rounded-lg border">
+        <PeopleList people={people} />
+      )}
+    </Panel>
+  );
+}
+
+function PeopleList({ people }: { people: Awaited<ReturnType<typeof activeMembers>> }) {
+  return (
+        <ul className="divide-y">
           {people.map((person) => {
             const name = person.username ?? person.displayName ?? "Someone";
 
             return (
-              <li key={person.id} className="flex flex-wrap items-center gap-3 p-4">
+              <li key={person.id} className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0">
                 <span className="bg-muted relative flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold">
                   {initials(name)}
                   {/* The dot sits ON the initials rather than beside the name,
@@ -198,7 +189,5 @@ function Group({
             );
           })}
         </ul>
-      )}
-    </section>
   );
 }

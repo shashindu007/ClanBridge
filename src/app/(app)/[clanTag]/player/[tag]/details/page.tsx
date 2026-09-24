@@ -14,12 +14,10 @@
 // The member's own copy of this page is /account/bases/[tag]/details, and both
 // render components/base-details.tsx, so the numbers cannot disagree.
 
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { BaseDetails, villageParam } from "@/components/base-details";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { requireClanByTag } from "@/lib/clans";
 import { canSeeBaseDetails } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
@@ -69,26 +67,20 @@ export default async function MemberBaseDetailsPage({
 
   return (
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
-      <div className="space-y-3">
-        <Button asChild variant="ghost" size="xs" className="-ml-2">
-          <Link href={`/${encodedClan}/player/${encodedPlayer}`}>
-            <ArrowLeft aria-hidden className="size-4" />
-            {player.name}&apos;s profile
-          </Link>
-        </Button>
-
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="cb-title text-3xl">{player.name}</h1>
-            <Badge variant="secondary">Base details</Badge>
-            {player.clan_role && <Badge variant="outline">{player.clan_role}</Badge>}
-            {player.left_at && <Badge variant="destructive">left the clan</Badge>}
-          </div>
-          <p className="text-muted-foreground text-sm">
-            <span className="font-mono text-xs">{player.tag}</span> · {clan.name}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        back={{ href: `/${encodedClan}/player/${encodedPlayer}`, label: `${player.name}'s profile` }}
+        eyebrow={`${clan.name} · Base details`}
+        title={player.name}
+        ribbons={
+          player.clan_role || player.left_at ? (
+            <>
+              {player.clan_role && <Badge variant="outline">{player.clan_role}</Badge>}
+              {player.left_at && <Badge variant="destructive">left the clan</Badge>}
+            </>
+          ) : undefined
+        }
+        description={<span className="font-mono text-xs">{player.tag}</span>}
+      />
 
       <BaseDetails
         progress={progress}

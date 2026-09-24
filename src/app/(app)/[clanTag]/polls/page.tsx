@@ -5,11 +5,19 @@
 // so the poll a member most needs to answer is the one that does not belong to
 // their clan at all. Filtering on clan_id alone would hide exactly that.
 //
+// Each open poll is ONE ROW WITH ONE ACTION (kit ListRow): "Answer" on a poll
+// you still owe — gold on the first, the page's one call to action — "View" on
+// one you have answered. An unanswered poll used to wear a red "not answered"
+// badge, the product's colour for "this is broken", for what is only a to-do.
+// Closed polls fold, with their count showing.
+//
 // R11 — HUMAN DECISION DATA. No sync job writes here.
 
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
+import { CheckCircle2, Vote } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/page-header";
+import { Disclosure, EmptyState, ListRow, Panel, SectionHeader } from "@/components/kit";
 import { requireClanByTag } from "@/lib/clans";
 import { isLeadership } from "@/lib/visibility";
 import { currentUserId } from "@/lib/auth";
@@ -82,85 +90,85 @@ export default async function PollsPage({
   const open = polls.filter((p) => isOpen(p));
   const closed = polls.filter((p) => !isOpen(p));
 
+  const base = `/${encodeURIComponent(clan.tag)}`;
+  const firstOwed = open.find((p) => mine.length > 0 && (answeredCount.get(p.id) ?? 0) < mine.length)?.id;
+
   return (
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="space-y-1">
-          <h1 className="cb-title text-3xl">Polls</h1>
-          <p className="text-muted-foreground text-sm">
-            {clan.name} — availability and questions for the clan.
-          </p>
-        </div>
-        {isLeadership(clan.role) && (
-          <Button asChild size="sm">
-            <Link href={`/${encodeURIComponent(clan.tag)}/polls/new`}>New poll</Link>
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        eyebrow={clan.name}
+        title="Polls"
+        description="Availability and questions for the clan."
+        actions={
+          isLeadership(clan.role) ? (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`${base}/polls/new`}>New poll</Link>
+            </Button>
+          ) : undefined
+        }
+      />
 
       {polls.length === 0 ? (
-        <section className="cb-panel space-y-3 rounded-panel border p-5">
-          <h2 className="font-medium">No polls yet</h2>
-          <p className="text-muted-foreground text-sm">
-            {isLeadership(clan.role)
-              ? "Open one before CWL signup, so you know who is available before you pick the roster rather than after."
-              : "Your leader has not asked anything yet. Questions appear here when they do."}
-          </p>
-        </section>
+        <Panel>
+          <EmptyState
+            icon={Vote}
+            title="No polls yet"
+            body={
+              isLeadership(clan.role)
+                ? "Open one before CWL sign-up, so you know who is available before you pick the lineup rather than after."
+                : "Your leader has not asked anything yet. Questions appear here when they do."
+            }
+          />
+        </Panel>
       ) : (
         <>
-          <section className="space-y-3">
-            <h2 className="text-muted-foreground text-sm font-medium">Open ({open.length})</h2>
+          <Panel aria-labelledby="open-title" className="space-y-4">
+            <SectionHeader id="open-title" title="Open" count={open.length} />
             {open.length === 0 ? (
-              <p className="text-muted-foreground rounded-lg border p-6 text-sm">
-                Nothing open right now.
-              </p>
+              <p className="text-muted-foreground text-sm">Nothing open right now.</p>
             ) : (
-              <ul className="divide-y rounded-lg border">
+              <ul className="divide-y">
                 {open.map((poll) => {
                   const answers = answeredCount.get(poll.id) ?? 0;
                   const outstanding = mine.length - answers;
+                  const owed = mine.length > 0 && outstanding > 0;
+                  const where = poll.scope === "family" ? "All clans" : clan.name;
+                  const status =
+                    mine.length === 0
+                      ? "verify a village to answer"
+                      : outstanding === 0
+                        ? "you answered"
+                        : outstanding === mine.length
+                          ? "you have not answered"
+                          : `${outstanding} of your villages still to answer`;
                   return (
-                    <li key={poll.id} className="flex flex-wrap items-center gap-3 p-4">
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <Link
-                          className="font-medium underline-offset-2 hover:underline"
-                          href={`/${encodeURIComponent(clan.tag)}/polls/${poll.id}`}
-                        >
-                          {poll.title}
-                        </Link>
-                        <p className="text-muted-foreground text-xs">
-                          {poll.scope === "family" ? "All clans" : clan.name} ·{" "}
-                          {closesLabel(poll.closesAt)}
-                        </p>
-                      </div>
-                      {mine.length === 0 ? (
-                        <Badge variant="outline">verify to answer</Badge>
-                      ) : outstanding > 0 ? (
-                        <Badge variant="destructive">
-                          {outstanding === mine.length ? "not answered" : `${outstanding} left`}
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">answered</Badge>
-                      )}
-                    </li>
+                    <ListRow
+                      key={poll.id}
+                      icon={owed ? Vote : CheckCircle2}
+                      tone={owed ? "var(--info)" : "var(--success)"}
+                      context={where}
+                      title={poll.title}
+                      meta={`${closesLabel(poll.closesAt)} · ${status}`}
+                      action={{
+                        href: `${base}/polls/${poll.id}`,
+                        label: owed ? "Answer" : "View",
+                        primary: poll.id === firstOwed,
+                      }}
+                    />
                   );
                 })}
               </ul>
             )}
-          </section>
+          </Panel>
 
           {closed.length > 0 && (
-            <section className="space-y-3">
-              <h2 className="text-muted-foreground text-sm font-medium">
-                Closed ({closed.length})
-              </h2>
-              <ul className="divide-y rounded-lg border">
+            <Disclosure title="Closed" count={closed.length}>
+              <ul className="divide-y">
                 {closed.map((poll) => (
-                  <li key={poll.id} className="flex flex-wrap items-center gap-3 p-4">
+                  <li key={poll.id} className="flex flex-wrap items-center gap-3 py-2.5 first:pt-0 last:pb-0">
                     <Link
-                      className="min-w-0 flex-1 underline-offset-2 hover:underline"
-                      href={`/${encodeURIComponent(clan.tag)}/polls/${poll.id}`}
+                      className="min-w-0 flex-1 text-sm underline-offset-2 hover:underline"
+                      href={`${base}/polls/${poll.id}`}
                     >
                       {poll.title}
                     </Link>
@@ -170,7 +178,7 @@ export default async function PollsPage({
                   </li>
                 ))}
               </ul>
-            </section>
+            </Disclosure>
           )}
         </>
       )}

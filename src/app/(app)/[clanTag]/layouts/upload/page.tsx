@@ -7,7 +7,8 @@
 // R3 — requireClanByTag resolves the clan from the URL under the caller's own
 // permissions, so a clan tag pasted in from elsewhere never reaches the insert.
 
-import Link from "next/link";
+import { PageHeader } from "@/components/page-header";
+import { Panel } from "@/components/kit";
 import { revalidatePath } from "next/cache";
 import { currentUserId } from "@/lib/auth";
 import { requireClanByTag } from "@/lib/clans";
@@ -88,17 +89,18 @@ export default async function UploadLayoutPage({
 
   return (
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
-      <div className="space-y-2">
-        <h1 className="cb-title text-3xl">Share a layout</h1>
-        <p className="text-muted-foreground text-sm">
-          {clan.name} —{" "}
-          <Link href={base} className="underline">
-            back to the library
-          </Link>
-        </p>
-      </div>
+      {/* The shared header and its back link, where the page built its own
+          as an underlined sentence — the third way this product said "back". */}
+      <PageHeader
+        back={{ href: base, label: "Base layouts" }}
+        eyebrow={clan.name}
+        title="Share a layout"
+        description="Paste the layout link from the game and add a screenshot, so members can see the base before they open it."
+      />
 
-      <UploadForm clanId={clan.id} clanTag={clan.tag} save={save} />
+      <Panel>
+        <UploadForm clanId={clan.id} clanTag={clan.tag} save={save} />
+      </Panel>
     </main>
   );
 }

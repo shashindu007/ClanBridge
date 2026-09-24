@@ -133,7 +133,7 @@ export default async function AccountSettingsPage() {
 
       <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="space-y-1">
-          <h2 className="font-medium">Username</h2>
+          <h2 className="text-lg font-semibold">Username</h2>
           <p className="text-muted-foreground text-sm">
             How you appear here. Not what you sign in with.
           </p>
@@ -159,7 +159,7 @@ export default async function AccountSettingsPage() {
 
       <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="space-y-1">
-          <h2 className="font-medium">Password</h2>
+          <h2 className="text-lg font-semibold">Password</h2>
           <p className="text-muted-foreground text-sm">
             Used with your email on the Sign in form. If you have forgotten it,
             you are already past that — signing in with an emailed link brought
@@ -199,7 +199,7 @@ export default async function AccountSettingsPage() {
 
       <section className="cb-panel space-y-3 rounded-panel border p-5">
         <div className="space-y-1">
-          <h2 className="font-medium">This device</h2>
+          <h2 className="text-lg font-semibold">This device</h2>
           <p className="text-muted-foreground text-sm">
             Signing out clears this browser and lets you sign in as somebody
             else — a second account, or a clanmate borrowing your phone.

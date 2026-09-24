@@ -80,7 +80,7 @@ export function VillageExportPaste({ tag, label }: VillageExportPasteProps) {
   return (
     <section className="cb-panel space-y-4 rounded-panel border p-5">
       <div className="space-y-1">
-        <h2 className="font-medium">See everything, from your game</h2>
+        <h2 className="text-lg font-semibold">See everything, from your game</h2>
         <p className="text-muted-foreground text-sm">
           The details above come from Supercell&apos;s public data, which has no
           buildings, walls, traps or upgrade timers. Your game can export all of

@@ -27,10 +27,9 @@
 // normal state and it says so, rather than rendering an empty table.
 
 import Link from "next/link";
-import { Coins, Medal, Swords, Target, Trophy } from "lucide-react";
+import { Castle, Coins, Medal, Swords, Target, Trophy } from "lucide-react";
 import { DataFreshness } from "@/components/data-freshness";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { requireClanByTag } from "@/lib/clans";
 import { isLeader } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
@@ -50,6 +49,8 @@ import {
   raidRecord,
   seasonTotals,
 } from "@/services/raids";
+import { PageHeader } from "@/components/page-header";
+import { Disclosure, EmptyState, FactRow, Panel } from "@/components/kit";
 
 export const dynamic = "force-dynamic";
 
@@ -115,92 +116,68 @@ export default async function RaidsPage({
 
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="cb-title text-3xl">Raid weekends</h1>
-          <DataFreshness freshness={fresh} canAdmin={isLeader(clan.role)} />
-        </div>
-        <p className="text-muted-foreground text-sm">
-          {clan.name} ·{" "}
-          <Link className="underline underline-offset-2" href={base}>
-            back to the clan
-          </Link>
-        </p>
-      </div>
+      {/* "back to the clan" used to sit here as a link — it is the Overview tab
+          one row up — and "Clan Games" and "Members" buttons closed the page,
+          which are two more tabs. Gone; the tabs are the navigation. */}
+      <PageHeader
+        eyebrow={clan.name}
+        title="Raid weekends"
+        description="Clan Capital raids: medals, loot, and who still has attacks while a weekend is live."
+        actions={<DataFreshness freshness={fresh} canAdmin={isLeader(clan.role)} />}
+      />
 
       {!season ? (
         // T9.10 — distinguishing "the job has never run" from "this clan has
         // never raided" matters: a leader can act on the first and cannot on
         // the second.
-        <section className="space-y-3 rounded-panel border border-dashed p-6">
-          <h2 className="font-medium">No raid weekends recorded</h2>
-          <p className="text-muted-foreground text-sm">
-            {fresh.level === "never"
-              ? "The raid sync has never run. It goes out daily once the API key is configured."
-              : "The sync has run but found no raid history — normal for a clan that has not opened its Clan Capital yet. Weekends appear here within a day of the first one finishing."}
-          </p>
-        </section>
+        <Panel>
+          <EmptyState
+            icon={Castle}
+            title="No raid weekends recorded"
+            body={
+              fresh.level === "never"
+                ? "The raid sync has never run. It goes out daily once the API key is configured."
+                : "The sync has run but found no raid history — normal for a clan that has not opened its Clan Capital yet. Weekends appear here within a day of the first one finishing."
+            }
+          />
+        </Panel>
       ) : (
         <>
           {/* ── The weekend ────────────────────────────────────────────────── */}
           <section className="cb-panel space-y-4 rounded-panel border p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="font-medium">
+              <h2 className="text-lg font-semibold">
                 Weekend of {when(season.startTime)}
               </h2>
               {stateBadge(season)}
             </div>
 
-            <div className="flex flex-wrap items-baseline gap-x-8 gap-y-3">
-              <div>
-                <p className="text-muted-foreground text-xs tracking-wide uppercase">
-                  Raid medals
-                </p>
-                <p className="text-2xl font-semibold tabular-nums">
-                  {compact(season.offensiveReward ?? 0)}
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  {compact(season.defensiveReward ?? 0)} defensive
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs tracking-wide uppercase">
-                  Capital loot
-                </p>
-                <p className="text-lg font-semibold tabular-nums">
-                  {compact(season.totalLoot ?? 0)}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs tracking-wide uppercase">
-                  Districts cleared
-                </p>
-                <p className="text-lg font-semibold tabular-nums">
-                  {season.raidsCompleted ?? "—"}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs tracking-wide uppercase">
-                  Attacks
-                </p>
-                <p className="text-lg font-semibold tabular-nums">
-                  {totals!.attacksUsed}
-                  {totals!.attacksOffered > 0 && (
-                    <span className="text-muted-foreground font-normal">
-                      {" "}
-                      of {totals!.attacksOffered}
-                    </span>
-                  )}
-                </p>
-                {/* The honest footnote. A denominator that silently drops rows
-                    reads as complete and is not. */}
-                {totals!.unknownLimits > 0 && (
-                  <p className="text-muted-foreground text-xs">
-                    {totals!.unknownLimits} with no known limit, not counted
-                  </p>
-                )}
-              </div>
-            </div>
+            {/* The weekend in a line of facts — the kit's FactRow, where this
+                page had a third home-made style of stat row. */}
+            <FactRow
+              items={[
+                {
+                  label: "raid medals",
+                  value: compact(season.offensiveReward ?? 0),
+                  icon: Medal,
+                  title: `${compact(season.defensiveReward ?? 0)} defensive`,
+                },
+                { label: "capital loot", value: compact(season.totalLoot ?? 0), icon: Coins },
+                { label: "districts cleared", value: season.raidsCompleted ?? "—", icon: Castle },
+                {
+                  label: totals!.attacksOffered > 0 ? `of ${totals!.attacksOffered} attacks used` : "attacks used",
+                  value: totals!.attacksUsed,
+                  icon: Swords,
+                },
+              ]}
+            />
+            {/* The honest footnote. A denominator that silently drops rows
+                reads as complete and is not. */}
+            {totals!.unknownLimits > 0 && (
+              <p className="text-muted-foreground text-xs">
+                {totals!.unknownLimits} with no known attack limit, not counted in the total.
+              </p>
+            )}
           </section>
 
           {/* ── The chase list, first ──────────────────────────────────────── */}
@@ -242,9 +219,8 @@ export default async function RaidsPage({
             </section>
           )}
 
-          {/* ── Everyone ───────────────────────────────────────────────────── */}
-          <section className="cb-panel space-y-4 rounded-panel border p-5">
-            <h2 className="font-medium">Who raided</h2>
+          {/* ── Everyone — folded once it is a long list ───────────────────── */}
+          <Disclosure title="Who raided" count={record.length} defaultOpen={record.length <= 15}>
 
             {record.length === 0 ? (
               <p className="text-muted-foreground text-sm">
@@ -252,9 +228,9 @@ export default async function RaidsPage({
                 medals and loot are on it — but no member took an attack.
               </p>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="-mx-5 overflow-x-auto px-5">
                 <table className="w-full text-sm">
-                  <thead className="text-muted-foreground border-b text-left">
+                  <thead className="text-muted-foreground border-b text-left text-xs uppercase">
                     <tr>
                       <th className="py-2 pr-3 font-medium">Member</th>
                       <th className="py-2 pr-3 text-right font-medium">Attacks</th>
@@ -298,7 +274,7 @@ export default async function RaidsPage({
                 </table>
               </div>
             )}
-          </section>
+          </Disclosure>
         </>
       )}
 
@@ -331,6 +307,7 @@ export default async function RaidsPage({
                 <Link
                   className="min-w-0 flex-1 text-sm underline-offset-2 hover:underline"
                   href={`?weekend=${encodeURIComponent(s.id)}`}
+                  aria-current={s.id === season?.id ? "page" : undefined}
                 >
                   {when(s.startTime)}
                 </Link>
@@ -358,14 +335,6 @@ export default async function RaidsPage({
         </section>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        <Button asChild size="sm" variant="outline">
-          <Link href={`${base}/games`}>Clan Games</Link>
-        </Button>
-        <Button asChild size="sm" variant="outline">
-          <Link href={`${base}/members`}>Members</Link>
-        </Button>
-      </div>
     </main>
   );
 }

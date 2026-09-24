@@ -40,11 +40,15 @@ function linkText(html: string, href: string): string | null {
   return matches[0][1].replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").trim();
 }
 
-/** The h1 a page renders, read from its source. */
+/**
+ * The h1 a page renders, read from its source: a literal <h1>, or the `title`
+ * of the shared PageHeader, which renders the h1 for most pages now.
+ */
 function heading(page: string): string {
   const source = readFileSync(`src/app/(app)/${page}/page.tsx`, "utf8");
-  const match = /<h1[^>]*>([^<]+)<\/h1>/.exec(source);
-  if (!match) throw new Error(`no literal h1 in ${page}`);
+  const match =
+    /<h1[^>]*>([^<]+)<\/h1>/.exec(source) ?? /<PageHeader[^>]*?\btitle="([^"]+)"/.exec(source);
+  if (!match) throw new Error(`no literal heading in ${page}`);
   return match[1].replace(/&amp;/g, "&").trim();
 }
 

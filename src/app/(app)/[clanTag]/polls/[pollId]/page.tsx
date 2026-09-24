@@ -450,7 +450,7 @@ export default async function PollDetailPage({
                 ) : (
                   <p className="text-muted-foreground text-xs">The poll has closed, so there is nobody left to chase.</p>
                 )}
-                <ul className="max-h-96 divide-y overflow-y-auto rounded-md border">
+                <ul className="max-h-96 divide-y overflow-y-auto rounded-control border">
                   {breakdown.notAnswered.map((m) => (
                     <li key={m.playerId} className="flex items-center justify-between gap-3 px-3 py-2">
                       <span className="text-sm">{m.name}</span>
@@ -481,7 +481,9 @@ export default async function PollDetailPage({
                         {option.label}
                         <span className="text-muted-foreground tabular-nums">({group.length})</span>
                       </h3>
-                      <ul className="divide-y rounded-md border">
+                      {/* Capped and scrolling, like "Not answered" beside it: a
+                          fifty-name group would otherwise be the whole page. */}
+                      <ul className="max-h-72 divide-y overflow-y-auto rounded-control border">
                         {group.map((r) => (
                           <li key={r.playerId} className="px-3 py-2 text-sm">
                             <span className="flex items-center justify-between gap-2">

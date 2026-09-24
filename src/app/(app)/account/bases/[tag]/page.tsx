@@ -29,7 +29,9 @@
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Castle } from "lucide-react";
+import { Castle } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
+import { TownHall } from "@/components/game/town-hall";
 import { PlayerReportSections, dayLabel } from "@/components/player-report-sections";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -83,38 +85,38 @@ export default async function OwnBaseReportPage({
 
   return (
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
-      <div className="space-y-3">
-        <Button asChild variant="ghost" size="xs" className="-ml-2">
-          <Link href="/account">
-            <ArrowLeft aria-hidden className="size-4" />
-            Your bases
-          </Link>
-        </Button>
-
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="cb-title text-3xl">{label}</h1>
-            {base.clanRole && <Badge variant="secondary">{base.clanRole}</Badge>}
-            {base.verified && <Badge variant="outline">verified</Badge>}
-            {base.leftAt && <Badge variant="destructive">left the clan</Badge>}
-            {/* T11B.10 — outside the reportable branch on purpose: details are
-                readable by ownership, so a base with no report still has them. */}
-            <Button asChild size="sm" className="ml-auto">
-              <Link href={`/account/bases/${encodeTag(base.tag)}/details`}>
-                <Castle aria-hidden />
-                Base details
-              </Link>
-            </Button>
-          </div>
-          <p className="text-muted-foreground text-sm">
+      <PageHeader
+        back={{ href: "/account", label: "Profile" }}
+        title={label}
+        art={<TownHall level={base.thLevel} size="lg" />}
+        ribbons={
+          base.clanRole || base.verified || base.leftAt ? (
+            <>
+              {base.clanRole && <Badge variant="secondary">{base.clanRole}</Badge>}
+              {base.verified && <Badge variant="outline">verified</Badge>}
+              {base.leftAt && <Badge variant="destructive">left the clan</Badge>}
+            </>
+          ) : undefined
+        }
+        description={
+          <>
             {/* The in-game name stays visible whenever a label overrides it, so a
                 member who called this "alt" can still tell which village it is. */}
             {named && <>{base.name} · </>}
             <span className="font-mono text-xs">{base.tag}</span>
-            {base.thLevel ? ` · Town Hall ${base.thLevel}` : ""}
-          </p>
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          // T11B.10 — outside the reportable branch on purpose: details are
+          // readable by ownership, so a base with no report still has them.
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/account/bases/${encodeTag(base.tag)}/details`}>
+              <Castle aria-hidden />
+              Base details
+            </Link>
+          </Button>
+        }
+      />
 
       {reportable ? (
         <ReportableBase
@@ -127,7 +129,7 @@ export default async function OwnBaseReportPage({
         // is the shape that made a leader scroll past a dashed "Not built yet" box
         // for a whole phase — an absence has to be stated once, with the reason.
         <section className="cb-panel space-y-3 rounded-panel border p-5">
-          <h2 className="font-medium">There is no report for this base yet</h2>
+          <h2 className="text-lg font-semibold">There is no report for this base yet</h2>
           {base.clanId ? (
             <>
               <p className="text-muted-foreground text-sm">
@@ -149,9 +151,6 @@ export default async function OwnBaseReportPage({
               because it is yours.
             </p>
           )}
-          <Button asChild variant="outline" size="sm">
-            <Link href="/account">Back to your bases</Link>
-          </Button>
         </section>
       )}
     </main>

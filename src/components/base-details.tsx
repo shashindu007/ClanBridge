@@ -16,6 +16,9 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { GameArt } from "@/components/game/game-art";
+import { TownHall } from "@/components/game/town-hall";
+import { artKeyForUnit } from "@/lib/game-art";
 import { dayLabel } from "@/components/player-report-sections";
 import {
   Table,
@@ -59,7 +62,7 @@ export function BaseDetails({ progress, village, path }: BaseDetailsProps) {
     // own, so "empty" never reads as "broken".
     return (
       <section className="cb-panel space-y-2 rounded-panel border p-5">
-        <h2 className="font-medium">No details for this base yet</h2>
+        <h2 className="text-lg font-semibold">No details for this base yet</h2>
         <p className="text-muted-foreground text-sm">
           Hero, troop and spell levels are read once a day by the{" "}
           <code className="text-xs">sync:players</code> job. This village has not
@@ -92,14 +95,17 @@ export function BaseDetails({ progress, village, path }: BaseDetailsProps) {
         </nav>
 
         <div className="space-y-2">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="font-medium">
-              {hall ? `${hallName} ${hall}` : hallName}
-              {village === "home" && latest.thWeaponLevel
-                ? ` · weapon ${latest.thWeaponLevel}`
-                : ""}
-            </h2>
-            <p className="text-2xl font-semibold tabular-nums">{overall.pct}%</p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              {village === "home" && <TownHall level={hall ?? null} size="md" />}
+              <h2 className="text-lg font-semibold">
+                {hall ? `${hallName} ${hall}` : hallName}
+                {village === "home" && latest.thWeaponLevel
+                  ? ` · weapon ${latest.thWeaponLevel}`
+                  : ""}
+              </h2>
+            </div>
+            <p className="cb-title text-3xl tabular-nums">{overall.pct}%</p>
           </div>
           <Progress value={overall.pct} label={`${hallName} progress`} />
           <p className="text-muted-foreground text-xs">
@@ -207,7 +213,7 @@ function BehindPanel({
   return (
     <section className="cb-panel space-y-3 rounded-panel border p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-medium">Below the {hallName} {hall - 1} cap</h2>
+        <h2 className="text-lg font-semibold">Below the {hallName} {hall - 1} cap</h2>
         <span className="text-muted-foreground text-sm tabular-nums">
           {total === 0 ? "none" : `${total} unit${total === 1 ? "" : "s"}`}
         </span>
@@ -256,7 +262,7 @@ function UpgradesPanel({
   return (
     <section className="cb-panel space-y-3 rounded-panel border p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-medium">Upgraded lately</h2>
+        <h2 className="text-lg font-semibold">Upgraded lately</h2>
         {since && (
           <span className="text-muted-foreground text-sm">since {dayLabel(since)}</span>
         )}
@@ -291,7 +297,7 @@ function GroupPanel({ group }: { group: GroupProgress }) {
   return (
     <section id={group.group} className="cb-panel scroll-mt-4 space-y-3 rounded-panel border p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-medium">{group.label}</h2>
+        <h2 className="text-lg font-semibold">{group.label}</h2>
         {isSuper ? (
           <span className="text-muted-foreground text-sm">
             not counted — a super troop&apos;s level is its base troop&apos;s
@@ -331,6 +337,15 @@ function UnitRow({ unit, showBar }: { unit: StoredUnit; showBar: boolean }) {
     <TableRow>
       <TableCell>
         <div className="flex flex-wrap items-center gap-2">
+          {/* The unit's own picture when the Fan Kit is installed: a player
+              finds "Archer Queen" faster by her face than by reading a column
+              of names. Nothing is drawn without it — the name is the label. */}
+          <GameArt
+            art={artKeyForUnit(unit.name, unit.group)}
+            size={32}
+            alt=""
+            className={unit.level === 0 ? "opacity-40 grayscale" : undefined}
+          />
           <span className="font-medium">
             {unit.name}
             {!unit.capKnown && (
