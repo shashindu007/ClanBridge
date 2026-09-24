@@ -29,16 +29,9 @@ import {
 
 export type LineupStatusValue = "draft" | "published";
 
-export function TownHall({ level }: { level: number | null }) {
-  return (
-    <span
-      className="bg-muted text-muted-foreground inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-xs font-medium tabular-nums"
-      title={level ? `Town Hall ${level}` : "Town Hall not known yet"}
-    >
-      TH {level ?? "?"}
-    </span>
-  );
-}
+// One Town Hall shape for the whole product; it lives with the other game art.
+import { TownHall } from "@/components/game/town-hall";
+export { TownHall };
 
 /** A poll answer, with an icon so it never depends on colour alone. */
 export function AvailabilityBadge({ answer }: { answer: string | null }) {
