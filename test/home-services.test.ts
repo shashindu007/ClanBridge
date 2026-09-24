@@ -2,7 +2,7 @@
 // what order. The order is the design, so it is what most of these pin.
 
 import { describe, expect, it } from "vitest";
-import { countsByClan, needsYou, timeUntil, type HomeClan } from "@/services/home";
+import { clanStatus, countsByClan, needsYou, timeUntil, type HomeClan } from "@/services/home";
 
 const NOW = new Date("2026-09-22T12:00:00Z");
 const IN_5H = "2026-09-22T17:00:00Z";
@@ -304,5 +304,168 @@ describe("timeUntil", () => {
   it("is null once the moment has passed, or when there is none", () => {
     expect(timeUntil("2026-09-22T11:00:00Z", NOW)).toBeNull();
     expect(timeUntil(null, NOW)).toBeNull();
+  });
+});
+
+// ── CWL week ──────────────────────────────────────────────────────────────────
+// During CWL the regular war endpoint says notInWar, so a clan fighting its
+// league war used to read as idle on Home. These pin that it no longer does.
+
+const cwlBattle = (record: HomeClan["warRecord"] = []): HomeClan["cwl"] => ({
+  season: "2026-09",
+  war: { state: "inWar", dayNumber: 3, startTime: null, endTime: IN_5H },
+  record,
+});
+
+describe("needsYou — CWL", () => {
+  it("asks for your CWL attack today, as urgently as a war attack", () => {
+    const items = needsYou({
+      clans: [
+        clan({ openPolls: [{ id: "p", title: "Sizes", closesAt: null, responders: [] }] }),
+        clan({
+          id: "c2",
+          tag: "#8QUCLJY0",
+          name: "DH CWL ONLY",
+          cwl: cwlBattle([{ playerId: ME, attacksRemaining: 1 }]),
+        }),
+      ],
+      myPlayers: [
+        { id: ME, clanId: "c2" },
+        { id: "p-me-2", clanId: "c1" },
+      ],
+      unread: 0,
+      waitingAccounts: 0,
+      now: NOW,
+    });
+    expect(kinds(items)[0]).toBe("cwl-attacks");
+    expect(items[0]).toMatchObject({
+      title: "CWL day 3: you have 1 attack left",
+      meta: "Day ends in 5h",
+      href: "/%238QUCLJY0/cwl/2026-09",
+      actionLabel: "Attack",
+    });
+  });
+
+  it("says nothing once your attack is used", () => {
+    const items = needsYou({
+      clans: [clan({ cwl: cwlBattle([{ playerId: ME, attacksRemaining: 0 }]) })],
+      myPlayers: [{ id: ME, clanId: "c1" }],
+      unread: 0,
+      waitingAccounts: 0,
+      now: NOW,
+    });
+    expect(items).toEqual([]);
+  });
+
+  it("tells a leader how many of today's attacks are unused", () => {
+    const items = needsYou({
+      clans: [
+        clan({
+          role: "co-leader",
+          cwl: cwlBattle([
+            { playerId: OTHER, attacksRemaining: 1 },
+            { playerId: "p-3", attacksRemaining: 1 },
+          ]),
+        }),
+      ],
+      myPlayers: [],
+      unread: 0,
+      waitingAccounts: 0,
+      now: NOW,
+    });
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      kind: "lead-attacks",
+      title: "CWL day 3: 2 attacks still unused",
+    });
+  });
+});
+
+describe("clanStatus — the ribbon on each clan tile", () => {
+  const me = new Set([ME]);
+
+  it("leads with a CWL battle day, and counts your one attack", () => {
+    const status = clanStatus(
+      clan({ cwl: cwlBattle([{ playerId: ME, attacksRemaining: 1 }]) }),
+      me,
+      NOW,
+      "wars",
+    );
+    expect(status).toEqual({
+      kind: "cwl",
+      tone: "cwl",
+      label: "CWL DAY 3 · 5h",
+      mine: { left: 1, allowed: 1 },
+      href: "/%232PP0JCCL/cwl/2026-09",
+    });
+  });
+
+  it("shows a regular battle day with your two attacks", () => {
+    const status = clanStatus(
+      clan({ war: battle, warRecord: [{ playerId: ME, attacksRemaining: 1, attacksAllowed: 2 }] }),
+      me,
+      NOW,
+    );
+    expect(status).toMatchObject({ kind: "war", tone: "war", label: "WAR · 5h", mine: { left: 1, allowed: 2 } });
+    expect(status.href).toBe("/%232PP0JCCL/war");
+  });
+
+  it("has no attack count for a war you are not in", () => {
+    const status = clanStatus(
+      clan({ war: battle, warRecord: [{ playerId: OTHER, attacksRemaining: 2 }] }),
+      me,
+      NOW,
+    );
+    expect(status.mine).toBeNull();
+  });
+
+  it("ranks CWL above a regular war when both read as live", () => {
+    const status = clanStatus(clan({ war: battle, cwl: cwlBattle() }), me, NOW);
+    expect(status.kind).toBe("cwl");
+  });
+
+  it("counts down preparation to battle day", () => {
+    const prep = clanStatus(
+      clan({ war: { state: "preparation", startTime: IN_5H, endTime: IN_2D } }),
+      me,
+      NOW,
+    );
+    expect(prep).toMatchObject({ kind: "prep", tone: "prep", label: "PREP · 5h" });
+
+    const cwlPrep = clanStatus(
+      clan({
+        cwl: {
+          season: "2026-09",
+          war: { state: "preparation", dayNumber: 1, startTime: IN_5H, endTime: null },
+          record: [],
+        },
+      }),
+      me,
+      NOW,
+    );
+    expect(cwlPrep).toMatchObject({ kind: "cwl-prep", label: "CWL DAY 1 PREP · 5h" });
+  });
+
+  it("flags CWL sign-up when nothing else is on", () => {
+    expect(clanStatus(clan(), me, NOW, "signup")).toMatchObject({
+      kind: "signup",
+      label: "CWL SIGN-UP",
+      href: "/%232PP0JCCL/cwl",
+    });
+  });
+
+  it("shows a result for a day after the war ends, then nothing", () => {
+    const ended = (endTime: string) =>
+      clan({
+        war: { state: "warEnded", startTime: null, endTime, ourStars: 32, theirStars: 28, result: "win" },
+      });
+    expect(clanStatus(ended("2026-09-22T02:00:00Z"), me, NOW)).toMatchObject({
+      kind: "result",
+      label: "WON 32–28",
+    });
+    expect(clanStatus(ended("2026-09-20T02:00:00Z"), me, NOW)).toMatchObject({
+      kind: "idle",
+      label: "NO WAR",
+    });
   });
 });

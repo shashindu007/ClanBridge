@@ -12,6 +12,7 @@
 // fixed and deliberate, most time-critical first:
 //
 //   your attacks on battle day   the war ends and the attack is gone forever
+//     (a regular war or today's CWL war — both are gone at the deadline)
 //   polls you have not answered  a leader is waiting on you to size the war
 //   your war starting soon       worth knowing, nothing to do yet
 //   leader: attacks unused       chase people while there is still time
@@ -23,6 +24,11 @@
 // polls in clans they belong to. Leader items appear only where the caller's
 // role allows the action the item links to, so the list never offers a door
 // the database will then refuse (error prevention, not just tidiness).
+//
+// clanStatus() is the other half: the one-line answer to "what is this clan
+// doing right now" that each clan tile on Home leads with, as a ribbon. It
+// reads the same inputs as needsYou(), so a tile and the to-do list below it
+// can never disagree about whether you have an attack left.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { ClanRole } from "@/types/domain";
@@ -34,9 +40,23 @@ export interface HomeClan {
   name: string;
   role: ClanRole;
   /** The current or most recent war, or null. */
-  war: { state: string | null; endTime: string | null; startTime: string | null } | null;
+  war: {
+    state: string | null;
+    endTime: string | null;
+    startTime: string | null;
+    ourStars?: number | null;
+    theirStars?: number | null;
+    /** 'win' | 'lose' | 'tie', as the sync computes it. */
+    result?: string | null;
+  } | null;
   /** Everybody's war record for that war. Empty when there is no war. */
-  warRecord: Array<{ playerId: string; attacksRemaining: number }>;
+  warRecord: Array<{ playerId: string; attacksRemaining: number; attacksAllowed?: number }>;
+  /**
+   * CWL today — loaded only during CWL week. During CWL the regular war
+   * endpoint reports `notInWar`, so without this a clan fighting its league
+   * war read as idle on Home.
+   */
+  cwl?: HomeCwl | null;
   /**
    * OPEN polls only. `responders` is the player ids the caller can see answer:
    * their own for a member, everybody's for leadership (010's RLS asymmetry,
@@ -60,6 +80,23 @@ export interface HomeClan {
   memberIds?: string[];
 }
 
+export interface HomeCwl {
+  /** 'YYYY-MM', for the link to the season page. */
+  season: string;
+  /**
+   * Today's war day: the one on battle day, else the one in preparation. Null
+   * before the group has formed.
+   */
+  war: {
+    state: string | null;
+    dayNumber: number | null;
+    startTime: string | null;
+    endTime: string | null;
+  } | null;
+  /** Today's battle-day roster with attacks left — one each in CWL. Empty unless inWar. */
+  record: Array<{ playerId: string; attacksRemaining: number }>;
+}
+
 export interface NeedsYouInput {
   clans: HomeClan[];
   /** The caller's own villages, with the clan each is in. */
@@ -72,6 +109,7 @@ export interface NeedsYouInput {
 
 export type NeedKind =
   | "war-attacks"
+  | "cwl-attacks"
   | "poll"
   | "war-soon"
   | "lead-attacks"
@@ -105,6 +143,7 @@ export interface NeedItem {
 
 const URGENCY: Record<NeedKind, number> = {
   "war-attacks": 100,
+  "cwl-attacks": 100,
   poll: 80,
   "war-soon": 70,
   "lead-attacks": 50,
@@ -189,6 +228,50 @@ export function needsYou(input: NeedsYouInput): NeedItem[] {
         actionLabel: "See the plan",
         urgency: URGENCY["war-soon"],
       });
+    }
+
+    // ── CWL: today's war day ───────────────────────────────────────────────
+    // One attack each, gone at the day's deadline — the same urgency as a
+    // regular war's, and it links to the season page, where the day is.
+    const cwl = clan.cwl;
+    if (cwl?.war?.state === "inWar") {
+      const href = `${base}/cwl/${encodeURIComponent(cwl.season)}`;
+      const day = cwl.war.dayNumber ? `CWL day ${cwl.war.dayNumber}` : "CWL";
+      const ends = timeUntil(cwl.war.endTime, now);
+      const myLeft = cwl.record
+        .filter((r) => mine.has(r.playerId))
+        .reduce((sum, r) => sum + r.attacksRemaining, 0);
+
+      if (myLeft > 0) {
+        items.push({
+          kind: "cwl-attacks",
+          clanId: clan.id,
+          clanName: clan.name,
+          clans: here,
+          title: `${day}: you have ${plural(myLeft, "attack", "attacks")} left`,
+          meta: ends ? `Day ends ${ends}` : null,
+          href,
+          actionLabel: "Attack",
+          urgency: URGENCY["cwl-attacks"],
+        });
+      }
+
+      if (leads) {
+        const clanLeft = cwl.record.reduce((sum, r) => sum + r.attacksRemaining, 0);
+        if (clanLeft > 0) {
+          items.push({
+            kind: "lead-attacks",
+            clanId: clan.id,
+            clanName: clan.name,
+            clans: here,
+            title: `${day}: ${plural(clanLeft, "attack", "attacks")} still unused`,
+            meta: ends ? `Day ends ${ends}` : null,
+            href,
+            actionLabel: "Open the day",
+            urgency: URGENCY["lead-attacks"],
+          });
+        }
+      }
     }
   }
 
@@ -312,6 +395,123 @@ function pollNeeds(input: NeedsYouInput, mine: Set<string>, now: Date): NeedItem
     }
   }
   return items;
+}
+
+export type StatusKind = "cwl" | "war" | "cwl-prep" | "prep" | "signup" | "result" | "idle";
+
+export interface ClanStatus {
+  kind: StatusKind;
+  /** The ribbon's colour — decoration; `label` carries the meaning. */
+  tone: "war" | "prep" | "cwl" | "neutral";
+  /** In capitals, for the ribbon: "WAR · 12h", "CWL DAY 3 · 8h", "WON 32–28". */
+  label: string;
+  /**
+   * The caller's own attacks in the war the ribbon is about — left and allowed,
+   * summed over their villages in it. Null when none of their villages is in it.
+   */
+  mine: { left: number; allowed: number } | null;
+  /** Where "go and do it" leads: the war board or the CWL season. */
+  href: string;
+}
+
+/** "12h", "40m", "2d" — timeUntil without the "in". */
+function shortly(iso: string | null, now: Date): string | null {
+  return timeUntil(iso, now)?.replace(/^in /, "") ?? null;
+}
+
+function tally(
+  record: Array<{ playerId: string; attacksRemaining: number; attacksAllowed?: number }>,
+  mine: ReadonlySet<string>,
+  perHead: number,
+): ClanStatus["mine"] {
+  const rows = record.filter((r) => mine.has(r.playerId));
+  if (rows.length === 0) return null;
+  return {
+    left: rows.reduce((sum, r) => sum + r.attacksRemaining, 0),
+    allowed: rows.reduce((sum, r) => sum + (r.attacksAllowed ?? perHead), 0),
+  };
+}
+
+const RESULT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * What one clan is doing right now, as the ribbon on its Home tile.
+ *
+ * ONE STATE WINS, most pressing first: a CWL battle day, a regular battle day,
+ * CWL preparation, regular preparation, CWL sign-up, a war that ended in the
+ * last day (its result), and otherwise nothing. CWL outranks a regular war
+ * because during CWL week the regular endpoint is `notInWar` anyway; if both
+ * ever read as live, the league war is the one with a daily deadline.
+ */
+export function clanStatus(
+  clan: HomeClan,
+  myPlayerIds: ReadonlySet<string>,
+  now: Date,
+  cwlPhase: "signup" | "wars" | null = null,
+): ClanStatus {
+  const base = `/${encodeURIComponent(clan.tag)}`;
+  const cwl = clan.cwl ?? null;
+  const cwlHref = cwl ? `${base}/cwl/${encodeURIComponent(cwl.season)}` : `${base}/cwl`;
+  const day = cwl?.war?.dayNumber ? `CWL DAY ${cwl.war.dayNumber}` : "CWL";
+  const withTime = (label: string, t: string | null) => (t ? `${label} · ${t}` : label);
+
+  if (cwl?.war?.state === "inWar") {
+    return {
+      kind: "cwl",
+      tone: "cwl",
+      label: withTime(day, shortly(cwl.war.endTime, now)),
+      mine: tally(cwl.record, myPlayerIds, 1),
+      href: cwlHref,
+    };
+  }
+
+  if (clan.war?.state === "inWar") {
+    return {
+      kind: "war",
+      tone: "war",
+      label: withTime("WAR", shortly(clan.war.endTime, now)),
+      mine: tally(clan.warRecord, myPlayerIds, 2),
+      href: `${base}/war`,
+    };
+  }
+
+  if (cwl?.war?.state === "preparation") {
+    return {
+      kind: "cwl-prep",
+      tone: "cwl",
+      label: withTime(`${day} PREP`, shortly(cwl.war.startTime, now)),
+      mine: null,
+      href: cwlHref,
+    };
+  }
+
+  if (clan.war?.state === "preparation") {
+    return {
+      kind: "prep",
+      tone: "prep",
+      label: withTime("PREP", shortly(clan.war.startTime, now)),
+      mine: tally(clan.warRecord, myPlayerIds, 2),
+      href: `${base}/war`,
+    };
+  }
+
+  if (cwlPhase === "signup") {
+    return { kind: "signup", tone: "cwl", label: "CWL SIGN-UP", mine: null, href: cwlHref };
+  }
+
+  const ended = clan.war?.state === "warEnded" && clan.war.endTime
+    ? now.getTime() - new Date(clan.war.endTime).getTime()
+    : Number.POSITIVE_INFINITY;
+  if (clan.war && ended >= 0 && ended < RESULT_WINDOW_MS) {
+    const word = clan.war.result === "win" ? "WON" : clan.war.result === "lose" ? "LOST" : "DRAW";
+    const score =
+      clan.war.ourStars != null && clan.war.theirStars != null
+        ? ` ${clan.war.ourStars}–${clan.war.theirStars}`
+        : "";
+    return { kind: "result", tone: "neutral", label: `${word}${score}`, mine: null, href: `${base}/war` };
+  }
+
+  return { kind: "idle", tone: "neutral", label: "NO WAR", mine: null, href: `${base}/war` };
 }
 
 /** How many items belong to each clan — the badge on each clan tab. */

@@ -161,6 +161,7 @@ async function loadClan(supabase: Supabase, clan: VisibleClan): Promise<LoadedCl
 /** Icon and hue for each kind of to-do. Status hues only where the row IS one. */
 const KIND_STYLE: Record<NeedKind, { icon: LucideIcon; tone: string }> = {
   "war-attacks": { icon: Flame, tone: "var(--warning)" },
+  "cwl-attacks": { icon: Flame, tone: "var(--warning)" },
   poll: { icon: Vote, tone: "var(--info)" },
   "war-soon": { icon: CalendarDays, tone: "var(--info)" },
   "lead-attacks": { icon: Swords, tone: "var(--primary)" },
