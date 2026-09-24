@@ -56,7 +56,7 @@ export interface RailClan {
 // that disappears.
 const ACTIVE =
   "bg-accent text-accent-foreground shadow-[inset_0_1px_0_oklch(1_0_0/0.5)] font-medium";
-const IDLE = "text-wood-ink-dim hover:bg-accent hover:text-accent-foreground";
+const IDLE = "text-rail-ink-dim hover:bg-accent hover:text-accent-foreground";
 
 /**
  * T12.10 — the way back to the home page, as a control that looks like one.
@@ -263,8 +263,8 @@ export function ClanSectionTabs({ clans }: { clans: RailClan[] }) {
                   className={
                     "shrink-0 rounded-sm px-1 py-0.5 text-[0.8125rem] transition-colors " +
                     (active
-                      ? "text-wood-ink font-medium underline decoration-2 underline-offset-4"
-                      : "text-wood-ink-dim hover:text-wood-ink")
+                      ? "text-rail-ink font-medium underline decoration-2 underline-offset-4"
+                      : "text-rail-ink-dim hover:text-rail-ink")
                   }
                 >
                   {child.label}

@@ -110,7 +110,7 @@ export function AccountMenu({
         // The control says WHOSE account it is. The bug that started T10 was a
         // member with two accounts who could not tell which one they were signed
         // in as, so the name is the label rather than a generic avatar.
-        className="text-wood-ink-dim hover:text-wood-ink flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1.5 text-[0.9375rem] transition-colors group-open:bg-white/10 group-open:text-wood-ink [&::-webkit-details-marker]:hidden"
+        className="text-rail-ink-dim hover:text-rail-ink flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1.5 text-[0.9375rem] transition-colors group-open:bg-white/10 group-open:text-rail-ink [&::-webkit-details-marker]:hidden"
         aria-label={`Account and settings for ${label}`}
         title={email ?? undefined}
       >

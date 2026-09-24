@@ -206,13 +206,13 @@ export function Landing({
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
           <Link
             href="/"
-            className="text-wood-ink flex shrink-0 items-center gap-2 text-[1.0625rem] font-semibold tracking-tight"
+            className="text-rail-ink flex shrink-0 items-center gap-2 text-[1.0625rem] font-semibold tracking-tight"
           >
             <Crest className="size-5.5 shrink-0" />
             ClanBridge
           </Link>
 
-          <nav aria-label="On this page" className="text-wood-ink-dim hidden items-center gap-1 text-sm md:flex">
+          <nav aria-label="On this page" className="text-rail-ink-dim hidden items-center gap-1 text-sm md:flex">
             {[
               ["#features", "Features"],
               ["#how", "How it works"],

@@ -73,7 +73,7 @@ export function WarScoreboard({
       />
       <span
         className="cb-medal size-11 rounded-full sm:size-14"
-        style={{ "--medal": "var(--wood-2)" } as React.CSSProperties}
+        style={{ "--medal": "var(--rail-2)" } as React.CSSProperties}
       >
         <span className="cb-title text-base sm:text-lg">VS</span>
       </span>

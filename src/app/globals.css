@@ -4,9 +4,11 @@
 /* Tailwind v4 is CSS-first. There is no tailwind.config.ts in this project —
    design tokens are declared here and shadcn/ui reads them as CSS variables.
 
-   The palette is shadcn's "slate" base (components.json), written out by hand
-   rather than by `shadcn init`, because components.json already existed and the
-   CLI therefore skipped the init step that normally writes this block.
+   The token NAMES are shadcn's (components.json), so every ui/* component
+   reads them unchanged. The VALUES are this product's own: "Store night", a
+   deep night-blue built for a phone read in the dark, with one gold call to
+   action per view. Dark is the default (lib/theme.ts); light is its daytime
+   counterpart, not the other way round.
 
    ───────────────────────────────────────────────────────────────────────────
    THE STATUS COLOURS ARE RESERVED. THEY ARE NOT DECORATION.
@@ -20,13 +22,12 @@
 
    AND COLOUR NEVER CARRIES MEANING ALONE. Every status colour ships with an
    icon and a word — one in eight men reads red and green as the same colour,
-   and --warning is deliberately sub-3:1 on white (1.83:1), which is exactly why
-   the icon and the label are not optional.
+   and --warning is deliberately sub-3:1 on the light page (1.78:1), which is
+   exactly why the icon and the label are not optional.
 
    Each value below was measured, not chosen by eye: WCAG contrast of every ink
-   against the tint it sits on, and the three clan hues run through the
-   colour-blindness separation check in both modes. The numbers are in the
-   comments. If you change a value, re-measure it. */
+   against the surface it sits on, computed oklch → sRGB. The numbers are in
+   the comments. If you change a value, re-measure it. */
 
 @custom-variant dark (&:is(.dark *));
 
@@ -35,92 +36,68 @@
 
   --radius: 0.625rem;
 
-  /* ── Chrome: wood and parchment ───────────────────────────────────────────
-     The game's own furniture — aged paper panels, dark wood, stone-blue
-     ironwork — rather than the slate greys shadcn ships with.
+  /* ── Light: Store night by day ───────────────────────────────────────────
+   A cool near-white page, white tiles, and the same night-blue header rail as
+   the dark theme — the chrome is the brand and does not change with the hour.
 
-     GOLD IS DELIBERATELY ABSENT, and it is the obvious omission. Gold is the
-     colour a Clash palette reaches for first, and --warning is already amber
-     and already reserved. A gold button beside an amber "sync failed" badge
-     makes them the same colour to the reader, and the badge is the one thing
-     in this product that must never be ignorable. The wood tones carry the
-     identity instead; the ironwork blue carries the actions.
-
-     Homage, not imitation: no Supercell asset, mark or artwork is used here,
-     which is the line T0.12 and T9.8 draw.
-
-     Measured against the new surfaces, not inherited:
-       foreground on background     14.62:1
-       foreground on secondary      13.49:1
-       muted-foreground on bg        5.70:1   (5.26:1 on --muted)
-       secondary-foreground on it   11.69:1
-       primary-foreground on it      6.56:1
-       primary on background         6.26:1   (links)
-       accent-foreground on it       8.30:1
-       ring on background            3.33:1   (focus, >= 3)
-       border on background          1.44:1   (1.52:1 on --card) */
-  --background: oklch(0.972 0.017 85);
-  --foreground: oklch(0.255 0.03 62);
-  --card: oklch(0.991 0.008 85);
-  --card-foreground: oklch(0.255 0.03 62);
-  --popover: oklch(0.991 0.008 85);
-  --popover-foreground: oklch(0.255 0.03 62);
-  /* Ironwork blue. Every button, link and focus ring in the product. */
-  --primary: oklch(0.47 0.105 248);
-  --primary-foreground: oklch(0.988 0.01 85);
-  --secondary: oklch(0.945 0.028 82);
-  --secondary-foreground: oklch(0.3 0.035 60);
-  --muted: oklch(0.945 0.028 82);
-  --muted-foreground: oklch(0.495 0.038 66);
-  /* Was byte-identical to --secondary and --muted, which meant every
-     `hover:bg-accent` in the app — the clan switcher, ghost and outline
-     buttons, table rows — hovered to a grey indistinguishable from not
-     hovering. Now a deeper tan than the surfaces around it, so hover is
-     visible everywhere at once. */
-  --accent: oklch(0.918 0.046 78);
-  --accent-foreground: oklch(0.37 0.062 60);
+     foreground on background     15.23:1   (16.50:1 on --tile)
+     muted-foreground on bg        5.53:1   (6.00:1 on --tile)
+     primary on background         5.59:1   (links)
+     primary-foreground on it      6.05:1
+     secondary-foreground on it   14.06:1
+     accent-foreground on it      10.66:1
+     ring on background            3.35:1   (focus, >= 3)
+     border on background          1.32:1   (decorative) */
+  --background: oklch(0.972 0.01 250);
+  --foreground: oklch(0.24 0.045 264);
+  --card: oklch(0.995 0.004 250);
+  --card-foreground: oklch(0.24 0.045 264);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.24 0.045 264);
+  /* Tier 2: the chunky tile. White on a near-white page, lifted by its lip. */
+  --tile: oklch(1 0 0);
+  --primary: oklch(0.5 0.14 255);
+  --primary-foreground: oklch(0.99 0.005 250);
+  --secondary: oklch(0.945 0.015 255);
+  --secondary-foreground: oklch(0.28 0.045 264);
+  --muted: oklch(0.945 0.015 255);
+  --muted-foreground: oklch(0.5 0.04 258);
+  /* Deeper than --secondary on purpose: every `hover:bg-accent` in the app
+     must be visibly different from not hovering. */
+  --accent: oklch(0.915 0.03 255);
+  --accent-foreground: oklch(0.3 0.06 262);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.855 0.04 78);
-  --input: oklch(0.855 0.04 78);
-  --ring: oklch(0.62 0.095 248);
+  --border: oklch(0.88 0.02 255);
+  --input: oklch(0.88 0.02 255);
+  --ring: oklch(0.62 0.13 250);
 
   /* ── Status. Reserved; see the header. ────────────────────────────────────
      -mark  the icon, the dot, the border  (>= 3:1 vs surface, or icon+label)
      -ink   text on the tinted surface     (>= 4.5:1, measured vs that tint)
-     -tint  the surface itself, mixed from -mark so one value drives both modes
+     -tint  the surface itself
 
-     re-measured on the parchment background, ink on its own tint:
-       success  mark 3.09:1   ink 6.56:1
-       warning  mark 1.69:1   ink 6.95:1   ← sub-3:1 BY DESIGN, icon+label only
-       info     mark 4.08:1   ink 6.97:1
+     measured on the light background, ink on its own tint:
+       success  mark 3.10:1   ink 6.56:1
+       warning  mark 1.78:1   ink 6.57:1   ← sub-3:1 BY DESIGN, icon+label only
+       info     mark 4.08:1   ink 6.96:1
 
-     Every mark lost roughly a tenth of its ratio when the background stopped
-     being #ffffff (3.35 / 1.83 / 4.42 before). Success still clears 3:1 and
-     info still clears 4.5:1; warning was already below 3:1 on purpose. The
-     icon and the label were never optional and are what carry these.
+     WARNING IS ORANGE-AMBER (hue ~65), NOT YELLOW, and that is what lets gold
+     exist at all. Gold (hue 85) is the one call to action; a warning is a
+     tint, an icon and a word. They now differ in hue, in shape and in wording,
+     which is the rule the decorative layer below depends on.
 
      There is deliberately no --destructive-tint. `destructive` already means
      something everywhere in this app and both its variants use --destructive
-     directly; a fourth token nothing reads is a value nobody re-measures and
-     the next person uses on trust. */
+     directly; a fourth token nothing reads is a value nobody re-measures. */
   --success: oklch(0.621 0.207 142.6);
   --success-ink: oklch(0.433 0.147 142.5);
-  --warning: oklch(0.811 0.164 78.5);
-  --warning-ink: oklch(0.454 0.1 68.1);
+  --warning: oklch(0.8 0.16 68);
+  --warning-ink: oklch(0.47 0.12 55);
   --info: oklch(0.575 0.163 255.5);
   --info-ink: oklch(0.433 0.128 256.5);
 
-  /* Each mark laid over WHITE at 12%, computed once and written out.
-
-     Over white, and no longer over --background, which is what this line used
-     to say and what these values used to be. Re-derived over parchment they
-     stop working: a cool mark washed over a warm surface neutralises, and
-     --info-tint came out #dee1df — a grey. A status surface that has taken on
-     the page's own warmth is a status surface the eye no longer separates from
-     the page, which defeats the whole point of it. So they stay cool against a
-     warm background, deliberately, and the ink ratios above are unchanged
-     because ink is measured against its own tint rather than against the page.
+  /* Each mark laid over WHITE at 12% in sRGB, computed once and written out.
 
      NOT `color-mix(...)` at run time, which was tried and cannot be made safe
      here. Lightning CSS wraps every color-mix in `@supports` and, where it is
@@ -130,31 +107,23 @@
      duplicate declaration and re-derives the same unsafe one.
 
      Mixed in sRGB, not oklch: this is a wash, and oklch interpolates HUE, which
-     at 84% background turned the dark success tint BLUE (#001934) — a green
-     status rendering a blue surface.
+     turned a dark success tint BLUE in an earlier draft.
 
-     The cost is that these no longer follow --success automatically. Change a
-     mark and you must recompute its tint and re-measure the ink on it, which is
-     what the header already asks of anyone touching this block. */
-  --success-tint: oklch(0.949 0.031 145.3);
-  --warning-tint: oklch(0.974 0.026 87.9);
-  --info-tint: oklch(0.948 0.018 250.6);
+     The cost is that these no longer follow the mark automatically. Change a
+     mark and you must recompute its tint and re-measure the ink on it. */
+  --success-tint: oklch(0.949 0.031 145.5);
+  --warning-tint: oklch(0.973 0.022 75.3);
+  --info-tint: oklch(0.948 0.018 252.9);
 
   /* ── Clan identity (T3B.1, R3) ────────────────────────────────────────────
      THREE HUES, NOT THREE CLANS. There is deliberately no mapping from a clan
      to a hue here — lib/clan-accent.ts derives the index from the clan's id at
-     render time, because a hardcoded list of the three clans in a stylesheet is
-     the same hardcoded list lib/clans.ts:1-9 forbids everywhere else, and it
-     would be the one place nobody thinks to look when a fourth clan is added.
+     render time, because a hardcoded list of the clans in a stylesheet is the
+     same hardcoded list lib/clans.ts forbids everywhere else.
 
-     Slots 1-3 of the reference categorical palette. Validated as a set, all
-     pairs, both modes: worst colour-blind separation ΔE 9.2 light / 9.4 dark
-     (>= 8 target), worst normal-vision ΔE 24.0 / 20.9 (>= 15 floor). The hues
-     are unchanged by the wood-and-parchment chrome; only what they sit on
-     moved, so the separations above still hold and only the contrasts shifted:
-     4.08 / 2.95 / 2.60 on parchment, from 4.42 / 3.20 / 2.82 on white. Two of
-     the three are below 3:1 — which is why the clan NAME is always beside the
-     dot, and was already why before. */
+     Validated as a set, both modes: worst colour-blind separation ΔE 9.2 light
+     / 9.4 dark (>= 8 target). On the light page: 4.08 / 2.95 / 2.60 — two are
+     below 3:1, which is why the clan NAME is always beside the dot. */
   --clan-1: oklch(0.575 0.163 255.5);
   --clan-2: oklch(0.671 0.175 40.6);
   --clan-3: oklch(0.669 0.141 162.1);
@@ -162,63 +131,66 @@
 
 .dark {
   /* Native widgets too — scrollbars, form controls, and the canvas the browser
-     paints behind the document between navigations. Without this a dark page
-     gets a light scrollbar and a white flash on every full page load. The
-     blocking script in app/layout.tsx sets the same thing inline so it applies
-     before this stylesheet has parsed; this is what keeps it true afterwards. */
+     paints behind the document between navigations. The root layout renders
+     the class and this colour-scheme on <html> from the server, so a dark page
+     never has a light frame first. */
   color-scheme: dark;
 
-  /* Night wood. The same furniture after dark, measured on it:
-       foreground on background     15.96:1   (14.27:1 on --card)
-       muted-foreground on bg        7.89:1   (6.28:1 on --muted)
-       secondary-foreground on it   12.69:1
-       primary-foreground on it      6.85:1
-       primary on background         7.01:1
-       accent-foreground on it      12.41:1
-       ring on background            4.74:1 */
-  --background: oklch(0.188 0.019 58);
-  --foreground: oklch(0.948 0.016 85);
-  --card: oklch(0.238 0.024 56);
-  --card-foreground: oklch(0.948 0.016 85);
-  --popover: oklch(0.238 0.024 56);
-  --popover-foreground: oklch(0.948 0.016 85);
-  --primary: oklch(0.7 0.098 248);
-  --primary-foreground: oklch(0.2 0.022 58);
-  --secondary: oklch(0.278 0.03 60);
-  --secondary-foreground: oklch(0.948 0.016 85);
-  --muted: oklch(0.278 0.03 60);
-  --muted-foreground: oklch(0.735 0.03 78);
-  --accent: oklch(0.285 0.032 62);
-  --accent-foreground: oklch(0.948 0.016 85);
+  /* ── Dark: Store night, the default ──────────────────────────────────────
+     Four surface tiers, each one step lighter so depth reads without borders:
+       background  tier 0  #050d22
+       card        tier 1  panels and sections
+       tile        tier 2  the chunky tiles art stands on
+       popover     tier 3  menus, and ONLY menus
+
+     foreground on bg / card / tile / popover   17.47 / 15.90 / 14.33 / 12.62
+     muted-foreground on the same                 8.54 /  7.77 /  7.01 /  6.17
+     primary on background                        9.16:1   (7.51 on --tile)
+     primary-foreground on it                     9.16:1
+     secondary-foreground on it                  12.82:1
+     accent-foreground on it                     11.52:1
+     ring on background                           7.36:1
+     destructive on background                    6.68:1 */
+  --background: oklch(0.165 0.045 265);
+  --foreground: oklch(0.965 0.012 250);
+  --card: oklch(0.215 0.05 264);
+  --card-foreground: oklch(0.965 0.012 250);
+  --popover: oklch(0.295 0.06 264);
+  --popover-foreground: oklch(0.965 0.012 250);
+  --tile: oklch(0.255 0.058 264);
+  --primary: oklch(0.76 0.12 238);
+  --primary-foreground: oklch(0.165 0.045 265);
+  --secondary: oklch(0.29 0.055 264);
+  --secondary-foreground: oklch(0.965 0.012 250);
+  --muted: oklch(0.27 0.05 264);
+  --muted-foreground: oklch(0.745 0.04 256);
+  --accent: oklch(0.32 0.06 262);
+  --accent-foreground: oklch(0.965 0.012 250);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.6 0.075 248);
+  --border: oklch(0.8 0.05 260 / 16%);
+  --input: oklch(0.8 0.05 260 / 22%);
+  --ring: oklch(0.7 0.12 238);
 
-  /* Same four meanings, re-stepped for the dark surface — not an automatic
-     flip. The marks stay put (they clear 3:1 on #020618 already); the inks
-     lighten, because dark-on-dark is unreadable. Measured against a 16% tint
-     of each mark: success 9.94:1, warning 9.38:1, info 8.33:1.
-
-     These were dead for most of this project's life: `@custom-variant dark`
-     above targets `.dark`, and nothing ever added that class. lib/theme.ts now
-     does, from a stored preference defaulting to the OS — so every value in
-     this block, and every `.dark` rule in the decorative layer below, is live.
-     The note is kept because it records why they were written before anything
-     could show them, and that turned out to be the right call: turning dark
-     mode on cost a toggle and a six-line script, not a colour audit. */
+  /* Same four meanings, re-stepped for the night surface. The marks clear 3:1
+     on the page (success 5.76, warning 9.32, info 5.31); the inks lighten.
+     Ink on its own 16% tint: success 9.31, warning 8.62, info 7.62 — and on a
+     --tile, where most badges now sit: 9.08 / 9.05 / 7.51. */
   --success-ink: oklch(0.8 0.182 151.7);
-  --warning-ink: oklch(0.837 0.164 84.4);
+  --warning: oklch(0.78 0.16 65);
+  --warning-ink: oklch(0.83 0.14 68);
   --info: oklch(0.622 0.161 255.1);
   --info-ink: oklch(0.764 0.097 253.2);
 
-  /* 16% here, not 12%: the same wash over a near-black surface is invisible at
-     the lighter weight. Ink measured against these, not against --background. */
-  --success-tint: oklch(0.215 0.038 167.9);
-  --warning-tint: oklch(0.258 0.022 72.8);
-  --info-tint: oklch(0.228 0.062 261.7);
+  /* 16% of each mark over --background in sRGB. The warning wash comes out a
+     near-neutral warm grey over navy — orange and blue cancel — which is fine
+     only because the icon and the word were never optional. */
+  --success-tint: oklch(0.24 0.038 175.6);
+  --warning-tint: oklch(0.271 0.013 22.4);
+  --info-tint: oklch(0.25 0.066 260.4);
 
+  /* Unchanged hues. On the night page 5.31 / 4.97 / 5.67; on a tile 4.35 /
+     4.08 / 4.65 — all clear 3:1 as a mark, and the name still rides beside. */
   --clan-1: oklch(0.622 0.161 255.1);
   --clan-2: oklch(0.622 0.173 40.1);
   --clan-3: oklch(0.621 0.128 163.1);
@@ -231,6 +203,7 @@
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
+  --color-tile: var(--tile);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
@@ -265,34 +238,45 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ── One radius per tier, one page width ────────────────────────────────────
+   Before this block the product had rounded-lg ×90, rounded-xl ×23 and
+   rounded-2xl on the same kind of box, and seven different <main> widths —
+   so the edge of the page moved as you clicked through it and the header
+   rail lined up with none of them. New code uses ONLY these names; the old
+   rounded-* utilities are left working so pages not yet moved do not shift.
+
+     chip     .5rem    badges, ribbons' rounded end, small toggles
+     control  .75rem   buttons and inputs
+     panel    1rem     sections
+     tile     1.25rem  the chunky tiles
+     hero     1.5rem   page banners
+
+   `max-w-page` is the rail's width AND every page's width, which is what stops
+   the account menu landing on top of a side column that sat 64px further in. */
+@theme {
+  --radius-chip: 0.5rem;
+  --radius-control: 0.75rem;
+  --radius-panel: 1rem;
+  --radius-tile: 1.25rem;
+  --radius-hero: 1.5rem;
+
+  --container-page: 72rem;
+  --container-narrow: 48rem;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
 
   /* ── The type scale, set once ───────────────────────────────────────────
-     16px was Tailwind's default and nothing here had ever overridden it,
-     which made every size in the product a step smaller than it should be
-     for a page people read on a phone, at night, at speed.
+     A PERCENTAGE, NOT A PIXEL VALUE. A reader who has raised their browser's
+     font size has done so because they need it; `font-size: 18px` would throw
+     that setting away. 112.5% multiplies what they chose.
 
-     A PERCENTAGE, NOT A PIXEL VALUE, and the distinction is the whole point.
-     A reader who has raised their browser's font size has done so because
-     they need it; `font-size: 18px` would throw that setting away and hand
-     them 18px whatever they asked for. 112.5% multiplies what they chose, so
-     someone running a 20px default gets 22.5px rather than a downgrade. That
-     is the difference between an accessibility fix and an accessibility
-     regression, and it costs nothing to get right.
-
-     Everything in this project sizes in rem — Tailwind's spacing, radii and
-     max-widths included — so this scales text, padding, gaps and container
-     widths together. Nothing is left behind at the old size looking cramped
-     next to what grew, which is the usual failure of bumping font sizes by
-     hand across a codebase.
-
-     The dense tables absorb it by scrolling: members, roster, report,
-     cwl/[season], games, search and admin each already sit in an
-     `overflow-x-auto` wrapper, so the worst case here is a sideways scroll
-     rather than a broken row. */
+     Everything in this project sizes in rem — spacing, radii and max-widths
+     included — so this scales text, padding and container widths together.
+     The dense tables absorb it by scrolling inside `overflow-x-auto`. */
   html {
     font-size: 112.5%; /* 16px -> 18px, before the reader's own preference */
   }
@@ -305,214 +289,176 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    THE DECORATIVE LAYER
 
-   Everything below this line is ORNAMENT. None of it means anything, and that
-   is the rule that keeps it from eating the block above: the status colours are
-   still the only things in this stylesheet that carry information, and nothing
-   here is allowed to look like one of them.
+   Everything below this line is ORNAMENT. The status colours are still the
+   only things in this stylesheet that carry information, and nothing here is
+   allowed to look like one of them.
 
-   Three constraints shaped it, and all three are worth knowing before editing:
+   Three rules shape it. Read them before editing:
 
-   1. NO SUPERCELL ARTWORK. Not a screenshot, not a troop, not a building, not
-      a ripped texture, not "just the background from the loading screen".
-      T0.12 and T9.8 draw that line and the fan content notice in the root
-      layout is the reason. Every mark here is generated from CSS and one
-      hand-written SVG path — a shield OUTLINE, which is a shape, not an asset.
-      That is why the atmosphere comes from light, depth and material rather
-      than from pictures. It is also the cheaper answer: none of this is a
-      network request, so the whole theme costs about 2KB of CSS.
+   1. ART: FAN KIT AND API ONLY. The pictures of Town Halls, heroes, troops,
+      spells and leagues come from exactly two places — Supercell's official
+      Fan Kit, resized and converted but otherwise UNMODIFIED, under
+      public/game/ (see its README and scripts/game-art.ts); and images the
+      official API returns from api-assets.clashofclans.com (clan badges).
+      Never a Supercell logo or wordmark, never a Supercell font, never a
+      recoloured, cut-out or re-composed piece of art, never a screenshot.
+      The Fan Content Policy allows exactly this with the notice in
+      app/layout.tsx, which stays (T0.12, T9.8). Every piece of art has a
+      drawn fallback (components/game/*), so the product is whole with none.
 
-   2. STILL NO GOLD. The wood-and-parchment block above already argued it: gold
-      is what a Clash palette reaches for first, --warning is already amber, and
-      an amber ornament sitting near an amber "sync failed" badge is how that
-      badge stops being read. The richness here is bought with DEPTH — raised
-      edges, inset highlights, torchlight, shadow — rather than with a new hue.
-      Depth is free; it competes with nothing.
+   2. GOLD IS THE ONE CALL TO ACTION. A filled gold face on a plinth, at most
+      ONE per view — "the thing to do next". It is never text colour for a
+      status and never a badge. A warning is orange-amber, tinted, with an icon
+      and a word; the gold button and the amber badge differ in hue, shape and
+      wording, which is what earlier versions of this file feared they would
+      not and why gold used to be banned outright.
 
-   3. EVERY SURFACE COLOUR IS UNCHANGED. --background, --card, --foreground and
-      the rest are exactly the measured values above, and every ratio in the
-      header comment still holds. The ornaments sit ON those surfaces at low
-      alpha. The one new surface is the header rail, which is dark and carries
-      its own measured pair below.
+   3. RIBBONS ARE GAME STATE, IN WORDS. "WAR · 12h", "CWL DAY 3", "PREP". A
+      ribbon never reports app health (that is a status badge) and never
+      appears without its text.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
   /* ── Shades: the underside of a raised control ────────────────────────────
      A game button is a physical object — a lit top edge, a body of colour, and
      a darker plinth it sits on that pressing it moves down onto. These are the
-     plinths, one per button variant, each about two steps darker in lightness
-     than the fill above it.
-
-     Written out rather than derived at run time for the same reason the status
-     tints are: color-mix in a custom property is not safe in this build (see
-     above), and a shade that silently collapses to its first argument is a
-     button with a plinth the same colour as its face — which is a button with
-     no plinth, rendered by a rule that swears it has one. */
-  --primary-shade: oklch(0.355 0.088 248);
-  --secondary-shade: oklch(0.855 0.04 78);
+     plinths, one per button variant. Written out, not color-mix (see above). */
+  --primary-shade: oklch(0.38 0.12 255);
+  --secondary-shade: oklch(0.86 0.025 255);
   --destructive-shade: oklch(0.455 0.196 27.3);
-  --surface-shade: oklch(0.855 0.04 78);
+  --surface-shade: oklch(0.86 0.025 255);
 
-  /* ── Wood: the header rail ────────────────────────────────────────────────
-     The one dark surface in light mode, and it is deliberate. The chrome is
-     furniture; the page is the thing lying on it. A dark rail separates them
-     without a border and gives the parchment somewhere to sit.
+  /* ── Gold: the call to action ─────────────────────────────────────────────
+     The same in both modes. gold-ink on gold 9.55:1; gold on the night page
+     11.71:1 (used for star glyphs, which are decoration). */
+  --gold: oklch(0.84 0.155 85);
+  --gold-ink: oklch(0.26 0.06 60);
+  --gold-shade: oklch(0.6 0.13 68);
 
-     The rail is a GRADIENT, so every ink is measured twice: against --wood-2,
-     the mid tone most of the text sits over, and against --wood-3, the lightest
-     band at the very top, which is the worst case and therefore the one that
-     decides whether a token is allowed:
-                             on --wood-3   on --wood-2
-       --wood-ink               9.75:1       11.83:1
-       --wood-ink-muted         5.28:1        6.41:1
-       --wood-ink-dim           4.57:1        5.55:1   (nav links at rest)
-     All three clear 4.5:1 on the worst band, which is what the dim one exists
-     to prove: it is the lightest ink here and it still passes where the rail is
-     palest. The lit top edge and the grain are both under 1.2:1 against the
-     rail by design — they are texture, and texture you can read as an edge is a
-     border wearing a costume. */
-  --wood-1: oklch(0.255 0.032 52);
-  --wood-2: oklch(0.315 0.038 55);
-  --wood-3: oklch(0.365 0.042 58);
-  --wood-ink: oklch(0.965 0.014 85);
-  --wood-ink-muted: oklch(0.775 0.028 78);
-  --wood-ink-dim: oklch(0.735 0.03 78);
+  /* ── Rail: the header ─────────────────────────────────────────────────────
+     Night-blue in BOTH modes: the chrome is the brand, the page is what lies
+     under it. It is a gradient, so inks are measured on --rail-3, the palest
+     band and therefore the worst case:
+       --rail-ink        14.95:1
+       --rail-ink-muted   8.87:1
+       --rail-ink-dim     7.71:1   (nav links at rest) */
+  --rail-1: oklch(0.15 0.055 266);
+  --rail-2: oklch(0.2 0.055 266);
+  --rail-3: oklch(0.24 0.055 266);
+  --rail-ink: oklch(0.965 0.012 250);
+  --rail-ink-muted: oklch(0.8 0.035 255);
+  --rail-ink-dim: oklch(0.76 0.04 256);
 
-  /* ── Torchlight ───────────────────────────────────────────────────────────
-     Two warm pools in the upper corners and one cool pool low and centre, so
-     the parchment is not a flat fill. All under 10% alpha: the moment a reader
-     can point at where the light stops, it has become a shape on the page
-     instead of the light the page is lit by. */
-  --glow-warm: oklch(0.78 0.11 62 / 0.09);
-  --glow-cool: oklch(0.62 0.09 248 / 0.055);
+  /* ── Ribbons: game state flags ────────────────────────────────────────────
+     White ink on each: war 5.13, prep 4.69, cwl 5.24, neutral 7.44. */
+  --ribbon-war: oklch(0.56 0.19 25);
+  --ribbon-prep: oklch(0.56 0.15 255);
+  --ribbon-cwl: oklch(0.55 0.17 300);
+  --ribbon-neutral: oklch(0.45 0.04 260);
+
+  /* ── Light pools behind the page ──────────────────────────────────────────
+     All under 15% alpha: the moment a reader can point at where the light
+     stops, it has become a shape on the page instead of the light it is lit by. */
+  --glow-1: oklch(0.82 0.12 85 / 0.1);
+  --glow-2: oklch(0.7 0.1 250 / 0.08);
 
   /* ── Trim and foe: the two DECORATION hues (T12.8) ───────────────────────
-     Brass trim for rings, frames and stars, and a crimson for the other side
-     of a war. Both exist so the game look does not have to borrow a status
-     colour: --warning is "look at this" and --destructive is "this is broken",
-     and a gold star or an enemy banner is neither. Keep it that way — if a
-     status needs saying, it says it with a status token and a word. */
-  --trim: oklch(0.62 0.115 75);
-  --trim-shade: oklch(0.45 0.085 70);
+     Trim is gold's decorative cousin — rings, stars, the rail's seam. Foe is
+     the other side of a war. Neither is a status; if a status needs saying it
+     says it with a status token and a word. */
+  --trim: oklch(0.7 0.14 78);
+  --trim-shade: var(--gold-shade);
   --foe: oklch(0.52 0.16 25);
 }
 
 .dark {
-  --primary-shade: oklch(0.44 0.082 248);
-  --secondary-shade: oklch(0.205 0.024 58);
+  --primary-shade: oklch(0.55 0.11 240);
+  --secondary-shade: oklch(0.19 0.05 265);
   --destructive-shade: oklch(0.48 0.15 22.2);
-  --surface-shade: oklch(0.175 0.018 58);
+  --surface-shade: oklch(0.13 0.045 266);
 
-  /* Night wood sits barely above the night page — the rail separates by grain
-     and by its lit edge rather than by tone, because two near-blacks one step
-     apart is a seam, not a surface. */
-  --wood-1: oklch(0.155 0.016 55);
-  --wood-2: oklch(0.205 0.022 55);
-  --wood-3: oklch(0.255 0.026 58);
-  --wood-ink: oklch(0.948 0.016 85);
-  --wood-ink-muted: oklch(0.735 0.03 78);
-  --wood-ink-dim: oklch(0.7 0.03 78);
+  /* A violet pool high on the left and a cyan one high on the right — the
+     night sky a store banner sits under. */
+  --glow-1: oklch(0.55 0.17 295 / 0.16);
+  --glow-2: oklch(0.65 0.13 225 / 0.13);
 
-  --glow-warm: oklch(0.72 0.13 55 / 0.1);
-  --glow-cool: oklch(0.58 0.12 250 / 0.09);
-
-  --trim: oklch(0.79 0.125 82);
-  --trim-shade: oklch(0.55 0.1 72);
+  --trim: oklch(0.84 0.155 85);
   --foe: oklch(0.6 0.17 25);
 }
 
 @theme inline {
-  --color-wood-1: var(--wood-1);
-  --color-wood-2: var(--wood-2);
-  --color-wood-3: var(--wood-3);
-  --color-wood-ink: var(--wood-ink);
-  --color-wood-ink-muted: var(--wood-ink-muted);
-  --color-wood-ink-dim: var(--wood-ink-dim);
+  --color-rail-1: var(--rail-1);
+  --color-rail-2: var(--rail-2);
+  --color-rail-3: var(--rail-3);
+  --color-rail-ink: var(--rail-ink);
+  --color-rail-ink-muted: var(--rail-ink-muted);
+  --color-rail-ink-dim: var(--rail-ink-dim);
+
+  --color-gold: var(--gold);
+  --color-gold-ink: var(--gold-ink);
+  --color-gold-shade: var(--gold-shade);
+
+  --color-ribbon-war: var(--ribbon-war);
+  --color-ribbon-prep: var(--ribbon-prep);
+  --color-ribbon-cwl: var(--ribbon-cwl);
+  --color-ribbon-neutral: var(--ribbon-neutral);
 
   --color-trim: var(--trim);
   --color-trim-shade: var(--trim-shade);
   --color-foe: var(--foe);
 
-  /* Lilita One, loaded by next/font in app/layout.tsx. The fallbacks are the
-     rounded system faces, so a slow network still gets a chunky display face
-     rather than Times. */
+  /* Lilita One, loaded by next/font in app/layout.tsx — for page titles and
+     big numbers only. The fallbacks are the rounded system faces. */
   --font-display: var(--font-lilita), ui-rounded, "Arial Rounded MT Bold", system-ui, sans-serif;
 }
 
 @layer components {
-  /* ── The motif ────────────────────────────────────────────────────────────
-     One hand-drawn shield outline, tiled at 132px. An original shape — a
-     shield is a shield, and this one is a bezier nobody owns.
+  /* ── The page: tier 0 ─────────────────────────────────────────────────────
+     Two soft pools of light and one hand-drawn shield outline tiled at 132px —
+     an original shape, not an asset. 4-5% opacity is where it registers as
+     surface rather than as pattern.
 
-     The opacity took the most fiddling of anything here. At 8% the page reads
-     as wallpapered and the tiling becomes a visible grid, which is worse than
-     no texture at all; below 3% it vanishes on a bright screen and you have
-     paid a data URI for nothing. 4.5% is where it registers as surface rather
-     than as pattern.
-
-     Not a custom property, because a url() token carrying an SVG full of
-     quotes and percent-signs is exactly the kind of value a CSS minifier is
-     entitled to re-encode. Here it is written where it is used and nothing
-     downstream has to preserve it through a var(). */
+     The SVG is written where it is used rather than in a custom property,
+     because a url() token full of quotes is exactly what a minifier is
+     entitled to re-encode. */
   .cb-backdrop {
     position: fixed;
     inset: 0;
     z-index: -10;
     pointer-events: none;
     background:
-      radial-gradient(72rem 40rem at 12% -8%, var(--glow-warm), transparent 60%),
-      radial-gradient(60rem 34rem at 92% -4%, var(--glow-warm), transparent 62%),
-      radial-gradient(80rem 46rem at 50% 108%, var(--glow-cool), transparent 64%),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='132' height='132' viewBox='0 0 132 132'%3E%3Cg fill='none' stroke='%233b2a1c' stroke-opacity='0.045' stroke-width='2'%3E%3Cpath d='M66 20 L98 33 v27 c0 21-15 36-32 45-17-9-32-24-32-45V33z'/%3E%3Cpath d='M66 33 v59'/%3E%3Cpath d='M40 47 h52'/%3E%3C/g%3E%3C/svg%3E");
+      radial-gradient(64rem 36rem at 8% -10%, var(--glow-1), transparent 62%),
+      radial-gradient(56rem 32rem at 94% -6%, var(--glow-2), transparent 62%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='132' height='132' viewBox='0 0 132 132'%3E%3Cg fill='none' stroke='%231a2a55' stroke-opacity='0.04' stroke-width='2'%3E%3Cpath d='M66 20 L98 33 v27 c0 21-15 36-32 45-17-9-32-24-32-45V33z'/%3E%3Cpath d='M66 33 v59'/%3E%3Cpath d='M40 47 h52'/%3E%3C/g%3E%3C/svg%3E");
   }
 
   .dark .cb-backdrop {
     background:
-      radial-gradient(72rem 40rem at 12% -8%, var(--glow-warm), transparent 60%),
-      radial-gradient(60rem 34rem at 92% -4%, var(--glow-warm), transparent 62%),
-      radial-gradient(80rem 46rem at 50% 108%, var(--glow-cool), transparent 64%),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='132' height='132' viewBox='0 0 132 132'%3E%3Cg fill='none' stroke='%23ffe9c9' stroke-opacity='0.05' stroke-width='2'%3E%3Cpath d='M66 20 L98 33 v27 c0 21-15 36-32 45-17-9-32-24-32-45V33z'/%3E%3Cpath d='M66 33 v59'/%3E%3Cpath d='M40 47 h52'/%3E%3C/g%3E%3C/svg%3E");
+      radial-gradient(64rem 36rem at 8% -10%, var(--glow-1), transparent 62%),
+      radial-gradient(56rem 32rem at 94% -6%, var(--glow-2), transparent 62%),
+      linear-gradient(180deg, transparent 0%, oklch(0.12 0.04 266 / 0.6) 100%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='132' height='132' viewBox='0 0 132 132'%3E%3Cg fill='none' stroke='%23c9d8ff' stroke-opacity='0.045' stroke-width='2'%3E%3Cpath d='M66 20 L98 33 v27 c0 21-15 36-32 45-17-9-32-24-32-45V33z'/%3E%3Cpath d='M66 33 v59'/%3E%3Cpath d='M40 47 h52'/%3E%3C/g%3E%3C/svg%3E");
   }
 
-  /* ── Rail: the header ─────────────────────────────────────────────────── */
+  /* ── Rail: the header ───────────────────────────────────────────────────
+     Night-blue in both modes, with a thin gold seam along the bottom — the
+     same trim that rings the medallions below it. */
   .cb-rail {
-    background:
-      /* Grain. Irregular on purpose, so the repeat does not land on a rhythm
-         the eye can count — a regular one reads as corduroy. */
-      repeating-linear-gradient(
-        90deg,
-        oklch(1 0 0 / 0.018) 0 1px,
-        transparent 1px 7px,
-        oklch(0 0 0 / 0.022) 7px 8px,
-        transparent 8px 23px
-      ),
-      linear-gradient(180deg, var(--wood-3) 0%, var(--wood-2) 42%, var(--wood-1) 100%);
-    /* The lit top edge, and the shadow the rail casts down onto the page.
-       Together they are what makes it read as a beam rather than a strip of
-       colour that happens to be at the top. */
-    /* T12.8 — a brass seam along the bottom edge, the same trim that rings
-       every medallion below it, so the chrome and the page are one set. */
+    background: linear-gradient(180deg, var(--rail-3) 0%, var(--rail-2) 45%, var(--rail-1) 100%);
     box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.14),
-      inset 0 -2px 0 var(--trim-shade),
-      inset 0 -3px 0 oklch(0 0 0 / 0.35),
-      0 10px 26px -14px oklch(0 0 0 / 0.55);
+      inset 0 1px 0 oklch(1 0 0 / 0.1),
+      inset 0 -2px 0 var(--gold-shade),
+      inset 0 -3px 0 oklch(0 0 0 / 0.4),
+      0 10px 26px -14px oklch(0 0 0 / 0.6);
   }
 
   /* ── A row that scrolls sideways instead of wrapping ──────────────────────
-     The rail is sticky and sits above every page, so anything that wraps up
-     there is vertical space taken from the content on exactly the screens with
-     least of it — and manifest.json declares this app `standalone` and
-     `portrait`, so a phone is the target rather than an edge case. The clan
-     switcher and both tab rows use this.
-
-     `scrollbar-width: none` and the WebKit pseudo-element together, because
-     neither is universal yet: a visible scrollbar under a 28px row of chips is
-     taller than the chips.
+     The rail is sticky, so anything that wraps up there is vertical space
+     taken from the content on exactly the screens with least of it.
 
      `overscroll-behavior-x: contain` is the one that is not cosmetic. Without
      it, swiping past the end of the tab strip is handed to the browser as a
-     horizontal overscroll, which an installed PWA reads as a back gesture —
-     so overshooting the last tab navigates away from the page. */
+     horizontal overscroll, which an installed PWA reads as a back gesture. */
   .cb-scroll-x {
     overflow-x: auto;
     overscroll-behavior-x: contain;
@@ -524,59 +470,34 @@
     display: none;
   }
 
-  /* ── A well cut into the wood ──────────────────────────────────────────
-     The inverse of `.cb-raised`: instead of a lit top edge and a plinth
-     below, the light falls on the BOTTOM edge and the shadow sits at the top,
-     which is what the eye reads as a recess rather than a button.
-
-     It exists for one control — the clan switcher. Which clan you are looking
-     at is the most consequential piece of state on any page in this product,
-     and it was rendering as three or four links at the same weight as
-     "Rosters" and "Participation" beside them. A recess groups them into one
-     object and says "these belong together and they are a choice", before
-     anybody reads a word of it. */
-  .cb-well {
-    background: oklch(0 0 0 / 0.18);
-    box-shadow:
-      inset 0 1px 2px oklch(0 0 0 / 0.35),
-      inset 0 -1px 0 oklch(1 0 0 / 0.07);
-  }
-
-  /* ── Panel: any card, section or tile ─────────────────────────────────────
-     A sheet of parchment with a lit top edge, resting on the page. The
-     gradient is a two-stop nothing — 3.5% over the top third — and it does
-     more than it looks: a perfectly flat card on a textured page reads as a
-     hole cut in the page rather than as something lying on it. */
+  /* ── Panel: tier 1, any section ───────────────────────────────────────────
+     A plate with a lit top edge, a one-pixel inner line and a lip at the
+     bottom. The gradient is a two-stop nothing — 3.5% over the top third — and
+     it does more than it looks: a flat card on a textured page reads as a hole
+     cut in the page rather than something lying on it. */
   .cb-panel {
     position: relative;
     background:
       linear-gradient(180deg, oklch(1 0 0 / 0.035) 0%, transparent 38%),
       var(--card);
-    /* T12.8 — FRAMED, not just lit. The border is the outer edge; the inset
-       ring one pixel inside it is a second, lighter line, and the heavier
-       inset at the bottom gives the panel a thickness. Two lines and a lip is
-       the look of a game UI plate — the one pattern every page in this
-       product now shares, because every card and section is a .cb-panel. */
     box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.55),
-      inset 0 0 0 1px oklch(1 0 0 / 0.28),
-      inset 0 -2px 0 oklch(0 0 0 / 0.06),
-      0 1px 0 oklch(0 0 0 / 0.08),
-      0 8px 22px -16px oklch(0 0 0 / 0.35);
+      inset 0 1px 0 oklch(1 0 0 / 0.7),
+      inset 0 -2px 0 oklch(0.3 0.05 264 / 0.05),
+      0 1px 0 oklch(0.3 0.05 264 / 0.06),
+      0 10px 24px -18px oklch(0.25 0.05 264 / 0.35);
   }
 
   .dark .cb-panel {
     box-shadow:
       inset 0 1px 0 oklch(1 0 0 / 0.07),
-      inset 0 0 0 1px oklch(1 0 0 / 0.035),
-      inset 0 -2px 0 oklch(0 0 0 / 0.28),
+      inset 0 0 0 1px oklch(1 0 0 / 0.03),
+      inset 0 -2px 0 oklch(0 0 0 / 0.3),
       0 1px 0 oklch(0 0 0 / 0.5),
-      0 10px 26px -18px oklch(0 0 0 / 0.7);
+      0 12px 28px -18px oklch(0 0 0 / 0.8);
   }
 
-  /* A panel you can click. The lift is 1px and the shadow roughly doubles —
-     enough to feel, small enough that a grid of twelve does not jump about
-     when the pointer crosses it. */
+  /* A panel or tile you can click. The lift is 1px and the edge turns gold —
+     "this one is a door" without a colour that means anything. */
   .cb-panel-interactive {
     transition:
       transform 140ms ease,
@@ -585,100 +506,142 @@
       background-color 140ms ease;
   }
 
-  /* T12.8 — the brass edge on hover says "this one is a door" without a
-     colour that means anything: --trim is decoration by definition. */
   .cb-panel-interactive:hover {
     transform: translateY(-1px);
     border-color: var(--trim);
-    box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.6),
-      inset 0 0 0 1px oklch(1 0 0 / 0.28),
-      inset 0 -2px 0 oklch(0 0 0 / 0.06),
-      0 2px 4px oklch(0 0 0 / 0.06),
-      0 14px 28px -18px oklch(0 0 0 / 0.45);
-  }
-
-  .dark .cb-panel-interactive:hover {
-    box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.08),
-      inset 0 -2px 0 oklch(0 0 0 / 0.28),
-      0 2px 4px oklch(0 0 0 / 0.4),
-      0 14px 30px -16px oklch(0 0 0 / 0.8);
   }
 
   .cb-panel-interactive:active {
     transform: translateY(0);
   }
 
+  /* ── Tile: tier 2, the chunky card art stands on ─────────────────────────
+     The store's offer tile, in this product's terms: a lighter surface than
+     the panel, a heavier lip, and `overflow: visible` so a Town Hall or a clan
+     badge can rise out of the top edge instead of sitting in a box.
+
+     --tile-accent paints a 3px band along the top edge — the clan's own hue on
+     a clan tile. An inset shadow rather than a border, so it follows the
+     radius and costs no layout. */
+  .cb-tile {
+    position: relative;
+    overflow: visible;
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.5) 0%, transparent 40%),
+      var(--tile);
+    box-shadow:
+      inset 0 3px 0 var(--tile-accent, transparent),
+      inset 0 -3px 0 oklch(0.3 0.05 264 / 0.08),
+      0 1px 0 oklch(0.3 0.05 264 / 0.08),
+      0 14px 28px -18px oklch(0.25 0.05 264 / 0.4);
+  }
+
+  .dark .cb-tile {
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.06) 0%, transparent 42%),
+      var(--tile);
+    box-shadow:
+      inset 0 3px 0 var(--tile-accent, transparent),
+      inset 0 1px 0 oklch(1 0 0 / 0.08),
+      inset 0 -3px 0 oklch(0 0 0 / 0.35),
+      0 2px 0 oklch(0 0 0 / 0.45),
+      0 16px 30px -18px oklch(0 0 0 / 0.85);
+  }
+
+  /* ── Popover: tier 3, menus only ──────────────────────────────────────────
+     A menu must never look like one more panel. The account menu used to be a
+     .cb-panel, and dropped over the home page's own panels it read as if it
+     were cutting their text off rather than floating above them. A lighter
+     surface, a ring and a deep shadow — and nothing on the page uses these. */
+  .cb-popover {
+    background: var(--popover);
+    color: var(--popover-foreground);
+    box-shadow:
+      0 0 0 1px var(--border),
+      0 2px 4px oklch(0.25 0.05 264 / 0.08),
+      0 24px 48px -12px oklch(0.25 0.05 264 / 0.35);
+  }
+
+  .dark .cb-popover {
+    box-shadow:
+      0 0 0 1px oklch(1 0 0 / 0.1),
+      inset 0 1px 0 oklch(1 0 0 / 0.08),
+      0 24px 48px -12px oklch(0 0 0 / 0.7);
+  }
+
+  /* ── Ribbon: a game-state flag ────────────────────────────────────────────
+     A flat band with a notched tail, in the display face. --ribbon picks the
+     tone; the component (components/game/ribbon.tsx) always writes a word.
+     clip-path cuts the tail, which also clips any shadow — so the depth is a
+     gloss inside the band, not a shadow outside it. */
+  .cb-ribbon {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.3rem 0.9rem 0.3rem 0.6rem;
+    border-radius: var(--radius-chip) 0 0 var(--radius-chip);
+    color: oklch(1 0 0);
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-synthesis: none;
+    font-size: 0.75rem;
+    line-height: 1.1;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-shadow: 0 1px 0 oklch(0 0 0 / 0.35);
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.2) 0%, transparent 55%),
+      var(--ribbon, var(--ribbon-neutral));
+    clip-path: polygon(0 0, 100% 0, calc(100% - 0.45rem) 50%, 100% 100%, 0 100%);
+  }
+
+  /* ── Art: a Fan Kit or API image standing on a surface ────────────────── */
+  .cb-art {
+    filter: drop-shadow(0 4px 5px oklch(0.15 0.05 266 / 0.45));
+  }
+
   /* ── Hero: the banner behind a page title ─────────────────────────────────
-     Takes its hue from --hero-accent, set inline by whatever knows it — on the
-     dashboard that is the clan's own derived colour, so the three clans get
-     three different banners without a lookup table (see lib/clan-accent.ts).
-     Falls back to the ironwork blue, so a page that sets nothing still gets a
-     banner rather than a grey box.
+     Takes its hue from --hero-accent, set inline — on a clan page that is the
+     clan's own derived colour (lib/clan-accent.ts). Falls back to primary.
 
      ────────────────────────────────────────────────────────────────────────────
-     THERE IS NO color-mix BELOW, AND THE FIRST DRAFT OF THIS BLOCK WAS FULL
-     OF IT. The warning in the tint block above turns out to apply just as
-     hard to ordinary declarations as to custom properties, which was not
-     obvious until the compiled CSS was actually read back. Lightning CSS emits
-     the property TWICE — a literal fallback, then the real value inside
+     THERE IS NO color-mix BELOW, ON PURPOSE. Lightning CSS emits a color-mix
+     property TWICE — a literal fallback, then the real value inside
      `@supports (color: color-mix(in lab, red, red))` — and the fallback it
-     picks is the first argument AT FULL STRENGTH. So
+     picks is the first argument AT FULL STRENGTH. An icon the exact colour of
+     the disc behind it, on every browser older than roughly mid-2023.
 
-       .cb-emblem { color: var(--emblem);
-                    background: color-mix(in srgb, var(--emblem) 13%, transparent) }
-
-     compiled to a fallback of `background: var(--emblem)` underneath a rule
-     that also sets `color: var(--emblem)`: an icon the exact colour of the
-     disc behind it, which is no icon at all, on every browser older than
-     roughly mid-2023.
-
-     So every tint here is built the way it would have been before color-mix
-     existed — a solid fill of the hue on a pseudo-element, with `opacity`
-     carrying the strength. Opacity needs no @supports and composites
-     identically. It costs one pseudo-element per tinted surface, and buys a
-     worst case of "slightly different shade" instead of "invisible".
+     So every tint here is a solid fill of the hue on a pseudo-element, with
+     `opacity` carrying the strength. Opacity needs no @supports.
      ──────────────────────────────────────────────────────────────────────────── */
   .cb-hero {
     position: relative;
-    /* A stacking context, so the z-index:-1 pseudo-elements below stay inside
-       this banner rather than sliding behind the page itself. `position:
-       relative` on its own does not make one. */
+    /* A stacking context, so the z-index:-1 pseudo-elements stay inside this
+       banner rather than sliding behind the page itself. */
     isolation: isolate;
-    overflow: hidden;
     background:
       linear-gradient(180deg, oklch(1 0 0 / 0.045) 0%, transparent 40%),
       var(--card);
-    /* T12.8 — the brass lip along the bottom is what makes this a BANNER
-       rather than a bigger card: it is the one surface with a trim edge. */
     box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.55),
+      inset 0 1px 0 oklch(1 0 0 / 0.6),
       inset 0 -3px 0 var(--trim),
-      0 10px 30px -20px oklch(0 0 0 / 0.45);
+      0 12px 30px -20px oklch(0.25 0.05 264 / 0.45);
   }
 
-  /* The two pools of the clan's own colour. z-index -1 paints them above this
-     element's background and below its text, which is the entire reason they
-     are a pseudo-element rather than one more background layer. */
+  /* The two pools of the clan's own colour, clipped to the banner's shape so
+     the hero itself can stay overflow:visible for art that rises out of it. */
   .cb-hero::before {
     content: "";
     position: absolute;
     inset: 0;
     z-index: -1;
+    border-radius: inherit;
     pointer-events: none;
     background:
-      radial-gradient(
-        38rem 18rem at 8% -30%,
-        var(--hero-accent, var(--primary)),
-        transparent 70%
-      ),
-      radial-gradient(
-        28rem 16rem at 96% 130%,
-        var(--hero-accent, var(--primary)),
-        transparent 72%
-      );
-    opacity: 0.19;
+      radial-gradient(38rem 18rem at 8% -30%, var(--hero-accent, var(--primary)), transparent 70%),
+      radial-gradient(28rem 16rem at 96% 130%, var(--hero-accent, var(--primary)), transparent 72%);
+    opacity: 0.2;
   }
 
   /* The crest, quietly, in the corner the text does not reach. */
@@ -687,7 +650,8 @@
     position: absolute;
     inset: 0;
     z-index: -1;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='132' height='132' viewBox='0 0 132 132'%3E%3Cg fill='none' stroke='%233b2a1c' stroke-opacity='0.07' stroke-width='2'%3E%3Cpath d='M66 20 L98 33 v27 c0 21-15 36-32 45-17-9-32-24-32-45V33z'/%3E%3Cpath d='M66 33 v59'/%3E%3Cpath d='M40 47 h52'/%3E%3C/g%3E%3C/svg%3E");
+    border-radius: inherit;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='132' height='132' viewBox='0 0 132 132'%3E%3Cg fill='none' stroke='%231a2a55' stroke-opacity='0.07' stroke-width='2'%3E%3Cpath d='M66 20 L98 33 v27 c0 21-15 36-32 45-17-9-32-24-32-45V33z'/%3E%3Cpath d='M66 33 v59'/%3E%3Cpath d='M40 47 h52'/%3E%3C/g%3E%3C/svg%3E");
     background-position: right -22px top -30px;
     background-repeat: no-repeat;
     background-size: 200px 200px;
@@ -696,23 +660,22 @@
 
   .dark .cb-hero {
     box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.07),
-      inset 0 -3px 0 var(--trim-shade),
-      0 12px 34px -22px oklch(0 0 0 / 0.8);
+      inset 0 1px 0 oklch(1 0 0 / 0.08),
+      inset 0 -3px 0 var(--gold-shade),
+      0 14px 34px -22px oklch(0 0 0 / 0.85);
+  }
+
+  .dark .cb-hero::before {
+    opacity: 0.3;
   }
 
   .dark .cb-hero::after {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='132' height='132' viewBox='0 0 132 132'%3E%3Cg fill='none' stroke='%23ffe9c9' stroke-opacity='0.08' stroke-width='2'%3E%3Cpath d='M66 20 L98 33 v27 c0 21-15 36-32 45-17-9-32-24-32-45V33z'/%3E%3Cpath d='M66 33 v59'/%3E%3Cpath d='M40 47 h52'/%3E%3C/g%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='132' height='132' viewBox='0 0 132 132'%3E%3Cg fill='none' stroke='%23c9d8ff' stroke-opacity='0.08' stroke-width='2'%3E%3Cpath d='M66 20 L98 33 v27 c0 21-15 36-32 45-17-9-32-24-32-45V33z'/%3E%3Cpath d='M66 33 v59'/%3E%3Cpath d='M40 47 h52'/%3E%3C/g%3E%3C/svg%3E");
   }
 
-  /* The stripe along the top of the hero — this clan's colour, fading out.
-     Replaces the flat full-width bar the dashboard used to carry above its
-     title, which read as a progress meter that never moved. */
+  /* The stripe along the top of a hero — the clan's colour, fading out. */
   .cb-hero-stripe {
     height: 4px;
-    /* Solid at the left, gone by the right. The old midpoint was a color-mix
-       at 55%; a plain stop at 52% of the way across does the same thing to the
-       eye, because a gradient already interpolates alpha for you. */
     background: linear-gradient(
       90deg,
       var(--hero-accent, var(--primary)) 0%,
@@ -722,10 +685,8 @@
   }
 
   /* ── Emblem: the disc an icon sits in ─────────────────────────────────────
-     Hue from --emblem, set inline. A tinted disc rather than a bare glyph,
-     because a 16px lucide icon alone on a textured surface disappears — and
-     the disc is what lets the icon stay small enough not to compete with the
-     number beside it. */
+     Hue from --emblem, set inline. A 16px lucide icon alone on a textured
+     surface disappears; the disc is what lets it stay small. */
   .cb-emblem {
     position: relative;
     isolation: isolate;
@@ -736,11 +697,8 @@
     box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.35);
   }
 
-  /* ::before is the 13% fill, ::after is the 26% ring. Two pseudo-elements
-     rather than one, because `opacity` applies to the whole element and the
-     ring has to be twice the strength of the fill to read as an edge at all.
-     `border-radius: inherit` keeps both in whatever shape the caller asked for
-     — these are used as squircles on the stat tiles and as discs elsewhere. */
+  /* ::before is the fill, ::after the ring — two pseudo-elements because
+     `opacity` applies to the whole element and the ring must be stronger. */
   .cb-emblem::before,
   .cb-emblem::after {
     content: "";
@@ -756,54 +714,31 @@
     opacity: 0.16;
   }
 
-  /* T12.8 — the ring is BRASS now, not the emblem's own hue. Every icon disc
-     in the product — nav grid, section headings, landing page — shares one
-     trim, which is what makes them read as one family of medallions instead
-     of a dozen differently tinted circles. */
   .cb-emblem::after {
     box-shadow:
       inset 0 0 0 1.5px var(--trim),
       inset 0 2px 0 oklch(1 0 0 / 0.5);
-    opacity: 0.75;
+    opacity: 0.6;
   }
 
   /* ── Raised: the game-button treatment ────────────────────────────────────
      A lit top edge, a body, and a plinth underneath. Pressing moves the face
-     down onto the plinth and takes the plinth away, which is the entire
-     illusion — a button that only changes colour on :active feels like a link
-     that got fatter.
+     down onto the plinth and takes the plinth away — a button that only
+     changes colour on :active feels like a link that got fatter.
 
-     --raise-shade is the plinth and every variant sets its own; a variant that
-     sets none gets `transparent` and degrades to a flat button rather than to
-     a black bar under it. The 2px of travel is also why the drop shadow has to
-     go on press: a face that moves down while its shadow stays put reads as
-     the shadow having come unstuck.
+     --raise-shade is the plinth and every variant sets its own.
 
-     THE PLINTH GOES IN --tw-shadow, NOT ONLY IN box-shadow, and that is the
-     one non-obvious line in this file. Tailwind's focus ring is not an
-     `outline` — `focus-visible:ring-[3px]` compiles to a box-shadow, and it
-     composes the whole stack in one declaration:
-
-       box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
-                   var(--tw-ring-offset-shadow), var(--tw-ring-shadow),
-                   var(--tw-shadow)
-
-     That declaration is in the UTILITIES layer and this rule is in COMPONENTS,
-     so it wins outright: writing only `box-shadow` here means every button
-     goes FLAT the moment it is focused from the keyboard, and pops back when
-     focus leaves. A control that loses its depth exactly when a keyboard user
-     arrives at it is the wrong way round.
-
-     Feeding --tw-shadow instead puts the plinth inside the stack Tailwind is
-     already composing, so ring and depth render together. --tw-shadow is
-     registered `syntax: "*"; inherits: false`, so an arbitrary shadow list is
-     legal in it and it does not leak into child elements. box-shadow is still
-     written underneath for the case where no ring utility is present on the
-     element at all and nothing composes the stack. */
+     THE PLINTH GOES IN --tw-shadow, NOT ONLY IN box-shadow. Tailwind's focus
+     ring compiles to a box-shadow that composes the whole stack
+     (inset, inset-ring, ring-offset, ring, --tw-shadow) in the UTILITIES
+     layer, which beats this COMPONENTS rule outright. Writing only box-shadow
+     here makes every button go FLAT the moment it is focused from the
+     keyboard. Feeding --tw-shadow puts the plinth inside the stack Tailwind is
+     already composing, so ring and depth render together. */
   .cb-raised {
     --tw-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.22), 0 2px 0 0 var(--raise-shade, transparent),
-      0 5px 12px -6px oklch(0 0 0 / 0.4);
+      inset 0 1px 0 oklch(1 0 0 / 0.28), 0 3px 0 0 var(--raise-shade, transparent),
+      0 6px 14px -6px oklch(0 0 0 / 0.45);
     box-shadow: var(--tw-shadow);
     transition:
       transform 90ms ease,
@@ -813,36 +748,26 @@
   }
 
   .cb-raised:active:not(:disabled) {
-    transform: translateY(2px);
+    transform: translateY(3px);
     --tw-shadow:
       inset 0 1px 2px oklch(0 0 0 / 0.25), 0 0 0 0 var(--raise-shade, transparent);
     box-shadow: var(--tw-shadow);
   }
 
-  /* ── Display type: titles, big numbers, button faces (T12.8) ─────────────
-     Lilita One — chunky, rounded, a cousin of the lettering the game uses —
-     and ONLY for display. Body copy stays in the system face, because a
-     paragraph set in a display font is a paragraph nobody finishes.
+  /* ── Display type: page titles and big numbers ────────────────────────────
+     Lilita One, ONLY for display. Body copy, buttons and section headings stay
+     in the system face, because a paragraph set in a display font is a
+     paragraph nobody finishes.
 
-     font-weight 400 and font-synthesis none are the load-bearing lines. The
-     face ships one weight; a heading that also carries Tailwind's
-     `font-semibold` would otherwise be smeared into a fake bold by the
-     browser. `none` forbids that no matter what utility sits beside it. */
-  .cb-title,
-  .cb-btn-face {
+     font-weight 400 and font-synthesis none are the load-bearing lines: the
+     face ships one weight, and a `font-semibold` beside it would otherwise be
+     smeared into a fake bold. */
+  .cb-title {
     font-family: var(--font-display);
     font-weight: 400;
     font-synthesis: none;
     letter-spacing: 0.01em;
-  }
-
-  /* Light mode EMBOSSES (a pale line under dark ink); dark mode drops a hard
-     shadow under pale ink. Letters that sit on the surface rather than being
-     printed into it, which is the whole look of the game's labels. */
-  .cb-title {
-    text-shadow:
-      0 1px 0 oklch(1 0 0 / 0.75),
-      0 2px 4px oklch(0 0 0 / 0.1);
+    text-shadow: 0 1px 0 oklch(1 0 0 / 0.8);
   }
 
   .dark .cb-title {
@@ -851,17 +776,7 @@
       0 3px 10px oklch(0 0 0 / 0.35);
   }
 
-  .cb-btn-face {
-    letter-spacing: 0.025em;
-  }
-
-  /* ── Medallion: the big round icon on a stat or scoreboard ────────────────
-     A SOLID disc of the tone with a gloss highlight, a brass ring and a dark
-     outer line — heavier than .cb-emblem on purpose, because this one is the
-     identity of a whole tile. The tone comes from --medal, set inline.
-
-     No color-mix (see .cb-hero above for why): the gloss is a translucent
-     white radial over the solid fill, which composites the same everywhere. */
+  /* ── Medallion: the war scoreboard's VS disc ──────────────────────────── */
   .cb-medal {
     position: relative;
     display: inline-flex;
@@ -883,18 +798,17 @@
     filter: drop-shadow(0 1px 0 oklch(0 0 0 / 0.45));
   }
 
-  /* ── Sunken: a well cut into a panel ──────────────────────────────────────
-     Where a scoreboard or a gauge lives. Shadow at the TOP, light on the
-     BOTTOM edge — the inverse of a panel — which is what reads as a recess. */
+  /* ── Sunken: a well cut into a surface ────────────────────────────────────
+     Shadow at the TOP, light on the BOTTOM edge — the inverse of a panel. */
   .cb-sunken {
-    background: oklch(0 0 0 / 0.045);
+    background: oklch(0.3 0.05 264 / 0.045);
     box-shadow:
-      inset 0 2px 4px oklch(0 0 0 / 0.1),
-      inset 0 -1px 0 oklch(1 0 0 / 0.55);
+      inset 0 2px 4px oklch(0.25 0.05 264 / 0.1),
+      inset 0 -1px 0 oklch(1 0 0 / 0.6);
   }
 
   .dark .cb-sunken {
-    background: oklch(0 0 0 / 0.24);
+    background: oklch(0 0 0 / 0.26);
     box-shadow:
       inset 0 2px 6px oklch(0 0 0 / 0.45),
       inset 0 -1px 0 oklch(1 0 0 / 0.05);
@@ -907,8 +821,8 @@
     position: relative;
     overflow: hidden;
     border-radius: 9999px;
-    background: oklch(0 0 0 / 0.14);
-    box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.3);
+    background: oklch(0.3 0.05 264 / 0.12);
+    box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.25);
   }
 
   .dark .cb-gauge {
@@ -924,8 +838,8 @@
       var(--gauge, var(--primary));
   }
 
-  /* Nobody asked the interface to move. Respect that — the depth stays, since
-     depth is not motion, and only the travel goes. */
+  /* Nobody asked the interface to move. The depth stays, since depth is not
+     motion; only the travel goes. */
   @media (prefers-reduced-motion: reduce) {
     .cb-panel-interactive,
     .cb-raised {

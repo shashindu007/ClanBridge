@@ -167,7 +167,7 @@ export default async function AppLayout({
               rather than an app. */}
           <Link
             href="/dashboard"
-            className="text-wood-ink hover:text-wood-ink flex shrink-0 items-center gap-2 text-[1.0625rem] font-semibold tracking-tight"
+            className="text-rail-ink hover:text-rail-ink flex shrink-0 items-center gap-2 text-[1.0625rem] font-semibold tracking-tight"
             title="ClanBridge home — all your clans"
           >
             {/* The same shield the backdrop tiles, once, at full strength. The
@@ -200,7 +200,7 @@ export default async function AppLayout({
               leader-only and hidden below md, so putting the margin on them
               left an ordinary member's controls sitting against the clan
               switcher instead of hard right. */}
-          <div className="text-wood-ink-dim ml-auto flex shrink-0 items-center gap-1 text-[0.9375rem]">
+          <div className="text-rail-ink-dim ml-auto flex shrink-0 items-center gap-1 text-[0.9375rem]">
           {/* ── Leadership destinations ──────────────────────────────────
               Cross-clan, so they live here rather than under a clan tag: a CWL
               season is picked across every clan a leader runs (T4B.7), and
@@ -217,7 +217,7 @@ export default async function AppLayout({
               Below `md` they collapse into the menu, which always holds the
               complete list — see account-menu.tsx. */}
           {showLeadershipLinks && (
-            <div className="text-wood-ink-dim hidden shrink-0 items-center gap-1 md:flex">
+            <div className="text-rail-ink-dim hidden shrink-0 items-center gap-1 md:flex">
               <Link
                 href="/roster"
                 className="hover:bg-accent hover:text-accent-foreground flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors"
@@ -264,7 +264,7 @@ export default async function AppLayout({
             }
             title="Announcements, reminders and anything sent to you"
             className={`hover:bg-accent hover:text-accent-foreground flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 transition-colors ${
-              unread > 0 ? "text-wood-ink font-medium" : "text-wood-ink-dim"
+              unread > 0 ? "text-rail-ink font-medium" : "text-rail-ink-dim"
             }`}
           >
             <Bell aria-hidden className="size-4" />
@@ -291,7 +291,7 @@ export default async function AppLayout({
               href="/people"
               title={`${presence.onlineNow} of ${presence.activeAccounts} members active in the last five minutes`}
               aria-label={`${presence.onlineNow} members online out of ${presence.activeAccounts}. See who is here.`}
-              className="text-wood-ink-dim hover:bg-accent hover:text-accent-foreground hidden shrink-0 items-center gap-1.5 rounded-md px-2 py-1 transition-colors lg:flex"
+              className="text-rail-ink-dim hover:bg-accent hover:text-accent-foreground hidden shrink-0 items-center gap-1.5 rounded-md px-2 py-1 transition-colors lg:flex"
             >
               <span
                 aria-hidden
@@ -301,7 +301,7 @@ export default async function AppLayout({
               />
               <span className="tabular-nums">
                 {presence.onlineNow}
-                <span className="text-wood-ink-dim/70">/{presence.activeAccounts}</span>
+                <span className="text-rail-ink-dim/70">/{presence.activeAccounts}</span>
               </span>
             </Link>
           )}
