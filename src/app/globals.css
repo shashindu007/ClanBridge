@@ -620,6 +620,9 @@
     /* A stacking context, so the z-index:-1 pseudo-elements stay inside this
        banner rather than sliding behind the page itself. */
     isolation: isolate;
+    /* Clips the stripe and the clan-colour pools to the banner's rounded
+       corners. Art that should rise out of a surface goes on a .cb-tile. */
+    overflow: hidden;
     background:
       linear-gradient(180deg, oklch(1 0 0 / 0.045) 0%, transparent 40%),
       var(--card);
@@ -629,8 +632,8 @@
       0 12px 30px -20px oklch(0.25 0.05 264 / 0.45);
   }
 
-  /* The two pools of the clan's own colour, clipped to the banner's shape so
-     the hero itself can stay overflow:visible for art that rises out of it. */
+  /* The two pools of the clan's own colour. z-index -1 paints them above the
+     banner's background and below its text. */
   .cb-hero::before {
     content: "";
     position: absolute;

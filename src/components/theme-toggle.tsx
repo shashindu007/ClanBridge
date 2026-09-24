@@ -81,7 +81,11 @@ export function ThemeToggle({ compact = false }: { compact?: boolean } = {}) {
       <div
         role="radiogroup"
         aria-label="Appearance"
-        className="bg-muted/60 flex gap-0.5 rounded-md p-0.5"
+        // Compact sits on the night-blue rail, which is the same in both
+        // themes — so it takes the rail's colours, not the page's. The page's
+        // --muted is a pale chip in light mode, and on the dark rail it left
+        // the unchosen labels grey-on-grey.
+        className={`flex gap-0.5 rounded-control p-0.5 ${compact ? "bg-white/8" : "bg-muted/60"}`}
       >
         {OPTIONS.map(({ value, label, hint, Icon }) => {
           // null while unmounted — nothing is marked current, which is honest
@@ -96,10 +100,14 @@ export function ThemeToggle({ compact = false }: { compact?: boolean } = {}) {
               title={hint}
               onClick={() => choose(value)}
               className={
-                "flex flex-1 items-center justify-center gap-1.5 rounded-sm px-2 py-1.5 text-xs font-medium transition-colors " +
-                (active
-                  ? "bg-tile text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground")
+                "flex flex-1 items-center justify-center gap-1.5 rounded-chip px-2 py-1.5 text-xs font-medium transition-colors " +
+                (compact
+                  ? active
+                    ? "bg-white/15 text-rail-ink shadow-[inset_0_-2px_0_var(--gold)]"
+                    : "text-rail-ink-dim hover:text-rail-ink"
+                  : active
+                    ? "bg-tile text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground")
               }
             >
               <Icon aria-hidden className="size-3.5" />
