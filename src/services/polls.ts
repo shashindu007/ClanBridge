@@ -83,6 +83,44 @@ export function pollBreakdown(
 }
 
 /** Just the chase list, for callers that want nothing else. */
+/**
+ * Which of the caller's villages the answer form is showing.
+ *
+ * ONE FORM, NOT ONE PER VILLAGE. A member with three bases used to get three
+ * full answer forms stacked down the page — three sets of In / Out / Maybe,
+ * three note boxes, three Save buttons — and could not tell at a glance which
+ * were done. Now the page shows a row of village chips and one form, for the
+ * village asked for (`?base=`), else the first still unanswered, else the
+ * first. So a member arriving to answer lands on exactly the one they owe.
+ */
+export function chooseBase<T extends { id: string }>(
+  players: readonly T[],
+  answered: ReadonlySet<string>,
+  requested?: string | null,
+): T | null {
+  if (players.length === 0) return null;
+  return (
+    players.find((p) => p.id === requested) ??
+    players.find((p) => !answered.has(p.id)) ??
+    players[0]!
+  );
+}
+
+/**
+ * The next village still to answer after `current`, in list order and
+ * wrapping round; null once every one has answered. Saving an answer moves the
+ * form here, so three villages are three taps of Save rather than three hunts.
+ */
+export function nextUnanswered<T extends { id: string }>(
+  players: readonly T[],
+  answered: ReadonlySet<string>,
+  current: string,
+): T | null {
+  const at = players.findIndex((p) => p.id === current);
+  const order = at < 0 ? players : [...players.slice(at + 1), ...players.slice(0, at)];
+  return order.find((p) => p.id !== current && !answered.has(p.id)) ?? null;
+}
+
 export function nonResponders(
   eligible: EligibleMember[],
   responses: PollResponse[],
