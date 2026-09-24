@@ -1,4 +1,4 @@
-// T3B.1 — clan dashboard. The page every member lands on after login.
+// T3B.1 — clan page. What a clan is doing, from the moment you open it.
 //
 // R1 — PostgreSQL only. Everything here arrives via scripts/sync/clans.ts and
 // scripts/sync/war.ts.
@@ -10,62 +10,62 @@
 // state, and it has to look deliberate rather than broken.
 //
 // ─────────────────────────────────────────────────────────────────────────────
-// WHAT THE COLOUR IS FOR
+// THE FIRST SCREEN IS THE WAR
 //
-// Every status colour on this page comes from the reserved set in globals.css
-// and means exactly what it means everywhere else: green fine, amber look at
-// this, red broken, blue here is something you can do. Nothing is coloured
-// because a grey page looked drab. The four stat tiles carry a hue each and
-// those are IDENTITY, not status — they say "this tile is the war one", the
-// same job the icon does, which is why the tile's number stays in ink and never
-// takes the tile's colour.
+// This page used to open with six framed tiles, a medallion each, for six
+// numbers — members, level, league, two platform-wide counts and CWL seasons —
+// and on a phone they filled the first two screens, so the war and the league
+// were below the fold on the page members open to check the war. Now:
 //
-// The one thing that must survive any future restyle: an amber pill on this
-// page means something is wrong. If amber ever becomes a decoration here, the
-// sync-failure indicator stops working on every other page too.
+//   the banner    badge, name, tag, role, and the facts IN A LINE (kit FactRow)
+//   war + CWL     side by side on a wide screen, war first on a phone, each a
+//                 tile led by a ribbon saying its state in words
+//   the notice    the latest announcement
+//
+// The two platform counts ("On ClanBridge", "Online now") are gone from here:
+// they are not about this clan, and the rail already says "3 online". The "Go
+// to" grid that closed the page is gone too — it repeated the section tabs
+// directly above it, card for card.
+//
+// WHAT THE COLOUR IS FOR: the status colours are the reserved set in
+// globals.css and mean exactly what they mean everywhere else. Ribbons are
+// game state, in words; gold is the one thing to do next, at most once.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import Link from "next/link";
 import {
   BellRing,
-  CalendarDays,
-  Flame,
+  CalendarClock,
+  Flag,
   Megaphone,
-  Search,
   Shield,
   Swords,
   Target,
-  TrendingUp,
-  Trophy,
   TriangleAlert,
-  UserRound,
+  Trophy,
   Users,
   Vote,
-  Wifi,
+  type LucideIcon,
 } from "lucide-react";
 import { DataFreshness } from "@/components/data-freshness";
-import { GameStat } from "@/components/game-stat";
 import { WarScoreboard } from "@/components/war-scoreboard";
 import { LocalTime } from "@/components/local-time";
+import { EmptyState, FactRow, ListRow, Panel, SectionHeader, Tile } from "@/components/kit";
+import { ClanBadge } from "@/components/game/clan-badge";
+import { GameArt } from "@/components/game/game-art";
+import { Ribbon, type RibbonTone } from "@/components/game/ribbon";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { clanAccent } from "@/lib/clan-accent";
-import {
-  cardLabelOf,
-  cardsInGroup,
-  CLAN_GROUPS,
-  sectionHref,
-  type ClanSection,
-} from "@/lib/clan-nav";
+import { artKeyForLeague } from "@/lib/game-art";
 import { requireClanByTag } from "@/lib/clans";
 import { isLeader } from "@/lib/visibility";
 import { cwlPhase, nextCwlWindow } from "@/lib/coc-time";
 import { createClient } from "@/lib/supabase/server";
 import { clanDetail, currentMemberCount, latestAnnouncement } from "@/repositories/clans";
-import { seasonsForClan, warsInSeason } from "@/repositories/cwl";
+import { seasonsForClan, warsInSeason, type CwlWar } from "@/repositories/cwl";
 import { countsForPoll, pollsForClan } from "@/repositories/polls";
-import { platformPresence } from "@/repositories/notifications";
 import { latestRun } from "@/repositories/sync-log";
 import {
   attacksForWar,
@@ -74,101 +74,56 @@ import {
   type WarRow,
 } from "@/repositories/war";
 import { freshness } from "@/services/freshness";
+import { timeUntil } from "@/services/home";
 import { openWarAvailabilityPoll } from "@/services/polls";
 import { outstandingAttacks, warRecord } from "@/services/war";
 import { DISPLAY_ZONE } from "@/lib/display-time";
 
 export const dynamic = "force-dynamic";
 
-/** One destination in the nav grid. */
-function Go({
-  href,
-  label,
-  hint,
-  Icon,
-}: {
-  href: string;
+interface RibbonSpec {
+  tone: RibbonTone;
+  icon?: LucideIcon;
   label: string;
-  hint: string;
-  Icon: typeof Users;
-}) {
-  return (
-    <Link
-      href={href}
-      className="cb-panel cb-panel-interactive hover:border-primary/35 group flex items-start gap-3 rounded-xl border p-3.5"
-    >
-      {/* The disc is why this grid stopped looking like a list of links. A bare
-          16px glyph on a textured surface is a smudge; the same glyph on a
-          tinted disc is a destination. Ironwork blue, not --info, and the
-          difference matters: --info means "here is something you might want"
-          and thirteen permanent nav tiles are not thirteen notifications. */}
-      <span
-        className="cb-emblem mt-0.5 size-9 shrink-0 rounded-lg transition-colors"
-        style={{ "--emblem": "var(--primary)" } as React.CSSProperties}
-      >
-        <Icon aria-hidden className="size-4.5" />
-      </span>
-      <span className="min-w-0 pt-0.5">
-        <span className="group-hover:text-primary block text-sm font-medium transition-colors">
-          {label}
-        </span>
-        <span className="text-muted-foreground block text-xs">{hint}</span>
-      </span>
-    </Link>
-  );
 }
 
-/** A destination from lib/clan-nav.ts, as a card. */
-function GoTo({ base, section }: { base: string; section: ClanSection }) {
-  return (
-    <Go
-      href={sectionHref(base, section)}
-      label={cardLabelOf(section)}
-      hint={section.hint}
-      Icon={section.icon}
-    />
-  );
+/** "12h" — timeUntil without the "in", for a ribbon. */
+function shortly(iso: string | null, now: Date): string | null {
+  return timeUntil(iso, now)?.replace(/^in /, "") ?? null;
 }
 
-/**
- * The war's state, in the reserved palette.
- *
- * Battle day is amber deliberately: it is the one state that is a call to
- * action rather than a report, and it is the state during which a missed attack
- * is still recoverable. A loss is red, but a loss is also over — which is why
- * preparation and ended both sit in neutral grey and only the live war shouts.
- */
-function warStateBadge(war: WarRow) {
-  if (war.state === "preparation")
-    return (
-      <Badge variant="info">
-        <CalendarDays aria-hidden />
-        Preparation
-      </Badge>
-    );
-  if (war.state === "inWar")
-    return (
-      <Badge variant="warning">
-        <Flame aria-hidden />
-        Battle day
-      </Badge>
-    );
-  if (war.result === "win")
-    return (
-      <Badge variant="success">
-        <Trophy aria-hidden />
-        Won
-      </Badge>
-    );
-  if (war.result === "lose")
-    return (
-      <Badge variant="destructive">
-        <Shield aria-hidden />
-        Lost
-      </Badge>
-    );
-  if (war.result === "tie") return <Badge variant="secondary">Tie</Badge>;
-  return <Badge variant="outline">Ended</Badge>;
+/** The war's state, in words, as the ribbon on the war tile. */
+function warRibbon(war: WarRow | null, now: Date): RibbonSpec {
+  if (!war) return { tone: "neutral", label: "NO WAR" };
+  if (war.state === "inWar") {
+    const t = shortly(war.endTime, now);
+    return { tone: "war", icon: Swords, label: t ? `BATTLE DAY · ${t}` : "BATTLE DAY" };
+  }
+  if (war.state === "preparation") {
+    const t = shortly(war.startTime, now);
+    return { tone: "prep", icon: CalendarClock, label: t ? `PREP · ${t}` : "PREP" };
+  }
+  const word = war.result === "win" ? "WON" : war.result === "lose" ? "LOST" : war.result === "tie" ? "DRAW" : "ENDED";
+  return { tone: "neutral", icon: Flag, label: word };
+}
+
+/** CWL's state, in words, as the ribbon on the league tile. */
+function cwlRibbon(
+  phase: "signup" | "wars" | null,
+  today: CwlWar | null,
+  now: Date,
+): RibbonSpec {
+  const day = today?.dayNumber ? `DAY ${today.dayNumber}` : "WAR DAYS";
+  if (phase === "wars" && today?.state === "inWar") {
+    const t = shortly(today.endTime, now);
+    return { tone: "cwl", icon: Trophy, label: t ? `${day} · ${t}` : day };
+  }
+  if (phase === "wars" && today?.state === "preparation") {
+    return { tone: "cwl", icon: CalendarClock, label: `${day} PREP` };
+  }
+  if (phase === "wars") return { tone: "cwl", icon: Trophy, label: "WAR DAYS" };
+  if (phase === "signup") return { tone: "cwl", icon: Trophy, label: "SIGN-UP OPEN" };
+  return { tone: "neutral", label: "BETWEEN SEASONS" };
 }
 
 /** Stored UTC, shown in clan-local time (T9.9). See lib/display-time.ts. */
@@ -198,7 +153,7 @@ export default async function ClanDashboardPage({
   const href = `/${encodeURIComponent(clan.tag)}`;
   const accent = clanAccent(clan.id);
 
-  const [detail, held, announcement, seasons, clansRun, war, polls, presence] =
+  const [detail, held, announcement, seasons, clansRun, war, polls] =
     await Promise.all([
       clanDetail(supabase, clan.id),
       currentMemberCount(supabase, clan.id),
@@ -207,11 +162,6 @@ export default async function ClanDashboardPage({
       latestRun(supabase, "clans", clan.id),
       currentWar(supabase, clan.id),
       pollsForClan(supabase, clan.id),
-      // T12.3 — one aggregate returning four integers, in the batch that was
-      // already in flight. Added here rather than read from the shell: the
-      // layout has its own copy for the rail indicator, and passing it down
-      // would mean this page could not be rendered without one.
-      platformPresence(supabase),
     ]);
 
   const fresh = freshness(clansRun);
@@ -298,149 +248,99 @@ export default async function ClanDashboardPage({
       ? `${reported} reported by the game — we hold ${held}`
       : undefined;
 
-  return (
-    <main className="mx-auto max-w-6xl space-y-6 p-4 sm:p-8">
-      {/* ── The banner, wearing this clan's own colour ────────────────────────
-          --hero-accent is set here and read by .cb-hero and .cb-hero-stripe in
-          globals.css, so the three clans get three visibly different banners
-          without this file — or that stylesheet — ever naming a clan. The value
-          comes from clanAccent(clan.id); see lib/clan-accent.ts on why it is
-          derived from the id rather than looked up.
+  const warFlag = warRibbon(war, now);
+  const cwlFlag = cwlRibbon(phase, cwlToday, now);
+  const league = cwlSeasonRow?.league ?? detail?.warLeague ?? null;
+  const leagueArt = (size: number) => (
+    <GameArt
+      art={artKeyForLeague(league)}
+      size={size}
+      alt=""
+      fallback={<Trophy aria-hidden className="text-muted-foreground size-4" />}
+    />
+  );
 
-          This replaces the flat full-width bar that used to sit above the
-          title. A solid rounded bar spanning the content width is the shape of
-          a progress meter, and it sat directly above a heading with nothing to
-          be the progress OF — so the clan’s colour is now carried by the
-          banner itself and the stripe tapers away rather than terminating. */}
+  // THE ONE GOLD BUTTON: the war board while a battle day has attacks unspent.
+  // Otherwise the open poll's "Answer" may have it. Never both.
+  const warIsTheAction = war?.state === "inWar" && attacksLeft > 0;
+
+  return (
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
+      {/* ── The banner, wearing this clan's own colour ────────────────────────
+          --hero-accent is read by .cb-hero and .cb-hero-stripe in globals.css,
+          so each clan gets its own banner without this file or that
+          stylesheet ever naming a clan (lib/clan-accent.ts). */}
       <section
-        className="cb-hero rounded-xl border"
+        className="cb-hero overflow-hidden rounded-hero border"
         style={{ "--hero-accent": accent.color } as React.CSSProperties}
       >
-        {/* No rounding needed: .cb-hero clips it. */}
         <div aria-hidden className="cb-hero-stripe" />
-        <div className="space-y-3 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3.5">
-              {clan.badgeUrl && (
-                // Plain img: next/image would need the Supercell asset host
-                // added to next.config.ts, and this is one small badge on one
-                // page. It IS the clan's own badge, which the game API serves
-                // for exactly this — not artwork lifted out of the game.
-                //
-                // The ring and the drop shadow are here because the badge now
-                // sits on a tinted banner rather than on flat white, and a
-                // transparent PNG on a gradient reads as a sticker unless
-                // something under it says it is an object.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={clan.badgeUrl}
-                  alt=""
-                  className="size-16 shrink-0 drop-shadow-[0_3px_5px_oklch(0_0_0/0.35)] sm:size-20"
-                />
-              )}
-              <div className="min-w-0">
-                <h1 className="cb-title text-3xl sm:text-4xl">{clan.name}</h1>
-                {/* Tag and role as chips — the two facts a member checks to
-                    be sure they are on the right clan, and the right account. */}
-                <p className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                  <span className="cb-sunken rounded-md px-2 py-1 font-mono">{clan.tag}</span>
-                  <span className="border-trim rounded-md border px-2 py-1 font-semibold capitalize">
-                    {clan.role}
-                  </span>
-                </p>
-              </div>
+        <div className="flex flex-wrap items-center gap-4 p-5 sm:gap-5 sm:p-6">
+          <ClanBadge src={clan.badgeUrl} name={clan.name} size="xl" tone={accent.color} priority />
+          <div className="min-w-0 flex-1 space-y-3">
+            <div>
+              <h1 className="cb-title text-3xl sm:text-4xl">{clan.name}</h1>
+              {/* Tag and role as chips — the two facts a member checks to be
+                  sure they are on the right clan, and the right account. */}
+              <p className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <span className="cb-sunken rounded-chip px-2 py-1 font-mono">{clan.tag}</span>
+                <span className="border-trim rounded-chip border px-2 py-1 font-semibold capitalize">
+                  {clan.role}
+                </span>
+              </p>
             </div>
-            <DataFreshness freshness={fresh} canAdmin={isLeader(clan.role)} />
+            {/* The facts, in a line. They were six framed tiles. */}
+            {!neverSynced && (
+              <FactRow
+                items={[
+                  {
+                    label: (reported ?? held) === 1 ? "member" : "members",
+                    value: reported ?? held,
+                    icon: Users,
+                    title: memberHint,
+                  },
+                  ...(detail?.level ? [{ label: "level", value: detail.level, icon: Shield }] : []),
+                  ...(detail?.warLeague
+                    ? [{ label: "war league", value: detail.warLeague, art: leagueArt(20) }]
+                    : []),
+                  {
+                    // The one number here worth a link: Clash deletes a league
+                    // season when it ends, and these are the ones kept for good.
+                    label: seasons.length === 1 ? "CWL season saved" : "CWL seasons saved",
+                    value: seasons.length,
+                    icon: Trophy,
+                    href: `${href}/cwl`,
+                    title: seasons.length
+                      ? `Newest ${seasons[0]!.season}. The game deletes its own.`
+                      : "None saved yet. The game deletes its own.",
+                  },
+                ]}
+              />
+            )}
           </div>
+          <DataFreshness freshness={fresh} canAdmin={isLeader(clan.role)} />
         </div>
       </section>
 
-      {neverSynced ? (
-        <section className="space-y-3 rounded-xl border border-dashed p-6">
-          <h2 className="font-medium">This clan has never been synced</h2>
-          <p className="text-muted-foreground text-sm">
-            The clan row exists, but no sync job has read it from the game yet, so
-            there is nothing to show. Level, member count and war league fill in
-            on the next run of <code className="text-xs">sync:clans</code>.
-          </p>
-          <p className="text-muted-foreground text-sm">
-            If that job is scheduled and this message is still here tomorrow, it
-            is not running — check{" "}
-            <Link className="underline" href="/admin">
-              /admin
-            </Link>
-            .
-          </p>
-        </section>
-      ) : (
-        // Six tiles, so a grid of 2 or 3: both divide six evenly. It was 4
-        // columns, which left two tiles alone on a second row beside two empty
-        // cells — the same broken-row problem the home dashboard had.
-        <section aria-label="Clan at a glance" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <GameStat
-            label="Members"
-            value={String(reported ?? held)}
-            hint={memberHint ?? "people in the clan right now"}
-            tone="var(--clan-1)"
-            Icon={Users}
-          />
-          <GameStat
-            label="Clan level"
-            value={detail?.level ? String(detail.level) : "—"}
-            hint="rises as the clan finishes wars and games"
-            tone="var(--clan-2)"
-            Icon={TrendingUp}
-          />
-          <GameStat
-            label="War league"
-            value={detail?.warLeague ?? "—"}
-            hint="the tier this clan is placed in each CWL"
-            tone="var(--trim-shade)"
-            Icon={Swords}
-          />
-          {/* T12.3 / T12.4 — the platform, not the clan. Counts only:
-              platform_presence() never returns a list, because every approved
-              member can call it and `users` holds email addresses. WHO those
-              people are is /people, which these two link to. */}
-          <GameStat
-            label="On ClanBridge"
-            value={String(presence.activeAccounts)}
-            hint={
-              presence.pendingAccounts > 0
-                ? `accounts, and ${presence.pendingAccounts} waiting to be let in`
-                : "accounts across every clan here"
+      {neverSynced && (
+        <Panel>
+          <EmptyState
+            icon={CalendarClock}
+            title="This clan has never been synced"
+            body={
+              <>
+                The clan row exists, but no sync job has read it from the game yet. Level,
+                member count and war league fill in on the next run of{" "}
+                <code className="text-xs">sync:clans</code>. If this is still here tomorrow,
+                the job is not running — check{" "}
+                <Link className="underline" href="/admin">
+                  Admin
+                </Link>
+                .
+              </>
             }
-            tone="var(--primary)"
-            Icon={UserRound}
-            href="/people"
           />
-          <GameStat
-            label="Online now"
-            value={String(presence.onlineNow)}
-            hint={
-              presence.onlineNow > 0
-                ? "active in the last five minutes"
-                : "nobody has opened the app recently"
-            }
-            tone="var(--clan-3)"
-            Icon={Wifi}
-            href="/people"
-          />
-          {/* The one number on this page worth explaining twice. Clash deletes
-              a league season when it ends and it can never be fetched again —
-              this count is the whole reason the project exists. */}
-          <GameStat
-            label="CWL seasons"
-            value={String(seasons.length)}
-            hint={
-              seasons.length
-                ? `saved here for good — newest ${seasons[0]!.season}`
-                : "none saved yet — the game deletes its own"
-            }
-            tone="var(--trim)"
-            Icon={Trophy}
-          />
-        </section>
+        </Panel>
       )}
 
       {/* T0.1, surfaced. Silent while true, because a public war log is the
@@ -460,308 +360,228 @@ export default async function ClanDashboardPage({
         </Alert>
       )}
 
-      {/* ── The open poll, if there is one (T6.7) ──────────────────────────── */}
+      {/* ── The open poll, if there is one (T6.7) — one row, one action ──── */}
       {poll && (
-        <Alert variant="info">
-          <Vote aria-hidden />
-          <AlertTitle>{poll.title} is open</AlertTitle>
-          <AlertDescription>
-            <p>
-              {answered === 0
-                ? "Nobody has answered yet."
-                : `${answered} ${answered === 1 ? "person has" : "people have"} answered.`}{" "}
-              Your leader picks the war size from these answers, so an early
-              answer is worth more than an accurate one.
-            </p>
-            <Button asChild size="sm" variant="outline" className="mt-1">
-              <Link href={`${href}/polls/${encodeURIComponent(poll.id)}`}>
-                Answer it
-              </Link>
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <Panel aria-label="Open poll">
+          <ul>
+            <ListRow
+              icon={Vote}
+              tone="var(--info)"
+              title={`${poll.title} is open`}
+              meta={
+                answered === 0
+                  ? "Nobody has answered yet — your leader sizes the war from these answers."
+                  : `${answered} ${answered === 1 ? "person has" : "people have"} answered — your leader sizes the war from these.`
+              }
+              action={{
+                href: `${href}/polls/${encodeURIComponent(poll.id)}`,
+                label: "Answer",
+                primary: !warIsTheAction,
+              }}
+            />
+          </ul>
+        </Panel>
       )}
 
-      {/* ── War, live ──────────────────────────────────────────────────────── */}
-      <section className="cb-panel space-y-4 rounded-xl border p-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2.5 text-lg font-semibold">
+      {/* ── War and CWL: the first screen ────────────────────────────────── */}
+      <div className="grid items-start gap-5 lg:grid-cols-[3fr_2fr]">
+        <Tile
+          as="section"
+          accent={accent.color}
+          ribbon={
+            <Ribbon tone={warFlag.tone} icon={warFlag.icon}>
+              {warFlag.label}
+            </Ribbon>
+          }
+          className="space-y-4"
+        >
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
             <Swords aria-hidden className="text-muted-foreground size-4.5" />
             War
           </h2>
-          {war && warStateBadge(war)}
-        </div>
 
-        {!war ? (
-          // T9.10 — not being at war is the ordinary state for most of a week,
-          // so this says what to do rather than apologising for an empty card.
-          <div className="space-y-3">
-            <p className="text-muted-foreground text-sm">
-              No war on right now. The board fills in automatically within the hour
-              of a war being declared in game.
-            </p>
-            <Button asChild size="sm" variant="outline">
-              <Link href={`${href}/war/lineup`}>Plan the next lineup</Link>
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {/* T12.8 — a scoreboard, the way the game shows one: this clan on
-                the left in its own colour, the opponent on the right, a VS
-                medallion between them, and destruction as two gauges. The
-                stars are the headline because stars decide a war; percent
-                only breaks a tie. */}
-            <WarScoreboard
-              us={{ name: clan.name, stars: war.ourStars, destruction: war.ourDestruction }}
-              them={{
-                name: war.opponentName,
-                stars: war.theirStars,
-                destruction: war.theirDestruction,
-              }}
-              accent={accent.color}
-            />
-
-            {/* THE NUMBER THIS CARD EXISTS FOR. Attacks, not people — a war
-                gives two each, so fifteen members who used one apiece is a
-                whole roster's worth unspent, and a count of "people who did
-                nothing" reports that clan as fine. services/war.ts argues it
-                in full; this is the same unit the war board uses. */}
-            <div className="flex flex-wrap items-center gap-3 border-t pt-3">
-              {war.state === "warEnded" ? (
-                <p className="text-muted-foreground text-sm">
-                  Ended {when(war.endTime)}.
-                </p>
-              ) : attacksLeft > 0 ? (
-                <Badge variant={war.state === "inWar" ? "warning" : "info"}>
-                  <Target aria-hidden />
-                  {attacksLeft} {attacksLeft === 1 ? "attack" : "attacks"} still unused
-                </Badge>
-              ) : record.length > 0 ? (
-                <Badge variant="success">
-                  <Trophy aria-hidden />
-                  Every attack used
-                </Badge>
-              ) : (
-                <p className="text-muted-foreground text-sm">
-                  The roster has not been synced yet.
-                </p>
-              )}
-              {war.endTime && war.state !== "warEnded" && (
-                <p className="text-muted-foreground text-sm">
-                  Ends {when(war.endTime)}
-                </p>
-              )}
-            </div>
-
-            <Button asChild size="sm">
-              <Link href={`${href}/war`}>Open the war board</Link>
-            </Button>
-          </div>
-        )}
-      </section>
-
-      {/* ── Announcement ───────────────────────────────────────────────────── */}
-      <section className="cb-panel space-y-3 rounded-xl border p-6">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2.5 text-lg font-semibold">
-            <Megaphone aria-hidden className="text-muted-foreground size-4.5" />
-            Latest announcement
-          </h2>
-          {announcement?.pinned && (
-            <Badge variant="info">
-              <BellRing aria-hidden />
-              pinned
-            </Badge>
-          )}
-        </div>
-
-        {announcement ? (
-          <div className="space-y-1">
-            <p className="font-medium">{announcement.title}</p>
-            {/* Plain text. T5.2 decides what rendering is safe; until then
-                nothing here interprets markup. */}
-            <p className="text-muted-foreground text-sm whitespace-pre-line">
-              {announcement.body}
-            </p>
-          </div>
-        ) : (
-          <p className="text-muted-foreground text-sm">
-            Nothing posted yet.{" "}
-            <Link className="underline underline-offset-2" href={`${href}/notices`}>
-              Announcements
-            </Link>{" "}
-            is where they go.
-          </p>
-        )}
-      </section>
-
-      {/* ── Clan War League, next or now (T4.4) ──────────────────────────────
-          This replaces the "Next CWL start date" line on the "Not built yet"
-          list that used to close this page. That list also claimed the base
-          layout library was unbuilt, three sections below a grid that linked
-          to it — a panel describing the product to itself goes stale the first
-          time nobody remembers to edit it, and this one had.
-
-          CWL is the reason this project exists: the API deletes a season's data
-          when it ends and it cannot be recovered from anywhere. Missing signup
-          is therefore not a missed feature, it is a month that never happened. */}
-      <section className="cb-panel space-y-3 rounded-xl border p-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2.5 text-lg font-semibold">
-            <Trophy aria-hidden className="text-muted-foreground size-4.5" />
-            Clan War League
-          </h2>
-          {phase === "signup" && (
-            <Badge variant="info">
-              <CalendarDays aria-hidden />
-              signup open
-            </Badge>
-          )}
-          {phase === "wars" && (
-            <Badge variant="warning">
-              <Swords aria-hidden />
-              war days
-            </Badge>
-          )}
-        </div>
-
-        {cwlSeasonRow ? (
-          // Reality. The sync has found the league group, so there is nothing
-          // left to infer and the calendar has no business being on screen.
-          <div className="space-y-3">
-            <p className="text-muted-foreground text-sm">
-              {cwlNext.season} is running
-              {cwlSeasonRow.league ? ` in ${cwlSeasonRow.league}` : ""}. Stars,
-              attacks and who has missed a day are all on the season page.
-            </p>
-            {/* The deadline, in the reader's own zone, worded as the war card
-                above words a regular war. A CWL day gives one attack and no
-                second chance, so this is the line on the whole page most worth
-                being exact about. */}
-            {cwlToday && (
-              <p className="text-sm">
-                {cwlToday.state === "preparation" ? (
-                  <>
-                    Day {cwlToday.dayNumber ?? "?"} — battle day starts{" "}
-                    <LocalTime iso={cwlToday.startTime} style="weekday" />
-                  </>
-                ) : cwlToday.state === "inWar" ? (
-                  <>
-                    Day {cwlToday.dayNumber ?? "?"} ends{" "}
-                    <LocalTime iso={cwlToday.endTime} style="weekday" />
-                  </>
-                ) : (
-                  <>
-                    Day {cwlToday.dayNumber ?? "?"} ended{" "}
-                    <LocalTime iso={cwlToday.endTime} style="weekday" />
-                  </>
-                )}
+          {!war ? (
+            // T9.10 — not being at war is the ordinary state for most of a week,
+            // so this says what to do rather than apologising for an empty card.
+            <div className="space-y-3">
+              <p className="text-muted-foreground text-sm">
+                No war on right now. The board fills in within the hour of a war
+                being declared in game.
               </p>
-            )}
-            <Button asChild size="sm">
-              <Link href={`${href}/cwl/${encodeURIComponent(cwlSeasonRow.season)}`}>
-                Open {cwlSeasonRow.season}
-              </Link>
-            </Button>
-          </div>
-        ) : phase === "signup" ? (
-          <div className="space-y-3">
-            <p className="text-muted-foreground text-sm">
-              Signup is open until roughly{" "}
-              <LocalTime iso={cwlNext.warsStart.toISOString()} style="date" />.
-              Whoever is in the roster when it closes is in for all seven wars,
-              so this is the one window where it can still be changed.
-            </p>
-            <Button asChild size="sm">
-              <Link href={`${href}/cwl/roster`}>Pick the roster</Link>
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {/* Deliberately vague. Supercell has moved the schedule by a day
-                before, and nothing in the API confirms the date — a guess worded
-                as a promise is worse than one worded as a guess, because the
-                member stops trusting the rest of the page with it. */}
-            <p className="text-muted-foreground text-sm">
-              The next league usually opens for signup around{" "}
-              <LocalTime iso={cwlNext.signupOpens.toISOString()} style="date" />,
-              with the seven war days following two days later. The game does not
-              publish the date, so this is the usual calendar rather than a
-              promise.
-            </p>
-            <Button asChild size="sm" variant="outline">
-              <Link href={`${href}/cwl`}>Past seasons</Link>
-            </Button>
-          </div>
-        )}
-      </section>
+              <Button asChild variant="outline">
+                <Link href={`${href}/war/lineup`}>Plan the next lineup</Link>
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <WarScoreboard
+                size="compact"
+                us={{
+                  name: clan.name,
+                  stars: war.ourStars,
+                  destruction: war.ourDestruction,
+                  badgeUrl: clan.badgeUrl,
+                }}
+                them={{
+                  name: war.opponentName,
+                  stars: war.theirStars,
+                  destruction: war.theirDestruction,
+                  badgeUrl: war.opponentBadgeUrl,
+                }}
+                accent={accent.color}
+              />
 
-      {/* ── Where to go ──────────────────────────────────────────────────────
-          Four labelled clusters, not one flat run of thirteen. The flat version
-          put four separate war pages between Members and Clan Games in no
-          order anyone could state, and a member looking for "where do I say I
-          am available" had to read all thirteen to find out it was called
-          "War lineup".
-
-          Every card comes from lib/clan-nav.ts, which is also what the rail's
-          tab strip and /guide read. Adding a destination in one place now puts
-          it in all three; before, the tab strip did not exist and the hints
-          lived only here. */}
-      <section className="space-y-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-muted-foreground text-xs tracking-wide uppercase">
-            Go to
-          </h2>
-          {/* The bridge for somebody on their first day. /guide now carries a
-              map of what every one of these pages is for, built from the same
-              lib/clan-nav.ts data as the cards below — but a member has no
-              reason to guess that "Help" in the corner contains it. */}
-          <Link
-            href="/guide"
-            className="text-muted-foreground hover:text-primary text-xs underline underline-offset-2 transition-colors"
-          >
-            New here? What each page is for
-          </Link>
-        </div>
-
-        <div className="grid gap-x-6 gap-y-5 lg:grid-cols-2">
-          {CLAN_GROUPS.map((group) => (
-            <div key={group.id} className="space-y-2">
-              <h3 className="text-muted-foreground flex items-center gap-2 text-xs font-medium tracking-wide uppercase">
-                {group.label}
-                {/* The rule finishes the heading across the column. Without it
-                    a short heading over a two-card cluster reads as a card
-                    label that lost its card. */}
-                <span aria-hidden className="bg-border h-px flex-1" />
-              </h3>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                {cardsInGroup(group.id).map((section) => (
-                  <GoTo key={section.path} base={href} section={section} />
-                ))}
-
-                {/* Cross-clan, so it is not in the clan nav data — every path
-                    there is relative to this clan's tag, and this one is not
-                    under a tag at all. It sits in "Talk and share" because
-                    finding somebody is what a member comes here to do.
-
-                    "Find a player across the three" was hardcoded, while
-                    /search itself renders "Across N of your clans". Two clans
-                    exist today, not three; the number does not belong in copy
-                    for the same reason lib/clan-accent.ts derives a hue rather
-                    than listing the clans. */}
-                {group.id === "share" && (
-                  <Go
-                    href="/search"
-                    label="Search all clans"
-                    hint="Find a player in any of your clans"
-                    Icon={Search}
-                  />
-                )}
+              {/* THE NUMBER THIS TILE EXISTS FOR. Attacks, not people — a war
+                  gives two each, so fifteen members who used one apiece is a
+                  whole roster's worth unspent. services/war.ts argues it. */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="space-y-1 text-sm">
+                  {war.state === "warEnded" ? (
+                    <p className="text-muted-foreground">Ended {when(war.endTime)}.</p>
+                  ) : attacksLeft > 0 ? (
+                    <Badge variant={war.state === "inWar" ? "warning" : "info"}>
+                      <Target aria-hidden />
+                      {attacksLeft} {attacksLeft === 1 ? "attack" : "attacks"} still unused
+                    </Badge>
+                  ) : record.length > 0 ? (
+                    <Badge variant="success">
+                      <Trophy aria-hidden />
+                      Every attack used
+                    </Badge>
+                  ) : (
+                    <p className="text-muted-foreground">The roster has not been synced yet.</p>
+                  )}
+                  {war.endTime && war.state !== "warEnded" && (
+                    <p className="text-muted-foreground">
+                      {war.state === "preparation" ? "Battle day starts" : "Ends"}{" "}
+                      <LocalTime
+                        iso={war.state === "preparation" ? war.startTime : war.endTime}
+                        style="weekday"
+                      />
+                    </p>
+                  )}
+                </div>
+                <Button
+                  asChild
+                  variant={warIsTheAction ? "gold" : "outline"}
+                  size={warIsTheAction ? "cta" : "default"}
+                >
+                  <Link href={`${href}/war`}>
+                    <Swords aria-hidden />
+                    Open the war board
+                  </Link>
+                </Button>
               </div>
             </div>
-          ))}
-        </div>
-      </section>
+          )}
+        </Tile>
+
+        {/* ── Clan War League, next or now (T4.4) ─────────────────────────
+            CWL is the reason this project exists: the API deletes a season's
+            data when it ends. Missing signup is not a missed feature, it is a
+            month that never happened. */}
+        <Tile
+          as="section"
+          accent="var(--ribbon-cwl)"
+          ribbon={
+            <Ribbon tone={cwlFlag.tone} icon={cwlFlag.icon}>
+              {cwlFlag.label}
+            </Ribbon>
+          }
+          className="space-y-4"
+        >
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            {league ? leagueArt(24) : <Trophy aria-hidden className="text-muted-foreground size-4.5" />}
+            Clan War League
+          </h2>
+
+          {cwlSeasonRow ? (
+            // Reality (R12). The sync has found the league group, so there is
+            // nothing left to infer and the calendar has no business here.
+            <div className="space-y-3">
+              <p className="text-muted-foreground text-sm">
+                {cwlNext.season} is running
+                {cwlSeasonRow.league ? ` in ${cwlSeasonRow.league}` : ""}.
+              </p>
+              {/* The deadline, in the reader's own zone. A CWL day gives one
+                  attack and no second chance, so this is the line on the page
+                  most worth being exact about. */}
+              {cwlToday && (
+                <p className="text-sm font-medium">
+                  {cwlToday.state === "preparation" ? (
+                    <>
+                      Day {cwlToday.dayNumber ?? "?"}: battle day starts{" "}
+                      <LocalTime iso={cwlToday.startTime} style="weekday" />
+                    </>
+                  ) : cwlToday.state === "inWar" ? (
+                    <>
+                      Day {cwlToday.dayNumber ?? "?"} ends{" "}
+                      <LocalTime iso={cwlToday.endTime} style="weekday" />
+                    </>
+                  ) : (
+                    <>
+                      Day {cwlToday.dayNumber ?? "?"} ended{" "}
+                      <LocalTime iso={cwlToday.endTime} style="weekday" />
+                    </>
+                  )}
+                </p>
+              )}
+              <Button asChild variant="outline">
+                <Link href={`${href}/cwl/${encodeURIComponent(cwlSeasonRow.season)}`}>
+                  Open {cwlSeasonRow.season}
+                </Link>
+              </Button>
+            </div>
+          ) : phase === "signup" ? (
+            <div className="space-y-3">
+              <p className="text-muted-foreground text-sm">
+                Sign-up is open until roughly{" "}
+                <LocalTime iso={cwlNext.warsStart.toISOString()} style="date" />. Whoever
+                is in the roster when it closes is in for all seven wars.
+              </p>
+              <Button asChild variant="outline">
+                <Link href={`${href}/cwl/roster`}>See the lineup</Link>
+              </Button>
+            </div>
+          ) : (
+            // Deliberately vague. Supercell has moved the schedule by a day
+            // before, and nothing in the API confirms the date.
+            <p className="text-muted-foreground text-sm">
+              The next league usually opens for sign-up around{" "}
+              <LocalTime iso={cwlNext.signupOpens.toISOString()} style="date" />, with
+              seven war days two days later. The game does not publish the date, so
+              this is the usual calendar rather than a promise.
+            </p>
+          )}
+        </Tile>
+      </div>
+
+      {/* ── Announcement ───────────────────────────────────────────────────── */}
+      <Panel aria-labelledby="notice-title" className="space-y-3">
+        <SectionHeader
+          id="notice-title"
+          title="Latest announcement"
+          icon={Megaphone}
+          action={{ href: `${href}/notices`, label: "All announcements" }}
+        />
+        {announcement ? (
+          <div className="space-y-1">
+            <p className="flex flex-wrap items-center gap-2 font-medium">
+              {announcement.title}
+              {announcement.pinned && (
+                <Badge variant="info">
+                  <BellRing aria-hidden />
+                  pinned
+                </Badge>
+              )}
+            </p>
+            {/* Plain text. Nothing here interprets markup. */}
+            <p className="text-muted-foreground text-sm whitespace-pre-line">{announcement.body}</p>
+          </div>
+        ) : (
+          <p className="text-muted-foreground text-sm">Nothing posted yet.</p>
+        )}
+      </Panel>
     </main>
   );
 }
