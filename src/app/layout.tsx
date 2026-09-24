@@ -35,30 +35,19 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // --wood-2, the mid tone of the header rail, in hex because the manifest and
-  // the browser chrome cannot read a CSS custom property. It was slate-900,
-  // left over from the shadcn defaults, which put a cold blue-black band above
-  // a warm wooden header on every installed PWA. If the rail's colour changes,
-  // this is the second place to change it — and lib/theme.ts is the third,
-  // which is where both values below come from.
-  //
-  // TWO ENTRIES NOW, one per OS preference, because there are two rails. This
-  // is keyed to the OS rather than to the member's stored choice, which no meta
-  // tag can see — applyTheme() writes an unmedia'd third tag at runtime to
-  // cover an explicit choice that disagrees with the OS. The pair below is what
-  // paints the status bar correctly on the very first frame, before any script
-  // has run.
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: THEME_COLOR.light },
-    { media: "(prefers-color-scheme: dark)", color: THEME_COLOR.dark },
-  ],
+  // --rail-2, the mid tone of the header rail, in hex because the manifest and
+  // the browser chrome cannot read a CSS custom property. One entry, not one per
+  // OS preference: the rail is the same night-blue in both themes, so the status
+  // bar above it is too. lib/theme.ts owns the value; public/manifest.json is
+  // the other place that carries it.
+  themeColor: THEME_COLOR.dark,
 };
 
 // T12.8 — the display face. Self-hosted by next/font at build time, so no
 // request to Google leaves a visitor's browser and there is no layout shift
 // while it loads. Exposed as --font-lilita and read ONLY through
-// --font-display in globals.css (.cb-title, .cb-btn-face): body text stays in
-// the system face.
+// --font-display in globals.css (.cb-title, .cb-ribbon): body text stays in the
+// system face.
 const display = Lilita_One({
   weight: "400",
   subsets: ["latin"],
@@ -76,7 +65,17 @@ export default function RootLayout({
     // this element's class and style before React sees the document, so the
     // server's markup and the client's differ by design. The attribute does not
     // cascade — every element inside is still checked normally.
-    <html lang="en" suppressHydrationWarning className={display.variable}>
+    //
+    // `dark` is rendered HERE, by the server, not added by the script. Dark is
+    // the default (lib/theme.ts), so the first byte of every response is already
+    // right for anyone who has not chosen light — no frame of the wrong theme
+    // even with scripts off. The script only ever takes the class away.
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${display.variable} dark`}
+      style={{ colorScheme: "dark" }}
+    >
       <head>
         {/* Before the first paint. See THEME_INIT_SCRIPT: anything later paints
             a frame of the wrong theme, on every navigation that reloads the
@@ -87,8 +86,8 @@ export default function RootLayout({
         {/* The page's light and texture. A real element rather than a
             `body::before`, because body paints an opaque --background and a
             negative-z pseudo-element would sit behind it and never be seen.
-            Everything it draws is generated — see globals.css on why there is
-            no image here and never will be. */}
+            Everything it draws is generated CSS and one hand-drawn shield
+            outline — game art belongs on tiles, never behind the page. */}
         <div aria-hidden className="cb-backdrop" />
 
         {/* flex-1 so the footer sits at the bottom of the viewport on a short

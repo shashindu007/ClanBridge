@@ -44,21 +44,23 @@ export default function GlobalError({
           flexDirection: "column",
           fontFamily:
             'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-          // --background / --foreground, light. See the header on why literal.
-          background: "#fbf5e9",
-          color: "#2d1f13",
+          // --background / --foreground, dark. See the header on why literal.
+          background: "#050d22",
+          color: "#eef4fb",
         }}
       >
         <style>{`
-          /* The OS preference only. There is no toggle to read here: the script
-             that applies a stored choice lives in the root layout, and the root
-             layout is precisely what has failed if this page is on screen. */
-          @media (prefers-color-scheme: dark) {
-            body { background: #1a110b !important; color: #f3ede2 !important; }
-            .cb-ge-panel { background: #221a12 !important; border-color: #3a2e22 !important; }
-            .cb-ge-dim { color: #b4a795 !important; }
-            .cb-ge-btn { background: #7ba3d4 !important; color: #1a110b !important; }
-            .cb-ge-code { background: #2e241a !important; }
+          /* Dark is the default, as it is everywhere else (lib/theme.ts); the
+             light values apply only when the OS asks for light. There is no
+             stored choice to read here: the script that applies one lives in
+             the root layout, and the root layout is precisely what has failed
+             if this page is on screen. */
+          @media (prefers-color-scheme: light) {
+            body { background: #f1f6fc !important; color: #141f35 !important; }
+            .cb-ge-panel { background: #fbfeff !important; border-color: #cfd8e5 !important; }
+            .cb-ge-dim { color: #55647a !important; }
+            .cb-ge-btn { background: #2063b0 !important; color: #ffffff !important; }
+            .cb-ge-code { background: #e6eef7 !important; }
           }
           .cb-ge-btn:hover { filter: brightness(1.08); }
           .cb-ge-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
@@ -70,8 +72,8 @@ export default function GlobalError({
             style={{
               maxWidth: "34rem",
               margin: "48px auto 0",
-              background: "#fdfaf3",
-              border: "1px solid #ddd0b8",
+              background: "#0d1830",
+              border: "1px solid #26324c",
               borderRadius: "12px",
               padding: "28px 24px",
             }}
@@ -107,7 +109,7 @@ export default function GlobalError({
 
             <p
               className="cb-ge-dim"
-              style={{ margin: "0 0 18px", fontSize: "0.95rem", lineHeight: 1.6, color: "#6b5b47" }}
+              style={{ margin: "0 0 18px", fontSize: "0.95rem", lineHeight: 1.6, color: "#9caec6" }}
             >
               Something failed before the app could draw anything. This is almost
               always temporary. Nothing has been lost — war and league history is
@@ -128,8 +130,8 @@ export default function GlobalError({
                   borderRadius: "6px",
                   padding: "9px 16px",
                   // --primary, light.
-                  background: "#3f6c9c",
-                  color: "#fdfaf3",
+                  background: "#5fbcf4",
+                  color: "#0d1830",
                 }}
               >
                 Try again
@@ -154,7 +156,7 @@ export default function GlobalError({
                   textDecoration: "none",
                   borderRadius: "6px",
                   padding: "9px 16px",
-                  border: "1px solid #ddd0b8",
+                  border: "1px solid #26324c",
                   background: "transparent",
                   color: "inherit",
                 }}
@@ -166,13 +168,13 @@ export default function GlobalError({
             {error.digest && (
               <p
                 className="cb-ge-dim"
-                style={{ margin: "18px 0 0", fontSize: "0.85rem", color: "#6b5b47" }}
+                style={{ margin: "18px 0 0", fontSize: "0.85rem", color: "#9caec6" }}
               >
                 Reference:{" "}
                 <code
                   className="cb-ge-code"
                   style={{
-                    background: "#f0e7d6",
+                    background: "#1a263f",
                     borderRadius: "4px",
                     padding: "2px 6px",
                     fontSize: "0.8rem",
@@ -192,7 +194,7 @@ export default function GlobalError({
             padding: "16px",
             textAlign: "center",
             fontSize: "0.85rem",
-            color: "#6b5b47",
+            color: "#9caec6",
           }}
         >
           This material is unofficial and is not endorsed by Supercell. For more

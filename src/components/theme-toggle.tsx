@@ -1,13 +1,13 @@
 "use client";
 
-// Three buttons, in the account menu: Auto, Light, Dark.
+// Three buttons, in the account menu: Dark, Light, Auto.
 //
 // THREE AND NOT TWO. A two-state switch has to pick a starting side, and
 // whichever it picks is wrong for half the members — someone whose phone flips
 // to dark at sunset wants the app to follow, and someone who reads in bright
-// daylight on a permanently-dark phone does not. "Auto" is the default and says
-// what it does, rather than being an implied third state hidden behind a long
-// press.
+// daylight on a permanently-dark phone does not. Dark is the default and comes
+// first (lib/theme.ts says why); "Auto" says what it does, rather than being an
+// implied third state hidden behind a long press.
 //
 // Rendered as a segmented control rather than a dropdown because there are three
 // options, all of them one word, and the current one should be visible without
@@ -17,7 +17,7 @@
 // A SKELETON UNTIL MOUNTED. The server cannot know which theme is active — the
 // choice lives in localStorage and is applied by the blocking script in the
 // document head — so rendering a "current" state on the server would guarantee a
-// wrong one for anybody not on Auto, and React would then hydrate over it. The
+// wrong one for anybody not on the default, and React would then hydrate over it. The
 // placeholder occupies the same space so the menu does not jump.
 
 import { useEffect, useState } from "react";
@@ -35,9 +35,9 @@ const OPTIONS: ReadonlyArray<{
   hint: string;
   Icon: typeof Sun;
 }> = [
+  { value: "dark", label: "Dark", hint: "Always dark (the default)", Icon: Moon },
+  { value: "light", label: "Light", hint: "Always light", Icon: Sun },
   { value: "system", label: "Auto", hint: "Follow this device's setting", Icon: Monitor },
-  { value: "light", label: "Light", hint: "Always the parchment theme", Icon: Sun },
-  { value: "dark", label: "Dark", hint: "Always the night theme", Icon: Moon },
 ];
 
 /**
@@ -98,7 +98,7 @@ export function ThemeToggle({ compact = false }: { compact?: boolean } = {}) {
               className={
                 "flex flex-1 items-center justify-center gap-1.5 rounded-sm px-2 py-1.5 text-xs font-medium transition-colors " +
                 (active
-                  ? "bg-card text-foreground shadow-xs"
+                  ? "bg-tile text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground")
               }
             >

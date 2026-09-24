@@ -15,6 +15,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   applyTheme,
+  DEFAULT_THEME,
   isThemePreference,
   readThemePreference,
   THEME_COLOR,
@@ -64,6 +65,7 @@ function stubDom(prefersDark: boolean) {
     isDark: () => classes.has("dark"),
     colorScheme: () => style.colorScheme,
     themeColor: () => metas.find((m) => m.name === "theme-color")?.content,
+    themeCount: () => metas.filter((m) => m.name === "theme-color").length,
   };
 }
 
@@ -109,7 +111,8 @@ describe("the blocking init script", () => {
     expect(THEME_INIT_SCRIPT).toContain("colorScheme");
   });
 
-  it("consults the OS, so an unset preference means system rather than light", () => {
+  it("consults the OS only for an explicit Auto", () => {
+    expect(THEME_INIT_SCRIPT).toContain('p==="system"');
     expect(THEME_INIT_SCRIPT).toContain("prefers-color-scheme: dark");
   });
 
@@ -118,6 +121,61 @@ describe("the blocking init script", () => {
   it("is a self-invoking expression that leaks no globals", () => {
     expect(THEME_INIT_SCRIPT.startsWith("(function()")).toBe(true);
     expect(THEME_INIT_SCRIPT.trimEnd().endsWith("})();")).toBe(true);
+  });
+});
+
+// The script is a string, so run it: a stub <html> that starts the way the
+// server renders it (class "dark"), and whatever storage and OS the case needs.
+function runInitScript(stored: string | null, prefersDark: boolean, storageThrows = false) {
+  const classes = new Set<string>(["dark"]);
+  const style: Record<string, string> = { colorScheme: "dark" };
+  const documentElement = {
+    classList: {
+      toggle(token: string, force: boolean) {
+        if (force) classes.add(token);
+        else classes.delete(token);
+      },
+    },
+    style,
+  };
+  const localStorage = {
+    getItem: () => {
+      if (storageThrows) throw new Error("storage is blocked");
+      return stored;
+    },
+  };
+  const window = {
+    matchMedia: (q: string) => ({ matches: q.includes("dark") && prefersDark }),
+  };
+  new Function("document", "localStorage", "window", THEME_INIT_SCRIPT)(
+    { documentElement },
+    localStorage,
+    window,
+  );
+  return { dark: classes.has("dark"), colorScheme: style.colorScheme };
+}
+
+describe("what the init script decides", () => {
+  it("is dark with nothing stored, whatever the OS says", () => {
+    expect(runInitScript(null, false)).toEqual({ dark: true, colorScheme: "dark" });
+    expect(runInitScript(null, true).dark).toBe(true);
+  });
+
+  it("takes the class away for a member who chose light", () => {
+    expect(runInitScript("light", true)).toEqual({ dark: false, colorScheme: "light" });
+  });
+
+  it("follows the OS only on Auto", () => {
+    expect(runInitScript("system", false).dark).toBe(false);
+    expect(runInitScript("system", true).dark).toBe(true);
+  });
+
+  it("keeps an explicit dark on a light phone", () => {
+    expect(runInitScript("dark", false).dark).toBe(true);
+  });
+
+  it("leaves the server's dark in place when storage throws", () => {
+    expect(runInitScript("light", false, true)).toEqual({ dark: true, colorScheme: "dark" });
   });
 });
 
@@ -137,9 +195,10 @@ describe("isThemePreference", () => {
 });
 
 describe("reading and writing the preference", () => {
-  it("defaults to system when nothing is stored", () => {
+  it("defaults to dark when nothing is stored", () => {
     stubStorage(null);
-    expect(readThemePreference()).toBe("system");
+    expect(DEFAULT_THEME).toBe("dark");
+    expect(readThemePreference()).toBe("dark");
   });
 
   it("returns a stored preference", () => {
@@ -147,15 +206,15 @@ describe("reading and writing the preference", () => {
     expect(readThemePreference()).toBe("dark");
   });
 
-  it("falls back to system for a stored value that is not a preference", () => {
+  it("falls back to the default for a stored value that is not a preference", () => {
     // A value written by an older build, or by hand in devtools.
     stubStorage("midnight");
-    expect(readThemePreference()).toBe("system");
+    expect(readThemePreference()).toBe(DEFAULT_THEME);
   });
 
-  it("falls back to system when storage throws", () => {
-    stubStorage("dark", true);
-    expect(readThemePreference()).toBe("system");
+  it("falls back to the default when storage throws", () => {
+    stubStorage("light", true);
+    expect(readThemePreference()).toBe(DEFAULT_THEME);
   });
 
   it("does not throw when storage refuses the write", () => {
@@ -217,21 +276,23 @@ describe("applyTheme", () => {
     applyTheme("dark");
     applyTheme("light");
     applyTheme("dark");
-    // One tag, last value. A new tag per toggle would leave the browser reading
-    // whichever it saw first.
-    expect(dom.themeColor()).toBe(THEME_COLOR.dark);
+    // One tag. A new tag per toggle would leave the browser reading whichever
+    // it saw first.
+    expect(dom.themeCount()).toBe(1);
   });
 });
 
 describe("THEME_COLOR", () => {
-  // These are --wood-2 in each mode, written out because no meta tag can read a
-  // custom property. app/layout.tsx and manifest.json carry the same value.
+  // --rail-2, written out because no meta tag can read a custom property.
+  // app/layout.tsx reads it from here; manifest.json carries the same value.
   it("is a six-digit hex per theme", () => {
     expect(THEME_COLOR.light).toMatch(/^#[0-9a-f]{6}$/);
     expect(THEME_COLOR.dark).toMatch(/^#[0-9a-f]{6}$/);
   });
 
-  it("gives the two themes different chrome", () => {
-    expect(THEME_COLOR.light).not.toBe(THEME_COLOR.dark);
+  it("matches the installed app's manifest", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const manifest = JSON.parse(await readFile("public/manifest.json", "utf8"));
+    expect(manifest.theme_color).toBe(THEME_COLOR.dark);
   });
 });
