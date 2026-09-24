@@ -17,6 +17,8 @@ export function PageHeader({
   eyebrow,
   back,
   actions,
+  art,
+  ribbons,
 }: {
   title: React.ReactNode;
   /** What this page is for, in one sentence. */
@@ -27,6 +29,10 @@ export function PageHeader({
   back?: { href: string; label: string };
   /** Right-hand slot: freshness, status, or the page's primary button. */
   actions?: React.ReactNode;
+  /** A picture beside the title: the clan's badge, a Town Hall. */
+  art?: React.ReactNode;
+  /** Game state under the title, as <Ribbon>s. */
+  ribbons?: React.ReactNode;
 }) {
   return (
     <div className="space-y-3">
@@ -39,13 +45,17 @@ export function PageHeader({
         </Button>
       )}
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          {eyebrow && <p className="text-muted-foreground text-sm">{eyebrow}</p>}
-          {/* T12.8 — the display face. This one line is what makes every
-              redesigned page's title match the game look, since they all
-              come through here. */}
-          <h1 className="cb-title text-3xl">{title}</h1>
-          {description && <p className="text-muted-foreground max-w-2xl text-sm">{description}</p>}
+        <div className="flex min-w-0 items-center gap-4">
+          {art && <div className="shrink-0">{art}</div>}
+          <div className="min-w-0 space-y-1">
+            {eyebrow && <p className="text-muted-foreground text-sm">{eyebrow}</p>}
+            {/* T12.8 — the display face. This one line is what makes every
+                redesigned page's title match the game look, since they all
+                come through here. */}
+            <h1 className="cb-title text-3xl">{title}</h1>
+            {ribbons && <div className="flex flex-wrap items-center gap-2 pt-1">{ribbons}</div>}
+            {description && <p className="text-muted-foreground max-w-2xl text-sm">{description}</p>}
+          </div>
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>

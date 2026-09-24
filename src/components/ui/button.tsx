@@ -6,14 +6,20 @@ import { cn } from "@/lib/utils"
 
 // The solid variants are RAISED — see `.cb-raised` in globals.css. A button in
 // this product is a physical object with a lit top edge and a plinth under it,
-// and pressing it moves it 2px down onto that plinth.
+// and pressing it moves it 3px down onto that plinth.
 //
 // It is a cosmetic change with one behavioural consequence worth knowing: the
 // travel is real, so a button in a tight flex row moves relative to its
 // neighbours on press. That is the point, and it is why the plinth is exactly
-// 2px everywhere rather than scaled per size — a `size="lg"` button that sank
-// four pixels while the `sm` beside it sank two would read as two different
+// 3px everywhere rather than scaled per size — a `size="lg"` button that sank
+// six pixels while the `sm` beside it sank three would read as two different
 // controls.
+//
+// GOLD IS THE CALL TO ACTION, AND THERE IS ONE PER VIEW. `variant="gold"` is
+// "the thing to do next" — Attack, Answer — the store's buy button, in this
+// product's terms. Two gold buttons on a screen is two things claiming to be
+// the one; every other action is `outline`. globals.css says why gold no
+// longer collides with the amber warning.
 //
 // T12.10 — buttons are in the BODY face. T12.8 put the display face on them,
 // and with it on titles, numbers and buttons alike nothing stood out; a button
@@ -25,7 +31,7 @@ import { cn } from "@/lib/utils"
 // button, which is the correct fallback and is why `ghost` and `link` — which
 // have no body to raise — simply do not opt in.
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 items-center justify-center gap-2 rounded-control text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -34,6 +40,8 @@ const buttonVariants = cva(
         // through the face of the button, which looks like a rendering bug.
         default:
           "cb-raised [--raise-shade:var(--primary-shade)] bg-primary text-primary-foreground hover:brightness-110",
+        gold:
+          "cb-raised [--raise-shade:var(--gold-shade)] bg-gold text-gold-ink font-semibold hover:brightness-105",
         destructive:
           "cb-raised [--raise-shade:var(--destructive-shade)] bg-destructive text-white hover:brightness-110 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
         outline:
@@ -74,11 +82,14 @@ const buttonVariants = cva(
       // being unusable on a phone.
       size: {
         default: "h-10 px-4 py-2 has-[>svg]:px-3",
-        xs: "h-7 gap-1 rounded-md px-2.5 text-xs has-[>svg]:px-2 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-9 gap-1.5 rounded-md px-3.5 has-[>svg]:px-3",
-        lg: "h-11 rounded-md px-6 has-[>svg]:px-4",
+        xs: "h-7 gap-1 rounded-chip px-2.5 text-xs has-[>svg]:px-2 [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-9 gap-1.5 px-3.5 has-[>svg]:px-3",
+        lg: "h-11 px-6 has-[>svg]:px-4",
+        // The call to action on a tile or a banner: taller, and wide enough
+        // to be hit with a thumb without looking.
+        cta: "h-12 px-6 text-base has-[>svg]:px-5 [&_svg:not([class*='size-'])]:size-5",
         icon: "size-10",
-        "icon-xs": "size-7 rounded-md [&_svg:not([class*='size-'])]:size-3",
+        "icon-xs": "size-7 rounded-chip [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-9",
         "icon-lg": "size-11",
       },
