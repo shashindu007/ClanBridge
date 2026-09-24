@@ -58,7 +58,7 @@ export function BaseDetails({ progress, village, path }: BaseDetailsProps) {
     // since the last run. Names the job, the way every report panel names its
     // own, so "empty" never reads as "broken".
     return (
-      <section className="cb-panel space-y-2 rounded-lg border p-6">
+      <section className="cb-panel space-y-2 rounded-panel border p-5">
         <h2 className="font-medium">No details for this base yet</h2>
         <p className="text-muted-foreground text-sm">
           Hero, troop and spell levels are read once a day by the{" "}
@@ -81,7 +81,7 @@ export function BaseDetails({ progress, village, path }: BaseDetailsProps) {
 
   return (
     <>
-      <section className="cb-panel space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-panel border p-5">
         <nav aria-label="Village" className="flex flex-wrap gap-2">
           <VillageLink path={path} village="home" current={village}>
             Home village
@@ -138,7 +138,7 @@ export function BaseDetails({ progress, village, path }: BaseDetailsProps) {
       </section>
 
       {groups.length === 0 ? (
-        <section className="cb-panel rounded-lg border p-6">
+        <section className="cb-panel rounded-panel border p-5">
           <p className="text-muted-foreground text-sm">
             {village === "builder"
               ? "This village has not unlocked the Builder Base."
@@ -205,7 +205,7 @@ function BehindPanel({
   const total = behind.reduce((n, g) => n + g.units.length, 0);
 
   return (
-    <section className="cb-panel space-y-3 rounded-lg border p-6">
+    <section className="cb-panel space-y-3 rounded-panel border p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-medium">Below the {hallName} {hall - 1} cap</h2>
         <span className="text-muted-foreground text-sm tabular-nums">
@@ -254,7 +254,7 @@ function UpgradesPanel({
   since: string | null;
 }) {
   return (
-    <section className="cb-panel space-y-3 rounded-lg border p-6">
+    <section className="cb-panel space-y-3 rounded-panel border p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-medium">Upgraded lately</h2>
         {since && (
@@ -289,7 +289,7 @@ function GroupPanel({ group }: { group: GroupProgress }) {
   const counted = group.units.filter(counts).length;
 
   return (
-    <section id={group.group} className="cb-panel scroll-mt-4 space-y-3 rounded-lg border p-6">
+    <section id={group.group} className="cb-panel scroll-mt-4 space-y-3 rounded-panel border p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-medium">{group.label}</h2>
         {isSuper ? (

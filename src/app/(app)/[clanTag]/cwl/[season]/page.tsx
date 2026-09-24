@@ -103,7 +103,7 @@ export default async function CwlDayDetailPage({
   const base = `${clanBase}/cwl/${encodeURIComponent(season.season)}`;
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <PageHeader
         back={{ href: `${clanBase}/cwl`, label: "All CWL seasons" }}
         eyebrow={clan.name}
@@ -143,7 +143,7 @@ export default async function CwlDayDetailPage({
         </p>
       )}
 
-      <section className="cb-panel grid gap-4 rounded-lg border p-6 sm:grid-cols-3">
+      <section className="cb-panel grid gap-4 rounded-panel border p-5 sm:grid-cols-3">
         <Stat
           label="Wins – losses – ties"
           value={`${totals.wins} – ${totals.losses} – ${totals.ties}`}
@@ -157,7 +157,7 @@ export default async function CwlDayDetailPage({
       </section>
 
       {wars.length === 0 ? (
-        <section className="cb-panel space-y-2 rounded-lg border p-6">
+        <section className="cb-panel space-y-2 rounded-panel border p-5">
           <h2 className="font-medium">No war days recorded for this season</h2>
           <p className="text-muted-foreground text-sm">
             The season exists but no wars were captured. If CWL has already run, the sync
@@ -197,7 +197,7 @@ export default async function CwlDayDetailPage({
           </nav>
 
           {selected && (
-            <section className="cb-panel space-y-4 rounded-lg border p-6">
+            <section className="cb-panel space-y-4 rounded-panel border p-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-lg font-semibold">
                   Day {selected.dayNumber ?? "?"}{" "}
@@ -244,7 +244,7 @@ export default async function CwlDayDetailPage({
             </section>
           )}
 
-          <section className="cb-panel space-y-4 rounded-lg border p-6">
+          <section className="cb-panel space-y-4 rounded-panel border p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-semibold">Did not attack</h2>
               {roster.length > 0 && (
@@ -276,7 +276,7 @@ export default async function CwlDayDetailPage({
           </section>
 
           {roster.length > 0 && (
-            <section className="cb-panel space-y-3 rounded-lg border p-6">
+            <section className="cb-panel space-y-3 rounded-panel border p-5">
               <h2 className="text-lg font-semibold">Every attack this day</h2>
               <div className="-mx-6 overflow-x-auto px-6">
                 <Table>

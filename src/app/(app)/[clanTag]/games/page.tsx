@@ -135,7 +135,7 @@ export default async function ClanGamesPage({
   const nextWindow = clanGamesWindow(now);
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="cb-title text-3xl">Clan Games</h1>
@@ -168,7 +168,7 @@ export default async function ClanGamesPage({
       </Alert>
 
       {!games ? (
-        <section className="space-y-3 rounded-lg border border-dashed p-6">
+        <section className="space-y-3 rounded-panel border border-dashed p-6">
           <h2 className="font-medium">No Clan Games recorded yet</h2>
           <p className="text-muted-foreground text-sm">
             {fresh.level === "never"
@@ -186,7 +186,7 @@ export default async function ClanGamesPage({
       ) : (
         <>
           {/* ── The month ──────────────────────────────────────────────────── */}
-          <section className="cb-panel space-y-4 rounded-xl border p-6">
+          <section className="cb-panel space-y-4 rounded-panel border p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-medium">{monthName(games.season)}</h2>
               {settledBadge(games)}
@@ -234,7 +234,7 @@ export default async function ClanGamesPage({
           </section>
 
           {/* ── The leaderboard ────────────────────────────────────────────── */}
-          <section className="cb-panel space-y-4 rounded-xl border p-6">
+          <section className="cb-panel space-y-4 rounded-panel border p-5">
             <h2 className="font-medium">Scores</h2>
 
             {ranked.length === 0 ? (
@@ -282,7 +282,7 @@ export default async function ClanGamesPage({
 
           {/* ── Separately, and deliberately not in the ranking ─────────────── */}
           {unmeasured.length > 0 && (
-            <section className="cb-panel space-y-3 rounded-xl border p-6">
+            <section className="cb-panel space-y-3 rounded-panel border p-5">
               <h2 className="flex items-center gap-2 font-medium">
                 <HelpCircle aria-hidden className="text-muted-foreground size-4" />
                 Not measured this month
@@ -311,7 +311,7 @@ export default async function ClanGamesPage({
 
       {/* ── History ────────────────────────────────────────────────────────── */}
       {months.length > 1 && (
-        <section className="cb-panel space-y-3 rounded-xl border p-6">
+        <section className="cb-panel space-y-3 rounded-panel border p-5">
           <h2 className="font-medium">Past months</h2>
           <ul className="divide-y">
             {months.map((m) => (

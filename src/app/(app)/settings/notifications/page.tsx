@@ -126,7 +126,7 @@ export default async function NotificationSettingsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl space-y-8 p-4 sm:p-8">
+    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
       <div className="space-y-2">
         <h1 className="cb-title text-3xl">Notifications</h1>
         <p className="text-muted-foreground text-sm">
@@ -135,7 +135,7 @@ export default async function NotificationSettingsPage() {
         </p>
       </div>
 
-      <section className="cb-panel space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="space-y-1">
           <h2 className="font-medium">This device</h2>
           <p className="text-muted-foreground text-sm">
@@ -146,7 +146,7 @@ export default async function NotificationSettingsPage() {
         <PushToggle vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""} />
       </section>
 
-      <section className="cb-panel space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="space-y-1">
           <h2 className="font-medium">What to send</h2>
           <p className="text-muted-foreground text-sm">

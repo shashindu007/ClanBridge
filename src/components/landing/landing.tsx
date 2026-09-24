@@ -240,7 +240,7 @@ export function Landing({
         </div>
       </header>
 
-      <main id="main" className="mx-auto max-w-6xl space-y-20 px-4 py-10 sm:py-16">
+      <main id="main" className="mx-auto max-w-page space-y-20 px-4 py-10 sm:py-16">
         {/* ── Hero ─────────────────────────────────────────────────────── */}
         <section aria-labelledby="hero-title" className="cb-hero rounded-2xl border">
           <div className="cb-hero-stripe" />
@@ -275,7 +275,7 @@ export function Landing({
           <section aria-label="ClanBridge in numbers">
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {statItems.map((item) => (
-                <div key={item.label} className="cb-panel rounded-xl border p-5 text-center">
+                <div key={item.label} className="cb-panel rounded-panel border p-5 text-center">
                   <dd className="text-3xl font-semibold tabular-nums">
                     {numberFormat.format(item.value)}
                   </dd>
@@ -295,7 +295,7 @@ export function Landing({
         >
           <ul className="grid gap-4 md:grid-cols-3">
             {PROBLEMS.map(({ Icon, title, body }) => (
-              <li key={title} className="cb-panel space-y-3 rounded-xl border p-5">
+              <li key={title} className="cb-panel space-y-3 rounded-panel border p-5">
                 <span className="cb-emblem size-9 rounded-lg" style={{ "--emblem": "var(--warning)" } as React.CSSProperties}>
                   <Icon aria-hidden className="size-4.5" />
                 </span>
@@ -314,7 +314,7 @@ export function Landing({
         >
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {FEATURES.map(({ Icon, title, body }) => (
-              <li key={title} className="cb-panel space-y-3 rounded-xl border p-5">
+              <li key={title} className="cb-panel space-y-3 rounded-panel border p-5">
                 <span className="cb-emblem size-9 rounded-lg" style={{ "--emblem": "var(--primary)" } as React.CSSProperties}>
                   <Icon aria-hidden className="size-4.5" />
                 </span>
@@ -329,7 +329,7 @@ export function Landing({
         <Section id="how" eyebrow="Getting in" title="Four steps, about five minutes">
           <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((step, i) => (
-              <li key={step.title} className="cb-panel space-y-2 rounded-xl border p-5">
+              <li key={step.title} className="cb-panel space-y-2 rounded-panel border p-5">
                 <span
                   aria-hidden
                   className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-full text-sm font-semibold"
@@ -376,7 +376,7 @@ export function Landing({
           <Section id="feedback" eyebrow="From members" title="What members say">
             <ul className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {quotes.map((quote, i) => (
-                <li key={i} className="cb-panel flex flex-col gap-3 rounded-xl border p-5">
+                <li key={i} className="cb-panel flex flex-col gap-3 rounded-panel border p-5">
                   <Rating value={quote.rating} />
                   <blockquote className="flex-1 text-sm leading-relaxed">
                     &ldquo;{quote.body}&rdquo;

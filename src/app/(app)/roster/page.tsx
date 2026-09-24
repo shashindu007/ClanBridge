@@ -120,7 +120,7 @@ export default async function RosterSeasonsPage() {
   const canStart = leads.length > 0 ? startableSeasons(now).filter((s) => !started.has(s)) : [];
 
   return (
-    <main className="mx-auto max-w-4xl space-y-8 p-4 sm:p-8">
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <div className="space-y-1">
         <h1 className="cb-title text-3xl">CWL lineups</h1>
         <p className="text-muted-foreground text-sm">
@@ -130,7 +130,7 @@ export default async function RosterSeasonsPage() {
       </div>
 
       {leads.length === 0 && (
-        <section className="cb-panel space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-panel border p-5">
           <h2 className="font-medium">Lineups are picked by leaders</h2>
           <p className="text-muted-foreground text-sm">
             Once your leader publishes a lineup, you can see it on your clan&apos;s CWL
@@ -149,7 +149,7 @@ export default async function RosterSeasonsPage() {
       {open.map(({ season, rosters }) => {
         const published = rosters.filter((r) => r.status === "published").length;
         return (
-          <section key={season} className="cb-panel space-y-5 rounded-lg border p-6">
+          <section key={season} className="cb-panel space-y-5 rounded-panel border p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -172,7 +172,7 @@ export default async function RosterSeasonsPage() {
 
             <ul className="grid gap-3 sm:grid-cols-2">
               {rosters.map((r) => (
-                <li key={r.id} className="bg-card space-y-3 rounded-md border p-4">
+                <li key={r.id} className="bg-card space-y-3 rounded-panel border p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium">{clanById.get(r.clanId)?.name}</span>
                     <LineupStatus status={r.status} />
@@ -186,7 +186,7 @@ export default async function RosterSeasonsPage() {
       })}
 
       {canStart.length > 0 && (
-        <form action={startSeason} className="cb-panel space-y-4 rounded-lg border border-dashed p-6">
+        <form action={startSeason} className="cb-panel space-y-4 rounded-panel border border-dashed p-5">
           <div className="space-y-1">
             <h2 className="flex items-center gap-2 font-medium">
               <CalendarPlus aria-hidden className="size-5" />
@@ -204,7 +204,7 @@ export default async function RosterSeasonsPage() {
               <select
                 name="season"
                 defaultValue={canStart[0]}
-                className="border-input bg-background h-10 rounded-md border px-3 text-sm"
+                className="border-input bg-background h-10 rounded-control border px-3 text-sm"
               >
                 {canStart.map((s) => (
                   <option key={s} value={s}>
@@ -230,7 +230,7 @@ export default async function RosterSeasonsPage() {
               : "Nothing before this month yet."}
           </p>
         ) : (
-          <ul className="cb-panel divide-y rounded-lg border">
+          <ul className="cb-panel divide-y rounded-panel border">
             {past.map(({ season, rosters }) => {
               const published = rosters.filter((r) => r.status === "published").length;
               return (

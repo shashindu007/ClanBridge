@@ -204,7 +204,7 @@ export function LineupPanel({
   const empty = members.length === 0;
 
   return (
-    <section aria-label={`${title} lineup`} className="cb-panel space-y-4 rounded-lg border p-5">
+    <section aria-label={`${title} lineup`} className="cb-panel space-y-4 rounded-panel border p-5">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="cb-title text-xl">{title}</h2>
@@ -219,7 +219,7 @@ export function LineupPanel({
       </div>
 
       {empty ? (
-        <p className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
+        <p className="text-muted-foreground rounded-panel border border-dashed p-4 text-sm">
           {action ? emptyHint : "Nobody has been picked for this lineup yet."}
         </p>
       ) : (
@@ -354,7 +354,7 @@ export function PoolSearch({
           name="from"
           defaultValue={from ?? ""}
           aria-label="Only players currently in this clan"
-          className="border-input bg-background h-10 rounded-md border px-3 text-sm"
+          className="border-input bg-background h-10 rounded-control border px-3 text-sm"
         >
           <option value="">From all clans</option>
           {clans.map((clan) => (
@@ -402,7 +402,7 @@ export function Step({
 /** "How this works", open until the page has something in it. */
 export function HowItWorks({ open, children }: { open: boolean; children?: React.ReactNode }) {
   return (
-    <details open={open} className="cb-panel rounded-lg border p-5">
+    <details open={open} className="cb-panel rounded-panel border p-5">
       <summary className="cursor-pointer font-medium">How this works</summary>
       <ol className="mt-4 grid gap-4 sm:grid-cols-3">{children}</ol>
     </details>

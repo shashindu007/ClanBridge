@@ -72,7 +72,7 @@ export default async function CrossClanReportPage() {
 
   if (clans.length === 0) {
     return (
-      <main className="mx-auto max-w-7xl space-y-4 p-4 sm:p-8">
+      <main className="mx-auto max-w-page space-y-4 p-4 sm:p-6">
         <h1 className="cb-title text-3xl">Participation</h1>
         <p className="text-muted-foreground text-sm">
           {all.length === 0
@@ -112,7 +112,7 @@ export default async function CrossClanReportPage() {
   const flaggedCount = rows.filter((r) => r.flags.length > 0).length;
 
   return (
-    <main className="mx-auto max-w-5xl space-y-8 p-4 sm:p-8">
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <div className="space-y-2">
         <h1 className="cb-title text-3xl">Participation</h1>
         <p className="text-muted-foreground text-sm">
@@ -124,7 +124,7 @@ export default async function CrossClanReportPage() {
       {rows.length === 0 ? (
         // T9.10 — clans exist but no members have synced yet. Day one of a fresh
         // install, and the fix is a sync rather than anything on this page.
-        <section className="cb-panel rounded-lg border p-6">
+        <section className="cb-panel rounded-panel border p-5">
           <p className="text-muted-foreground text-sm">
             No members have been synced yet. Once <code>sync:clans</code> has run,
             everybody appears here.

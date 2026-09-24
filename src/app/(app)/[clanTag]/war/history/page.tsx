@@ -9,15 +9,25 @@
 // would only ever work for the war currently running, and the comparison is most
 // useful after the war, when someone is asking why base 7 was left standing.
 //
+// GROUPED BY MONTH, and folded after the latest two. A hundred rows in one table
+// was a page nobody reached the end of; a month is how a clan remembers its wars
+// ("we lost three in August"). The record sits in a line of facts under the
+// title rather than in a panel of its own, and the dotted links that repeated
+// the War tabs above ("current war · contribution") are gone.
+//
 // R4 — nothing is ever deleted, so this list only grows. That is the feature:
 // the logbook it replaces was a physical notebook, and the reason the CWL half
 // of this project exists at all is that data which disappears cannot be argued
 // with later.
 
 import Link from "next/link";
+import { Star, Swords, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataFreshness } from "@/components/data-freshness";
+import { PageHeader } from "@/components/page-header";
+import { Disclosure, EmptyState, FactRow, Panel } from "@/components/kit";
+import { ClanBadge } from "@/components/game/clan-badge";
 import { requireClanByTag } from "@/lib/clans";
 import { isLeader } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
@@ -34,18 +44,40 @@ function when(iso: string | null): string {
   return new Date(iso).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
+    timeZone: DISPLAY_ZONE,
+  });
+}
+
+function monthOf(iso: string | null): string {
+  if (!iso) return "Undated";
+  return new Date(iso).toLocaleDateString("en-GB", {
+    month: "long",
     year: "numeric",
     timeZone: DISPLAY_ZONE,
   });
 }
 
 function resultBadge(war: WarRow) {
-  if (war.result === "win") return <Badge>Win</Badge>;
-  if (war.result === "lose") return <Badge variant="destructive">Loss</Badge>;
-  if (war.result === "tie") return <Badge variant="secondary">Tie</Badge>;
+  if (war.result === "win") return <Badge variant="success">Won</Badge>;
+  if (war.result === "lose") return <Badge variant="destructive">Lost</Badge>;
+  if (war.result === "tie") return <Badge variant="secondary">Draw</Badge>;
   // A war still in preparation has no result, and scoring it as anything —
   // including a loss — would be a lie about a war that has not been fought.
-  return <Badge variant="outline">{war.state ?? "not started"}</Badge>;
+  const state =
+    war.state === "inWar" ? "Battle day" : war.state === "preparation" ? "Preparation" : "Not started";
+  return <Badge variant="outline">{state}</Badge>;
+}
+
+/** Newest month first, each month's wars newest first — the order warsForClan returns. */
+function byMonth(wars: WarRow[]): Array<{ month: string; wars: WarRow[] }> {
+  const groups: Array<{ month: string; wars: WarRow[] }> = [];
+  for (const war of wars) {
+    const month = monthOf(war.startTime);
+    const last = groups[groups.length - 1];
+    if (last && last.month === month) last.wars.push(war);
+    else groups.push({ month, wars: [war] });
+  }
+  return groups;
 }
 
 export default async function WarHistoryPage({
@@ -62,113 +94,118 @@ export default async function WarHistoryPage({
   const wars = await warsForClan(supabase, clan.id, 100);
   const runs = freshness(await latestRun(supabase, "war", clan.id));
   const totals = warTotals(wars);
+  const running = wars.length - totals.warsPlayed;
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="cb-title text-3xl">War history</h1>
-          <DataFreshness freshness={runs} canAdmin={isLeader(clan.role)} />
-        </div>
-        <p className="text-muted-foreground text-sm">
-          {clan.name} ·{" "}
-          <Link className="underline" href={`${base}/war`}>
-            current war
-          </Link>{" "}
-          ·{" "}
-          <Link className="underline" href={`${base}/war/report`}>
-            contribution
-          </Link>
-        </p>
-      </div>
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
+      <PageHeader
+        eyebrow={clan.name}
+        title="War history"
+        description="Every war this clan has fought since the sync started, kept for good. Open one to see its plan beside its result."
+        actions={<DataFreshness freshness={runs} canAdmin={isLeader(clan.role)} />}
+      />
 
       {wars.length === 0 ? (
-        <section className="cb-panel space-y-3 rounded-lg border p-6">
-          <h2 className="font-medium">No wars recorded yet</h2>
-          <p className="text-muted-foreground text-sm">
-            {runs.level === "never"
-              ? "The war sync has never run. Wars appear here from the first run after one is declared."
-              : "The sync is running and has not seen a war yet. Every war from now on is kept permanently."}
-          </p>
-          <Button asChild size="sm" variant="outline">
-            <Link href={`${base}/war/lineup`}>Plan a lineup</Link>
-          </Button>
-        </section>
+        <Panel>
+          <EmptyState
+            icon={Swords}
+            title="No wars recorded yet"
+            body={
+              runs.level === "never"
+                ? "The war sync has never run. Wars appear here from the first run after one is declared."
+                : "The sync is running and has not seen a war yet. Every war from now on is kept permanently."
+            }
+            action={
+              <Button asChild variant="outline">
+                <Link href={`${base}/war/lineup`}>Plan a lineup</Link>
+              </Button>
+            }
+          />
+        </Panel>
       ) : (
         <>
-          <section className="rounded-lg border p-6">
-            <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
-              <div>
-                <p className="text-2xl font-semibold tabular-nums">
-                  {totals.wins}–{totals.losses}
-                  {totals.ties > 0 && `–${totals.ties}`}
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  from {totals.warsPlayed} finished war{totals.warsPlayed === 1 ? "" : "s"}
-                </p>
-              </div>
-              <div>
-                <p className="text-lg font-medium tabular-nums">
-                  {totals.stars} – {totals.starsAgainst}
-                </p>
-                <p className="text-muted-foreground text-xs">stars for and against</p>
-              </div>
-              {wars.length !== totals.warsPlayed && (
-                <p className="text-muted-foreground text-xs">
-                  {wars.length - totals.warsPlayed} war
-                  {wars.length - totals.warsPlayed === 1 ? "" : "s"} still in progress, not
-                  counted
-                </p>
-              )}
-            </div>
-          </section>
+          <FactRow
+            items={[
+              {
+                label: totals.ties > 0 ? "won–lost–drawn" : "won–lost",
+                value: `${totals.wins}–${totals.losses}${totals.ties > 0 ? `–${totals.ties}` : ""}`,
+                icon: Trophy,
+                title: `From ${totals.warsPlayed} finished war${totals.warsPlayed === 1 ? "" : "s"}`,
+              },
+              { label: "stars for – against", value: `${totals.stars} – ${totals.starsAgainst}`, icon: Star },
+              ...(running > 0
+                ? [
+                    {
+                      label: running === 1 ? "war still running, not counted" : "wars still running, not counted",
+                      value: running,
+                      icon: Swords,
+                    },
+                  ]
+                : []),
+            ]}
+          />
 
-          <section className="rounded-lg border p-6">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-muted-foreground border-b text-left">
-                  <tr>
-                    <th className="py-2 pr-3 font-medium">Started</th>
-                    <th className="py-2 pr-3 font-medium">Opponent</th>
-                    <th className="py-2 pr-3 text-right font-medium">Size</th>
-                    <th className="py-2 pr-3 text-right font-medium">Stars</th>
-                    <th className="py-2 pr-3 text-right font-medium">Destruction</th>
-                    <th className="py-2 font-medium">Result</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {wars.map((war) => (
-                    <tr key={war.id} className="border-b last:border-0">
-                      <td className="py-2 pr-3">
-                        <Link
-                          className="underline-offset-2 hover:underline"
-                          href={`${base}/war?war=${encodeURIComponent(war.id)}`}
-                        >
-                          {when(war.startTime)}
-                        </Link>
-                      </td>
-                      <td className="py-2 pr-3">
-                        {war.opponentName ?? (
-                          <span className="text-muted-foreground">unknown</span>
-                        )}
-                      </td>
-                      <td className="py-2 pr-3 text-right tabular-nums">
-                        {war.teamSize ?? "—"}
-                      </td>
-                      <td className="py-2 pr-3 text-right tabular-nums">
-                        {war.ourStars ?? 0} – {war.theirStars ?? 0}
-                      </td>
-                      <td className="py-2 pr-3 text-right tabular-nums">
-                        {(war.ourDestruction ?? 0).toFixed(1)}% –{" "}
-                        {(war.theirDestruction ?? 0).toFixed(1)}%
-                      </td>
-                      <td className="py-2">{resultBadge(war)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          {byMonth(wars).map(({ month, wars: inMonth }, i) => {
+            const won = inMonth.filter((w) => w.result === "win").length;
+            const lost = inMonth.filter((w) => w.result === "lose").length;
+            return (
+              <Disclosure
+                key={month}
+                title={month}
+                count={inMonth.length}
+                defaultOpen={i < 2}
+                summary={`${won} won · ${lost} lost`}
+              >
+                <div className="-mx-5 overflow-x-auto px-5">
+                  <table className="w-full min-w-[36rem] text-sm">
+                    <thead className="text-muted-foreground border-b text-left text-xs uppercase">
+                      <tr>
+                        <th className="py-2 pr-3 font-medium">Started</th>
+                        <th className="py-2 pr-3 font-medium">Opponent</th>
+                        <th className="py-2 pr-3 text-right font-medium">Size</th>
+                        <th className="py-2 pr-3 text-right font-medium">Stars</th>
+                        <th className="py-2 pr-3 text-right font-medium">Destruction</th>
+                        <th className="py-2 font-medium">Result</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {inMonth.map((war) => (
+                        <tr key={war.id} className="border-b last:border-0">
+                          <td className="py-2.5 pr-3">
+                            <Link
+                              className="text-primary font-medium underline-offset-2 hover:underline"
+                              href={`${base}/war?war=${encodeURIComponent(war.id)}`}
+                            >
+                              {when(war.startTime)}
+                            </Link>
+                          </td>
+                          <td className="py-2.5 pr-3">
+                            <span className="flex items-center gap-2">
+                              <ClanBadge
+                                src={war.opponentBadgeUrl}
+                                name={war.opponentName ?? "?"}
+                                size="sm"
+                                tone="var(--foe)"
+                              />
+                              {war.opponentName ?? <span className="text-muted-foreground">unknown</span>}
+                            </span>
+                          </td>
+                          <td className="py-2.5 pr-3 text-right tabular-nums">{war.teamSize ?? "—"}</td>
+                          <td className="py-2.5 pr-3 text-right font-medium tabular-nums">
+                            {war.ourStars ?? 0} – {war.theirStars ?? 0}
+                          </td>
+                          <td className="text-muted-foreground py-2.5 pr-3 text-right tabular-nums">
+                            {(war.ourDestruction ?? 0).toFixed(1)}% – {(war.theirDestruction ?? 0).toFixed(1)}%
+                          </td>
+                          <td className="py-2.5">{resultBadge(war)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Disclosure>
+            );
+          })}
         </>
       )}
     </main>

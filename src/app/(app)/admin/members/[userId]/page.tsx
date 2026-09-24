@@ -241,7 +241,7 @@ export default async function AdminAccountPage({
     !(account.isPlatformAdmin && !admin);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-8 p-4 sm:p-8">
+    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
       <Button asChild variant="ghost" size="sm" className="-ml-2">
         <Link href="/admin/members">
           <ArrowLeft aria-hidden />
@@ -268,7 +268,7 @@ export default async function AdminAccountPage({
       )}
 
       {/* ── Who they are ─────────────────────────────────────────────────── */}
-      <section className="cb-panel space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-panel border p-5">
         <h2 className="text-lg font-semibold">Account</h2>
 
         <dl className="grid gap-4 sm:grid-cols-2">
@@ -344,7 +344,7 @@ export default async function AdminAccountPage({
       </section>
 
       {/* ── Clan roles (T12.9) ───────────────────────────────────────────── */}
-      <section aria-labelledby="roles-title" className="cb-panel space-y-4 rounded-lg border p-6">
+      <section aria-labelledby="roles-title" className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="space-y-1">
           <h2 id="roles-title" className="flex items-center gap-2 text-lg font-semibold">
             <Crown aria-hidden className="text-trim-shade size-5" />
@@ -409,7 +409,7 @@ export default async function AdminAccountPage({
                         id={selectId}
                         name="role"
                         defaultValue={current ?? ""}
-                        className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 rounded-md border px-2 text-sm outline-none focus-visible:ring-[3px]"
+                        className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 rounded-control border px-2 text-sm outline-none focus-visible:ring-[3px]"
                       >
                         <option value="">Not in this clan</option>
                         {ROLES.filter((r) => admin || r !== "leader").map((r) => (
@@ -438,7 +438,7 @@ export default async function AdminAccountPage({
       </section>
 
       {/* ── Say something ────────────────────────────────────────────────── */}
-      <section className="cb-panel space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">Send a message</h2>
           <p className="text-muted-foreground text-sm">
@@ -475,7 +475,7 @@ export default async function AdminAccountPage({
                 rows={4}
                 maxLength={BODY_LIMIT}
                 placeholder="Say what happened and what you would like them to do."
-                className="border-input bg-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
+                className="border-input bg-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-control border px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
               />
             </div>
             <SubmitButton pendingLabel="Sending">
@@ -511,7 +511,7 @@ export default async function AdminAccountPage({
       </section>
 
       {/* ── Take access away ─────────────────────────────────────────────── */}
-      <section className="cb-panel space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">
             {account.removedAt ? "Restore this account" : "Remove access"}

@@ -68,7 +68,7 @@ export default async function MemberBaseDetailsPage({
   const encodedPlayer = encodeTag(player.tag);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
       <div className="space-y-3">
         <Button asChild variant="ghost" size="xs" className="-ml-2">
           <Link href={`/${encodedClan}/player/${encodedPlayer}`}>

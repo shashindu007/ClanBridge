@@ -188,7 +188,7 @@ export function UploadForm({ clanId, clanTag, save }: UploadFormProps) {
           <Label htmlFor="thLevel">Town Hall</Label>
           <select
             id="thLevel"
-            className="border-input bg-background h-9 rounded-md border px-3 text-sm"
+            className="border-input bg-background h-9 rounded-control border px-3 text-sm"
             value={thLevel}
             onChange={(e) => setThLevel(Number(e.target.value))}
             disabled={busy}
@@ -205,7 +205,7 @@ export function UploadForm({ clanId, clanTag, save }: UploadFormProps) {
           <Label htmlFor="layoutType">Type</Label>
           <select
             id="layoutType"
-            className="border-input bg-background h-9 rounded-md border px-3 text-sm"
+            className="border-input bg-background h-9 rounded-control border px-3 text-sm"
             value={layoutType}
             onChange={(e) => setLayoutType(e.target.value as LayoutType)}
             disabled={busy}

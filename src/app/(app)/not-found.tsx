@@ -47,8 +47,8 @@ export default async function AppNotFound() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 p-4 sm:p-8">
-      <div className="cb-panel space-y-4 rounded-xl border p-6 sm:p-8">
+    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
+      <div className="cb-panel space-y-4 rounded-panel border p-5 sm:p-8">
         <span
           className="cb-emblem size-11 rounded-xl"
           style={{ "--emblem": "var(--primary)" } as React.CSSProperties}

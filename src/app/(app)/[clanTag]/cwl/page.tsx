@@ -67,7 +67,7 @@ export default async function CwlSeasonListPage({
   const phase = cwlPhase(now);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="cb-title text-3xl">Clan War League</h1>
@@ -79,7 +79,7 @@ export default async function CwlSeasonListPage({
       </div>
 
       {rows.length === 0 ? (
-        <section className="cb-panel space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-panel border p-5">
           <h2 className="font-medium">No CWL seasons recorded yet</h2>
           <p className="text-muted-foreground text-sm">
             CWL runs for about a week at the start of each month. For the rest of

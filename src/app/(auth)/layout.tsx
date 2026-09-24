@@ -34,7 +34,7 @@ export default function AuthLayout({
   // either — see the comment above on why that is worth protecting.
   return (
     <div className="mx-auto w-full max-w-md p-6 sm:p-8">
-      <div className="cb-panel rounded-xl border p-6 sm:p-8">{children}</div>
+      <div className="cb-panel rounded-panel border p-5 sm:p-8">{children}</div>
     </div>
   );
 }

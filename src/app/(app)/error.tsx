@@ -51,8 +51,8 @@ export default function AppError({
   }, [error]);
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 p-4 sm:p-8">
-      <div className="cb-panel space-y-4 rounded-xl border p-6 sm:p-8">
+    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
+      <div className="cb-panel space-y-4 rounded-panel border p-5 sm:p-8">
         {/* --destructive, and it is the correct reserved meaning here: this is
             the "something is broken" case the palette reserves red for. */}
         <span

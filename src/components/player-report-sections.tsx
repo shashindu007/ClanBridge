@@ -100,7 +100,7 @@ export function PlayerReportSections({
 
   return (
     <>
-      <section className="cb-panel space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Clan War League</h2>
           {cwlSeasons.length > 0 && (
@@ -181,7 +181,7 @@ export function PlayerReportSections({
           Each row is a completed month's FINAL cumulative reading, not a sum of
           deltas; see the header of services/members.ts for why that distinction
           decides whether these numbers are right. */}
-      <section className="cb-panel space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Donations</h2>
           <p className="text-muted-foreground text-sm">
@@ -240,7 +240,7 @@ export function PlayerReportSections({
           across clans, because "where has this player been" is the question.
           RLS still limits the answer to clans the reader belongs to. */}
       {movementRows.length > 1 && (
-        <section className="cb-panel space-y-4 rounded-lg border p-6">
+        <section className="cb-panel space-y-4 rounded-panel border p-5">
           <h2 className="font-medium">Clan movement</h2>
           <Table>
             <TableHeader>
@@ -276,7 +276,7 @@ export function PlayerReportSections({
           once. Repeating that work per profile would make O4's thirty seconds a
           promise this page could not keep, so the headline numbers are computed
           from one pass and the detail is a link. */}
-      <section className="cb-panel space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Clan war</h2>
           <Link className="text-sm underline" href={`/${clanTag}/war/report`}>
@@ -349,7 +349,7 @@ export function PlayerReportSections({
           anything — see playerRaidSummary, which counts the weekends they sat
           out ON PURPOSE. "3 raids" is a different conversation depending on
           whether there have been four weekends or fourteen. */}
-      <section className="cb-panel space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Raid weekends</h2>
           <Link className="text-sm underline" href={`/${clanTag}/raids`}>
@@ -395,7 +395,7 @@ export function PlayerReportSections({
           see playerGamesSummary. A member who joined last month must not be
           scored against a year they were not here for. Both numbers are shown
           so the gap between them stays visible. */}
-      <section className="cb-panel space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Clan Games</h2>
           <Link className="text-sm underline" href={`/${clanTag}/games`}>

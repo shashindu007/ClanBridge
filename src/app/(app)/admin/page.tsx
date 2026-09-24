@@ -311,7 +311,7 @@ export default async function AdminPage({
 
   if (!admin && !isLeaderSomewhere && !unclaimed) {
     return (
-      <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+      <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
         <PageHeader title="Admin" />
         <Alert variant="info">
           <CircleAlert aria-hidden />
@@ -364,7 +364,7 @@ export default async function AdminPage({
   ];
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <PageHeader
         title="Admin"
         description="Set up clans, keep game data syncing, and review accounts and changes."
@@ -479,7 +479,7 @@ export default async function AdminPage({
           </div>
 
           {clanRows.length === 0 ? (
-            <p className="text-muted-foreground rounded-lg border border-dashed p-4 text-sm">
+            <p className="text-muted-foreground rounded-panel border border-dashed p-4 text-sm">
               No clans yet. Add the first one below; its members arrive with the next hourly sync,
               or press <span className="font-medium">Run now</span> on Clan members.
             </p>
@@ -625,7 +625,7 @@ export default async function AdminPage({
               <Link
                 href={allHistory ? "/admin#sync-history" : "/admin?history=all#sync-history"}
                 scroll={false}
-                className="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex items-center justify-center gap-1.5 rounded-lg border border-dashed py-2 text-sm font-medium transition-colors"
+                className="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex items-center justify-center gap-1.5 rounded-panel border border-dashed py-2 text-sm font-medium transition-colors"
               >
                 {allHistory ? "Show the latest 10" : `Show all ${runs.length} runs`}
               </Link>
@@ -663,7 +663,7 @@ function GlanceCard({
     </>
   );
   return href ? (
-    <Link href={href} className="cb-panel hover:bg-accent/40 block space-y-1 rounded-xl border p-5 transition-colors">
+    <Link href={href} className="cb-panel hover:bg-accent/40 block space-y-1 rounded-panel border p-5 transition-colors">
       {body}
     </Link>
   ) : (
@@ -687,7 +687,7 @@ function LinkCard({
   return (
     <Link
       href={href}
-      className="cb-panel hover:bg-accent hover:text-accent-foreground group flex items-center gap-3 rounded-xl border p-4 transition-colors"
+      className="cb-panel hover:bg-accent hover:text-accent-foreground group flex items-center gap-3 rounded-panel border p-4 transition-colors"
     >
       <span className="bg-muted text-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
         <Icon aria-hidden className="size-4.5" />

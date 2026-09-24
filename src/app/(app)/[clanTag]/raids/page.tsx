@@ -114,7 +114,7 @@ export default async function RaidsPage({
   const history = historyTotals(seasons);
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="cb-title text-3xl">Raid weekends</h1>
@@ -132,7 +132,7 @@ export default async function RaidsPage({
         // T9.10 — distinguishing "the job has never run" from "this clan has
         // never raided" matters: a leader can act on the first and cannot on
         // the second.
-        <section className="space-y-3 rounded-lg border border-dashed p-6">
+        <section className="space-y-3 rounded-panel border border-dashed p-6">
           <h2 className="font-medium">No raid weekends recorded</h2>
           <p className="text-muted-foreground text-sm">
             {fresh.level === "never"
@@ -143,7 +143,7 @@ export default async function RaidsPage({
       ) : (
         <>
           {/* ── The weekend ────────────────────────────────────────────────── */}
-          <section className="cb-panel space-y-4 rounded-xl border p-6">
+          <section className="cb-panel space-y-4 rounded-panel border p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-medium">
                 Weekend of {when(season.startTime)}
@@ -205,7 +205,7 @@ export default async function RaidsPage({
 
           {/* ── The chase list, first ──────────────────────────────────────── */}
           {outstanding.length > 0 && (
-            <section className="cb-panel space-y-3 rounded-xl border p-6">
+            <section className="cb-panel space-y-3 rounded-panel border p-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="flex items-center gap-2 font-medium">
                   <Target aria-hidden className="text-muted-foreground size-4" />
@@ -243,7 +243,7 @@ export default async function RaidsPage({
           )}
 
           {/* ── Everyone ───────────────────────────────────────────────────── */}
-          <section className="cb-panel space-y-4 rounded-xl border p-6">
+          <section className="cb-panel space-y-4 rounded-panel border p-5">
             <h2 className="font-medium">Who raided</h2>
 
             {record.length === 0 ? (
@@ -304,7 +304,7 @@ export default async function RaidsPage({
 
       {/* ── History ────────────────────────────────────────────────────────── */}
       {seasons.length > 0 && (
-        <section className="cb-panel space-y-4 rounded-xl border p-6">
+        <section className="cb-panel space-y-4 rounded-panel border p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="flex items-center gap-2 font-medium">
               <Trophy aria-hidden className="text-muted-foreground size-4" />

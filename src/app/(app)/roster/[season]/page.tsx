@@ -194,7 +194,7 @@ export default async function RosterBuilderPage({
   if (editable.length === 0) {
     const visible = rosters.filter((r) => r.status === "published").sort(byClanName);
     return (
-      <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8">
+      <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
         <PageHeader title={title} />
         <Alert variant="info">
           <CircleAlert aria-hidden />
@@ -314,7 +314,7 @@ export default async function RosterBuilderPage({
   const view = builderSearch(current);
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <PageHeader title={title} />
 
       <HowItWorks open={nobodyPickedYet}>
@@ -333,7 +333,7 @@ export default async function RosterBuilderPage({
       </HowItWorks>
 
       {availabilityPoll ? (
-        <div className="cb-panel flex flex-wrap items-center justify-between gap-3 rounded-lg border px-5 py-3 text-sm">
+        <div className="cb-panel flex flex-wrap items-center justify-between gap-3 rounded-panel border px-5 py-3 text-sm">
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="font-medium">Availability poll</span>
             <span className="tabular-nums">{everyone.in} In</span>
@@ -404,7 +404,7 @@ export default async function RosterBuilderPage({
           />
         </aside>
 
-        <section className="cb-panel min-w-0 space-y-4 rounded-lg border p-5">
+        <section className="cb-panel min-w-0 space-y-4 rounded-panel border p-5">
           <div className="space-y-1">
             <h2 className="text-lg font-semibold">Add players to {selectedClan.name}</h2>
             <p className="text-muted-foreground text-sm">
@@ -455,12 +455,12 @@ export default async function RosterBuilderPage({
           </p>
 
           {pool.length === 0 ? (
-            <p className="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm">
+            <p className="text-muted-foreground rounded-panel border border-dashed p-6 text-center text-sm">
               No players found in the clans you lead. They appear after the clan sync has
               run once.
             </p>
           ) : shown.length === 0 ? (
-            <p className="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm">
+            <p className="text-muted-foreground rounded-panel border border-dashed p-6 text-center text-sm">
               No players match these filters.{" "}
               <Link
                 className="text-foreground underline underline-offset-2"

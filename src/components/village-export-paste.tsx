@@ -78,7 +78,7 @@ export function VillageExportPaste({ tag, label }: VillageExportPasteProps) {
   }
 
   return (
-    <section className="cb-panel space-y-4 rounded-lg border p-6">
+    <section className="cb-panel space-y-4 rounded-panel border p-5">
       <div className="space-y-1">
         <h2 className="font-medium">See everything, from your game</h2>
         <p className="text-muted-foreground text-sm">
@@ -112,7 +112,7 @@ export function VillageExportPaste({ tag, label }: VillageExportPasteProps) {
               spellCheck={false}
               autoComplete="off"
               placeholder='{"tag":"#…","timestamp":…,"buildings":[…]}'
-              className="border-input bg-background focus-visible:ring-ring/50 w-full rounded-md border p-3 font-mono text-xs focus-visible:ring-[3px] focus-visible:outline-none"
+              className="border-input bg-background focus-visible:ring-ring/50 w-full rounded-control border p-3 font-mono text-xs focus-visible:ring-[3px] focus-visible:outline-none"
             />
           </div>
 

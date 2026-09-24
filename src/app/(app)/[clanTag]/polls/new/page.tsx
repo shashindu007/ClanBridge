@@ -141,7 +141,7 @@ export default async function CreatePollPage({
 
   if (!canOpenPolls(clan.role)) {
     return (
-      <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+      <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
         <PageHeader back={{ href: back, label: "All polls" }} title="Create a poll" />
         <Alert variant="info">
           <CircleAlert aria-hidden />
@@ -160,7 +160,7 @@ export default async function CreatePollPage({
   const availability = selectedType !== "general";
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
       <PageHeader
         back={{ href: back, label: "All polls" }}
         eyebrow={clan.name}
@@ -196,7 +196,7 @@ export default async function CreatePollPage({
         </nav>
       </section>
 
-      <form action={submit} className="cb-panel space-y-5 rounded-lg border p-6">
+      <form action={submit} className="cb-panel space-y-5 rounded-panel border p-5">
         <h2 className="font-medium">2. The details</h2>
         <input type="hidden" name="clanTag" value={clanTag} />
         <input type="hidden" name="pollType" value={selectedType} />
@@ -208,7 +208,7 @@ export default async function CreatePollPage({
               id="season"
               name="season"
               defaultValue={seasons[0]}
-              className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm sm:w-72"
+              className="border-input bg-background h-10 w-full rounded-control border px-3 text-sm sm:w-72"
             >
               {seasons.map((s, i) => (
                 <option key={s} value={s}>
@@ -260,7 +260,7 @@ export default async function CreatePollPage({
             rows={4}
             required
             defaultValue={template.options.join("\n")}
-            className="border-input placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs focus-visible:ring-1 focus-visible:outline-none"
+            className="border-input placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-control border bg-transparent px-3 py-2 text-sm shadow-xs focus-visible:ring-1 focus-visible:outline-none"
           />
           <p className="text-muted-foreground text-xs">
             One answer per line, at least two.

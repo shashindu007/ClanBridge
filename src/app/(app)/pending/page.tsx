@@ -61,7 +61,7 @@ export default async function PendingApprovalPage() {
   // away, and the difference is the whole reason they are reading this.
   if (removed) {
     return (
-      <main className="mx-auto max-w-2xl space-y-6 p-4 sm:p-8">
+      <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
         <h1 className="cb-title text-3xl">
           This account has been removed
         </h1>
@@ -83,7 +83,7 @@ export default async function PendingApprovalPage() {
 
   if (rejected) {
     return (
-      <main className="mx-auto max-w-2xl space-y-6 p-4 sm:p-8">
+      <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
         <h1 className="cb-title text-3xl">
           This account was not approved
         </h1>
@@ -99,7 +99,7 @@ export default async function PendingApprovalPage() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
       <div className="space-y-2">
         <h1 className="cb-title text-3xl">
           Waiting for approval

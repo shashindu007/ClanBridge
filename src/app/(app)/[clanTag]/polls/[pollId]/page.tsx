@@ -205,7 +205,7 @@ export default async function PollDetailPage({
   const allAnswered = mine.length > 0 && mine.every((p) => myResponses.has(p.id));
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <PageHeader
         back={{ href: back, label: "All polls" }}
         eyebrow={
@@ -262,7 +262,7 @@ export default async function PollDetailPage({
           </AlertDescription>
         </Alert>
       ) : (
-        <section className="cb-panel space-y-4 rounded-lg border p-6">
+        <section className="cb-panel space-y-4 rounded-panel border p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold">{mine.length > 1 ? "Your answers" : "Your answer"}</h2>
             {allAnswered ? (
@@ -283,7 +283,7 @@ export default async function PollDetailPage({
             // below" and then never showed it.
             if (!open) {
               return (
-                <div key={player.id} className="bg-card flex flex-wrap items-center justify-between gap-2 rounded-md border p-4">
+                <div key={player.id} className="bg-card flex flex-wrap items-center justify-between gap-2 rounded-panel border p-4">
                   <span className="font-medium">
                     {player.name} <span className="text-muted-foreground font-mono text-xs">{player.tag}</span>
                   </span>
@@ -302,7 +302,7 @@ export default async function PollDetailPage({
             }
 
             return (
-              <form key={player.id} action={submitAnswer} className="bg-card space-y-4 rounded-md border p-4">
+              <form key={player.id} action={submitAnswer} className="bg-card space-y-4 rounded-panel border p-4">
                 <input type="hidden" name="clanTag" value={clanTag} />
                 <input type="hidden" name="pollId" value={poll.id} />
                 <input type="hidden" name="playerId" value={player.id} />
@@ -368,7 +368,7 @@ export default async function PollDetailPage({
       )}
 
       {/* ── Results ───────────────────────────────────────────────────────── */}
-      <section className="cb-panel space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Results so far</h2>
           <span className="text-muted-foreground text-sm tabular-nums">
@@ -415,7 +415,7 @@ export default async function PollDetailPage({
       {/* ── Leadership: who to chase, and who said what. Policy, not hiding. ── */}
       {leadership && breakdown && (
         <div className="grid items-start gap-6 md:grid-cols-2">
-          <section className="cb-panel space-y-4 rounded-lg border p-6">
+          <section className="cb-panel space-y-4 rounded-panel border p-5">
             <div className="space-y-1">
               <h2 className="text-lg font-semibold">
                 Not answered yet{" "}
@@ -462,7 +462,7 @@ export default async function PollDetailPage({
             )}
           </section>
 
-          <section className="cb-panel space-y-4 rounded-lg border p-6">
+          <section className="cb-panel space-y-4 rounded-panel border p-5">
             <div className="space-y-1">
               <h2 className="text-lg font-semibold">Who answered what</h2>
               <p className="text-muted-foreground text-sm">Grouped by answer. Notes are shown under names.</p>
@@ -502,7 +502,7 @@ export default async function PollDetailPage({
       )}
 
       {leadership && open && (
-        <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed p-4">
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-panel border border-dashed p-4">
           <p className="text-muted-foreground text-sm">
             Closing locks every answer. Members can no longer change theirs.
           </p>

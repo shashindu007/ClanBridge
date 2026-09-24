@@ -68,7 +68,7 @@ export default async function PeoplePage() {
   const away = people.filter((p) => !p.isOnline);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
       <PageHeader
         title="People"
         description="Everyone with an account here, and when they were last around. Times are approximate — presence is recorded once every couple of minutes, not continuously."
@@ -99,7 +99,7 @@ export default async function PeoplePage() {
       </section>
 
       {people.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center">
+        <div className="rounded-panel border border-dashed p-8 text-center">
           <Users aria-hidden className="text-muted-foreground mx-auto size-6" />
           <p className="mt-2 text-sm font-medium">Nobody to show</p>
           <p className="text-muted-foreground mt-1 text-sm">
@@ -155,7 +155,7 @@ function Group({
       </h2>
 
       {people.length === 0 ? (
-        <p className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
+        <p className="text-muted-foreground rounded-panel border border-dashed p-4 text-sm">
           {empty}
         </p>
       ) : (

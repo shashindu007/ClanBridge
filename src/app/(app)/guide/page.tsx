@@ -47,7 +47,7 @@ function Step({
 
 export default function MemberGuidePage() {
   return (
-    <main className="mx-auto max-w-2xl space-y-10 p-4 sm:p-8">
+    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
       <div className="space-y-2">
         <h1 className="cb-title text-3xl">Guide</h1>
         {/* WHAT IT IS, BEFORE WHAT TO DO. This page opened with "Five minutes,
@@ -194,7 +194,7 @@ export default function MemberGuidePage() {
           Optional on Android, and required on iPhone if you want notifications.
         </p>
 
-        <div className="cb-panel space-y-4 rounded-lg border p-6">
+        <div className="cb-panel space-y-4 rounded-panel border p-5">
           <h3 className="font-medium">Android — Chrome</h3>
           <ol className="text-muted-foreground list-decimal space-y-1 pl-5 text-sm">
             <li>Open this site in Chrome.</li>
@@ -207,7 +207,7 @@ export default function MemberGuidePage() {
           </ol>
         </div>
 
-        <div className="cb-panel space-y-4 rounded-lg border p-6">
+        <div className="cb-panel space-y-4 rounded-panel border p-5">
           <h3 className="font-medium">iPhone and iPad — Safari</h3>
           <ol className="text-muted-foreground list-decimal space-y-1 pl-5 text-sm">
             <li>

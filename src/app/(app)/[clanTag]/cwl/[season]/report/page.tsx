@@ -157,7 +157,7 @@ export default async function CwlSeasonReportPage({
   const nextOrder = nextAwardOrder(awarded);
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <PageHeader
         back={{ href: base, label: "Day by day" }}
         eyebrow={clan.name}
@@ -185,7 +185,7 @@ export default async function CwlSeasonReportPage({
       )}
 
       {/* ── T4B.11 — plan versus reality ───────────────────────────────────── */}
-      <section className="cb-panel space-y-5 rounded-lg border p-6">
+      <section className="cb-panel space-y-5 rounded-panel border p-5">
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">Picked versus played</h2>
           <p className="text-muted-foreground text-sm">
@@ -245,7 +245,7 @@ export default async function CwlSeasonReportPage({
       </section>
 
       {/* ── T4B.12 — contribution ──────────────────────────────────────────── */}
-      <section className="cb-panel space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">What each player contributed</h2>
           <p className="text-muted-foreground text-sm">
@@ -308,7 +308,7 @@ export default async function CwlSeasonReportPage({
 
       {/* ── T4B.13 — the leader's bonus order ──────────────────────────────── */}
       {leadership && contributions.length > 0 && (
-        <section className="cb-panel space-y-5 rounded-lg border p-6">
+        <section className="cb-panel space-y-5 rounded-panel border p-5">
           <div className="space-y-1">
             <h2 className="flex items-center gap-2 text-lg font-semibold">
               <Medal aria-hidden className="size-5" />
@@ -326,7 +326,7 @@ export default async function CwlSeasonReportPage({
                 Awarded <span className="text-muted-foreground tabular-nums">({awarded.length})</span>
               </h3>
               {awarded.length === 0 ? (
-                <p className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
+                <p className="text-muted-foreground rounded-panel border border-dashed p-4 text-sm">
                   No medals awarded yet. Award the first from the list of players.
                 </p>
               ) : (
@@ -363,7 +363,7 @@ export default async function CwlSeasonReportPage({
               ) : (
                 <ul className="space-y-2">
                   {candidates.slice(0, 10).map((c) => (
-                    <li key={c.playerId} className="bg-card space-y-2 rounded-md border p-3">
+                    <li key={c.playerId} className="bg-card space-y-2 rounded-panel border p-3">
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
                         <span className="text-sm font-medium">{c.name}</span>
                         <span className="text-muted-foreground text-xs tabular-nums">
@@ -418,7 +418,7 @@ function OutcomeCard({
   hint: string;
 }) {
   return (
-    <div className="bg-card space-y-1 rounded-md border p-4">
+    <div className="bg-card space-y-1 rounded-panel border p-4">
       <div className="flex items-center justify-between gap-2">
         <span className="text-3xl font-semibold tabular-nums">{count}</span>
         {icon}

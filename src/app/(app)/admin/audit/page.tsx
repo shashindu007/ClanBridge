@@ -62,9 +62,9 @@ export default async function AdminAuditPage({
   // Nothing to show, and the reason matters. A co-leader here has not hit a bug.
   if (leaderOf.length === 0) {
     return (
-      <main className="mx-auto max-w-7xl space-y-4 p-4 sm:p-8">
+      <main className="mx-auto max-w-page space-y-4 p-4 sm:p-6">
         <h1 className="cb-title text-3xl">Audit log</h1>
-        <section className="cb-panel space-y-2 rounded-lg border p-6">
+        <section className="cb-panel space-y-2 rounded-panel border p-5">
           <h2 className="font-medium">Leaders only</h2>
           <p className="text-muted-foreground text-sm">
             The audit log records who changed what, and that includes entries
@@ -97,7 +97,7 @@ export default async function AdminAuditPage({
   };
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <div className="space-y-2">
         <h1 className="cb-title text-3xl">Audit log</h1>
         <p className="text-muted-foreground text-sm">
@@ -145,7 +145,7 @@ export default async function AdminAuditPage({
       )}
 
       {entries.length === 0 ? (
-        <section className="cb-panel space-y-2 rounded-lg border p-6">
+        <section className="cb-panel space-y-2 rounded-panel border p-5">
           <h2 className="font-medium">Nothing recorded yet</h2>
           <p className="text-muted-foreground text-sm">
             {entity

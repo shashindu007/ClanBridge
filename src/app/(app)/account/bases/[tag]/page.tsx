@@ -82,7 +82,7 @@ export default async function OwnBaseReportPage({
   const reportable = Boolean(base.clanId && roles.has(base.clanId));
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
       <div className="space-y-3">
         <Button asChild variant="ghost" size="xs" className="-ml-2">
           <Link href="/account">
@@ -126,7 +126,7 @@ export default async function OwnBaseReportPage({
         // ONE panel, not six empty ones. Six sections each saying "nothing here"
         // is the shape that made a leader scroll past a dashed "Not built yet" box
         // for a whole phase — an absence has to be stated once, with the reason.
-        <section className="cb-panel space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-panel border p-5">
           <h2 className="font-medium">There is no report for this base yet</h2>
           {base.clanId ? (
             <>

@@ -31,6 +31,9 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ClipboardList } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState, Panel } from "@/components/kit";
 import { requireClanByTag } from "@/lib/clans";
 import { createClient } from "@/lib/supabase/server";
 import { DISPLAY_ZONE } from "@/lib/display-time";
@@ -86,18 +89,15 @@ export default async function WarReportPage({
 
   if (wars.length === 0) {
     return (
-      <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
-        <ReportHeader clanName={clan.name} base={base} />
-        <section className="cb-panel space-y-3 rounded-lg border p-6">
-          <h2 className="font-medium">No wars to report on yet</h2>
-          <p className="text-muted-foreground text-sm">
-            This page compares who was picked against who played, and who was told
-            to hit what against what they hit. Both need a finished war.
-          </p>
-          <Button asChild size="sm" variant="outline">
-            <Link href={`${base}/war/lineup`}>Plan a lineup</Link>
-          </Button>
-        </section>
+      <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
+        <ReportHeader clanName={clan.name} />
+        <Panel>
+          <EmptyState
+            icon={ClipboardList}
+            title="No wars to report on yet"
+            body="This page compares who was picked against who played, and who was told to hit what against what they hit. Both need a finished war."
+          />
+        </Panel>
       </main>
     );
   }
@@ -154,14 +154,36 @@ export default async function WarReportPage({
     : null;
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
-      <ReportHeader clanName={clan.name} base={base} />
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
+      <ReportHeader clanName={clan.name} />
 
       {/* ── T6.10 ─────────────────────────────────────────────────────────── */}
       {focus && comparison && compliance && (
-        <section className="cb-panel space-y-4 rounded-lg border p-6">
+        <Panel className="space-y-4">
+          {/* One war at a time, picked from a row that scrolls sideways rather
+              than wrapping into a wall of date buttons. */}
+          {wars.length > 1 && (
+            <nav aria-label="Choose a war" className="cb-scroll-x -mx-5 flex gap-2 border-b px-5 pb-4">
+              {wars.map((w) => (
+                <Button
+                  key={w.id}
+                  asChild
+                  size="xs"
+                  variant={w.id === focus.war.id ? "default" : "outline"}
+                >
+                  <Link
+                    href={`${base}/war/report?war=${encodeURIComponent(w.id)}`}
+                    aria-current={w.id === focus.war.id ? "page" : undefined}
+                  >
+                    {when(w.startTime)}
+                  </Link>
+                </Button>
+              ))}
+            </nav>
+          )}
+
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-medium">
+            <h2 className="text-lg font-semibold">
               Plan versus reality —{" "}
               <Link
                 className="underline underline-offset-2"
@@ -239,29 +261,13 @@ export default async function WarReportPage({
             )}
           </div>
 
-          {wars.length > 1 && (
-            <nav className="flex flex-wrap gap-2 border-t pt-4">
-              {wars.map((w) => (
-                <Button
-                  key={w.id}
-                  asChild
-                  size="xs"
-                  variant={w.id === focus.war.id ? "default" : "outline"}
-                >
-                  <Link href={`${base}/war/report?war=${encodeURIComponent(w.id)}`}>
-                    {when(w.startTime)}
-                  </Link>
-                </Button>
-              ))}
-            </nav>
-          )}
-        </section>
+        </Panel>
       )}
 
       {/* ── T6.9 ──────────────────────────────────────────────────────────── */}
-      <section className="cb-panel space-y-4 rounded-lg border p-6">
+      <Panel className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-medium">
+          <h2 className="text-lg font-semibold">
             Contribution{" "}
             <span className="text-muted-foreground font-normal">
               (last {wars.length} war{wars.length === 1 ? "" : "s"})
@@ -274,9 +280,9 @@ export default async function WarReportPage({
             Nobody has been in a war yet.
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-muted-foreground border-b text-left">
+          <div className="-mx-5 overflow-x-auto px-5">
+            <table className="w-full min-w-[34rem] text-sm">
+              <thead className="text-muted-foreground border-b text-left text-xs uppercase">
                 <tr>
                   <th className="py-2 pr-3 font-medium">Member</th>
                   <th className="py-2 pr-3 text-right font-medium">Wars</th>
@@ -340,7 +346,7 @@ export default async function WarReportPage({
           in when picking the next lineup. A missed attack costs the war; a
           two-star instead of a three-star usually does not.
         </p>
-      </section>
+      </Panel>
     </main>
   );
 }
@@ -393,24 +399,16 @@ function Bucket({
   );
 }
 
-function ReportHeader({ clanName, base }: { clanName: string; base: string }) {
+/**
+ * The page's title. It used to carry "war board · history · lineup" as dotted
+ * links, which is the War tab row directly above it, word for word.
+ */
+function ReportHeader({ clanName }: { clanName: string }) {
   return (
-    <div className="space-y-2">
-      <h1 className="cb-title text-3xl">War report</h1>
-      <p className="text-muted-foreground text-sm">
-        {clanName} ·{" "}
-        <Link className="underline" href={`${base}/war`}>
-          war board
-        </Link>{" "}
-        ·{" "}
-        <Link className="underline" href={`${base}/war/history`}>
-          history
-        </Link>{" "}
-        ·{" "}
-        <Link className="underline" href={`${base}/war/lineup`}>
-          lineup
-        </Link>
-      </p>
-    </div>
+    <PageHeader
+      eyebrow={clanName}
+      title="War report"
+      description="Who was picked against who played, who was told to hit what against what they hit, and each member's record over recent wars."
+    />
   );
 }

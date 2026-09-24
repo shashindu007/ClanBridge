@@ -225,7 +225,7 @@ export default async function MemberDirectoryPage({
     })}`;
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="cb-title text-3xl">Members</h1>
@@ -270,7 +270,7 @@ export default async function MemberDirectoryPage({
           because it is the reason a leader opened this page, but deliberately
           worded as a prompt to look rather than a verdict. */}
       {canSeeAttention(clan.role) && attention.length > 0 && (
-        <section className="cb-panel space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-panel border p-5">
           <h2 className="font-medium">Worth a look — {attention.length}</h2>
           <ul className="space-y-3">
             {attention.map((flag) => {
@@ -313,7 +313,7 @@ export default async function MemberDirectoryPage({
       )}
 
       {rows.length === 0 ? (
-        <section className="cb-panel space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-panel border p-5">
           <h2 className="font-medium">No members recorded yet</h2>
           <p className="text-muted-foreground text-sm">
             The member list arrives with <code className="text-xs">sync:clans</code>,
@@ -324,7 +324,7 @@ export default async function MemberDirectoryPage({
       ) : visible.length === 0 ? (
         // Its own state. Reusing the one above would tell a member who mistyped
         // a name that the clan has never been synced.
-        <section className="cb-panel space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-panel border p-5">
           <h2 className="font-medium">Nobody matches &ldquo;{q.q}&rdquo;</h2>
           <p className="text-muted-foreground text-sm">
             Part of a name works, and so does part of a tag. Tags never contain
@@ -346,7 +346,7 @@ export default async function MemberDirectoryPage({
           </div>
         </section>
       ) : (
-        <section className="cb-panel rounded-lg border">
+        <section className="cb-panel rounded-panel border">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -437,7 +437,7 @@ export default async function MemberDirectoryPage({
           Nothing in the MEANING changed: last seen is still a lower bound, the
           blank ratio is still undefined rather than perfect, and the list is
           still advisory (T3B.5). Only the wording did. */}
-      <section className="text-muted-foreground space-y-4 rounded-lg border border-dashed p-6 text-sm">
+      <section className="text-muted-foreground space-y-4 rounded-panel border border-dashed p-6 text-sm">
         <div className="space-y-1">
           <p className="text-foreground font-medium">What &ldquo;Ratio&rdquo; means</p>
           <p>

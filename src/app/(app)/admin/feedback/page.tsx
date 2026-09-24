@@ -58,7 +58,7 @@ export default async function AdminFeedbackPage() {
 
   if (!(await isPlatformAdmin(supabase, userId))) {
     return (
-      <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+      <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
         <PageHeader title="Feedback" />
         <Alert variant="info">
           <AlertTitle>This page is for the platform owner</AlertTitle>
@@ -73,14 +73,14 @@ export default async function AdminFeedbackPage() {
   const items = await allFeedback(supabase);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
       <PageHeader
         title="Feedback"
         description="Approve what may appear on the public home page. Approved quotes show the member's username and clan — never their email."
       />
 
       {items.length === 0 ? (
-        <p className="text-muted-foreground rounded-lg border border-dashed p-6 text-center text-sm">
+        <p className="text-muted-foreground rounded-panel border border-dashed p-6 text-center text-sm">
           No feedback yet. Members send it from the Feedback page.
         </p>
       ) : (

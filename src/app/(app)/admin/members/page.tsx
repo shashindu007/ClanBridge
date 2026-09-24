@@ -122,7 +122,7 @@ export default async function AdminAccountsPage({
   const waiting = accounts.filter((a) => a.status === "pending" && !a.removedAt);
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <PageHeader
         title="Accounts"
         description="Everyone who has signed up, whether they are waiting, active or removed. Open one to change their clan role, message them, or take their access away."
@@ -172,7 +172,7 @@ export default async function AdminAccountsPage({
       </form>
 
       {accounts.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-6 text-center">
+        <div className="rounded-panel border border-dashed p-6 text-center">
           <UserX aria-hidden className="text-muted-foreground mx-auto size-6" />
           <p className="mt-2 text-sm font-medium">
             {q ? "No account matches that" : "No accounts to show"}

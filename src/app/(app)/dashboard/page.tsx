@@ -310,7 +310,7 @@ export default async function DashboardPage({
   };
 
   return (
-    <main className="mx-auto max-w-page space-y-8 p-4 sm:p-6">
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <PageHeader title={`Welcome back, ${name}`} description={summary} />
 
       {/* ── Every clan, at once ────────────────────────────────────────── */}

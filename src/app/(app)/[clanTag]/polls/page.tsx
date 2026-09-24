@@ -83,7 +83,7 @@ export default async function PollsPage({
   const closed = polls.filter((p) => !isOpen(p));
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="space-y-1">
           <h1 className="cb-title text-3xl">Polls</h1>
@@ -99,7 +99,7 @@ export default async function PollsPage({
       </div>
 
       {polls.length === 0 ? (
-        <section className="cb-panel space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-panel border p-5">
           <h2 className="font-medium">No polls yet</h2>
           <p className="text-muted-foreground text-sm">
             {isLeadership(clan.role)

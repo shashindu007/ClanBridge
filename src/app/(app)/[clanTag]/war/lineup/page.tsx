@@ -203,7 +203,7 @@ export default async function WarLineupPage({
     const publishedMembers = published ? await membersOfLineup(supabase, published.id) : [];
 
     return (
-      <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+      <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
         <PageHeader
           eyebrow={clan.name}
           title="War lineup"
@@ -224,7 +224,7 @@ export default async function WarLineupPage({
         )}
 
         {!published ? (
-          <section className="cb-panel space-y-2 rounded-lg border p-6">
+          <section className="cb-panel space-y-2 rounded-panel border p-5">
             <h2 className="font-medium">No lineup published yet</h2>
             {/* Honest about WHY it is empty: a leader mid-decision has a draft this
                 page genuinely cannot see. */}
@@ -297,7 +297,7 @@ export default async function WarLineupPage({
   const filtersActive = current.show !== "all" || current.q !== "";
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <PageHeader
         eyebrow={clan.name}
         title="War lineup"
@@ -320,7 +320,7 @@ export default async function WarLineupPage({
       </HowItWorks>
 
       {availabilityPoll ? (
-        <div className="cb-panel flex flex-wrap items-center justify-between gap-3 rounded-lg border px-5 py-3 text-sm">
+        <div className="cb-panel flex flex-wrap items-center justify-between gap-3 rounded-panel border px-5 py-3 text-sm">
           <div className="space-y-0.5">
             <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="font-medium">War availability poll</span>
@@ -383,7 +383,7 @@ export default async function WarLineupPage({
           <Link
             href={`${path}?new=1`}
             aria-current={planningNew ? "page" : undefined}
-            className={`flex items-center gap-2 rounded-lg border border-dashed px-4 py-2.5 text-sm transition-colors ${
+            className={`flex items-center gap-2 rounded-panel border border-dashed px-4 py-2.5 text-sm transition-colors ${
               planningNew || !selected ? "border-primary bg-accent" : "hover:bg-accent"
             }`}
           >
@@ -394,7 +394,7 @@ export default async function WarLineupPage({
       )}
 
       {!selected ? (
-        <form action={mutate} className="cb-panel max-w-xl space-y-4 rounded-lg border p-6">
+        <form action={mutate} className="cb-panel max-w-xl space-y-4 rounded-panel border p-5">
           <input type="hidden" name="clanTag" value={clan.tag} />
           <input type="hidden" name="clanId" value={clan.id} />
           <input type="hidden" name="action" value="create" />
@@ -410,7 +410,7 @@ export default async function WarLineupPage({
             <select
               name="size"
               defaultValue={supports ?? 15}
-              className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm sm:w-56"
+              className="border-input bg-background h-10 w-full rounded-control border px-3 text-sm sm:w-56"
             >
               {WAR_SIZES.map((s) => (
                 <option key={s} value={s}>
@@ -471,7 +471,7 @@ export default async function WarLineupPage({
             </LineupPanel>
           </aside>
 
-          <section className="cb-panel min-w-0 space-y-4 rounded-lg border p-5">
+          <section className="cb-panel min-w-0 space-y-4 rounded-panel border p-5">
             <div className="space-y-1">
               <h2 className="text-lg font-semibold">Add players</h2>
               <p className="text-muted-foreground text-sm">
@@ -499,11 +499,11 @@ export default async function WarLineupPage({
             </p>
 
             {pool.length === 0 ? (
-              <p className="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm">
+              <p className="text-muted-foreground rounded-panel border border-dashed p-6 text-center text-sm">
                 Everybody in the clan is already in this lineup.
               </p>
             ) : shown.length === 0 ? (
-              <p className="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm">
+              <p className="text-muted-foreground rounded-panel border border-dashed p-6 text-center text-sm">
                 No players match these filters.{" "}
                 <Link
                   className="text-foreground underline underline-offset-2"

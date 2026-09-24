@@ -59,13 +59,13 @@ export default async function FeedbackPage() {
   const pending = mine.find((f) => f.status === "pending");
 
   return (
-    <main className="mx-auto max-w-2xl space-y-8 p-4 sm:p-8">
+    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
       <PageHeader
         title="Feedback"
         description="Tell us what works and what does not. Every message is read."
       />
 
-      <section className="cb-panel space-y-5 rounded-lg border p-6">
+      <section className="cb-panel space-y-5 rounded-panel border p-5">
         <form action={send} className="space-y-5">
           {/* A real fieldset, so a screen reader announces the five options as
               one question rather than five unrelated buttons. */}
@@ -103,7 +103,7 @@ export default async function FeedbackPage() {
               rows={5}
               defaultValue={pending?.body ?? ""}
               aria-describedby="body-hint"
-              className="border-input bg-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+              className="border-input bg-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-control border px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
               placeholder="The war board means nobody asks who is left to attack any more."
             />
             <p id="body-hint" className="text-muted-foreground text-xs">

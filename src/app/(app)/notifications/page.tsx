@@ -104,7 +104,7 @@ export default async function NotificationsPage() {
   const unread = feed.filter((n) => !n.readAt).length;
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
       <PageHeader
         title="Notifications"
         description="Everything this app has told you, kept. Nothing here depends on your phone having been switched on at the time."
@@ -136,7 +136,7 @@ export default async function NotificationsPage() {
       </div>
 
       {feed.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center">
+        <div className="rounded-panel border border-dashed p-8 text-center">
           <BellOff aria-hidden className="text-muted-foreground mx-auto size-6" />
           <p className="mt-2 text-sm font-medium">Nothing yet</p>
           <p className="text-muted-foreground mt-1 text-sm">
@@ -154,7 +154,7 @@ export default async function NotificationsPage() {
                 key={item.id}
                 // Unread carries the weight, because they are the reason
                 // somebody opened this page.
-                className={`cb-panel space-y-3 rounded-lg border p-5 ${
+                className={`cb-panel space-y-3 rounded-panel border p-5 ${
                   item.readAt ? "" : "border-info/40 shadow-sm"
                 }`}
               >

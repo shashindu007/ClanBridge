@@ -125,7 +125,7 @@ export default async function AccountSetupPage({
   }
 
   return (
-    <main className="mx-auto max-w-md space-y-6 p-4 sm:p-8">
+    <main className="mx-auto max-w-md space-y-6 p-4 sm:p-6">
       <div className="space-y-2">
         <h1 className="cb-title text-3xl">Finish your account</h1>
         <p className="text-muted-foreground text-sm">

@@ -56,7 +56,7 @@ export function VillageExportView({ village, which, onWhich, onClear }: VillageE
 
   return (
     <div className="space-y-6">
-      <section className="cb-panel space-y-4 rounded-lg border p-6">
+      <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
             <h2 className="font-medium">From your village export</h2>
@@ -98,7 +98,7 @@ export function VillageExportView({ village, which, onWhich, onClear }: VillageE
         )}
       </section>
 
-      <section className="cb-panel space-y-3 rounded-lg border p-6">
+      <section className="cb-panel space-y-3 rounded-panel border p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-medium">Upgrading now</h2>
           <span className="text-muted-foreground text-sm tabular-nums">{upgrades.length}</span>
@@ -134,7 +134,7 @@ export function VillageExportView({ village, which, onWhich, onClear }: VillageE
       ))}
 
       {unitGroups.length > 0 && (
-        <section className="cb-panel space-y-3 rounded-lg border p-6">
+        <section className="cb-panel space-y-3 rounded-panel border p-5">
           <h2 className="font-medium">Heroes, troops and spells in the export</h2>
           <ul className="grid gap-3 sm:grid-cols-2">
             {unitGroups
@@ -171,7 +171,7 @@ function Figure({ label, pct }: { label: string; pct: number }) {
 
 function BuildingPanel({ group }: { group: BuildingGroup }) {
   return (
-    <section className="cb-panel space-y-3 rounded-lg border p-6">
+    <section className="cb-panel space-y-3 rounded-panel border p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-medium">{group.label}</h2>
         <span className="text-muted-foreground text-sm tabular-nums">{group.pct}%</span>
