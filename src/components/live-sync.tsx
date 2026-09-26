@@ -38,6 +38,11 @@ const POLL_MS = 60_000;
 const POLL_EAGER_MS = 15_000;
 /** How long to watch closely after asking — a run takes one to two minutes. */
 const EAGER_FOR_MS = 5 * 60_000;
+/**
+ * From how old the data is worth a nudge. Below this a refresh would mostly
+ * return the same board; above it, during a war, it usually would not.
+ */
+const NUDGE_AFTER_MINUTES = 15;
 
 export function LiveSync({
   run,
@@ -129,22 +134,33 @@ export function LiveSync({
   }, [check, eagerUntil]);
 
   const updating = running || eagerUntil > now.getTime();
+  const current = freshness(run, now);
+  // "never" is included: a page with no data at all is the strongest case.
+  const nudge =
+    !updating &&
+    (current.minutesAgo === null || current.minutesAgo >= NUDGE_AFTER_MINUTES);
   const note =
     state && state.status !== "dispatched" && state.status !== "running" ? state.message : null;
 
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
-      <DataFreshness freshness={freshness(run, now)} canAdmin={canAdmin} />
+      <DataFreshness freshness={current} canAdmin={canAdmin} />
       {canRefresh && (
         <form action={action} className="inline-flex">
           <input type="hidden" name="target" value={target} />
           <input type="hidden" name="clanTag" value={clanTag} />
+          {/* SOLID, NOT OUTLINE. As a small outline chip beside the badge it
+              read as part of the badge, and members did not find it. Primary
+              rather than gold: gold is the page's one call to action (claim a
+              base, answer a poll) and this must not compete with it. */}
           <Button
             type="submit"
-            variant="outline"
-            size="xs"
+            variant="default"
+            size="sm"
             disabled={pending || updating}
             aria-live="polite"
+            title="Fetch the latest data from Clash of Clans. Takes 1–2 minutes."
+            className="relative"
           >
             {pending || updating ? (
               <LoaderCircle className="animate-spin" aria-hidden />
@@ -152,6 +168,15 @@ export function LiveSync({
               <RefreshCw aria-hidden />
             )}
             {updating ? "Updating…" : "Refresh now"}
+            {/* The data is old enough that pressing this is worth it. A pulse
+                only then — a button that always pulses is one nobody sees —
+                and only for readers who have not asked for less motion. */}
+            {nudge && (
+              <span className="absolute -top-1 -right-1 flex size-3" aria-hidden>
+                <span className="bg-gold absolute inline-flex size-full rounded-full opacity-75 motion-safe:animate-ping" />
+                <span className="bg-gold ring-background relative inline-flex size-3 rounded-full ring-2" />
+              </span>
+            )}
           </Button>
         </form>
       )}
