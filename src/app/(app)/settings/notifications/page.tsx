@@ -18,6 +18,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { currentUserId } from "@/lib/auth";
+import { isUniqueViolation, safeMessage } from "@/lib/errors";
 import { PushToggle } from "@/components/push-toggle";
 import { SubmitButton } from "@/components/submit-button";
 import { Label } from "@/components/ui/label";
@@ -110,14 +111,44 @@ export default async function NotificationSettingsPage() {
       row[kind.column] = formData.get(kind.column) === "on";
     }
 
-    // upsert on user_id, which 023 made unique among live rows. A member who has
-    // never opened this page has no row; one who has, updates it.
-    const { error } = await supabase
+    // Update the live row, or insert the first one — NOT an upsert.
+    //
+    // This was `upsert(row, { onConflict: "user_id" })`, and it failed on every
+    // save: 023's unique index on user_id is PARTIAL (`where deleted_at is
+    // null`, so R4's soft-deleted rows do not block a fresh one), and Postgres
+    // will not match ON CONFLICT (user_id) to a partial index unless the
+    // statement repeats its predicate — which PostgREST cannot express. 033
+    // hit the same wall and says so.
+    const { data: live, error: readError } = await supabase
       .from("notification_preferences")
-      .upsert(row, { onConflict: "user_id" });
+      .select("id")
+      .eq("user_id", userId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    let error = readError;
+    if (!error && live) {
+      ({ error } = await supabase
+        .from("notification_preferences")
+        .update(row)
+        .eq("id", (live as { id: string }).id)
+        .eq("user_id", userId));
+    } else if (!error) {
+      ({ error } = await supabase.from("notification_preferences").insert(row));
+      // Two tabs saving a first row at once: the loser hits the partial unique
+      // index. The winner's row is there now, so update it instead.
+      if (error && isUniqueViolation(error)) {
+        ({ error } = await supabase
+          .from("notification_preferences")
+          .update(row)
+          .eq("user_id", userId)
+          .is("deleted_at", null));
+      }
+    }
 
     if (error) {
-      redirect(`${PATH}?error=${encodeURIComponent(error.message)}`);
+      safeMessage("notification preferences", error, "");
+      redirect(`${PATH}?error=notifications-failed`);
     }
 
     revalidatePath(PATH);

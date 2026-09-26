@@ -230,71 +230,78 @@ export async function syncRaids(ctx: JobContext): Promise<void> {
   const problems: string[] = [];
 
   for (const clan of clans) {
-    const clanTag = normaliseTag(clan.tag);
-
-    let seasons: RaidSeason[];
+    // One clan's bad hour must not cost the others theirs: a 5xx or a timeout
+    // used to throw out of this loop and every clan later in tag order got
+    // nothing that run. Recorded and thrown at the end instead.
     try {
-      seasons = mapRaidSeasons(
-        await request(capitalRaidsEndpoint(clanTag, WEEKENDS), raidSeasonsSchema),
-      );
-    } catch (error) {
-      // R10 — a clan the API has no raid history for. New clans, and clans that
-      // have never opened their Capital. Ordinary, not a failure.
-      if (error instanceof CocNotFoundError) {
-        console.log(`  ${clan.tag}: no raid history`);
+      const clanTag = normaliseTag(clan.tag);
+
+      let seasons: RaidSeason[];
+      try {
+        seasons = mapRaidSeasons(
+          await request(capitalRaidsEndpoint(clanTag, WEEKENDS), raidSeasonsSchema),
+        );
+      } catch (error) {
+        // R10 — a clan the API has no raid history for. New clans, and clans that
+        // have never opened their Capital. Ordinary, not a failure.
+        if (error instanceof CocNotFoundError) {
+          console.log(`  ${clan.tag}: no raid history`);
+          continue;
+        }
+        // Everything else, including 403, propagates. See the header: a 403 on
+        // this endpoint arrives as CocAuthError and its cause is genuinely
+        // ambiguous until T2.1 captures a real one.
+        throw error;
+      }
+
+      if (!seasons.length) {
+        console.log(`  ${clan.tag}: no raid seasons returned`);
         continue;
       }
-      // Everything else, including 403, propagates. See the header: a 403 on
-      // this endpoint arrives as CocAuthError and its cause is genuinely
-      // ambiguous until T2.1 captures a real one.
-      throw error;
-    }
 
-    if (!seasons.length) {
-      console.log(`  ${clan.tag}: no raid seasons returned`);
-      continue;
-    }
+      const settled = await settledSeasons(supabase, clan);
+      let wrote = 0;
 
-    const settled = await settledSeasons(supabase, clan);
-    let wrote = 0;
+      for (const season of seasons) {
+        const startIso = season.startTime.toISOString();
 
-    for (const season of seasons) {
-      const startIso = season.startTime.toISOString();
+        // R5. A finished weekend recorded once is never touched again, even
+        // though the API will keep sending it on every run for weeks.
+        if (settled.has(startIso)) continue;
 
-      // R5. A finished weekend recorded once is never touched again, even
-      // though the API will keep sending it on every run for weeks.
-      if (settled.has(startIso)) continue;
+        const seasonId = await upsertSeason(supabase, clan, season);
+        seasonsWritten += 1;
+        wrote += 1;
+        ctx.recorded(1);
 
-      const seasonId = await upsertSeason(supabase, clan, season);
-      seasonsWritten += 1;
-      wrote += 1;
-      ctx.recorded(1);
+        if (!season.participants.length) continue;
 
-      if (!season.participants.length) continue;
+        // resolvePlayers speaks WarMember. A raider is the same two fields it
+        // needs — the raid endpoint reports no Town Hall level, so thLevel is
+        // genuinely absent rather than dropped here.
+        const playerIds = await resolvePlayers(
+          supabase,
+          clan,
+          season.participants.map((p) => ({
+            tag: p.playerTag,
+            name: p.name,
+            attacks: [],
+          })),
+          "raid",
+        );
 
-      // resolvePlayers speaks WarMember. A raider is the same two fields it
-      // needs — the raid endpoint reports no Town Hall level, so thLevel is
-      // genuinely absent rather than dropped here.
-      const playerIds = await resolvePlayers(
-        supabase,
-        clan,
-        season.participants.map((p) => ({
-          tag: p.playerTag,
-          name: p.name,
-          attacks: [],
-        })),
-        "raid",
+        ctx.recorded(
+          await upsertParticipants(supabase, seasonId, season.participants, playerIds),
+        );
+      }
+
+      console.log(
+        `  ${clan.tag} ${clan.name}: ${seasons.length} weekend(s) returned, ` +
+          `${wrote} written, ${seasons.length - wrote} already settled`,
       );
-
-      ctx.recorded(
-        await upsertParticipants(supabase, seasonId, season.participants, playerIds),
-      );
+    } catch (error) {
+      problems.push(`${clan.tag}: ${error instanceof Error ? error.message : String(error)}`);
     }
-
-    console.log(
-      `  ${clan.tag} ${clan.name}: ${seasons.length} weekend(s) returned, ` +
-        `${wrote} written, ${seasons.length - wrote} already settled`,
-    );
   }
 
   if (problems.length) throw new Error(problems.join("; "));

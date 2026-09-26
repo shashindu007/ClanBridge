@@ -155,8 +155,9 @@ describe("039 — account administration", () => {
       expect(member.memberships).toEqual([
         { clanId: CLAN_A, clan: "Clan A", tag: "#2PP0JCCL", role: "member" },
       ]);
+      // clanId and leftAt since 046, for the "left the clan in game" flag.
       expect(member.players).toEqual([
-        { tag: "#PY0LQGRJ", name: "Member A", thLevel: 15 },
+        { tag: "#PY0LQGRJ", name: "Member A", thLevel: 15, clanId: CLAN_A, leftAt: null },
       ]);
     });
 

@@ -175,7 +175,7 @@ Every account is held on `/account/setup` until it has both a username and a pas
    |   GitHub Actions runners      |
    |                               |
    |  sync:clans   (hourly)        |
-   |  sync:war     (15 min)        |
+   |  sync:war     (hourly + ask)  |
    |  sync:cwl     (2 hourly)      |     ONLY these call Supercell
    |  sync:raids   (daily)         |
    |  backup:db    (weekly)        |

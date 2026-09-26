@@ -83,6 +83,7 @@ import {
   nonResponders,
   optionShare,
   pollBreakdown,
+  villagesFor,
   type EligibleMember,
 } from "@/services/polls";
 
@@ -113,10 +114,12 @@ async function submitAnswer(formData: FormData) {
 
   // On to the next village still owing an answer, so three villages are three
   // taps of Save rather than three hunts down the page.
-  const [mine, responses] = await Promise.all([
+  const [allMine, responses, poll] = await Promise.all([
     myPlayers(supabase, userId),
     responsesForPoll(supabase, pollId),
+    pollById(supabase, pollId),
   ]);
+  const mine = poll ? villagesFor(poll, allMine) : allMine;
   const answered = new Set(responses.map((r) => r.playerId));
   const next = nextUnanswered(mine, answered, playerId);
 
@@ -274,13 +277,15 @@ export default async function PollDetailPage({
   const poll = await pollById(supabase, pollId);
   if (!poll) notFound();
 
-  const [options, counts, responses, mine, myClans] = await Promise.all([
+  const [options, counts, responses, allMine, myClans] = await Promise.all([
     optionsForPoll(supabase, poll.id),
     countsForPoll(supabase, poll.id),
     responsesForPoll(supabase, poll.id),
     userId ? myPlayers(supabase, userId) : Promise.resolve([]),
     userId ? visibleClans(supabase, userId) : Promise.resolve([]),
   ]);
+  // Only the villages this poll is asking — see villagesFor().
+  const mine = villagesFor(poll, allMine);
 
   const family = poll.scope === "family";
   const open = isOpen(poll);

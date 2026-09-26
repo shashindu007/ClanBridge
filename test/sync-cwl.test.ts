@@ -23,7 +23,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createHarness, type Harness } from "./pg-harness";
 import { createPgliteSupabase } from "./pglite-supabase";
 import { runSyncJob } from "../scripts/sync/shared";
-import { chooseSides, dayNumbers, storedState, syncCwl, warResult } from "../scripts/sync/cwl";
+import {
+  chooseSides,
+  dayNumbers,
+  storedState,
+  syncCwl,
+  tagsToFetch,
+  warResult,
+  type StoredWar,
+} from "../scripts/sync/cwl";
 import type { War, WarSide } from "@/types/domain";
 import type { ApiCwlGroup } from "@/integration/coc-schemas";
 
@@ -79,22 +87,24 @@ const CWL_GROUP = JSON.parse(
 const SEASON = CWL_GROUP.season.slice(0, 7);
 
 /**
- * Every war tag in the group: 28 of them, for 8 clans over 7 rounds.
+ * One war per round that has any real tag: 7, for 8 clans over 7 rounds.
  *
- * IN PRODUCTION the job fetches all 28 and keeps the 7 we played in — the other
- * 21 belong to other clans and `chooseSides()` returns null for them.
+ * IN PRODUCTION a round lists four wars and one is ours. The job asks for a
+ * round's tags until `chooseSides()` finds ours, then stops (`tagsToFetch()`),
+ * and on later runs asks for only that one tag.
  *
  * IN FIXTURE MODE every tag returns the SAME cwlwar.json, in which we are a
- * participant, so all 28 are kept. That is an artifact of the offline harness,
- * not a defect: it is the price of proving the whole path without a network.
+ * participant, so the first tag of each round is taken as ours. That is an
+ * artifact of the offline harness, not a defect: it is the price of proving the
+ * whole path without a network.
  *
  * So the row COUNTS below scale with this number, while everything about what a
  * war actually contains is asserted against a single war row instead. Otherwise
  * the test measures the harness rather than the job.
  */
-const WAR_COUNT = CWL_GROUP.rounds
-  .flatMap((r) => r.warTags)
-  .filter((t) => t && t !== "#0").length;
+const WAR_COUNT = CWL_GROUP.rounds.filter((r) =>
+  r.warTags.some((t) => t && t !== "#0"),
+).length;
 
 async function count(h: Harness, table: string, where = "true"): Promise<number> {
   const res = await h.db.query<{ n: number }>(
@@ -198,6 +208,45 @@ describe("T4.1 — the CWL sync", () => {
       expect(days.get("#YYY2")).toBe(1);
       expect(days.get("#LLL8")).toBe(2);
       expect(days.has("#0")).toBe(false);
+    });
+  });
+
+  describe("tagsToFetch — the per-run API budget", () => {
+    const group = {
+      season: "2026-08",
+      clans: [],
+      rounds: [
+        { warTags: ["#PPP0", "#YYY2", "#LLL8", "#QQQ9"] },
+        { warTags: ["#PPP2", "#YYY8", "#LLL0", "#QQQ2"] },
+        { warTags: ["#PPP8", "#YYY0", "#LLL2", "#QQQ8"] },
+        { warTags: ["#0", "#0", "#0", "#0"] },
+      ],
+    } as unknown as ApiCwlGroup;
+
+    it("searches a round it has never seen, and skips one not announced yet", () => {
+      const rounds = tagsToFetch(group, new Map());
+      expect(rounds).toEqual([
+        ["#PPP0", "#YYY2", "#LLL8", "#QQQ9"],
+        ["#PPP2", "#YYY8", "#LLL0", "#QQQ2"],
+        ["#PPP8", "#YYY0", "#LLL2", "#QQQ8"],
+      ]);
+    });
+
+    // The bug: every other clan's war in the group was fetched on every run.
+    it("asks for only our war in a round it already knows, and nothing once it ended", () => {
+      const stored = new Map<string, StoredWar>([
+        ["#YYY2", { state: "warEnded", day: 1 }],
+        ["#LLL0", { state: "inWar", day: 2 }],
+      ]);
+      expect(tagsToFetch(group, stored)).toEqual([
+        ["#LLL0"],
+        ["#PPP8", "#YYY0", "#LLL2", "#QQQ8"],
+      ]);
+    });
+
+    it("never re-asks for a settled war stored without a day number", () => {
+      const stored = new Map<string, StoredWar>([["#YYY2", { state: "warEnded", day: null }]]);
+      expect(tagsToFetch(group, stored)[0]).toEqual(["#PPP0", "#LLL8", "#QQQ9"]);
     });
   });
 

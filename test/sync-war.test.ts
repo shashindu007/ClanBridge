@@ -577,6 +577,128 @@ describe("T6.1 — the clan war sync", () => {
         expect(log.rows[0]!.error).toMatch(/war log is private/i);
         expect(log.rows[0]!.error).toMatch(/T0\.1/);
       });
+
+      /** Answer by path — for runs that call more than one endpoint. */
+      function respondByPath(routes: Array<[match: string, body: unknown, status?: number]>) {
+        respondWith({});
+        vi.stubGlobal("fetch", (input: string | URL | Request) => {
+          const url = typeof input === "string" ? input : input.toString();
+          const route = routes.find(([match]) => url.includes(match));
+          const [, body, status = 200] = route ?? ["", { reason: "notFound" }, 404];
+          return Promise.resolve(
+            new Response(JSON.stringify(body), {
+              status,
+              headers: { "content-type": "application/json" },
+            }),
+          );
+        });
+      }
+
+      async function seedStaleWar(): Promise<void> {
+        await h.db.exec(`
+          insert into wars (clan_id, state, opponent_tag, our_stars, their_stars,
+                            result, start_time, end_time)
+          values ('${CLAN_A}', 'inWar', '${THEIR_TAG}', 20, 25, 'lose',
+                  '2026-07-01T06:00:00Z', '2026-07-02T06:00:00Z');
+        `);
+      }
+
+      // The hourly gap: the war ended and the clan moved on before a run saw
+      // `warEnded`. The row used to stay `inWar` for ever, plan still editable.
+      it("closes a war that ended unseen, with the final score from the war log", async () => {
+        await seedStaleWar();
+        respondByPath([
+          ["/currentwar", { state: "notInWar" }],
+          [
+            "/warlog",
+            {
+              items: [
+                {
+                  result: "win",
+                  endTime: "20260702T060000.000Z",
+                  clan: { tag: OUR_TAG, stars: 30, destructionPercentage: 88.5 },
+                  opponent: { tag: THEIR_TAG, stars: 27, destructionPercentage: 80 },
+                },
+              ],
+            },
+          ],
+        ]);
+
+        await runSyncJob("war", syncWar, { client });
+
+        const row = await h.db.query<{ state: string; our_stars: number; result: string }>(
+          `select state, our_stars, result from wars where clan_id = '${CLAN_A}'`,
+        );
+        expect(row.rows[0]).toMatchObject({ state: "warEnded", our_stars: 30, result: "win" });
+      });
+
+      it("still closes it on the last-known score when the war log is unreadable", async () => {
+        await seedStaleWar();
+        respondByPath([
+          ["/currentwar", { state: "notInWar" }],
+          ["/warlog", { reason: "accessDenied" }, 403],
+        ]);
+
+        await runSyncJob("war", syncWar, { client });
+
+        const row = await h.db.query<{ state: string; our_stars: number }>(
+          `select state, our_stars from wars where clan_id = '${CLAN_A}'`,
+        );
+        expect(row.rows[0]).toMatchObject({ state: "warEnded", our_stars: 20 });
+      });
+
+      it("leaves the war the API is describing right now alone", async () => {
+        respondByPath([
+          [
+            "/currentwar",
+            {
+              state: "inWar",
+              teamSize: 1,
+              startTime: "20260701T060000.000Z",
+              endTime: "20260702T060000.000Z",
+              clan: { tag: OUR_TAG, name: "Synthetic Clan", stars: 3, members: [] },
+              opponent: { tag: THEIR_TAG, name: "Opponent", stars: 1, members: [] },
+            },
+          ],
+        ]);
+
+        await runSyncJob("war", syncWar, { client });
+        expect(await count(h, "wars", "state = 'inWar'")).toBe(1);
+      });
+
+      // One clan's bad hour used to throw out of the loop, and every clan after
+      // it in tag order lost its war for the run.
+      it("captures the other clans when one clan's call fails", async () => {
+        const OTHER = "bbbbbbbb-0000-4000-8000-000000000002";
+        const OTHER_TAG = "#9CUVPYQ2";
+        await h.db.exec(
+          `insert into clans (id, tag, name) values ('${OTHER}', '${OTHER_TAG}', 'Other clan')`,
+        );
+        respondByPath([
+          [encodeURIComponent(OUR_TAG), { reason: "unknownException" }, 500],
+          [
+            encodeURIComponent(OTHER_TAG),
+            {
+              state: "preparation",
+              teamSize: 1,
+              startTime: "20260801T060000.000Z",
+              endTime: "20260802T060000.000Z",
+              clan: { tag: OTHER_TAG, name: "Other clan", members: [] },
+              opponent: { tag: THEIR_TAG, name: "Opponent", members: [] },
+            },
+          ],
+        ]);
+
+        const result = await runSyncJob("war", syncWar, { client });
+
+        expect(result).toBe("failed");
+        expect(await count(h, "wars", `clan_id = '${OTHER}'`)).toBe(1);
+        const log = await h.db.query<{ error: string }>(
+          `select error from sync_log where job_type = 'war'
+            order by started_at desc limit 1`,
+        );
+        expect(log.rows[0]!.error).toContain(OUR_TAG);
+      });
     });
   });
 });

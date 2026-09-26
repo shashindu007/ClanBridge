@@ -123,15 +123,30 @@ describe("015 — bootstrap and leader-managed clans", () => {
       ).rejects.toThrow(/clans_tag_format/);
     });
 
+    // Through grant_self_leader() since 046 — the one self-grant there is, and
+    // audited like every other role change.
     it("lets the admin grant themselves leader of the new clan", async () => {
       await h.asUser(OWNER);
-      await h.db.exec(`
-        insert into clans (id, tag, name) values ('${CLAN_B}', '#8QUCLJY0', 'B');
-        insert into clan_roles (user_id, clan_id, role)
-          values ('${OWNER}', '${CLAN_B}', 'leader');
-      `);
+      await h.db.exec(`insert into clans (id, tag, name) values ('${CLAN_B}', '#8QUCLJY0', 'B');`);
+      const res = await h.db.query<{ grant_self_leader: boolean }>(
+        `select grant_self_leader('${CLAN_B}')`,
+      );
+      expect(res.rows[0]!.grant_self_leader).toBe(true);
       await h.asSuperuser();
       expect(await count(h, "clan_roles")).toBe(1);
+      expect(await count(h, "audit_log", "action = 'role'")).toBe(1);
+    });
+
+    it("refuses grant_self_leader to anyone but the platform admin", async () => {
+      await h.asSuperuser();
+      await h.db.exec(`insert into clans (id, tag, name) values ('${CLAN_B}', '#8QUCLJY0', 'B');`);
+      await h.asUser(STRANGER);
+      const res = await h.db.query<{ grant_self_leader: boolean }>(
+        `select grant_self_leader('${CLAN_B}')`,
+      );
+      expect(res.rows[0]!.grant_self_leader).toBe(false);
+      await h.asSuperuser();
+      expect(await count(h, "clan_roles")).toBe(0);
     });
   });
 
@@ -216,7 +231,8 @@ describe("015 — bootstrap and leader-managed clans", () => {
         h.db.exec(
           `insert into clan_roles (user_id, clan_id, role) values ('${STRANGER}', '${CLAN_B}', 'leader')`,
         ),
-      ).rejects.toThrow(/row-level security/i);
+        // 046 — no session may write clan_roles directly at all.
+      ).rejects.toThrow(/permission denied/i);
     });
 
     it("a leader cannot grant a role in a clan they do not lead", async () => {
@@ -231,7 +247,19 @@ describe("015 — bootstrap and leader-managed clans", () => {
         h.db.exec(
           `insert into clan_roles (user_id, clan_id, role) values ('${STRANGER}', '${otherClan}', 'member')`,
         ),
-      ).rejects.toThrow(/row-level security/i);
+      ).rejects.toThrow(/permission denied/i);
+    });
+
+    // The hole 046 closed: 015's policy let a leader write their OWN clan's
+    // roles directly, skipping set_clan_role()'s rules (only the admin makes
+    // leaders) and its audit row.
+    it("a leader cannot write roles directly even in their own clan", async () => {
+      await h.asUser(LEADER_B);
+      await expect(
+        h.db.exec(
+          `insert into clan_roles (user_id, clan_id, role) values ('${STRANGER}', '${CLAN_B}', 'leader')`,
+        ),
+      ).rejects.toThrow(/permission denied/i);
     });
 
     it("a leader CAN approve an applicant to their own clan", async () => {

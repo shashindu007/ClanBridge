@@ -30,6 +30,7 @@ import { requireClanByTag } from "@/lib/clans";
 import { canOpenPolls } from "@/lib/visibility";
 import { seasonLabel, startableSeasons } from "@/lib/roster-view";
 import { currentUserId } from "@/lib/auth";
+import { parseDisplayLocal } from "@/lib/display-time";
 import { createClient } from "@/lib/supabase/server";
 import { createPoll, type PollScope, type PollType } from "@/repositories/polls";
 import { POLL_TEMPLATES } from "@/services/polls";
@@ -66,11 +67,12 @@ async function submit(formData: FormData) {
   // A CWL poll spans every clan; anything else belongs to this one.
   const scope: PollScope = pollType === "cwl_availability" ? "family" : "clan";
 
+  // datetime-local has no timezone. Read it as clan-local time — the zone the
+  // page states and every server-rendered time is shown in — never as UTC,
+  // which put the close 5h30 late for every leader in Colombo.
   const closesRaw = String(formData.get("closesAt") ?? "").trim();
-  // datetime-local has no timezone, so the browser's wall-clock reading is
-  // interpreted as UTC here. Good enough for a closing date measured in days;
-  // T9.9 is where timestamps get handled properly across the app.
-  const closesAt = closesRaw ? new Date(closesRaw).toISOString() : null;
+  const closesAt = parseDisplayLocal(closesRaw)?.toISOString() ?? null;
+  if (closesRaw && !closesAt) redirect(`${back}/new?error=bad-close-time`);
 
   const options = String(formData.get("options") ?? "")
     .split("\n")
@@ -269,7 +271,7 @@ export default async function CreatePollPage({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="closesAt">Close automatically at (optional)</Label>
+          <Label htmlFor="closesAt">Close automatically at, Sri Lanka time (optional)</Label>
           <Input id="closesAt" name="closesAt" type="datetime-local" className="sm:w-72" />
           <p className="text-muted-foreground text-xs">
             Answers lock at this time. Leave it empty to keep the poll open until you close it yourself.

@@ -308,6 +308,20 @@ describe("T4B.12 — contribution report", () => {
     expect(p1.averageDestruction).toBe(90); // (100 + 80) / 2
   });
 
+  // A day still being fought is not a miss yet, and a preparation day cannot be.
+  it("counts no misses for days that have not ended", () => {
+    const rows = contributionReport(
+      [
+        { apiRoster: [apiEntry(5)], attacks: [], state: "inWar" },
+        { apiRoster: [apiEntry(5)], attacks: [], state: "preparation" },
+        { apiRoster: [apiEntry(5)], attacks: [], state: "warEnded" },
+      ],
+      [],
+    );
+    expect(rows[0]!.warsPlayed).toBe(1);
+    expect(rows[0]!.missed).toBe(1);
+  });
+
   it("does not divide by zero for someone who never attacked", () => {
     const rows = contributionReport([{ apiRoster: [apiEntry(5)], attacks: [] }], []);
     expect(rows[0]!.averageDestruction).toBe(0);

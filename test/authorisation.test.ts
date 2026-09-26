@@ -264,7 +264,7 @@ describe("T3.7 — cross-clan authorisation", () => {
           `insert into clan_roles (user_id, clan_id, role)
            values ('${MEMBER_A}', '${CLAN_B}', 'leader')`,
         ),
-      ).rejects.toThrow(/row-level security/i);
+      ).rejects.toThrow(/permission denied/i);
     });
   });
 
@@ -293,7 +293,7 @@ describe("T3.7 — cross-clan authorisation", () => {
           `insert into clan_roles (user_id, clan_id, role)
            values ('${MEMBER_A}', '${CLAN_B}', 'member')`,
         ),
-      ).rejects.toThrow(/row-level security/i);
+      ).rejects.toThrow(/permission denied/i);
     });
   });
 

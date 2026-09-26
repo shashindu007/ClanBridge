@@ -14,6 +14,10 @@
 # twice for identical rows, which is the failure mode nobody notices.
 # ─────────────────────────────────────────────────────────────────────────────
 #
+# Members now have "Refresh now" beside the war board's freshness badge. That
+# dispatches sync-clans.yml, not this file — one run refreshes the member lists
+# and the war together (services/sync-now.ts). This file stays for /admin.
+#
 # What this file IS for: the manual run. During a war you will want the board
 # refreshed now rather than at :17 — after the last hour of attacks, or when
 # chasing someone who says they attacked and the page disagrees. Actions ->

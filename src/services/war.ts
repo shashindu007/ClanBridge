@@ -405,11 +405,24 @@ export interface WarContribution {
  * not in, which reads as a participation problem that does not exist.
  */
 export function warContribution(
-  perWar: Array<{ members: WarMemberRow[]; attacks: WarAttackRow[]; targets?: WarTargetRow[] }>,
+  perWar: Array<{
+    members: WarMemberRow[];
+    attacks: WarAttackRow[];
+    targets?: WarTargetRow[];
+    /**
+     * The war's state. Only a `warEnded` war — or one whose state the caller
+     * did not pass — is counted. Without this the war being fought right now
+     * went in with every unused attack as a MISS: during battle day each
+     * member read "2 missed (1 war skipped)" and the sort leaders use to pick
+     * the next lineup was reordered by attacks nobody had had time to make.
+     */
+    state?: string | null;
+  }>,
 ): WarContribution[] {
   const byPlayer = new Map<string, WarContribution>();
 
   for (const war of perWar) {
+    if (war.state !== undefined && war.state !== "warEnded") continue;
     for (const member of warRecord(war.members, war.attacks, war.targets ?? [])) {
       const entry = byPlayer.get(member.playerId) ?? {
         playerId: member.playerId,

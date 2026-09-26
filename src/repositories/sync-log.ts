@@ -93,6 +93,57 @@ export function failedRuns(runs: readonly SyncRunRecord[]): SyncRunRecord[] {
 }
 
 /**
+ * How far back latestRun() and runningSince() look.
+ *
+ * Every job writes one row per run, so fifty rows is two days of the hourly jobs
+ * and weeks of the daily ones — far more than "the last one that finished"
+ * needs, and small enough to stay well inside PostgREST's row cap.
+ */
+const RECENT_WINDOW = 50;
+
+/**
+ * This job's newest rows for one clan, newest first.
+ *
+ * DESCENDING WITH A LIMIT, and that is the fix, not a tidy-up. The first version
+ * read every row for the job type ascending and took the last. PostgREST returns
+ * at most 1,000 rows, the war job writes ~720 a month, so after about six weeks
+ * the "last" row it saw was one from week six — and every page's freshness badge
+ * froze on that date while the sync carried on working underneath it.
+ *
+ * `limit` before `order` for the PGlite stand-in's sake; see recentRuns().
+ */
+async function recentForClan(
+  supabase: SupabaseClient,
+  jobType: string,
+  clanId: string | null,
+): Promise<Array<Record<string, unknown>>> {
+  const { data, error } = await supabase
+    .from("sync_log")
+    .select(
+      "job_type, clan_id, status, started_at, finished_at, skip_reason, error, records_written",
+    )
+    .eq("job_type", jobType)
+    .is("deleted_at", null)
+    .limit(RECENT_WINDOW)
+    .order("started_at", { ascending: false });
+
+  if (error || !data) return [];
+
+  // R3, done honestly rather than decoratively. sync:cwl covers all three clans
+  // in one pass and so writes clan_id = null; a per-clan job writes its own id.
+  // Both are legitimately "this clan's freshness", and another clan's row is
+  // not — which is precisely what the policy in 006 says, restated here in the
+  // query rather than left entirely to RLS.
+  //
+  // Expressed in TypeScript because this is an OR across two columns and
+  // PostgREST's .or() is not supported by the PGlite stand-in the tests use.
+  // A null clanId asks for the global rows only.
+  return (data as unknown as Array<Record<string, unknown>>).filter(
+    (r) => r.clan_id === null || (clanId !== null && r.clan_id === clanId),
+  );
+}
+
+/**
  * The most recent FINISHED run of one job type for one clan.
  *
  * "Finished" matters: a job that is still running, or one that died without
@@ -109,31 +160,8 @@ export async function latestRun(
   jobType: string,
   clanId: string,
 ): Promise<SyncRun | null> {
-  const { data, error } = await supabase
-    .from("sync_log")
-    .select(
-      "job_type, clan_id, status, started_at, finished_at, skip_reason, error, records_written",
-    )
-    .eq("job_type", jobType)
-    .is("deleted_at", null)
-    .order("started_at");
-
-  if (error || !data) return null;
-
-  const rows = data as unknown as Array<Record<string, unknown>>;
-
-  // R3, done honestly rather than decoratively. sync:cwl covers all three clans
-  // in one pass and so writes clan_id = null; a per-clan job writes its own id.
-  // Both are legitimately "this clan's freshness", and another clan's row is
-  // not — which is precisely what the policy in 006 says, restated here in the
-  // query rather than left entirely to RLS.
-  //
-  // Expressed in TypeScript because this is an OR across two columns and
-  // PostgREST's .or() is not supported by the PGlite stand-in the tests use.
-  const mine = rows.filter((r) => r.clan_id === null || r.clan_id === clanId);
-
-  const finished = mine.filter((r) => r.finished_at !== null);
-  const row = finished[finished.length - 1]; // .order() here is ascending only
+  const rows = await recentForClan(supabase, jobType, clanId);
+  const row = rows.find((r) => r.finished_at !== null);
   if (!row) return null;
 
   return {
@@ -145,4 +173,36 @@ export async function latestRun(
     error: (row.error as string | null) ?? null,
     recordsWritten: (row.records_written as number | null) ?? null,
   };
+}
+
+/**
+ * How long a run may sit unfinished before it stops counting as "in progress".
+ *
+ * A healthy clans or war run takes a minute or two including the install; CWL's
+ * worst first-of-week run is well under ten. A row older than this with no
+ * finished_at is a job that died without closing it, and treating it as still
+ * running would block the Refresh button forever.
+ */
+export const RUNNING_WINDOW_MS = 15 * 60 * 1000;
+
+/**
+ * When the newest still-open run of this job started, or null.
+ *
+ * What "Refresh now" checks before asking GitHub for another run: if one is
+ * already under way, a second would only queue behind it (the workflows share a
+ * concurrency group) and spend Actions minutes on identical rows.
+ */
+export async function runningSince(
+  supabase: SupabaseClient,
+  jobType: string,
+  clanId: string | null,
+  now: number = Date.now(),
+): Promise<string | null> {
+  const rows = await recentForClan(supabase, jobType, clanId);
+  const open = rows.find(
+    (r) =>
+      r.finished_at === null &&
+      now - new Date(r.started_at as string).getTime() < RUNNING_WINDOW_MS,
+  );
+  return open ? (open.started_at as string) : null;
 }

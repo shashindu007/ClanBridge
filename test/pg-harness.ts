@@ -112,6 +112,11 @@ export const PHASE1_MIGRATIONS = [
   // The opponent's badge on wars and cwl_wars, going forward only. Must follow
   // 002 and 003, which create both tables.
   "045_war_opponent_badge.sql",
+  // QA hardening: users insert/update guards, clan_roles writes through
+  // functions only, account-aware auth_*_clan_ids(), war claims by village,
+  // poll option integrity, cross-clan roster guard. Replaces functions from
+  // 006, 010, 011, 015, 016, 021 and 025, so it must follow all of them.
+  "046_qa_hardening.sql",
 ] as const;
 
 /**

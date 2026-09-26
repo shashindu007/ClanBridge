@@ -157,9 +157,11 @@ export async function playerReport(
   // Order preserved from recentWars, and wars with no rows kept as empties —
   // warContribution() counts a war a member was absent from, so dropping it
   // would silently improve everyone's record.
-  const perWar = recentWars.map(
-    (war) => rosters.get(war.id) ?? { members: [], attacks: [], targets: [] },
-  );
+  const perWar = recentWars.map((war) => ({
+    // Finished wars only — see warContribution()'s note on `state`.
+    state: war.state,
+    ...(rosters.get(war.id) ?? { members: [], attacks: [], targets: [] }),
+  }));
 
   // The SHARED derivation, not a second count. /war/report computes its table
   // from the same function over the same window, which is why the two pages

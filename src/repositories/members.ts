@@ -286,11 +286,68 @@ export async function recentSnapshots(
 }
 
 /**
+ * PostgREST's default row cap. A read that can exceed it has to page, or it
+ * silently comes back short — see newestFirst() for which end goes missing.
+ */
+const PAGE = 1000;
+
+/**
+ * Enough pages for a little over two years of hourly snapshots of one player —
+ * a ceiling so a runaway loop is impossible, not a limit anyone should meet.
+ */
+const MAX_PAGES = 20;
+
+/**
+ * Read a player's snapshots NEWEST FIRST, a page at a time.
+ *
+ * Why this exists: these reads used to be one ascending query. Six months of
+ * hourly snapshots is ~4,400 rows, PostgREST returns 1,000, and ascending means
+ * the 1,000 it returns are the OLDEST — so after about six weeks a profile
+ * showed history that stopped weeks ago and missed the move to another clan
+ * that happened yesterday. Paging backwards by captured_at (unique per player
+ * per hour, so no row is skipped or repeated at a page edge) always has the
+ * newest data and only ever loses the far past to MAX_PAGES.
+ */
+async function newestFirst(
+  supabase: SupabaseClient,
+  columns: string,
+  playerId: string,
+  filter: { clanId?: string; since?: Date },
+): Promise<Array<Record<string, unknown>>> {
+  const rows: Array<Record<string, unknown>> = [];
+  let before: string | null = null;
+
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    let query = supabase
+      .from("member_snapshots")
+      .select(columns)
+      .eq("player_id", playerId)
+      .is("deleted_at", null);
+    if (filter.clanId) query = query.eq("clan_id", filter.clanId); // R3
+    if (filter.since) query = query.gte("captured_at", filter.since.toISOString());
+    if (before) query = query.lt("captured_at", before);
+
+    const { data, error } = await query
+      .limit(PAGE)
+      .order("captured_at", { ascending: false });
+
+    if (error || !data) break;
+    const batch = data as unknown as Array<Record<string, unknown>>;
+    rows.push(...batch);
+    if (batch.length < PAGE) break;
+    before = batch[batch.length - 1]!.captured_at as string;
+  }
+
+  return rows;
+}
+
+/**
  * One player's snapshots, oldest first, from `since` onwards (T3B.4).
  *
  * Ascending because every consumer walks it forwards looking for the point where
  * a counter DROPPED, which is how a monthly reset is detected. Handing that code
- * a descending array would make every reset look like a gain.
+ * a descending array would make every reset look like a gain. Read newest-first
+ * and reversed here, for the reason newestFirst() gives.
  */
 export async function snapshotHistory(
   supabase: SupabaseClient,
@@ -298,17 +355,13 @@ export async function snapshotHistory(
   playerId: string,
   since: Date,
 ): Promise<SnapshotPoint[]> {
-  const { data, error } = await supabase
-    .from("member_snapshots")
-    .select("player_id, captured_at, donations, donations_received, trophies, th_level, role")
-    .eq("clan_id", clanId) // R3
-    .eq("player_id", playerId)
-    .is("deleted_at", null)
-    .gte("captured_at", since.toISOString())
-    .order("captured_at");
-
-  if (error || !data) return [];
-  return (data as Array<Record<string, unknown>>).map(toPoint);
+  const rows = await newestFirst(
+    supabase,
+    "player_id, captured_at, donations, donations_received, trophies, th_level, role",
+    playerId,
+    { clanId, since },
+  );
+  return rows.reverse().map(toPoint);
 }
 
 /**
@@ -324,17 +377,12 @@ export async function clanMovement(
   supabase: SupabaseClient,
   playerId: string,
 ): Promise<Array<{ clanId: string; firstSeen: string; lastSeen: string }>> {
-  const { data, error } = await supabase
-    .from("member_snapshots")
-    .select("clan_id, captured_at")
-    .eq("player_id", playerId)
-    .is("deleted_at", null)
-    .order("captured_at");
-
-  if (error || !data) return [];
+  // Newest first, then walked oldest-first below, for the reason newestFirst()
+  // gives: the recent move is the part of this list that matters most.
+  const rows = (await newestFirst(supabase, "clan_id, captured_at", playerId, {})).reverse();
 
   const spans = new Map<string, { clanId: string; firstSeen: string; lastSeen: string }>();
-  for (const row of data as Array<Record<string, unknown>>) {
+  for (const row of rows) {
     const clanId = row.clan_id as string;
     const at = row.captured_at as string;
     const existing = spans.get(clanId);

@@ -43,12 +43,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { currentWarEndpoint, request } from "@/integration/coc-client";
-import { warSchema } from "@/integration/coc-schemas";
+import { currentWarEndpoint, request, warLogEndpoint } from "@/integration/coc-client";
+import { warLogSchema, warSchema } from "@/integration/coc-schemas";
 import { CocNotFoundError, CocPrivateLogError } from "@/integration/errors";
 import { mapWar } from "@/integration/mappers";
+import { parseCocTimeOrNull } from "@/lib/coc-time";
 import { normaliseTag } from "@/lib/tags";
-import type { War, WarMember } from "@/types/domain";
+import type { War, WarMember, WarSide } from "@/types/domain";
 // chooseSides, warResult and storedState are the same three traps in both
 // modules, and are tested directly in test/sync-cwl.test.ts. Imported rather
 // than copied: a second copy is a second place for the "which side is us" logic
@@ -272,6 +273,119 @@ async function upsertWarAttacks(
   return rows.length;
 }
 
+/**
+ * Finish any war the hourly sync never saw end.
+ *
+ * THE GAP THIS CLOSES. `/currentwar` only ever describes the clan's CURRENT war.
+ * A war ends, the clan starts searching (or is already in preparation for the
+ * next one) before the next hourly run — and the `warEnded` response this job
+ * needed was never observed. The row stayed `inWar` forever: the board kept
+ * treating it as live, 024/025 kept its plan editable, and its result was
+ * whatever the stars were an hour before the end.
+ *
+ * A row is stale when it is still preparation/inWar, its end_time has passed,
+ * and it is not the war the API is describing right now. The war log supplies
+ * the final totals, matched on end time. Returns how many rows it closed.
+ *
+ * What cannot be recovered: attacks landed in that last hour. The log carries
+ * totals, not attacks, and Supercell keeps no other copy — the reason
+ * "Refresh now" exists is to make this gap rarer, not to pretend it is gone.
+ *
+ * Never throws for the API's sake: a private log, a fixture run with no warlog
+ * file, or a timeout all fall back to closing the row on its last-known totals.
+ * A war that has ended is ended, whether or not the final score is known.
+ */
+export async function closeStaleWars(
+  supabase: SupabaseClient,
+  clan: ClanRow,
+  currentStart: Date | undefined,
+  now: Date = new Date(),
+): Promise<number> {
+  const { data, error } = await supabase
+    .from("wars")
+    .select("id, state, start_time, end_time")
+    .eq("clan_id", clan.id) // R3
+    .is("deleted_at", null)
+    .in("state", ["preparation", "inWar"]);
+
+  if (error) throw new Error(`wars read failed for ${clan.tag}: ${error.message}`);
+
+  const stale = ((data ?? []) as Array<{
+    id: string;
+    start_time: string;
+    end_time: string | null;
+  }>).filter(
+    (row) =>
+      row.end_time !== null &&
+      new Date(row.end_time).getTime() < now.getTime() &&
+      new Date(row.start_time).getTime() !== currentStart?.getTime(),
+  );
+  if (!stale.length) return 0;
+
+  let log: Awaited<ReturnType<typeof readWarLog>> = [];
+  try {
+    log = await readWarLog(clan.tag);
+  } catch (error) {
+    console.warn(
+      `  ${clan.tag}: war log unreadable (${error instanceof Error ? error.message : error}); ` +
+        "closing on last-known totals",
+    );
+  }
+
+  for (const row of stale) {
+    const endMs = new Date(row.end_time!).getTime();
+    const entry = log.find((item) => item.endMs === endMs);
+
+    const patch: Record<string, unknown> = { state: "warEnded" };
+    if (entry) {
+      patch.our_stars = entry.ours.stars ?? null;
+      patch.their_stars = entry.theirs.stars ?? null;
+      patch.our_destruction = entry.ours.destruction ?? null;
+      patch.their_destruction = entry.theirs.destruction ?? null;
+      patch.result = warResult(entry.ours, entry.theirs);
+    }
+
+    const { error: updateError } = await supabase
+      .from("wars")
+      .update(patch)
+      .eq("id", row.id)
+      .eq("clan_id", clan.id);
+
+    if (updateError) {
+      throw new Error(`wars close failed for ${clan.tag}: ${updateError.message}`);
+    }
+    console.log(
+      `  ${clan.tag}: closed a war that ended unseen at ${row.end_time}` +
+        (entry ? " (final score from the war log)" : " (last-known score)"),
+    );
+  }
+
+  return stale.length;
+}
+
+/** The war log's regular wars, as sides already oriented to "us". */
+async function readWarLog(tag: string) {
+  const api = await request(warLogEndpoint(tag, 10), warLogSchema);
+  const ours = normaliseTag(tag);
+  return api.items.flatMap((item) => {
+    const end = parseCocTimeOrNull(item.endTime);
+    if (!end || !item.clan || !item.opponent) return [];
+    // The log is always from the asking clan's point of view, but orienting it
+    // by tag costs nothing and is the same trap chooseSides() closes elsewhere.
+    const [us, them] =
+      item.clan.tag && normaliseTag(item.clan.tag) !== ours
+        ? [item.opponent, item.clan]
+        : [item.clan, item.opponent];
+    const side = (s: typeof us): WarSide => ({
+      tag: s.tag,
+      stars: s.stars,
+      destruction: s.destructionPercentage,
+      members: [],
+    });
+    return [{ endMs: end.getTime(), ours: side(us), theirs: side(them) }];
+  });
+}
+
 export async function syncWar(ctx: JobContext): Promise<void> {
   const { supabase } = ctx;
   const clans = await activeClans(supabase);
@@ -280,87 +394,101 @@ export async function syncWar(ctx: JobContext): Promise<void> {
   const problems: string[] = [];
 
   for (const clan of clans) {
-    const clanTag = normaliseTag(clan.tag);
-
-    let war: War;
+    // One clan's bad hour must not cost the others theirs: a 5xx or a timeout
+    // used to throw out of this loop and every clan later in tag order lost
+    // its war for the run. Recorded and thrown at the end instead, exactly as
+    // a private war log already was.
     try {
-      war = mapWar(await request(currentWarEndpoint(clan.tag), warSchema));
+      const clanTag = normaliseTag(clan.tag);
+
+      let war: War;
+      try {
+        war = mapWar(await request(currentWarEndpoint(clan.tag), warSchema));
+      } catch (error) {
+        // R10 — a clan the API has no current war for at all. Not a failure.
+        if (error instanceof CocNotFoundError) {
+          console.log(`  ${clan.tag}: no current war`);
+          ctx.recorded(await closeStaleWars(supabase, clan, undefined));
+          continue;
+        }
+        // A private war log is a real misconfiguration (T0.1). Recorded and
+        // carried past so the other clans are still captured, then thrown at the
+        // end — losing two clans' wars to one clan's setting is the worse outcome.
+        if (error instanceof CocPrivateLogError) {
+          problems.push(`${clan.tag}: war log is private (T0.1), war unreadable`);
+          continue;
+        }
+        throw error; // recorded against this clan by the catch below
+      }
+
+      // Before anything else can `continue`: a war that ended between two runs
+      // is finished whatever the API is describing now — notInWar, a league
+      // war, or the next war's preparation.
+      ctx.recorded(await closeStaleWars(supabase, clan, war.startTime));
+
+      // R10. Most of the time this is every clan, and it is a success.
+      if (war.state === "notInWar") {
+        console.log(`  ${clan.tag}: not in war`);
+        continue;
+      }
+
+      // Trap 1 — a league war on the regular endpoint. cwl.ts owns it.
+      if (isLeagueWar(war)) {
+        console.log(`  ${clan.tag}: in a CWL war (${war.warTag}) — left to sync:cwl`);
+        continue;
+      }
+
+      const sides = chooseSides(war, clanTag);
+      if (!sides) {
+        // Only reachable if the API answered about a clan we did not ask about, or
+        // sent a half-war. Recorded rather than guessed at: attributing a war to
+        // the wrong side is silent and permanent.
+        problems.push(`${clan.tag}: neither side of the current war is this clan`);
+        continue;
+      }
+
+      // Trap 2 — no start time, no natural key, no row.
+      if (!war.startTime) {
+        problems.push(`${clan.tag}: war in state ${war.state} has no startTime`);
+        continue;
+      }
+
+      clansInWar += 1;
+
+      const warId = await upsertWar(supabase, clan, war, sides, war.startTime);
+      if (!warId) {
+        console.log(`  ${clan.tag}: war already recorded as ended, left untouched (R5)`);
+        continue;
+      }
+
+      const playerIds = await resolvePlayers(supabase, clan, sides.ours.members, "war");
+
+      const defenderPositions = new Map<string, number>();
+      for (const m of sides.theirs.members) {
+        if (m.mapPosition !== undefined) defenderPositions.set(m.tag, m.mapPosition);
+      }
+
+      ctx.recorded(
+        await upsertWarMembers(
+          supabase,
+          warId,
+          sides.ours.members,
+          playerIds,
+          war.attacksPerMember ?? 2,
+        ),
+      );
+      ctx.recorded(await upsertOpponents(supabase, warId, sides.theirs.members));
+      ctx.recorded(
+        await upsertWarAttacks(supabase, warId, sides.ours.members, playerIds, defenderPositions),
+      );
+
+      console.log(
+        `  ${clan.tag} ${clan.name}: ${war.state} vs ${sides.theirs.name ?? "unknown"}, ` +
+          `${sides.ours.members.length} in the lineup`,
+      );
     } catch (error) {
-      // R10 — a clan the API has no current war for at all. Not a failure.
-      if (error instanceof CocNotFoundError) {
-        console.log(`  ${clan.tag}: no current war`);
-        continue;
-      }
-      // A private war log is a real misconfiguration (T0.1). Recorded and
-      // carried past so the other clans are still captured, then thrown at the
-      // end — losing two clans' wars to one clan's setting is the worse outcome.
-      if (error instanceof CocPrivateLogError) {
-        problems.push(`${clan.tag}: war log is private (T0.1), war unreadable`);
-        continue;
-      }
-      throw error;
+      problems.push(`${clan.tag}: ${error instanceof Error ? error.message : String(error)}`);
     }
-
-    // R10. Most of the time this is every clan, and it is a success.
-    if (war.state === "notInWar") {
-      console.log(`  ${clan.tag}: not in war`);
-      continue;
-    }
-
-    // Trap 1 — a league war on the regular endpoint. cwl.ts owns it.
-    if (isLeagueWar(war)) {
-      console.log(`  ${clan.tag}: in a CWL war (${war.warTag}) — left to sync:cwl`);
-      continue;
-    }
-
-    const sides = chooseSides(war, clanTag);
-    if (!sides) {
-      // Only reachable if the API answered about a clan we did not ask about, or
-      // sent a half-war. Recorded rather than guessed at: attributing a war to
-      // the wrong side is silent and permanent.
-      problems.push(`${clan.tag}: neither side of the current war is this clan`);
-      continue;
-    }
-
-    // Trap 2 — no start time, no natural key, no row.
-    if (!war.startTime) {
-      problems.push(`${clan.tag}: war in state ${war.state} has no startTime`);
-      continue;
-    }
-
-    clansInWar += 1;
-
-    const warId = await upsertWar(supabase, clan, war, sides, war.startTime);
-    if (!warId) {
-      console.log(`  ${clan.tag}: war already recorded as ended, left untouched (R5)`);
-      continue;
-    }
-
-    const playerIds = await resolvePlayers(supabase, clan, sides.ours.members, "war");
-
-    const defenderPositions = new Map<string, number>();
-    for (const m of sides.theirs.members) {
-      if (m.mapPosition !== undefined) defenderPositions.set(m.tag, m.mapPosition);
-    }
-
-    ctx.recorded(
-      await upsertWarMembers(
-        supabase,
-        warId,
-        sides.ours.members,
-        playerIds,
-        war.attacksPerMember ?? 2,
-      ),
-    );
-    ctx.recorded(await upsertOpponents(supabase, warId, sides.theirs.members));
-    ctx.recorded(
-      await upsertWarAttacks(supabase, warId, sides.ours.members, playerIds, defenderPositions),
-    );
-
-    console.log(
-      `  ${clan.tag} ${clan.name}: ${war.state} vs ${sides.theirs.name ?? "unknown"}, ` +
-        `${sides.ours.members.length} in the lineup`,
-    );
   }
 
   if (problems.length) throw new Error(problems.join("; "));

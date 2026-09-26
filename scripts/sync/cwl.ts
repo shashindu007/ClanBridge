@@ -155,31 +155,87 @@ async function upsertSeason(
   return id;
 }
 
+/** What this season already holds about one of OUR wars. */
+export interface StoredWar {
+  state: string | null;
+  day: number | null;
+}
+
 /**
- * War tags already recorded as finished.
+ * Our wars already recorded this season, by war tag.
  *
- * A warEnded war never changes again, so re-fetching it every two hours for the
- * rest of the season is 27 wasted API calls per run against a rate-limited key.
- * Skipping them also means a settled result can never be rewritten by a late or
- * malformed response (R5).
+ * Two uses. A warEnded war never changes again, so re-fetching it every two
+ * hours for the rest of the season is a wasted API call against a rate-limited
+ * key — and skipping it means a settled result can never be rewritten by a late
+ * or malformed response (R5). And the day number tells tagsToFetch() which of a
+ * round's four wars is ours, so the other three are not asked for again.
  */
-async function settledWarTags(
+async function storedWars(
   supabase: SupabaseClient,
   seasonId: string,
-): Promise<Set<string>> {
+): Promise<Map<string, StoredWar>> {
   const { data, error } = await supabase
     .from("cwl_wars")
-    .select("war_tag, state")
+    .select("war_tag, state, day_number")
     .eq("season_id", seasonId)
     .is("deleted_at", null);
 
   if (error) throw new Error(`cwl_wars read failed: ${error.message}`);
 
-  const settled = new Set<string>();
-  for (const row of (data ?? []) as Array<{ war_tag: string; state: string | null }>) {
-    if (row.state === "warEnded") settled.add(row.war_tag);
+  const wars = new Map<string, StoredWar>();
+  for (const row of (data ?? []) as Array<{
+    war_tag: string;
+    state: string | null;
+    day_number: number | null;
+  }>) {
+    wars.set(row.war_tag, { state: row.state, day: row.day_number });
   }
-  return settled;
+  return wars;
+}
+
+/**
+ * The war tags worth asking the API about this run, one round at a time.
+ *
+ * THE BUG THIS REPLACED. A CWL group has seven rounds of four wars, and only one
+ * war per round is ours. The old loop skipped our settled wars and fetched every
+ * other tag in the group, every run, just to discover it belonged to two other
+ * clans and throw it away — 21 wasted calls per clan per run, all season,
+ * contradicting the comment that said later runs were cheap.
+ *
+ * Now: a round whose war we have already stored is represented by that one tag
+ * alone (or by nothing, once it has ended). Only a round we have never seen is
+ * searched, and the caller stops at the first war that turns out to be ours.
+ * Steady state is the group call plus one call per unfinished round.
+ *
+ * Exported so the call budget is tested directly rather than inferred from a
+ * mock's call count.
+ */
+export function tagsToFetch(
+  group: ApiCwlGroup,
+  stored: ReadonlyMap<string, StoredWar>,
+): string[][] {
+  const oursByDay = new Map<number, string>();
+  for (const [tag, war] of stored) {
+    if (war.day !== null) oursByDay.set(war.day, tag);
+  }
+
+  const rounds: string[][] = [];
+  group.rounds.forEach((round, index) => {
+    const day = index + 1;
+    const known = oursByDay.get(day);
+    if (known !== undefined) {
+      if (stored.get(known)?.state !== "warEnded") rounds.push([known]);
+      return;
+    }
+    const tags = round.warTags
+      .filter((raw) => raw && raw !== "#0")
+      .map((raw) => normaliseTag(raw))
+      // A settled war stored before day numbers were recorded (019) is still
+      // ours and still finished — never worth another call.
+      .filter((tag) => stored.get(tag)?.state !== "warEnded");
+    if (tags.length) rounds.push(tags);
+  });
+  return rounds;
 }
 
 /** Insert or refresh the war row, and return its id. */
@@ -378,79 +434,97 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
   const problems: string[] = [];
 
   for (const clan of clans) {
-    const clanTag = normaliseTag(clan.tag);
-
-    let group: ApiCwlGroup;
+    // One clan's bad hour must not cost the others theirs. A 5xx, a timeout or
+    // one war tag the API cannot find used to throw straight out of this loop,
+    // and every clan later in tag order got nothing that run — during league
+    // week, data Supercell deletes when the season ends. Recorded here and
+    // thrown at the end instead, exactly as a private war log already was.
     try {
-      group = await request(cwlGroupEndpoint(clan.tag), cwlGroupSchema);
+      const clanTag = normaliseTag(clan.tag);
+
+      let group: ApiCwlGroup;
+      try {
+        group = await request(cwlGroupEndpoint(clan.tag), cwlGroupSchema);
+      } catch (error) {
+        // R10 — no group is the normal state for three weeks of every month.
+        if (error instanceof CocNotFoundError) {
+          console.log(`  ${clan.tag}: not in CWL`);
+          continue;
+        }
+        // A private war log is a real misconfiguration (T0.1), not a normal state.
+        // Recorded and carried past so the other clans are still captured, then
+        // thrown at the end — losing two clans' seasons to one clan's setting
+        // would be a worse outcome than a noisy failure.
+        if (error instanceof CocPrivateLogError) {
+          problems.push(`${clan.tag}: war log is private (T0.1), CWL unreadable`);
+          continue;
+        }
+        throw error; // recorded against this clan by the catch below
+      }
+
+      clansInCwl += 1;
+      const mapped = mapCwlGroup(group);
+      const days = dayNumbers(group);
+      const seasonId = await upsertSeason(supabase, clan, mapped.season);
+      const stored = await storedWars(supabase, seasonId);
+      const settled = new Set(
+        [...stored].filter(([, war]) => war.state === "warEnded").map(([tag]) => tag),
+      );
+
+      let ourWars = 0;
+      for (const round of tagsToFetch(group, stored)) {
+        for (const requestedTag of round) {
+          if (settled.has(requestedTag)) continue;
+
+          const war = mapWar(await request(cwlWarEndpoint(requestedTag), warSchema));
+          const sides = chooseSides(war, clanTag);
+          if (!sides) continue; // another clan's war in the same round — try the next
+
+          // The war's OWN identity, not the tag we happened to ask for. They are the
+          // same in production, and keying on the response means one war can only
+          // ever occupy one row if they ever diverge — the alternative writes the
+          // same war twice under two tags, which no constraint would catch.
+          const warTag = war.warTag ?? requestedTag;
+          if (settled.has(warTag)) break;
+
+          ourWars += 1;
+          const warId = await upsertWar(
+            supabase,
+            seasonId,
+            warTag,
+            war,
+            sides,
+            days.get(requestedTag) ?? days.get(warTag),
+          );
+          // Settled within this run too, so a later round listing the same war
+          // cannot rewrite a result already recorded a moment ago.
+          if (storedState(war.state) === "warEnded") settled.add(warTag);
+
+          const playerIds = await resolvePlayers(supabase, clan, sides.ours.members);
+
+          const defenderPositions = new Map<string, number>();
+          for (const m of sides.theirs.members) {
+            if (m.mapPosition !== undefined) defenderPositions.set(m.tag, m.mapPosition);
+          }
+
+          ctx.recorded(await upsertRoster(supabase, warId, sides.ours.members, playerIds));
+          ctx.recorded(
+            await upsertAttacks(supabase, warId, sides.ours.members, playerIds, defenderPositions),
+          );
+
+          // One war per round is ours. Found it — the rest of the round is other
+          // clans' business and not worth a call.
+          break;
+        }
+      }
+
+      console.log(
+        `  ${clan.tag} ${clan.name}: season ${mapped.season}, ` +
+          `${ourWars} of our wars from ${mapped.warTags.length} in the group`,
+      );
     } catch (error) {
-      // R10 — no group is the normal state for three weeks of every month.
-      if (error instanceof CocNotFoundError) {
-        console.log(`  ${clan.tag}: not in CWL`);
-        continue;
-      }
-      // A private war log is a real misconfiguration (T0.1), not a normal state.
-      // Recorded and carried past so the other clans are still captured, then
-      // thrown at the end — losing two clans' seasons to one clan's setting
-      // would be a worse outcome than a noisy failure.
-      if (error instanceof CocPrivateLogError) {
-        problems.push(`${clan.tag}: war log is private (T0.1), CWL unreadable`);
-        continue;
-      }
-      throw error;
+      problems.push(`${clan.tag}: ${error instanceof Error ? error.message : String(error)}`);
     }
-
-    clansInCwl += 1;
-    const mapped = mapCwlGroup(group);
-    const days = dayNumbers(group);
-    const seasonId = await upsertSeason(supabase, clan, mapped.season);
-    const settled = await settledWarTags(supabase, seasonId);
-
-    let ourWars = 0;
-    for (const requestedTag of mapped.warTags) {
-      if (settled.has(requestedTag)) continue;
-
-      const war = mapWar(await request(cwlWarEndpoint(requestedTag), warSchema));
-      const sides = chooseSides(war, clanTag);
-      if (!sides) continue; // another clan's war in the same group — not ours
-
-      // The war's OWN identity, not the tag we happened to ask for. They are the
-      // same in production, and keying on the response means one war can only
-      // ever occupy one row if they ever diverge — the alternative writes the
-      // same war twice under two tags, which no constraint would catch.
-      const warTag = war.warTag ?? requestedTag;
-      if (settled.has(warTag)) continue;
-
-      ourWars += 1;
-      const warId = await upsertWar(
-        supabase,
-        seasonId,
-        warTag,
-        war,
-        sides,
-        days.get(requestedTag) ?? days.get(warTag),
-      );
-      // Settled within this run too, so a later round listing the same war
-      // cannot rewrite a result already recorded a moment ago.
-      if (storedState(war.state) === "warEnded") settled.add(warTag);
-
-      const playerIds = await resolvePlayers(supabase, clan, sides.ours.members);
-
-      const defenderPositions = new Map<string, number>();
-      for (const m of sides.theirs.members) {
-        if (m.mapPosition !== undefined) defenderPositions.set(m.tag, m.mapPosition);
-      }
-
-      ctx.recorded(await upsertRoster(supabase, warId, sides.ours.members, playerIds));
-      ctx.recorded(
-        await upsertAttacks(supabase, warId, sides.ours.members, playerIds, defenderPositions),
-      );
-    }
-
-    console.log(
-      `  ${clan.tag} ${clan.name}: season ${mapped.season}, ` +
-        `${ourWars} of our wars from ${mapped.warTags.length} in the group`,
-    );
   }
 
   if (problems.length) throw new Error(problems.join("; "));

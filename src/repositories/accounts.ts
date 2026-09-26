@@ -29,6 +29,31 @@ export interface AccountPlayer {
   tag: string;
   name: string;
   thLevel: number | null;
+  /** The clan the village is in right now, per the last sync (046). */
+  clanId?: string | null;
+  /** Set when the sync saw it leave all three clans (008). */
+  leftAt?: string | null;
+}
+
+/**
+ * Has this account left, in game, every clan it holds a role in?
+ *
+ * True when it has at least one role and at least one village, and no village
+ * is currently in any of the clans those roles are for. That is the member who
+ * walked out — or went to an enemy clan — and still reads the clan's war plans
+ * until someone retires the role. Deliberately NOT acted on automatically: the
+ * family moves players between its clans for CWL, and R11 keeps the sync away
+ * from roles. A leader sees the flag and decides.
+ *
+ * An account with no villages is not flagged; there is nothing to compare, and
+ * "never verified" is a different conversation from "left".
+ */
+export function leftClanInGame(account: Pick<AdminAccount, "memberships" | "players">): boolean {
+  if (!account.memberships.length || !account.players.length) return false;
+  const roleClans = new Set(account.memberships.map((m) => m.clanId));
+  return !account.players.some(
+    (p) => !p.leftAt && p.clanId != null && roleClans.has(p.clanId),
+  );
 }
 
 export interface AdminAccount {

@@ -29,6 +29,11 @@ export interface SeasonWarData {
   /** The API roster for one war (cwl_war_members). */
   apiRoster: CwlRosterEntry[];
   attacks: CwlAttack[];
+  /**
+   * The day's state, when known. contributionReport() leaves out a day still
+   * in preparation or battle: a miss is a day that ENDED without an attack.
+   */
+  state?: string | null;
 }
 
 /**
@@ -135,6 +140,10 @@ export function contributionReport(
   >();
 
   for (const war of wars) {
+    // Mid-season, the days not yet over used to add a "miss" to everyone on
+    // them — and the bonus-medal candidate list is ranked on these numbers.
+    if (war.state === "preparation" || war.state === "inWar") continue;
+
     const attacksByPlayer = new Map<string, CwlAttack[]>();
     for (const attack of war.attacks) {
       const list = attacksByPlayer.get(attack.playerId) ?? [];

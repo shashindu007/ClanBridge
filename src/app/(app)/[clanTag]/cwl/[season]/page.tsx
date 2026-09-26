@@ -20,7 +20,7 @@
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { DataFreshness } from "@/components/data-freshness";
+import { SyncBadge } from "@/components/sync-badge";
 import { LocalTime } from "@/components/local-time";
 import { TownHall } from "@/components/lineup-parts";
 import { PageHeader } from "@/components/page-header";
@@ -49,7 +49,6 @@ import { createClient } from "@/lib/supabase/server";
 import { attacksForWar, rosterForWar, seasonByName, warsInSeason } from "@/repositories/cwl";
 import { latestRun } from "@/repositories/sync-log";
 import { seasonSpan, seasonTotals, warRecord } from "@/services/cwl";
-import { freshness } from "@/services/freshness";
 
 export const dynamic = "force-dynamic";
 
@@ -88,13 +87,16 @@ export default async function CwlDayDetailPage({
   if (!season) notFound();
 
   const wars = await warsInSeason(supabase, season.id);
-  const runs = freshness(await latestRun(supabase, "cwl", clan.id));
+  const run = await latestRun(supabase, "cwl", clan.id);
   const totals = seasonTotals(wars);
 
-  // Default to the last day that has data — almost always what is wanted while
-  // CWL is running.
+  // Default to the latest day that has STARTED. During CWL the last day with
+  // data is usually tomorrow's preparation day — a roster with no attacks
+  // possible yet — and opening on it showed the whole lineup under "Did not
+  // attack". The day being fought is the one a leader is chasing.
+  const started = [...wars].reverse().find((w) => w.state !== "preparation");
   const selected =
-    wars.find((w) => String(w.dayNumber) === day) ?? wars[wars.length - 1] ?? null;
+    wars.find((w) => String(w.dayNumber) === day) ?? started ?? wars[wars.length - 1] ?? null;
 
   // When the season ran. Derived from the days rather than stored — see
   // seasonSpan() for why a stored pair would be a second source that can
@@ -104,6 +106,12 @@ export default async function CwlDayDetailPage({
   const roster = selected ? await rosterForWar(supabase, selected.id) : [];
   const attacks = selected ? await attacksForWar(supabase, selected.id) : [];
   const record = warRecord(roster, attacks);
+  // "Missed" means the day is OVER and no attack came. On a battle day still
+  // running it only means "not yet", and on a preparation day nobody can have
+  // attacked at all — counting either as a miss is how 15 of 15 got listed
+  // as having failed a war that had not started.
+  const dayState = selected?.state ?? null;
+  const dayOver = dayState !== "preparation" && dayState !== "inWar";
   const missed = record.filter((m) => m.missed);
 
   const clanBase = `/${encodeURIComponent(clan.tag)}`;
@@ -133,7 +141,7 @@ export default async function CwlDayDetailPage({
         description="Each war day's result, and who did not use their attack."
         actions={
           <>
-            <DataFreshness freshness={runs} canAdmin={isLeader(clan.role)} />
+            <SyncBadge run={run} clanTag={clan.tag} target="cwl" canAdmin={isLeader(clan.role)} />
             <Button asChild variant="outline" size="sm">
               <Link href={`${base}/report`}>Season report</Link>
             </Button>
@@ -294,15 +302,25 @@ export default async function CwlDayDetailPage({
 
           <section className="cb-panel space-y-4 rounded-panel border p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-lg font-semibold">Did not attack</h2>
-              {roster.length > 0 && (
-                <Badge variant={missed.length === 0 ? "success" : "warning"}>
-                  {missed.length === 0 ? "Everyone attacked" : `${missed.length} of ${roster.length} missed`}
+              <h2 className="text-lg font-semibold">
+                {dayOver ? "Did not attack" : "Yet to attack"}
+              </h2>
+              {roster.length > 0 && dayState !== "preparation" && (
+                <Badge variant={missed.length === 0 ? "success" : dayOver ? "warning" : "info"}>
+                  {missed.length === 0
+                    ? "Everyone attacked"
+                    : dayOver
+                      ? `${missed.length} of ${roster.length} missed`
+                      : `${missed.length} of ${roster.length} still to attack`}
                 </Badge>
               )}
             </div>
             {roster.length === 0 ? (
               <p className="text-muted-foreground text-sm">No roster was captured for this day.</p>
+            ) : dayState === "preparation" ? (
+              <p className="text-muted-foreground text-sm">
+                Battle day has not started. Attacks open when it does.
+              </p>
             ) : missed.length === 0 ? (
               <p className="text-muted-foreground text-sm">Everyone in the lineup used their attack.</p>
             ) : (
@@ -352,7 +370,13 @@ export default async function CwlDayDetailPage({
                           </span>
                         </TableCell>
                         <TableCell>
-                          {m.missed ? <Badge variant="warning">Did not attack</Badge> : <Stars stars={m.stars} />}
+                          {!m.missed ? (
+                            <Stars stars={m.stars} />
+                          ) : dayOver ? (
+                            <Badge variant="warning">Did not attack</Badge>
+                          ) : (
+                            <Badge variant="outline">Not yet</Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {m.missed ? "—" : `${m.destruction.toFixed(1)}%`}

@@ -138,7 +138,7 @@ export default async function CwlSeasonReportPage({
           rosterForWar(supabase, war.id),
           attacksForWar(supabase, war.id),
         ]);
-        return { apiRoster, attacks };
+        return { apiRoster, attacks, state: war.state };
       }),
     ),
     roster ? membersOfRoster(supabase, roster.id) : [],

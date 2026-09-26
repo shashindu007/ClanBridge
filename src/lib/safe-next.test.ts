@@ -33,6 +33,20 @@ describe("safeNext", () => {
     expect(safeNext("/\\evil.com")).toBe("/");
   });
 
+  // The browser strips tabs and newlines BEFORE parsing, so each of these
+  // arrives as //evil.com despite starting with a single slash.
+  it("refuses control characters the browser would strip into //", () => {
+    expect(safeNext("/\t/evil.com")).toBe("/");
+    expect(safeNext("/\n/evil.com")).toBe("/");
+    expect(safeNext("/\r/evil.com")).toBe("/");
+    expect(safeNext(decodeURIComponent("/%09/evil.com"))).toBe("/");
+  });
+
+  it("refuses a backslash anywhere, not only straight after the first slash", () => {
+    expect(safeNext("/\t\\evil.com")).toBe("/");
+    expect(safeNext("/a\\b")).toBe("/");
+  });
+
   it("refuses an absolute URL", () => {
     expect(safeNext("https://evil.com")).toBe("/");
     expect(safeNext("http://evil.com")).toBe("/");

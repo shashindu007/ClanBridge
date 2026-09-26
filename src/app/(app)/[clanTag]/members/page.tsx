@@ -10,7 +10,7 @@
 
 import Link from "next/link";
 import { CircleHelp, Eye, UserRoundSearch, Users } from "lucide-react";
-import { DataFreshness } from "@/components/data-freshness";
+import { SyncBadge } from "@/components/sync-badge";
 import { PageHeader } from "@/components/page-header";
 import { Disclosure, EmptyState, Panel } from "@/components/kit";
 import { TownHall } from "@/components/game/town-hall";
@@ -38,7 +38,6 @@ import { createClient } from "@/lib/supabase/server";
 import { familyCwlHistory } from "@/repositories/cwl";
 import { latestSnapshots, membersForClan, recentSnapshots } from "@/repositories/members";
 import { latestRun } from "@/repositories/sync-log";
-import { freshness } from "@/services/freshness";
 import {
   LOW_RATIO_THRESHOLD,
   memberActivity,
@@ -244,7 +243,14 @@ export default async function MemberDirectoryPage({
             . Donations are this season&rsquo;s; the game resets them monthly.
           </>
         }
-        actions={<DataFreshness freshness={freshness(clansRun)} canAdmin={isLeader(clan.role)} />}
+        actions={
+          <SyncBadge
+            run={clansRun}
+            clanTag={clan.tag}
+            target="clans"
+            canAdmin={isLeader(clan.role)}
+          />
+        }
       />
 
       {/* The same GET form the roster builder and the war lineup use. No client

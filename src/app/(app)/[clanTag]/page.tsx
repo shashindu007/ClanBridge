@@ -47,7 +47,7 @@ import {
   Vote,
   type LucideIcon,
 } from "lucide-react";
-import { DataFreshness } from "@/components/data-freshness";
+import { SyncBadge } from "@/components/sync-badge";
 import { WarScoreboard } from "@/components/war-scoreboard";
 import { LocalTime } from "@/components/local-time";
 import { EmptyState, FactRow, ListRow, Panel, SectionHeader, Tile } from "@/components/kit";
@@ -318,7 +318,7 @@ export default async function ClanDashboardPage({
               />
             )}
           </div>
-          <DataFreshness freshness={fresh} canAdmin={isLeader(clan.role)} />
+          <SyncBadge run={clansRun} clanTag={clan.tag} target="clans" canAdmin={isLeader(clan.role)} />
         </div>
       </section>
 

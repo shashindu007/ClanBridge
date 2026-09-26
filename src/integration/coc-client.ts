@@ -264,6 +264,10 @@ export function currentWarEndpoint(tag: string): string {
   return `/clans/${encodeTag(tag)}/currentwar`;
 }
 
+export function warLogEndpoint(tag: string, limit = 5): string {
+  return `/clans/${encodeTag(tag)}/warlog?limit=${limit}`;
+}
+
 export function cwlGroupEndpoint(tag: string): string {
   return `/clans/${encodeTag(tag)}/currentwar/leaguegroup`;
 }

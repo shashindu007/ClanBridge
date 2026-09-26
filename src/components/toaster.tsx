@@ -63,6 +63,15 @@ export function Toaster() {
   // An error wins over a success: both params cannot be true of one action, and
   // showing the wrong one is worse than showing neither.
   const [dismissed, setDismissed] = useState<string | null>(null);
+
+  // Forget the dismissal once the URL has let go of it. The Toaster lives in
+  // the (app) layout and survives navigation, so without this `dismissed` kept
+  // the last code for ever — and the SECOND identical result (a leader adding
+  // two players to the roster, or hitting the same error twice) rendered
+  // nothing at all, success or failure. Adjusting state during render is the
+  // React-sanctioned form of this, for the reason the note above gives.
+  if (code === null && dismissed !== null) setDismissed(null);
+
   const visible = code !== null && dismissed !== code;
   const kind: "ok" | "error" = error ? "error" : "ok";
   const text = code ? messageFor(kind, code) : "";

@@ -42,6 +42,23 @@ export const WRITE_LIMIT: RateLimitConfig = { max: 30, windowMs: 60 * 1000 };
 export const SYNC_TRIGGER_LIMIT: RateLimitConfig = { max: 3, windowMs: 60 * 60 * 1000 };
 
 /**
+ * "Refresh now" on the war, CWL, raid and member pages — any approved member.
+ *
+ * Three budgets, because the thing being protected is shared. Every workflow
+ * covers all three clans, so one run answers every member who is waiting, and
+ * the private repository's 2,000 Actions minutes a month are already mostly
+ * spoken for by the schedules (see the header of lib/github.ts).
+ *
+ *   JOB    one run per workflow per ten minutes, whoever asks. The real cooldown.
+ *   USER   one impatient member cannot use up the day's allowance alone.
+ *   DAILY  the hard ceiling: 20 runs a day is at most ~600 minutes a month even
+ *          if every one of them is used, every day.
+ */
+export const SYNC_NOW_JOB_LIMIT: RateLimitConfig = { max: 1, windowMs: 10 * 60 * 1000 };
+export const SYNC_NOW_USER_LIMIT: RateLimitConfig = { max: 6, windowMs: 60 * 60 * 1000 };
+export const SYNC_NOW_DAILY_LIMIT: RateLimitConfig = { max: 20, windowMs: 24 * 60 * 60 * 1000 };
+
+/**
  * T10.4 — password sign-in attempts.
  *
  * Generous enough that a member fumbling their password three times in a row

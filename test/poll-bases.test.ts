@@ -2,7 +2,7 @@
 // and where Save moves it next. Pure, so pinned without a database.
 
 import { describe, expect, it } from "vitest";
-import { chooseBase, nextUnanswered } from "@/services/polls";
+import { chooseBase, nextUnanswered, villagesFor } from "@/services/polls";
 
 const A = { id: "a", name: "Main" };
 const B = { id: "b", name: "Alt" };
@@ -45,5 +45,23 @@ describe("nextUnanswered", () => {
 
   it("never offers the village just answered", () => {
     expect(nextUnanswered([A], new Set(), "a")).toBeNull();
+  });
+});
+
+describe("villagesFor", () => {
+  const mine = [
+    { id: "a1", clanId: "clan-a" },
+    { id: "b1", clanId: "clan-b" },
+    { id: "gone", clanId: null },
+  ];
+
+  it("offers only this clan's villages on a clan poll", () => {
+    expect(villagesFor({ scope: "clan", clanId: "clan-a" }, mine).map((p) => p.id)).toEqual([
+      "a1",
+    ]);
+  });
+
+  it("offers every village on a family poll", () => {
+    expect(villagesFor({ scope: "family", clanId: null }, mine)).toHaveLength(3);
   });
 });

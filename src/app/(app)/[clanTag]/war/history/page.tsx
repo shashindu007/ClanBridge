@@ -24,7 +24,7 @@ import Link from "next/link";
 import { Star, Swords, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataFreshness } from "@/components/data-freshness";
+import { SyncBadge } from "@/components/sync-badge";
 import { PageHeader } from "@/components/page-header";
 import { Disclosure, EmptyState, FactRow, Panel } from "@/components/kit";
 import { ClanBadge } from "@/components/game/clan-badge";
@@ -92,7 +92,8 @@ export default async function WarHistoryPage({
   const base = `/${encodeURIComponent(clan.tag)}`;
 
   const wars = await warsForClan(supabase, clan.id, 100);
-  const runs = freshness(await latestRun(supabase, "war", clan.id));
+  const run = await latestRun(supabase, "war", clan.id);
+  const runs = freshness(run);
   const totals = warTotals(wars);
   const running = wars.length - totals.warsPlayed;
 
@@ -102,7 +103,9 @@ export default async function WarHistoryPage({
         eyebrow={clan.name}
         title="War history"
         description="Every war this clan has fought since the sync started, kept for good. Open one to see its plan beside its result."
-        actions={<DataFreshness freshness={runs} canAdmin={isLeader(clan.role)} />}
+        actions={
+          <SyncBadge run={run} clanTag={clan.tag} target="war" canAdmin={isLeader(clan.role)} />
+        }
       />
 
       {wars.length === 0 ? (

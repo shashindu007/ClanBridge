@@ -24,5 +24,10 @@ export function safeNext(raw: string | null | undefined): string {
   // `/\evil.com` is the same trick with the other slash: browsers normalise a
   // backslash to a forward slash in the authority position.
   if (raw.startsWith("/\\")) return "/";
+  // Tabs, newlines and other control characters are STRIPPED by the browser's
+  // URL parser before it reads the path, so `/<TAB>/evil.com` passes both checks
+  // above and then becomes `//evil.com`. No real in-app path contains one, and
+  // a backslash anywhere is the same normalisation trick one character later.
+  if (/[\u0000-\u001f\u007f\\]/.test(raw)) return "/";
   return raw;
 }

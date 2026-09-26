@@ -134,6 +134,8 @@ export default async function WarReportPage({
   loaded.push(
     ...wars.map((war) => ({
       war,
+      // warContribution() counts finished wars only; the live one is not a record yet.
+      state: war.state,
       ...(rosters.get(war.id) ?? { members: [], attacks: [], targets: [] }),
     })),
   );

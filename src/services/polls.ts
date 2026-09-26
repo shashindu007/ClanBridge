@@ -84,6 +84,24 @@ export function pollBreakdown(
 
 /** Just the chase list, for callers that want nothing else. */
 /**
+ * The caller's villages that may answer this poll.
+ *
+ * A family poll (CWL availability) asks every clan, so every village. A clan
+ * poll asks ONE clan, so only villages in it. The page used to offer them all:
+ * a member with a village in each clan was told "1 of 2 still to answer" on
+ * clan A's war poll, and answering with the clan B village added to A's "In"
+ * count — the number the war lineup is sized from. 046 enforces the same rule
+ * in the database; this is what keeps the page from offering what it refuses.
+ */
+export function villagesFor<T extends { clanId: string | null }>(
+  poll: Pick<Poll, "scope" | "clanId">,
+  mine: readonly T[],
+): T[] {
+  if (poll.scope === "family") return [...mine];
+  return mine.filter((p) => p.clanId !== null && p.clanId === poll.clanId);
+}
+
+/**
  * Which of the caller's villages the answer form is showing.
  *
  * ONE FORM, NOT ONE PER VILLAGE. A member with three bases used to get three

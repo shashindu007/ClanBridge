@@ -17,7 +17,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createHarness, type Harness } from "./pg-harness";
 import { createPgliteSupabase } from "./pglite-supabase";
-import { failedRuns, recentRuns } from "@/repositories/sync-log";
+import { failedRuns, latestRun, recentRuns, runningSince } from "@/repositories/sync-log";
 import { DISPATCHABLE, isDispatchable } from "@/lib/github";
 
 describe("isDispatchable — narrowing an untrusted form field", () => {
@@ -142,5 +142,45 @@ describe("sync history (T9.2)", () => {
   it("reports an empty history rather than throwing on a fresh install", async () => {
     await h.db.exec(`delete from sync_log;`);
     expect(await recentRuns(client)).toEqual([]);
+  });
+
+  describe("latestRun — what every freshness badge reads", () => {
+    // The bug: every row for the job was read ASCENDING and the last one taken.
+    // PostgREST returns at most 1,000 rows, so once the hourly war job had
+    // written more than that, "the last one" was from week six, for ever.
+    it("returns the newest finished run however many rows the job has written", async () => {
+      await h.db.exec(`
+        insert into sync_log (job_type, clan_id, status, started_at, finished_at)
+        select 'war', null, 'success',
+               timestamptz '2026-01-01T00:00:00Z' + make_interval(hours => n),
+               timestamptz '2026-01-01T00:01:00Z' + make_interval(hours => n)
+        from generate_series(1, 1200) as n;
+      `);
+      const run = await latestRun(client, "war", CLAN_A);
+      expect(new Date(run!.finishedAt!).toISOString()).toBe("2026-02-20T00:01:00.000Z");
+    });
+
+    it("skips a run still in progress rather than calling it fresh", async () => {
+      // The only raids row is still running.
+      expect(await latestRun(client, "raids", CLAN_A)).toBeNull();
+    });
+
+    it("does not report another clan's run as this clan's", async () => {
+      expect(await latestRun(client, "war", CLAN_A)).toBeNull();
+      expect((await latestRun(client, "war", CLAN_B))?.status).toBe("failed");
+    });
+  });
+
+  describe("runningSince — what Refresh now checks first", () => {
+    it("reports a run started a few minutes ago", async () => {
+      const now = new Date("2026-08-04T00:05:00Z").getTime();
+      expect(await runningSince(client, "raids", CLAN_A, now)).not.toBeNull();
+    });
+
+    // A job that died without closing its row must not block the button forever.
+    it("ignores an unfinished row older than the running window", async () => {
+      const now = new Date("2026-08-04T03:00:00Z").getTime();
+      expect(await runningSince(client, "raids", CLAN_A, now)).toBeNull();
+    });
   });
 });

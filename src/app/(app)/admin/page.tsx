@@ -130,14 +130,16 @@ async function grantSelfLeader(formData: FormData) {
   const clanId = String(formData.get("clanId") ?? "");
   if (!clanId) redirect("/admin?error=no-clan");
 
-  const { error } = await supabase
-    .from("clan_roles")
-    .insert({ user_id: userId, clan_id: clanId, role: "leader" });
+  // A function, not an insert, since 046: clan_roles has no session write path
+  // at all, and grant_self_leader() is the one self-grant — platform admin
+  // only, audited like every other role change.
+  const { data: granted, error } = await supabase.rpc("grant_self_leader", {
+    p_clan: clanId,
+  });
 
-  if (error) {
-    // Almost always 015's "admin or leader grants roles" policy refusing, and
-    // saying so by name would describe the policy to whoever tried it.
-    safeMessage("grant-self-leader", error, "");
+  if (error || granted !== true) {
+    // Saying why by name would describe the rule to whoever tried it.
+    if (error) safeMessage("grant-self-leader", error, "");
     redirect("/admin?error=grant-failed");
   }
 

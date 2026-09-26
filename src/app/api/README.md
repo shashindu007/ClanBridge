@@ -14,6 +14,7 @@ partway through and leave half-written data (R2); sync runs on GitHub Actions fr
 |---|---|
 | `POST /api/verify` | T3.3 — player token verification, rate limited 5/user/hr |
 | `POST /api/push/subscribe` | T5.5 — store a push subscription |
+| `GET /api/sync-status` | Has newer synced data landed? Polled by `LiveSync` |
 
 ## Planned
 

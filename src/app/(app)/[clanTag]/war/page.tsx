@@ -50,7 +50,7 @@ import { CalendarClock, Flag, Swords, Target, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/submit-button";
-import { DataFreshness } from "@/components/data-freshness";
+import { SyncBadge } from "@/components/sync-badge";
 import { TownHall } from "@/components/lineup-parts";
 import { PageHeader } from "@/components/page-header";
 import { Stars } from "@/components/stars";
@@ -168,10 +168,10 @@ async function mutate(formData: FormData) {
     result = await clearTarget(supabase, warId, playerId);
     done = "target-cleared";
   } else if (action === "claim") {
-    result = await claimTarget(supabase, warId, position, note);
+    result = await claimTarget(supabase, warId, position, note, playerId || null);
     done = "target-claimed";
   } else if (action === "release") {
-    result = await releaseTarget(supabase, warId);
+    result = await releaseTarget(supabase, warId, playerId || null);
     done = "target-released";
   } else {
     redirect(`${here}&error=unknown-action`);
@@ -204,7 +204,8 @@ export default async function WarBoardPage({
   if (!userId) redirect("/login");
 
   const base = `/${encodeURIComponent(clan.tag)}`;
-  const runs = freshness(await latestRun(supabase, "war", clan.id));
+  const run = await latestRun(supabase, "war", clan.id);
+  const runs = freshness(run);
 
   // R3 — warById filters by clan, so a war id from another clan pasted into the
   // URL resolves to nothing and falls through to "no war", not to their data.
@@ -221,7 +222,9 @@ export default async function WarBoardPage({
       art={<ClanBadge src={clan.badgeUrl} name={clan.name} size="lg" tone={accent} priority />}
       ribbons={war ? stateRibbon(war, now) : <Ribbon tone="neutral">No war</Ribbon>}
       description="Who still has attacks to use, and which base each member should hit."
-      actions={<DataFreshness freshness={runs} canAdmin={isLeader(clan.role)} />}
+      actions={
+        <SyncBadge run={run} clanTag={clan.tag} target="war" canAdmin={isLeader(clan.role)} />
+      }
     />
   );
 
@@ -385,6 +388,7 @@ export default async function WarBoardPage({
                       <input type="hidden" name="clanTag" value={clan.tag} />
                       <input type="hidden" name="warId" value={war.id} />
                       <input type="hidden" name="action" value="release" />
+                      <input type="hidden" name="playerId" value={m.playerId} />
                       <SubmitButton size="sm" variant="outline" pendingLabel="Releasing">
                         Give this base back
                       </SubmitButton>
@@ -411,6 +415,9 @@ export default async function WarBoardPage({
                         <input type="hidden" name="warId" value={war.id} />
                         <input type="hidden" name="action" value="claim" />
                         <input type="hidden" name="position" value={b.position} />
+                        {/* Which of your villages is claiming. Without it 025 picked
+                            one of them arbitrarily — the wrong one, for anyone with two. */}
+                        <input type="hidden" name="playerId" value={m.playerId} />
                         <SubmitButton
                           size="sm"
                           variant={goldFor === m.playerId && i === 0 ? "gold" : "outline"}

@@ -192,51 +192,64 @@ export async function syncClans(ctx: JobContext): Promise<void> {
   // Every tag seen across ALL three clans this run. Departure detection needs
   // the complete picture, so it cannot happen inside the per-clan loop.
   const presentTags = new Set<string>();
+  const problems: string[] = [];
 
   for (const clan of clans) {
-    const api = await request(clanEndpoint(clan.tag), clanSchema);
-    const mapped = mapClan(api);
-    const members = mapClanMembers(api);
+    // One clan's bad hour must not cost the others theirs: a 5xx or a timeout
+    // used to throw out of this loop and every clan later in tag order got
+    // nothing that run. Recorded and thrown at the end instead.
+    try {
+      const api = await request(clanEndpoint(clan.tag), clanSchema);
+      const mapped = mapClan(api);
+      const members = mapClanMembers(api);
 
-    await syncClanRecord(supabase, clan, mapped);
-    const written = await syncMembers(supabase, clan, members);
-    ctx.recorded(written);
+      await syncClanRecord(supabase, clan, mapped);
+      const written = await syncMembers(supabase, clan, members);
+      ctx.recorded(written);
 
-    for (const m of members) presentTags.add(m.tag);
+      for (const m of members) presentTags.add(m.tag);
 
-    // Read back the ids the upsert produced or matched. Needed because
-    // member_snapshots references player_id, not tag.
-    const { data: rows, error } = await supabase
-      .from("players")
-      .select("id, tag")
-      .eq("clan_id", clan.id)
-      .is("deleted_at", null);
+      // Read back the ids the upsert produced or matched. Needed because
+      // member_snapshots references player_id, not tag.
+      const { data: rows, error } = await supabase
+        .from("players")
+        .select("id, tag")
+        .eq("clan_id", clan.id)
+        .is("deleted_at", null);
 
-    if (error) throw new Error(`could not read players for ${clan.tag}: ${error.message}`);
+      if (error) throw new Error(`could not read players for ${clan.tag}: ${error.message}`);
 
-    const playerIds = new Map<string, string>(
-      (rows ?? []).map((r) => [r.tag as string, r.id as string]),
-    );
-
-    ctx.recorded(await writeSnapshots(supabase, clan, members, playerIds));
-
-    console.log(`  ${clan.tag} ${clan.name}: ${members.length} members`);
-
-    // T0.1, checked automatically rather than trusted once.
-    //
-    // The spec treats "war log is public" as a manual in-game check, but the API
-    // reports it, so a clan switched to private mid-season is caught on the next
-    // hourly run instead of surfacing later as an unexplained 403 in the war
-    // module. Warned rather than failed: the clan sync itself works fine, and
-    // failing here would stop members and snapshots being recorded too.
-    if (mapped.isWarLogPublic === false) {
-      console.warn(
-        `  WARNING  ${clan.tag} ${clan.name} has a PRIVATE war log. ` +
-          `No war or CWL data can be collected for this clan until it is set to ` +
-          `Public in game (Clan Settings -> War Log). See T0.1.`,
+      const playerIds = new Map<string, string>(
+        (rows ?? []).map((r) => [r.tag as string, r.id as string]),
       );
+
+      ctx.recorded(await writeSnapshots(supabase, clan, members, playerIds));
+
+      console.log(`  ${clan.tag} ${clan.name}: ${members.length} members`);
+
+      // T0.1, checked automatically rather than trusted once.
+      //
+      // The spec treats "war log is public" as a manual in-game check, but the API
+      // reports it, so a clan switched to private mid-season is caught on the next
+      // hourly run instead of surfacing later as an unexplained 403 in the war
+      // module. Warned rather than failed: the clan sync itself works fine, and
+      // failing here would stop members and snapshots being recorded too.
+      if (mapped.isWarLogPublic === false) {
+        console.warn(
+          `  WARNING  ${clan.tag} ${clan.name} has a PRIVATE war log. ` +
+            `No war or CWL data can be collected for this clan until it is set to ` +
+            `Public in game (Clan Settings -> War Log). See T0.1.`,
+        );
+      }
+    } catch (error) {
+      problems.push(`${clan.tag}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+
+  // Departures need the COMPLETE picture. With one clan's member list missing,
+  // everyone in it would look as if they had left all three clans. Skipped this
+  // run and done by the next one that reads every clan.
+  if (problems.length) throw new Error(problems.join("; "));
 
   const departed = await markDepartures(
     supabase,

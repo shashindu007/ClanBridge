@@ -99,9 +99,16 @@ describe("the middleware matcher", () => {
     expect(runsOn(path)).toBe(false);
   });
 
-  // Excluding "anything with a dot" is only safe while clan tags cannot contain
-  // one. lib/tags.ts restricts them to [0289PYLQGRJCUV] and they arrive
-  // URL-encoded, so %232G8YQYRGJ has no dot to be confused by.
+  // A dot is not an extension. Skipping the middleware for any dotted path let
+  // a crafted URL reach a page's Server Actions without it — and with it
+  // skipped, a client-supplied forwarded user-id header was never overwritten.
+  it.each(["/%23TAG.x/war", "/%232G8YQYRGJ.png/war", "/admin.x", "/api/sync-status.json/x"])(
+    "runs on a dotted path that is not a file: %s",
+    (path) => {
+      expect(runsOn(path)).toBe(true);
+    },
+  );
+
   it.each([
     "/",
     "/login",

@@ -156,6 +156,34 @@ export const warSchema = z.looseObject({
 });
 
 // ---------------------------------------------------------------------------
+// /clans/{tag}/warlog
+//
+// Read only to finish a war the hourly sync never saw end (scripts/sync/war.ts
+// closeStaleWars). Totals only — the log carries no roster and no attacks. CWL
+// entries arrive here too, with no `result` and no opponent tag; they never
+// match a regular war's end time, so they are simply never used.
+// ---------------------------------------------------------------------------
+
+const warLogSideSchema = z.looseObject({
+  tag: tag.optional(),
+  stars: z.number().optional(),
+  destructionPercentage: z.number().optional(),
+});
+
+export const warLogSchema = z.looseObject({
+  items: z
+    .array(
+      z.looseObject({
+        result: z.string().nullish(),
+        endTime: cocTimestamp.optional(),
+        clan: warLogSideSchema.optional(),
+        opponent: warLogSideSchema.optional(),
+      }),
+    )
+    .default([]),
+});
+
+// ---------------------------------------------------------------------------
 // /clans/{tag}/currentwar/leaguegroup
 //
 // 404s outside CWL week, which is the normal state for three weeks of every
@@ -331,6 +359,7 @@ export type ApiClanMember = z.infer<typeof clanMemberSchema>;
 export type ApiWar = z.infer<typeof warSchema>;
 export type ApiWarMember = z.infer<typeof warMemberSchema>;
 export type ApiWarAttack = z.infer<typeof warAttackSchema>;
+export type ApiWarLog = z.infer<typeof warLogSchema>;
 export type ApiCwlGroup = z.infer<typeof cwlGroupSchema>;
 export type ApiRaidSeasons = z.infer<typeof raidSeasonsSchema>;
 export type ApiRaidSeason = z.infer<typeof raidSeasonSchema>;

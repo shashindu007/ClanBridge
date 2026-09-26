@@ -28,7 +28,7 @@
 
 import Link from "next/link";
 import { Castle, Coins, Medal, Swords, Target, Trophy } from "lucide-react";
-import { DataFreshness } from "@/components/data-freshness";
+import { SyncBadge } from "@/components/sync-badge";
 import { Badge } from "@/components/ui/badge";
 import { requireClanByTag } from "@/lib/clans";
 import { isLeader } from "@/lib/visibility";
@@ -123,7 +123,9 @@ export default async function RaidsPage({
         eyebrow={clan.name}
         title="Raid weekends"
         description="Clan Capital raids: medals, loot, and who still has attacks while a weekend is live."
-        actions={<DataFreshness freshness={fresh} canAdmin={isLeader(clan.role)} />}
+        actions={
+          <SyncBadge run={run} clanTag={clan.tag} target="raids" canAdmin={isLeader(clan.role)} />
+        }
       />
 
       {!season ? (

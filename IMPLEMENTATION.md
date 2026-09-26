@@ -217,6 +217,19 @@ done as of 2026-08-11, ahead of that date rather than against it:
   CWL, `/currentwar` reports the full cumulative state of the war, so a missed
   tick costs freshness on the board and never history. `sync-war.yml` remains as
   `workflow_dispatch` for the manual mid-war refresh.
+- **Members can ask for fresher data: "Refresh now" beside every freshness
+  badge (war, war history, CWL, raids, members, clan overview).** Hourly was
+  still up to an hour stale mid-war, and a 3-minute schedule is ~14,400 runs a
+  month — seven times the whole allowance. The button does not sync (R2): it
+  dispatches the scheduled workflow through `lib/github.ts`, like `/admin`'s
+  "Run now", under three shared budgets in `services/sync-now.ts` — one run per
+  workflow per 10 minutes whoever asks, 6 per member per hour, 20 a day in
+  total (≤ ~600 minutes a month at worst). `sync-health` moved from hourly to
+  two-hourly to pay for it; every threshold it judges is ≥ 2 hours, so it
+  alerts no later. Pages now poll `/api/sync-status` (one sync_log read a
+  minute while visible) and re-render only when a newer run has finished, and
+  the "updated N minutes ago" label ticks on the client instead of freezing at
+  render time.
 - **006 shipped select policies only, and every write since has paid for it.**
   021 (announcements), 022 (`cwl_bonuses` had existed since 002 and had never
   been writable) and 023 (`push_subscriptions`, identical hole) each had to add

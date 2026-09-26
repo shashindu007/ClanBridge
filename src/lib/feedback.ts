@@ -114,6 +114,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
   forbidden: "You do not have permission to do that.",
   "unknown-job": "That is not a job that can be started by hand.",
   "unknown-action": "That is not something this page can do.",
+  // Notification settings.
+  "notifications-failed": "Could not save your notification settings. Try again.",
   // CWL report.
   "bad-order": "The medal place must be a whole number, 1 or more.",
   // Create poll.
@@ -121,6 +123,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
   "need-options": "A poll needs at least two answers to choose from.",
   "duplicate-options": "Two answers have the same wording, which makes the result unreadable.",
   "bad-type": "That kind of poll is not one this system knows.",
+  "bad-close-time": "That closing time could not be read. Pick a date and time, or leave it empty.",
   // Poll page. Rendered by the page itself until the redesign; the toast is now the one place.
   incomplete: "Pick an answer before saving.",
   closed: "This poll has closed, so there is nothing to remind anyone about.",

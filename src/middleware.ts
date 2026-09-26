@@ -29,10 +29,15 @@ export const config = {
   // result: `GET /favicon.ico 307 in 2965ms`, a full session lookup and a
   // redirect, for an icon, on every single page load.
   //
-  // Excluding anything with a file extension is safe here because a clan tag
-  // never contains a dot — they arrive URL-encoded as %232G8YQYRGJ, and
-  // lib/tags.ts rejects anything outside [0289PYLQGRJCUV].
+  // ONLY REAL STATIC EXTENSIONS, AT THE END OF THE PATH (QA, 046). The first
+  // version excluded any path with a dot ANYWHERE, on the grounds that a clan
+  // tag never contains one. True of valid URLs, not of requests: `/%23TAG.x/war`
+  // still routed to [clanTag]/war — whose module holds Server Actions — with no
+  // middleware at all. No session refresh, no login redirect, and no rewrite of
+  // the forwarded user-id header that lib/auth.ts trusts precisely BECAUSE the
+  // middleware always rewrites it. Skipping must mean "a file", never
+  // "anything that looks a bit like one".
   matcher: [
-    "/((?!_next/static|_next/image|icons/|manifest.json|sw.js|.*\\..*$).*)",
+    "/((?!_next/static|_next/image|icons/|manifest.json|sw.js|.*\\.(?:ico|png|jpe?g|gif|svg|webp|avif|txt|xml|webmanifest|js|mjs|css|map|woff2?|ttf)$).*)",
   ],
 };

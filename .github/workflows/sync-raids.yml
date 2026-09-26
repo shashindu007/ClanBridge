@@ -54,6 +54,12 @@ on:
     # been inactive for 60 days. The second of those is the one that would cost
     # a Clan Games month, and it is what sync-health (T5.8) exists to catch.
     - cron: "41 5 * * *"
+    # Clan Games opens on the 22nd at 08:00 UTC (src/lib/coc-time.ts). The daily
+    # 05:41 run first lands in that window on the 23rd — ~22 hours in, after
+    # everyone's first day of points is already inside the "start" reading, so
+    # every monthly score came out low. This one run a month takes the start
+    # snapshot half an hour after the Games open. Raids ride along, harmlessly.
+    - cron: "31 8 22 * *"
   workflow_dispatch: # for a manual catch-up after a missed period boundary
 
 concurrency:

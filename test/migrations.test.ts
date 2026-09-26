@@ -46,9 +46,11 @@ async function seedFixtures(h: Harness) {
       ('${USER_A}', 'a@example.com'),
       ('${USER_B}', 'b@example.com');
 
-    insert into users (id, email) values
-      ('${USER_A}', 'a@example.com'),
-      ('${USER_B}', 'b@example.com');
+    -- Approved: since 046, a role only grants access to a live, approved
+    -- account, which is the only kind approve_account() ever gives one to.
+    insert into users (id, email, status) values
+      ('${USER_A}', 'a@example.com', 'approved'),
+      ('${USER_B}', 'b@example.com', 'approved');
 
     insert into clan_roles (user_id, clan_id, role) values
       ('${USER_A}', '${CLAN_A}', 'member'),
@@ -311,7 +313,7 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
     // this list is a deliberate inventory of everything a SESSION may write, and
     // it should be read as such when it changes.
     //
-    //   clans, clan_roles, users     015, leader-managed clans
+    //   clans, users                 015, leader-managed clans
     //   polls, poll_options          010, leadership opens a poll (T4B.2)
     //   poll_responses               010, a member answers for their own player
     //   cwl_rosters, ..._members     011, leadership builds the CWL plan (T4B.8)
@@ -336,6 +338,11 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
     // audited definer functions in 021/022/024 so that the write and its audit
     // row cannot come apart.
     //
+    // clan_roles LEFT this list in 046. 015 gave it direct write policies, 044
+    // moved every role change into set_clan_role() so its rules and its audit
+    // row hold, and the leftover policies let a leader skip both with a plain
+    // INSERT. Roles are now written only by definer functions.
+    //
     // war_targets is the one worth pausing on: it is a human decision, so it
     // could have had a policy — but assigning a target must be audited (R4), and
     // 024 makes it a definer function for the reason 021 states.
@@ -348,7 +355,6 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
     // say which is right — so voting is a definer function (028).
     expect(res.rows.map((r) => r.tablename)).toEqual([
       "base_layouts",
-      "clan_roles",
       "clans",
       "cwl_roster_members",
       "cwl_rosters",

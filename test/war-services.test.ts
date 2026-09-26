@@ -380,6 +380,20 @@ describe("services/war — the derivations", () => {
       expect(b.attacksMissed).toBe(2);
     });
 
+    // The war being fought right now is not a record yet: its unused attacks
+    // are attacks nobody has had time to make, not misses.
+    it("leaves a war still in preparation or battle out of the record", () => {
+      const contribution = warContribution([
+        { state: "warEnded", members: [member("a")], attacks: [attack("a", 1), attack("a", 2)] },
+        { state: "inWar", members: [member("a")], attacks: [] },
+        { state: "preparation", members: [member("a")], attacks: [] },
+      ]);
+      const a = contribution.find((c) => c.playerId === "a")!;
+      expect(a.warsPlayed).toBe(1);
+      expect(a.attacksMissed).toBe(0);
+      expect(a.warsMissedEntirely).toBe(0);
+    });
+
     it("counts wars a member sat out entirely", () => {
       const contribution = warContribution([
         { members: [member("a")], attacks: [] },

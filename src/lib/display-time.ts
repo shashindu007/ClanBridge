@@ -27,6 +27,8 @@
 // Both render the same string on the server, so switching a call site between
 // them changes nothing until the browser takes over.
 
+import { fromZonedTime } from "date-fns-tz";
+
 /**
  * The zone the server formats in, and the fallback when JavaScript never runs.
  *
@@ -84,4 +86,27 @@ export function formatDisplay(
   style: TimeStyle = "datetime",
 ): string {
   return formatIn(iso, style, DISPLAY_ZONE);
+}
+
+/**
+ * The reverse direction: a wall-clock reading a person TYPED, as an instant.
+ *
+ * `<input type="datetime-local">` sends "2026-09-26T20:00" with no zone. On the
+ * server `new Date()` reads that as UTC, so a leader in Colombo who typed 20:00
+ * stored 20:00 UTC — the poll then showed "Closes 01:30" the next day and
+ * stayed open five and a half hours longer than they asked. The form states the
+ * time in clan-local terms, so it is read in DISPLAY_ZONE, the same zone every
+ * server-rendered time on the page is shown in.
+ *
+ * Null for empty or unparseable input, rather than an Invalid Date that throws
+ * later from toISOString().
+ */
+export function parseDisplayLocal(
+  value: string | null | undefined,
+  zone: string = DISPLAY_ZONE,
+): Date | null {
+  const trimmed = value?.trim();
+  if (!trimmed || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(trimmed)) return null;
+  const date = fromZonedTime(trimmed, zone);
+  return Number.isNaN(date.getTime()) ? null : date;
 }

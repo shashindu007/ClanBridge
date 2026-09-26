@@ -16,7 +16,7 @@
 
 import Link from "next/link";
 import { Trophy } from "lucide-react";
-import { DataFreshness } from "@/components/data-freshness";
+import { SyncBadge } from "@/components/sync-badge";
 import { LocalTime } from "@/components/local-time";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, FactRow, Panel, SectionHeader, Tile } from "@/components/kit";
@@ -39,7 +39,6 @@ import { createClient } from "@/lib/supabase/server";
 import { seasonsForClan, warsInSeason } from "@/repositories/cwl";
 import { latestRun } from "@/repositories/sync-log";
 import { seasonSpan, seasonTotals } from "@/services/cwl";
-import { freshness } from "@/services/freshness";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +67,7 @@ export default async function CwlSeasonListPage({
   const base = `/${encodeURIComponent(clan.tag)}`;
 
   const seasons = await seasonsForClan(supabase, clan.id);
-  const runs = freshness(await latestRun(supabase, "cwl", clan.id));
+  const run = await latestRun(supabase, "cwl", clan.id);
 
   // Season totals need each season's wars. There are at most a handful of
   // seasons and seven wars each, so this stays small; if it ever does not, it
@@ -98,7 +97,9 @@ export default async function CwlSeasonListPage({
         eyebrow={clan.name}
         title="Clan War League"
         description="Every season this clan has played, kept for good — the game deletes its own when a season ends."
-        actions={<DataFreshness freshness={runs} canAdmin={isLeader(clan.role)} />}
+        actions={
+          <SyncBadge run={run} clanTag={clan.tag} target="cwl" canAdmin={isLeader(clan.role)} />
+        }
       />
 
       {running && (

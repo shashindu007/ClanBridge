@@ -549,22 +549,24 @@ export function clearTarget(
 }
 
 /**
- * A member claims a free base for themselves (025).
+ * A member claims a free base for one of their own villages (025, 046).
  *
- * No playerId argument, and that is not an omission: the function resolves the
- * player from auth.uid(), so there is no parameter through which to claim on
- * somebody else's behalf.
+ * `playerId` says WHICH of the caller's villages — it cannot name anyone
+ * else's: 046's function only accepts a village owned by auth.uid() that is in
+ * this war. Null lets the function pick the caller's village in this war.
  */
 export function claimTarget(
   supabase: SupabaseClient,
   warId: string,
   position: number,
   note: string | null = null,
+  playerId: string | null = null,
 ): Promise<{ error?: string }> {
   return callRpc(supabase, "claim_war_target", {
     p_war: warId,
     p_position: position,
     p_note: note,
+    p_player: playerId,
   });
 }
 
@@ -572,8 +574,9 @@ export function claimTarget(
 export function releaseTarget(
   supabase: SupabaseClient,
   warId: string,
+  playerId: string | null = null,
 ): Promise<{ error?: string }> {
-  return callRpc(supabase, "release_war_target", { p_war: warId });
+  return callRpc(supabase, "release_war_target", { p_war: warId, p_player: playerId });
 }
 
 // ---------------------------------------------------------------------------

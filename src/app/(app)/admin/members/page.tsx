@@ -29,7 +29,7 @@ import { ArrowRight, Search, UserCheck, UserX } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { currentUserId } from "@/lib/auth";
 import { safeMessage } from "@/lib/errors";
-import { adminAccounts, type AdminAccount } from "@/repositories/accounts";
+import { adminAccounts, leftClanInGame, type AdminAccount } from "@/repositories/accounts";
 import { SubmitButton } from "@/components/submit-button";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -202,6 +202,12 @@ export default async function AdminAccountsPage({
                   </Link>
                   <StatusBadge account={account} />
                   {account.isPlatformAdmin && <Badge variant="secondary">Owner</Badge>}
+                  {!account.removedAt && leftClanInGame(account) && (
+                    // Still holds a role here, but none of their villages is in
+                    // that clan any more. See leftClanInGame() for why this is a
+                    // flag for a leader and not an automatic removal.
+                    <Badge variant="warning">Left the clan in game</Badge>
+                  )}
                   {account.id === userId && <Badge variant="outline">You</Badge>}
                   {account.unreadMessages > 0 && (
                     <Badge variant="outline">

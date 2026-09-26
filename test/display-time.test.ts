@@ -10,7 +10,7 @@
 // missed-attack lists wrong."
 
 import { describe, expect, it } from "vitest";
-import { DISPLAY_ZONE, formatDisplay, formatIn } from "@/lib/display-time";
+import { DISPLAY_ZONE, formatDisplay, formatIn, parseDisplayLocal } from "@/lib/display-time";
 
 describe("formatIn — the day boundary that made this task exist", () => {
   // Sri Lanka is UTC+05:30. Anything after 18:30 UTC is already tomorrow there.
@@ -64,4 +64,25 @@ describe("formatDisplay — the server-side default", () => {
     expect(formatDisplay(iso, "time")).toBe("09:30");
     expect(formatDisplay(iso, "weekday")).toMatch(/^Wed 29 Jul, 09:30$/);
   });
+});
+
+describe("parseDisplayLocal — a typed time, read in clan-local time", () => {
+  // The poll-close bug: 20:00 typed in Colombo was stored as 20:00 UTC.
+  it("reads a datetime-local value as Colombo time, not UTC", () => {
+    expect(parseDisplayLocal("2026-09-26T20:00")?.toISOString()).toBe(
+      "2026-09-26T14:30:00.000Z",
+    );
+  });
+
+  it("round-trips through formatDisplay to what was typed", () => {
+    const at = parseDisplayLocal("2026-09-26T20:00")!;
+    expect(formatDisplay(at.toISOString(), "time")).toBe("20:00");
+  });
+
+  it.each(["", "   ", "tomorrow", "2026-09-26", "2026-13-45T99:99"])(
+    "returns null rather than an Invalid Date for %j",
+    (value) => {
+      expect(parseDisplayLocal(value)).toBeNull();
+    },
+  );
 });
