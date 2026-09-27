@@ -15,7 +15,14 @@
 // So: a tile per clan, all at once (components/clan-status-tile.tsx), each led
 // by a ribbon saying what it is doing and a line saying what you owe it; then
 // "Needs you" beneath (services/home.ts, pure and tested, because the ORDER is
-// the design). The "Online now" and "Go to" side panels are gone — every link
+// the design).
+//
+// Above the clans, the member's own main base — Town Hall, progress, heroes —
+// with Base details one click away instead of four. Each clan tile carries
+// your village there and the clan's latest notice, and a small Announcements
+// feed sits beside "Needs you", so "anything new?" needs no Notices page.
+//
+// The "Online now" and "Go to" side panels are gone — every link
 // in "Go to" is on the rail or in the account menu under the same name, and
 // the online count is on the rail.
 //
@@ -53,7 +60,17 @@ import { visibleClans, type VisibleClan } from "@/lib/clans";
 import { clanAccent } from "@/lib/clan-accent";
 import { cwlPhase, nextCwlWindow } from "@/lib/coc-time";
 import { isLeader, isLeadership } from "@/lib/visibility";
-import { clanDetail, currentMemberCount } from "@/repositories/clans";
+import {
+  announcementsForClan,
+  clanDetail,
+  currentMemberCount,
+  type Announcement,
+} from "@/repositories/clans";
+import { basesForUser, type OwnedBase } from "@/repositories/account-bases";
+import { baseProgress } from "@/repositories/player-progress";
+import { baseLabel } from "@/lib/nickname";
+import { encodeTag } from "@/lib/tags";
+import { counts, groupProgress, overallProgress } from "@/services/progress";
 import { attacksForWar, currentWar, membersOfWar, type WarRow } from "@/repositories/war";
 import * as cwlRepo from "@/repositories/cwl";
 import { myPlayers, pollsForClan, responsesForPoll, type Poll } from "@/repositories/polls";
@@ -66,7 +83,9 @@ import { warRecord, type MemberWarRecord } from "@/services/war";
 import { warRecord as cwlWarRecord } from "@/services/cwl";
 import { freshness, type Freshness } from "@/services/freshness";
 import {
+  announcementFeed,
   clanStatus,
+  mainBase,
   needsYou,
   type HomeClan,
   type HomeCwl,
@@ -77,6 +96,9 @@ import {
 import { EmptyState, ListRow, Panel, SectionHeader } from "@/components/kit";
 import { PageHeader } from "@/components/page-header";
 import { ClanStatusTile } from "@/components/clan-status-tile";
+import { MainBaseCard, type MainBaseView } from "@/components/main-base-card";
+import { AnnouncementFeed } from "@/components/announcement-feed";
+import { SceneBackdrop } from "@/components/game/scene-backdrop";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
@@ -97,6 +119,8 @@ interface LoadedClan {
   openPolls: Array<{ poll: Poll; responders: string[] }>;
   /** Current members' player ids — only for a clan the caller helps run, where non-responders are counted. */
   memberIds: string[];
+  /** Live announcements, pinned first then newest. */
+  notices: Announcement[];
 }
 
 /**
@@ -150,7 +174,7 @@ async function loadClan(
   now: Date,
   duringCwlWars: boolean,
 ): Promise<LoadedClan> {
-  const [detail, held, run, war, polls, roster, cwl] = await Promise.all([
+  const [detail, held, run, war, polls, roster, cwl, notices] = await Promise.all([
     clanDetail(supabase, clan.id),
     currentMemberCount(supabase, clan.id),
     latestRun(supabase, "clans", clan.id),
@@ -160,6 +184,7 @@ async function loadClan(
     // clan, so "members minus responders" undercounts; see services/home.ts.
     isLeadership(clan.role) ? membersForClan(supabase, clan.id) : Promise.resolve([]),
     duringCwlWars ? loadCwl(supabase, clan.id, now) : Promise.resolve(null),
+    announcementsForClan(supabase, clan.id),
   ]);
 
   const open = polls.filter((p) => isOpen(p));
@@ -188,6 +213,47 @@ async function loadClan(
       responders: responses[i]!.map((r) => r.playerId),
     })),
     memberIds: roster.map((m) => m.playerId),
+    notices,
+  };
+}
+
+const detailsHref = (b: OwnedBase) => `/account/bases/${encodeTag(b.tag)}/details`;
+
+/**
+ * The main base, drawn from its latest reading. Home village only: that is the
+ * Town Hall the card names, and its heroes are what a member checks first.
+ */
+async function loadMainBase(
+  supabase: Supabase,
+  base: OwnedBase | null,
+  clanNames: Map<string, string>,
+): Promise<MainBaseView | null> {
+  if (!base) return null;
+  // "owner" scope: the member's own village, wherever it plays.
+  const { latest } = await baseProgress(supabase, "owner", base.playerId);
+  const home = latest?.units.filter((u) => u.village === "home") ?? [];
+  const counted = home.filter(counts);
+  const playing = base.clanId && !base.leftAt;
+
+  return {
+    label: baseLabel(base.nickname, base.name),
+    name: base.name,
+    tag: base.tag,
+    thLevel: latest?.thLevel ?? base.thLevel,
+    verified: base.verified,
+    clanName: playing ? (clanNames.get(base.clanId!) ?? null) : null,
+    clanRole: playing ? base.clanRole : null,
+    detailsHref: detailsHref(base),
+    reportHref: `/account/bases/${encodeTag(base.tag)}`,
+    progress: latest
+      ? {
+          pct: overallProgress(latest.units, "home").pct,
+          maxed: counted.filter((u) => u.level >= u.cap).length,
+          counted: counted.length,
+          capturedAt: latest.capturedAt,
+          heroes: groupProgress(home, "home").find((g) => g.group === "hero")?.units ?? [],
+        }
+      : null,
   };
 }
 
@@ -240,12 +306,13 @@ export default async function DashboardPage({
   const userId = await currentUserId(supabase);
   if (!userId) redirect("/login");
 
-  const [{ clan: wanted }, profile, clans, mine, unread] = await Promise.all([
+  const [{ clan: wanted }, profile, clans, mine, unread, bases] = await Promise.all([
     searchParams,
     accountProfile(supabase, userId),
     visibleClans(supabase, userId),
     myPlayers(supabase, userId),
     unreadCount(supabase, userId),
+    basesForUser(supabase, userId),
   ]);
 
   // The old clan tabs were links to /dashboard?clan=TAG. Those bookmarks now go
@@ -259,11 +326,39 @@ export default async function DashboardPage({
   const admin = profile?.isPlatformAdmin === true;
   const leads = clans.some((c) => isLeader(c.role));
 
-  const [loaded, accounts] = await Promise.all([
+  const main = mainBase(bases);
+  const clanNames = new Map(clans.map((c) => [c.id, c.name]));
+
+  const [loaded, accounts, mainView] = await Promise.all([
     Promise.all(clans.map((clan) => loadClan(supabase, clan, now, phase === "wars"))),
     // Scoped by admin_accounts() to accounts THIS caller may approve.
     admin || leads ? adminAccounts(supabase) : Promise.resolve([]),
+    loadMainBase(supabase, main, clanNames),
   ]);
+
+  // Your village in each clan: the same rule as the main base, applied to the
+  // villages playing there — so the main one wins wherever it plays.
+  const villageIn = (clanId: string) => {
+    const here = mainBase(bases.filter((b) => b.clanId === clanId && !b.leftAt));
+    return here
+      ? { label: baseLabel(here.nickname, here.name), thLevel: here.thLevel, href: detailsHref(here) }
+      : null;
+  };
+
+  const feed = announcementFeed(
+    loaded.flatMap((l) =>
+      l.notices.map((n) => ({
+        id: n.id,
+        title: n.title,
+        body: n.body,
+        pinned: n.pinned,
+        createdAt: n.createdAt,
+        clanId: l.clan.id,
+        clanTag: l.clan.tag,
+        clanName: l.clan.name,
+      })),
+    ),
+  );
 
   const homeClans = loaded.map(toHomeClan);
   const items = needsYou({
@@ -311,7 +406,15 @@ export default async function DashboardPage({
 
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
-      <PageHeader title={`Welcome back, ${name}`} description={summary} />
+      {/* The welcome, on a banner with the game behind it — the one place on
+          Home that is greeting rather than work. */}
+      <section className="cb-hero rounded-hero border px-5 py-7 sm:px-8 sm:py-9">
+        <SceneBackdrop scene="crystal" blur="md" fade="left" />
+        <PageHeader title={`Welcome back, ${name}`} description={summary} />
+      </section>
+
+      {/* ── Your main base ─────────────────────────────────────────────── */}
+      <MainBaseCard base={mainView} otherBases={Math.max(0, bases.length - 1)} />
 
       {/* ── Every clan, at once ────────────────────────────────────────── */}
       {loaded.length === 0 ? (
@@ -341,9 +444,11 @@ export default async function DashboardPage({
           <h2 id="clans-title" className="text-lg font-semibold">
             Your clans
           </h2>
-          {/* auto-fit at lg: two clans get two wide tiles, four get four. The
-              row gap is large because each badge rises out of its tile. */}
-          <ul className="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]">
+          {/* auto-fit at lg: two clans get two wide tiles, three get three,
+              and a fourth wraps rather than squeezing every tile below a
+              readable width. The row gap is large because each badge rises
+              out of its tile. */}
+          <ul className="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
             {loaded.map((l, i) => (
               <ClanStatusTile
                 key={l.clan.id}
@@ -369,14 +474,18 @@ export default async function DashboardPage({
                       ) || null
                     : null
                 }
+                village={villageIn(l.clan.id)}
+                notice={l.notices[0] ?? null}
+                now={now}
               />
             ))}
           </ul>
         </section>
       )}
 
-      {/* ── Needs you ─────────────────────────────────────────────────── */}
-      <Panel aria-labelledby="needs-title" className="space-y-4">
+      {/* ── Needs you, and the announcements beside it ─────────────────── */}
+      <div className="grid items-start gap-6 lg:grid-cols-3">
+      <Panel aria-labelledby="needs-title" className="space-y-4 lg:col-span-2">
         <SectionHeader id="needs-title" title="Needs you" count={items.length} />
         {items.length === 0 ? (
           <EmptyState
@@ -404,6 +513,13 @@ export default async function DashboardPage({
           </>
         )}
       </Panel>
+
+      <AnnouncementFeed
+        notices={feed}
+        now={now}
+        allHref={loaded.length === 1 ? `/${encodeURIComponent(loaded[0]!.clan.tag)}/notices` : undefined}
+      />
+      </div>
     </main>
   );
 }

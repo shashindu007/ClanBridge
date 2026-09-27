@@ -20,6 +20,8 @@
 // The button now lives in the /verify page itself, which is the only page in
 // this group that ever needed it. /login renders with no database call at all.
 
+import { SceneBackdrop } from "@/components/game/scene-backdrop";
+
 export default function AuthLayout({
   children,
 }: {
@@ -32,9 +34,16 @@ export default function AuthLayout({
   //
   // Still synchronous. Nothing above is a data call and nothing below is
   // either — see the comment above on why that is worth protecting.
+  //
+  // Behind the card, the Skeleton Kingdom, heavily blurred: the first screen
+  // anybody sees says "Clash" before it says "form". A static file and CSS —
+  // still no data call.
   return (
-    <div className="mx-auto w-full max-w-md p-6 sm:p-8">
-      <div className="cb-panel rounded-panel border p-5 sm:p-8">{children}</div>
-    </div>
+    <>
+      <SceneBackdrop scene="skeleton" blur="lg" fade="even" fixed />
+      <div className="mx-auto w-full max-w-md p-6 sm:p-8">
+        <div className="cb-panel rounded-panel border p-5 sm:p-8">{children}</div>
+      </div>
+    </>
   );
 }

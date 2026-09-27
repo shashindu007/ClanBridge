@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SceneBackdrop } from "@/components/game/scene-backdrop";
 import type { PublicQuote, PublicStats } from "@/repositories/feedback";
 
 const JOIN_HREF = "/login?mode=signup";
@@ -243,6 +244,9 @@ export function Landing({
       <main id="main" className="mx-auto max-w-page space-y-20 px-4 py-10 sm:py-16">
         {/* ── Hero ─────────────────────────────────────────────────────── */}
         <section aria-labelledby="hero-title" className="cb-hero rounded-hero border">
+          {/* The game itself behind the promise — lightly blurred, and
+              scrimmed into the theme on the left where the words are. */}
+          <SceneBackdrop scene="crystal" blur="sm" fade="left" />
           <div className="cb-hero-stripe" />
           <div className="space-y-6 px-6 py-12 sm:px-12 sm:py-16">
             <p className="text-primary text-xs font-semibold tracking-wider uppercase">

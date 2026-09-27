@@ -58,6 +58,23 @@ describe("BaseDetails", () => {
     expect(html).not.toContain("100 / 110");
   });
 
+  it("draws every unit as an icon with its level, even without the Fan Kit", () => {
+    const html = render({ latest, baseline: null });
+    // Units the committed Fan Kit art does not cover draw their kind's icon.
+    expect(html).toContain("cb-unit-token");
+    expect(html).toContain("lucide-swords");
+    expect(html).toContain("cb-unit-level");
+    // A maxed King gets the gold plate.
+    expect(html).toContain("cb-unit-level-max");
+  });
+
+  it("leads with maxed, behind and upgraded counts", () => {
+    const html = render({ latest, baseline: null });
+    expect(html).toContain("Maxed");
+    expect(html).toContain("Behind");
+    expect(html).toContain("one reading so far");
+  });
+
   it("switches to the Builder Base through a link, not client state", () => {
     const home = render({ latest, baseline: null }, "home");
     expect(home).toContain('href="/account/bases/%23PY0LQGRJ/details?village=builder"');

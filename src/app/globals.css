@@ -676,6 +676,79 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='132' height='132' viewBox='0 0 132 132'%3E%3Cg fill='none' stroke='%23c9d8ff' stroke-opacity='0.08' stroke-width='2'%3E%3Cpath d='M66 20 L98 33 v27 c0 21-15 36-32 45-17-9-32-24-32-45V33z'/%3E%3Cpath d='M66 33 v59'/%3E%3Cpath d='M40 47 h52'/%3E%3C/g%3E%3C/svg%3E");
   }
 
+  /* ── Scene: a blurred Clash picture behind a surface ─────────────────────
+     components/game/scene-backdrop.tsx. The picture is scaled up a little so
+     the blur's soft edge falls outside the box. The scrim (::after) is the
+     theme's own background at partial opacity — no color-mix, see .cb-hero —
+     heavier where the words are, so text keeps its measured contrast. */
+  .cb-scene {
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  .cb-scene-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scale(1.08);
+    filter: blur(6px) saturate(1.15);
+  }
+
+  .cb-scene[data-blur="sm"] .cb-scene-img {
+    filter: blur(2.5px) saturate(1.15);
+    transform: scale(1.03);
+  }
+
+  .cb-scene[data-blur="lg"] .cb-scene-img {
+    filter: blur(14px) saturate(1.2);
+    transform: scale(1.12);
+  }
+
+  .cb-scene::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--background);
+    opacity: 0.55;
+  }
+
+  /* Words on the left: solid behind them, the picture showing on the right. */
+  .cb-scene[data-fade="left"]::after {
+    background: linear-gradient(
+      90deg,
+      var(--background) 0%,
+      var(--background) 30%,
+      transparent 85%
+    );
+    opacity: 0.92;
+  }
+
+  .cb-scene[data-fade="left"]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: var(--background);
+    opacity: 0.35;
+  }
+
+  .dark .cb-scene::after {
+    opacity: 0.62;
+  }
+
+  .dark .cb-scene[data-fade="left"]::after {
+    opacity: 0.9;
+  }
+
+  .dark .cb-scene[data-fade="left"]::before {
+    opacity: 0.25;
+  }
+
   /* The stripe along the top of a hero — the clan's colour, fading out. */
   .cb-hero-stripe {
     height: 4px;
@@ -815,6 +888,54 @@
     box-shadow:
       inset 0 2px 6px oklch(0 0 0 / 0.45),
       inset 0 -1px 0 oklch(1 0 0 / 0.05);
+  }
+
+  /* ── Unit: a troop, spell or hero square (components/game/unit-icon.tsx) ──
+     The token stands in for Fan Kit art: the group's common icon on its colour, with
+     the ribbon's gloss so it reads as a game piece rather than an avatar.
+     The level plate is the army screen's corner number; gold when maxed. */
+  .cb-unit-token {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* The icon sits a little high, clear of the level plate's corner. */
+    padding-bottom: 8%;
+    border-radius: var(--radius-control);
+    color: oklch(1 0 0);
+    font-family: var(--font-display);
+    line-height: 1;
+    letter-spacing: 0.02em;
+    text-shadow: 0 1px 0 oklch(0 0 0 / 0.35);
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.24) 0%, transparent 55%),
+      var(--unit);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.3),
+      inset 0 -2px 0 oklch(0 0 0 / 0.22);
+  }
+
+  .cb-unit-level {
+    position: absolute;
+    right: -0.375rem;
+    bottom: -0.375rem;
+    min-width: 1.25rem;
+    padding: 0.08rem 0.25rem;
+    border-radius: 0.375rem;
+    background: oklch(0.22 0.04 264);
+    color: oklch(1 0 0);
+    font-family: var(--font-display);
+    font-size: 0.6875rem;
+    line-height: 1.1;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    box-shadow:
+      0 0 0 1.5px var(--tile),
+      inset 0 1px 0 oklch(1 0 0 / 0.15);
+  }
+
+  .cb-unit-level-max {
+    background: var(--gold);
+    color: var(--gold-ink);
   }
 
   /* ── Gauge: a track and a glossy fill ────────────────────────────────────

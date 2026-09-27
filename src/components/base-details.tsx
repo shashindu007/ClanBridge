@@ -12,22 +12,19 @@
 // Every number shown comes from one stored reading (036). Nothing here decides
 // what a cap is: the reading carries the cap applied when it was captured, and
 // services/progress.ts does the arithmetic.
+//
+// LAID OUT LIKE THE ARMY SCREEN. Every unit is its picture with its level on a
+// corner plate, in a grid — a player finds "Archer Queen" by her face faster
+// than by reading a column of names. The summary above the grid answers the
+// three questions asked first: how far along, what is behind, what moved.
 
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
+import { ArrowUpRight, CheckCircle2, Hourglass, TrendingUp } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import { GameArt } from "@/components/game/game-art";
+import { StatTile } from "@/components/kit";
 import { TownHall } from "@/components/game/town-hall";
-import { artKeyForUnit } from "@/lib/game-art";
+import { UnitIcon } from "@/components/game/unit-icon";
 import { dayLabel } from "@/components/player-report-sections";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import type { BaseProgress } from "@/repositories/player-progress";
 import { UPGRADE_WINDOW_DAYS } from "@/repositories/player-progress";
 import {
@@ -39,6 +36,7 @@ import {
   type GroupProgress,
   type StoredUnit,
 } from "@/services/progress";
+import { cn } from "@/lib/utils";
 import type { Village } from "@/types/domain";
 
 export interface BaseDetailsProps {
@@ -51,6 +49,11 @@ export interface BaseDetailsProps {
 /** Parse the `?village=` search parameter. Anything but "builder" is home. */
 export function villageParam(value: string | string[] | undefined): Village {
   return value === "builder" ? "builder" : "home";
+}
+
+/** At the cap for this hall. A unit with no cap here has nothing to reach. */
+export function isMaxed(unit: StoredUnit): boolean {
+  return unit.cap > 0 && unit.level >= unit.cap;
 }
 
 export function BaseDetails({ progress, village, path }: BaseDetailsProps) {
@@ -74,6 +77,7 @@ export function BaseDetails({ progress, village, path }: BaseDetailsProps) {
 
   const hall = village === "home" ? latest.thLevel : latest.bhLevel;
   const hallName = village === "home" ? "Town Hall" : "Builder Hall";
+  const hallShort = village === "home" ? "TH" : "BH";
   const groups = groupProgress(latest.units, village);
   const overall = overallProgress(latest.units, village);
   const behind = behindPreviousHall(latest.units, village, hall ?? undefined);
@@ -82,10 +86,16 @@ export function BaseDetails({ progress, village, path }: BaseDetailsProps) {
     : [];
   const anyCapUnknown = groups.some((g) => g.capUnknown > 0);
 
+  const counted = latest.units.filter((u) => u.village === village && counts(u));
+  const maxedCount = counted.filter(isMaxed).length;
+  const behindCount = behind.reduce((n, g) => n + g.units.length, 0);
+  const hasPrevious = Boolean(hall && hall > 1);
+  const heroes = groups.find((g) => g.group === (village === "home" ? "hero" : "builderHero"));
+
   return (
     <>
-      <section className="cb-panel space-y-4 rounded-panel border p-5">
-        <nav aria-label="Village" className="flex flex-wrap gap-2">
+      <section className="cb-panel space-y-5 rounded-panel border p-5">
+        <nav aria-label="Village" className="cb-sunken inline-flex gap-1 rounded-control p-1">
           <VillageLink path={path} village="home" current={village}>
             Home village
           </VillageLink>
@@ -98,28 +108,82 @@ export function BaseDetails({ progress, village, path }: BaseDetailsProps) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               {village === "home" && <TownHall level={hall ?? null} size="md" />}
-              <h2 className="text-lg font-semibold">
-                {hall ? `${hallName} ${hall}` : hallName}
-                {village === "home" && latest.thWeaponLevel
-                  ? ` · weapon ${latest.thWeaponLevel}`
-                  : ""}
-              </h2>
+              <div>
+                <h2 className="text-lg font-semibold">
+                  {hall ? `${hallName} ${hall}` : hallName}
+                  {village === "home" && latest.thWeaponLevel
+                    ? ` · weapon ${latest.thWeaponLevel}`
+                    : ""}
+                </h2>
+                <p className="text-muted-foreground text-xs">Read {dayLabel(latest.capturedAt)}</p>
+              </div>
             </div>
-            <p className="cb-title text-3xl tabular-nums">{overall.pct}%</p>
+            <p className="cb-title text-4xl tabular-nums">{overall.pct}%</p>
           </div>
-          <Progress value={overall.pct} label={`${hallName} progress`} />
+          <Progress value={overall.pct} label={`${hallName} progress`} className="h-2.5" />
           <p className="text-muted-foreground text-xs">
             Levels against the cap for this {hallName}, across every group below
-            except super troops. Read {dayLabel(latest.capturedAt)}.
+            except super troops.
           </p>
         </div>
 
         {groups.length > 0 && (
-          <ul className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <StatTile
+              label="Maxed"
+              icon={CheckCircle2}
+              value={maxedCount}
+              sub={`of ${counted.length} units`}
+            />
+            <StatTile
+              label="Behind"
+              icon={Hourglass}
+              value={hasPrevious ? behindCount : "—"}
+              sub={hasPrevious ? `under ${hallShort} ${hall! - 1} cap` : "no earlier hall"}
+            />
+            <StatTile
+              label="Upgraded"
+              icon={TrendingUp}
+              value={baseline ? upgrades.length : "—"}
+              sub={baseline ? `since ${dayLabel(baseline.capturedAt)}` : "one reading so far"}
+            />
+          </div>
+        )}
+
+        {heroes && heroes.units.length > 0 && (
+          <div className="space-y-2.5">
+            <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+              {heroes.label}
+            </h3>
+            <ul className="flex flex-wrap gap-x-5 gap-y-3">
+              {heroes.units.map((u) => (
+                <li key={u.name} className="flex items-center gap-2.5">
+                  <UnitIcon
+                    name={u.name}
+                    group={u.group}
+                    size={40}
+                    level={u.level}
+                    maxed={isMaxed(u)}
+                    locked={u.level === 0}
+                  />
+                  <span className="text-sm leading-tight">
+                    <span className="block font-medium">{u.name}</span>
+                    <span className="text-muted-foreground text-xs tabular-nums">
+                      {u.level === 0 ? "locked" : `level ${u.level} of ${u.cap}`}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {groups.length > 0 && (
+          <ul className="grid gap-x-6 gap-y-3 border-t pt-4 sm:grid-cols-2">
             {groups.map((g) => (
               <li key={g.group} className="space-y-1">
                 <div className="flex items-baseline justify-between gap-2 text-sm">
-                  <a className="underline-offset-2 hover:underline" href={`#${g.group}`}>
+                  <a className="font-medium underline-offset-2 hover:underline" href={`#${g.group}`}>
                     {g.label}
                   </a>
                   <span className="text-muted-foreground tabular-nums">
@@ -153,14 +217,11 @@ export function BaseDetails({ progress, village, path }: BaseDetailsProps) {
         </section>
       ) : (
         <>
-          <BehindPanel behind={behind} hall={hall} hallName={hallName} />
-          <UpgradesPanel
-            upgrades={upgrades}
-            since={baseline?.capturedAt ?? null}
-          />
           {groups.map((g) => (
             <GroupPanel key={g.group} group={g} />
           ))}
+          <BehindPanel behind={behind} hall={hall} hallName={hallName} />
+          <UpgradesPanel upgrades={upgrades} since={baseline?.capturedAt ?? null} />
         </>
       )}
     </>
@@ -183,14 +244,94 @@ function VillageLink({
     <Link
       href={village === "home" ? path : `${path}?village=builder`}
       aria-current={active ? "page" : undefined}
-      className={
-        active
-          ? "bg-primary text-primary-foreground rounded-md px-3 py-1.5 text-sm font-medium"
-          : "hover:bg-accent rounded-md border px-3 py-1.5 text-sm"
-      }
+      className={cn(
+        "rounded-chip px-3.5 py-1.5 text-sm font-medium transition-colors",
+        active ? "bg-tile text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+      )}
     >
       {children}
     </Link>
+  );
+}
+
+/**
+ * One group as the army screen draws it: a grid of pictures, each with its
+ * level on the corner plate and its progress under its name.
+ */
+function GroupPanel({ group }: { group: GroupProgress }) {
+  const isSuper = group.group === "superTroop";
+  const counted = group.units.filter(counts).length;
+
+  return (
+    <section id={group.group} className="cb-panel scroll-mt-4 space-y-4 rounded-panel border p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-lg font-semibold">{group.label}</h2>
+        {isSuper ? (
+          <span className="text-muted-foreground text-sm">
+            not counted — a super troop&apos;s level is its base troop&apos;s
+          </span>
+        ) : (
+          <span className="text-muted-foreground text-sm tabular-nums">
+            {group.pct}% · {group.maxed} of {counted} maxed
+          </span>
+        )}
+      </div>
+
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-2.5">
+        {group.units.map((u) => (
+          <UnitCard key={`${u.village}:${u.name}`} unit={u} showBar={!isSuper} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function UnitCard({ unit, showBar }: { unit: StoredUnit; showBar: boolean }) {
+  const maxed = isMaxed(unit);
+  const locked = unit.level === 0;
+  const pct = unit.cap > 0 ? Math.floor((Math.min(unit.level, unit.cap) / unit.cap) * 100) : 0;
+
+  return (
+    <li
+      className={cn(
+        "cb-sunken flex min-w-0 flex-col items-center gap-1.5 rounded-control px-2 pt-3 pb-2.5 text-center",
+        maxed && "ring-gold/60 ring-1",
+      )}
+    >
+      <UnitIcon
+        name={unit.name}
+        group={unit.group}
+        size={52}
+        level={unit.level}
+        maxed={maxed}
+        locked={locked}
+      />
+      <p className="mt-1 line-clamp-2 w-full text-xs leading-tight font-medium">
+        {unit.name}
+        {!unit.capKnown && (
+          <span title="Cap for this hall not known — measured against the game maximum">*</span>
+        )}
+      </p>
+      {unit.hero && (
+        <p className="text-muted-foreground -mt-1 w-full truncate text-[0.6875rem]">{unit.hero}</p>
+      )}
+      <p
+        className={cn(
+          "text-xs tabular-nums",
+          maxed ? "text-foreground font-semibold" : "text-muted-foreground",
+        )}
+      >
+        {locked ? "locked" : `${unit.level} / ${unit.cap}`}
+        {maxed && <span className="sr-only"> — maxed</span>}
+      </p>
+      {showBar && !locked && (
+        <Progress
+          value={pct}
+          label={`${unit.name} ${unit.level} of ${unit.cap}`}
+          className="mt-auto h-1"
+        />
+      )}
+    </li>
   );
 }
 
@@ -219,7 +360,8 @@ function BehindPanel({
         </span>
       </div>
       {total === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-muted-foreground flex items-center gap-2 text-sm">
+          <CheckCircle2 aria-hidden className="text-success-ink size-4" />
           Everything is at least at the level {hallName} {hall - 1} allows.
         </p>
       ) : (
@@ -228,17 +370,15 @@ function BehindPanel({
             These have not reached the maximum for the previous {hallName}.
             Equipment is left out, because it is collected rather than unlocked.
           </p>
-          <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+          <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
             {behind.map((g) => (
-              <div key={g.group} className="space-y-1">
+              <div key={g.group} className="space-y-2">
                 <dt className="text-sm font-medium">{g.label}</dt>
                 {g.units.map((u) => (
-                  <dd
-                    key={u.name}
-                    className="text-muted-foreground flex justify-between gap-2 text-sm"
-                  >
-                    <span>{u.name}</span>
-                    <span className="tabular-nums">
+                  <dd key={u.name} className="flex items-center gap-2.5 text-sm">
+                    <UnitIcon name={u.name} group={g.group} size={28} locked={u.level === 0} />
+                    <span className="min-w-0 flex-1 truncate">{u.name}</span>
+                    <span className="text-muted-foreground tabular-nums">
                       {u.level === 0 ? "locked" : u.level} / {u.previousCap}
                     </span>
                   </dd>
@@ -263,9 +403,7 @@ function UpgradesPanel({
     <section className="cb-panel space-y-3 rounded-panel border p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold">Upgraded lately</h2>
-        {since && (
-          <span className="text-muted-foreground text-sm">since {dayLabel(since)}</span>
-        )}
+        {since && <span className="text-muted-foreground text-sm">since {dayLabel(since)}</span>}
       </div>
       {!since ? (
         <p className="text-muted-foreground text-sm">
@@ -275,11 +413,13 @@ function UpgradesPanel({
       ) : upgrades.length === 0 ? (
         <p className="text-muted-foreground text-sm">Nothing was upgraded in this period.</p>
       ) : (
-        <ul className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+        <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
           {upgrades.map((u) => (
-            <li key={`${u.village}:${u.name}`} className="flex justify-between gap-2 text-sm">
-              <span>{u.name}</span>
-              <span className="text-muted-foreground tabular-nums">
+            <li key={`${u.village}:${u.name}`} className="flex items-center gap-2.5 text-sm">
+              <UnitIcon name={u.name} group={u.group} size={28} />
+              <span className="min-w-0 flex-1 truncate">{u.name}</span>
+              <span className="text-muted-foreground inline-flex items-center gap-1 tabular-nums">
+                <ArrowUpRight aria-hidden className="text-success-ink size-3.5" />
                 {u.from === 0 ? "unlocked" : u.from} → {u.to}
               </span>
             </li>
@@ -287,84 +427,5 @@ function UpgradesPanel({
         </ul>
       )}
     </section>
-  );
-}
-
-function GroupPanel({ group }: { group: GroupProgress }) {
-  const isSuper = group.group === "superTroop";
-  const counted = group.units.filter(counts).length;
-
-  return (
-    <section id={group.group} className="cb-panel scroll-mt-4 space-y-3 rounded-panel border p-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold">{group.label}</h2>
-        {isSuper ? (
-          <span className="text-muted-foreground text-sm">
-            not counted — a super troop&apos;s level is its base troop&apos;s
-          </span>
-        ) : (
-          <span className="text-muted-foreground text-sm tabular-nums">
-            {group.pct}% · {group.maxed} of {counted} maxed
-          </span>
-        )}
-      </div>
-
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{group.group === "equipment" ? "Equipment" : "Name"}</TableHead>
-            <TableHead className="text-right">Level</TableHead>
-            <TableHead className="hidden w-1/3 sm:table-cell">
-              <span className="sr-only">Progress</span>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {group.units.map((u) => (
-            <UnitRow key={`${u.village}:${u.name}`} unit={u} showBar={!isSuper} />
-          ))}
-        </TableBody>
-      </Table>
-    </section>
-  );
-}
-
-function UnitRow({ unit, showBar }: { unit: StoredUnit; showBar: boolean }) {
-  const maxed = unit.cap > 0 && unit.level >= unit.cap;
-  const pct = unit.cap > 0 ? Math.floor((Math.min(unit.level, unit.cap) / unit.cap) * 100) : 0;
-
-  return (
-    <TableRow>
-      <TableCell>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* The unit's own picture when the Fan Kit is installed: a player
-              finds "Archer Queen" faster by her face than by reading a column
-              of names. Nothing is drawn without it — the name is the label. */}
-          <GameArt
-            art={artKeyForUnit(unit.name, unit.group)}
-            size={32}
-            alt=""
-            className={unit.level === 0 ? "opacity-40 grayscale" : undefined}
-          />
-          <span className="font-medium">
-            {unit.name}
-            {!unit.capKnown && (
-              <span title="Cap for this hall not known — measured against the game maximum">
-                *
-              </span>
-            )}
-          </span>
-          {unit.level === 0 && <Badge variant="outline">locked</Badge>}
-          {maxed && <Badge variant="success">max</Badge>}
-        </div>
-        {unit.hero && <p className="text-muted-foreground text-xs">{unit.hero}</p>}
-      </TableCell>
-      <TableCell className="text-right tabular-nums">
-        {unit.level} / {unit.cap}
-      </TableCell>
-      <TableCell className="hidden sm:table-cell">
-        {showBar && <Progress value={pct} label={`${unit.name} ${unit.level} of ${unit.cap}`} />}
-      </TableCell>
-    </TableRow>
   );
 }

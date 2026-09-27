@@ -33,6 +33,7 @@
 
 import type { ClanRole } from "@/types/domain";
 import { isLeadership } from "@/lib/visibility";
+import { DISPLAY_ZONE } from "@/lib/display-time";
 
 export interface HomeClan {
   id: string;
@@ -521,4 +522,95 @@ export function countsByClan(items: NeedItem[]): Map<string, number> {
     for (const clan of item.clans) counts.set(clan.id, (counts.get(clan.id) ?? 0) + 1);
   }
   return counts;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// "Your main base" — the one village Home shows up front.
+//
+// The data has no "main" flag, and adding one would be a column and a form for
+// something the member has usually already said: plenty of them label a base
+// "main" on /account (033's own example). So:
+//
+//   1. a base the member labelled "main" (any case, "main account" too)
+//   2. otherwise the highest Town Hall still in a clan here
+//   3. otherwise the highest Town Hall at all
+//
+// Ties go to a verified base, then to the order the list already has (by tag),
+// so the choice never flips between two page loads.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface MainBaseCandidate {
+  tag: string;
+  nickname: string | null;
+  thLevel: number | null;
+  verified: boolean;
+  clanId: string | null;
+  leftAt: string | null;
+}
+
+export function mainBase<T extends MainBaseCandidate>(bases: readonly T[]): T | null {
+  if (bases.length === 0) return null;
+
+  const labelled = bases.find((b) => /^main\b/i.test(b.nickname?.trim() ?? ""));
+  if (labelled) return labelled;
+
+  const playing = bases.filter((b) => b.clanId && !b.leftAt);
+  const pool = playing.length > 0 ? playing : bases;
+  return pool.reduce((best, b) => {
+    const th = b.thLevel ?? 0;
+    const bestTh = best.thLevel ?? 0;
+    if (th !== bestTh) return th > bestTh ? b : best;
+    if (b.verified !== best.verified) return b.verified ? b : best;
+    return best;
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Announcements across every clan, for Home's small feed.
+//
+// NEWEST FIRST, NOT PINNED FIRST. Pinned-first is right on one clan's notice
+// board, where a pin is the leader saying "read this before anything else".
+// Across clans it would let a pin from last season hold the feed forever and
+// hide what was posted this morning. The pin still shows, as a badge — and each
+// clan's tile already leads with its pinned notice.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface FeedNotice {
+  id: string;
+  title: string;
+  body: string;
+  pinned: boolean;
+  createdAt: string;
+  clanId: string;
+  clanTag: string;
+  clanName: string;
+}
+
+export function announcementFeed(notices: readonly FeedNotice[], limit = 4): FeedNotice[] {
+  return [...notices]
+    // Parsed, not compared as text: "…Z" and "…+00:00" name the same instant.
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    .slice(0, limit);
+}
+
+/**
+ * How long ago, in the fewest words: "just now", "40m ago", "5h ago", "3d ago".
+ * Past a week it is a date — "12 Sep" — because "23d ago" makes the reader
+ * do the subtraction.
+ */
+export function timeAgo(iso: string, now: Date): string {
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return "";
+  const minutes = Math.floor((now.getTime() - then) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(then).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    timeZone: DISPLAY_ZONE,
+  });
 }

@@ -83,4 +83,35 @@ describe("ClanStatusTile", () => {
     expect(out).toContain("Master III");
     expect(out).not.toContain("<button");
   });
+
+  it("shows your village with a way to its base details, and the latest notice", () => {
+    const out = renderToStaticMarkup(
+      createElement(ClanStatusTile, {
+        clan,
+        status: { kind: "idle", tone: "neutral", label: "NO WAR", mine: null, href: "/x/war" },
+        memberCount: 48,
+        level: 17,
+        warLeague: null,
+        fresh,
+        gold: false,
+        clanLeft: null,
+        village: { label: "main", thLevel: 16, href: "/account/bases/%23PY0LQGRJ/details" },
+        notice: { title: "War at 8pm", pinned: true, createdAt: "2026-09-27T09:00:00Z" },
+        now: new Date("2026-09-27T12:00:00Z"),
+      }),
+    );
+    expect(out).toContain('href="/account/bases/%23PY0LQGRJ/details"');
+    expect(out).toContain("Base details");
+    expect(out).toContain("Town Hall 16");
+    expect(out).toContain('href="/%232PP0JCCL/notices"');
+    expect(out).toContain("War at 8pm");
+    expect(out).toContain("3h ago");
+    expect(out).toContain('aria-label="Pinned"');
+  });
+
+  it("says so when the clan has posted nothing", () => {
+    const out = render({ kind: "idle", tone: "neutral", label: "NO WAR", mine: null, href: "/x/war" });
+    expect(out).toContain("No announcements yet");
+    expect(out).not.toContain("Base details");
+  });
 });

@@ -51,3 +51,14 @@ are all in `scripts/game-art.map.ts`, with tests in
 `scripts/game-art.test.ts`. Fix the pattern and run the script again. Don't
 rename or move files here by hand: the manifest is what the app trusts, and only
 the script writes it.
+
+## Scenes (`public/scenes/`)
+
+The blurred pictures behind the landing hero, the sign-in screen and Home's
+welcome banner (`components/game/scene-backdrop.tsx`). They live outside
+`public/game/` because `npm run game-art` empties the art folders on every
+run. Same rules: Fan Kit art, resized and re-encoded to webp and nothing else.
+The blur and the dimming are CSS, applied when the page is drawn.
+
+- `skeleton-kingdom.webp` — the kit's `SkeletonKingdom_withCharacters.jpg`
+- `crystal-cave.webp` — a Fan Kit key-art scene (crystal cavern)
