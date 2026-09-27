@@ -53,6 +53,7 @@ import {
   targetCompliance,
   warContribution,
   warRecord,
+  warSummary,
   warTotals,
 } from "@/services/war";
 
@@ -585,6 +586,36 @@ describe("services/war — the derivations", () => {
     // size, and 0 would otherwise make every base invalid.
     it("treats a zero team size as unknown, not as a war with no bases", () => {
       expect(parseBasePosition("7", 0)).toBe(7);
+    });
+  });
+
+  describe("warSummary", () => {
+    it("averages over attacks made, and says nothing before the first", () => {
+      const members = [member("a", { mapPosition: 1 }), member("b", { mapPosition: 2 })];
+      const empty = warRecord(members, []);
+      const quiet = warSummary(empty, enemyBoard(2, [], [], members));
+      expect(quiet.averageStars).toBeNull();
+      expect(quiet.attacksLeft).toBe(4);
+      expect(quiet.basesFree).toBe(2);
+
+      const attacks = [
+        attack("a", 1, { stars: 3, destruction: 100, defenderPosition: 1 }),
+        attack("b", 1, { stars: 1, destruction: 50, defenderPosition: 2 }),
+      ];
+      const targets = [target("b", 2)];
+      const record = warRecord(members, attacks, targets);
+      const summary = warSummary(record, enemyBoard(2, [], attacks, members, targets));
+      expect(summary).toMatchObject({
+        attacksAllowed: 4,
+        attacksUsed: 2,
+        attacksLeft: 2,
+        threeStars: 1,
+        averageStars: 2,
+        averageDestruction: 75,
+        basesFree: 0,
+        basesAssigned: 1,
+        basesCleared: 1,
+      });
     });
   });
 });

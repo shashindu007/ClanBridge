@@ -246,6 +246,46 @@ export function enemyBoard(
   return board;
 }
 
+/**
+ * The war board's line of numbers, derived from the record and the board so
+ * the page does no arithmetic of its own.
+ *
+ * Averages are over attacks MADE, and null before the first one: "0.0 stars a
+ * hit" at the start of battle day reads as a disaster rather than as nothing
+ * having happened yet.
+ */
+export interface WarSummary {
+  attacksAllowed: number;
+  attacksUsed: number;
+  attacksLeft: number;
+  threeStars: number;
+  averageStars: number | null;
+  averageDestruction: number | null;
+  basesFree: number;
+  basesAssigned: number;
+  /** Enemy bases taken for three stars — the count that wins a war. */
+  basesCleared: number;
+}
+
+export function warSummary(record: MemberWarRecord[], board: EnemyBase[]): WarSummary {
+  const attacks = record.flatMap((m) => m.attacks);
+  const attacksAllowed = record.reduce((total, m) => total + m.attacksAllowed, 0);
+  const attacksUsed = attacks.length;
+  return {
+    attacksAllowed,
+    attacksUsed,
+    attacksLeft: Math.max(0, attacksAllowed - attacksUsed),
+    threeStars: attacks.filter((a) => a.stars === 3).length,
+    averageStars: attacksUsed ? attacks.reduce((t, a) => t + a.stars, 0) / attacksUsed : null,
+    averageDestruction: attacksUsed
+      ? attacks.reduce((t, a) => t + a.destruction, 0) / attacksUsed
+      : null,
+    basesFree: board.filter((b) => b.free).length,
+    basesAssigned: board.filter((b) => b.assignedTo.length > 0).length,
+    basesCleared: board.filter((b) => b.bestStars === 3).length,
+  };
+}
+
 export interface WarTotals {
   warsPlayed: number;
   wins: number;

@@ -28,7 +28,17 @@
 //   the scoreboard  the game's own picture of a war: two badges, VS, stars,
 //                   destruction; then size, deadline and attacks used in a line
 //   still to attack split into "not at all" and "one left"
-//   the lineup      plan beside result, and the enemy bases
+//   the lineup      plan beside result
+//   their bases     a board of cards, one per base: free / assigned (named) /
+//                   attacked / three-starred, each in colour and in words
+//
+// REDESIGNED AGAIN (047). One member per base, for leadership too, so the
+// board can say plainly who holds each base. The per-row <select> of bare
+// numbers became pickers (components/war-assign.tsx): from a base, "who hits
+// this?"; from a member, "which base?" — with bases someone holds shown locked
+// and named. The score gained a ticking countdown and a grid of labelled
+// numbers: attacks used, three-star hits, stars and destruction per attack,
+// and enemy bases cleared.
 //
 // The last three FOLD (kit Disclosure), with their counts visible while
 // folded: a 30-row table is one line until someone wants it. They open by
@@ -46,7 +56,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { CalendarClock, Flag, Swords, Target, Users } from "lucide-react";
+import { CalendarClock, Crosshair, Flag, Gauge, Percent, Shield, Star, Swords, Target, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/submit-button";
@@ -54,12 +64,15 @@ import { SyncBadge } from "@/components/sync-badge";
 import { TownHall } from "@/components/lineup-parts";
 import { PageHeader } from "@/components/page-header";
 import { Stars } from "@/components/stars";
-import { Disclosure, EmptyState, FactRow, Panel, Tile } from "@/components/kit";
+import { Disclosure, EmptyState, Panel, SectionHeader, StatTile, Tile } from "@/components/kit";
 import { ClanBadge } from "@/components/game/clan-badge";
 import { Ribbon } from "@/components/game/ribbon";
 import { WarScoreboard } from "@/components/war-scoreboard";
+import { BaseCard, BaseStateLegend } from "@/components/war-board";
+import { AssignBaseButton, AssignMemberButton, WarPlanProvider } from "@/components/war-assign";
+import { Countdown } from "@/components/countdown";
+import { DAY_TONE_CLASS, dayTone } from "@/lib/war-status";
 import { clanAccent } from "@/lib/clan-accent";
-import { timeUntil } from "@/services/home";
 import { currentUserId } from "@/lib/auth";
 import { requireClanByTag } from "@/lib/clans";
 import { isLeader, isLeadership } from "@/lib/visibility";
@@ -84,6 +97,7 @@ import {
   outstandingAttacks,
   parseBasePosition,
   warRecord,
+  warSummary,
   type MemberWarRecord,
 } from "@/services/war";
 import { freshness } from "@/services/freshness";
@@ -91,22 +105,23 @@ import { LocalTime } from "@/components/local-time";
 
 export const dynamic = "force-dynamic";
 
-/** The war's state in words, as a ribbon under the title: game state, not status. */
-function stateRibbon(war: WarRow, now: Date) {
-  const left = (iso: string | null) => timeUntil(iso, now)?.replace(/^in /, "");
+/**
+ * The war's state in words, as a ribbon under the title: game state, not status.
+ * The time left ticks (Countdown) — it used to be computed once on the server
+ * and then sat unchanged in an open tab for hours.
+ */
+function stateRibbon(war: WarRow) {
   if (war.state === "preparation") {
-    const t = left(war.startTime);
     return (
       <Ribbon tone="prep" icon={CalendarClock}>
-        {t ? `Preparation · ${t}` : "Preparation day"}
+        Preparation{war.startTime && <> · <Countdown iso={war.startTime} /></>}
       </Ribbon>
     );
   }
   if (war.state === "inWar") {
-    const t = left(war.endTime);
     return (
       <Ribbon tone="war" icon={Swords}>
-        {t ? `Battle day · ${t}` : "Battle day"}
+        Battle day{war.endTime && <> · <Countdown iso={war.endTime} /></>}
       </Ribbon>
     );
   }
@@ -213,14 +228,13 @@ export default async function WarBoardPage({
     ? await warById(supabase, clan.id, requestedWar)
     : await currentWar(supabase, clan.id);
 
-  const now = new Date();
   const accent = clanAccent(clan.id).color;
   const header = (
     <PageHeader
       eyebrow={clan.name}
       title="War board"
       art={<ClanBadge src={clan.badgeUrl} name={clan.name} size="lg" tone={accent} priority />}
-      ribbons={war ? stateRibbon(war, now) : <Ribbon tone="neutral">No war</Ribbon>}
+      ribbons={war ? stateRibbon(war) : <Ribbon tone="neutral">No war</Ribbon>}
       description="Who still has attacks to use, and which base each member should hit."
       actions={
         <SyncBadge run={run} clanTag={clan.tag} target="war" canAdmin={isLeader(clan.role)} />
@@ -276,9 +290,8 @@ export default async function WarBoardPage({
   // One member can hold two villages and be in the war twice, so this is a set.
   const myPlayerIds = new Set(mine.map((p) => p.id));
   const myRecord = record.filter((r) => myPlayerIds.has(r.playerId));
-  const attacksAllowed = record.reduce((total, m) => total + m.attacksAllowed, 0);
-  const attacksUsed = record.reduce((total, m) => total + m.attacksUsed, 0);
-  const attacksLeft = attacksAllowed - attacksUsed;
+  const summary = warSummary(record, board);
+  const { attacksAllowed, attacksUsed, attacksLeft } = summary;
   const freeBases = board.filter((b) => b.free);
   const noAttacks = outstanding.filter((m) => m.attacksUsed === 0);
   const oneLeft = outstanding.filter((m) => m.attacksUsed > 0);
@@ -291,8 +304,57 @@ export default async function WarBoardPage({
   const claimsOpen = !ended && !leadership && freeBases.length > 0;
   const goldFor = claimsOpen ? myRecord.find((m) => !m.target)?.playerId ?? null : null;
 
+  // The war's state as a coloured chip, in the same vocabulary the CWL day
+  // tabs use, so "live" is the same yellow on both pages.
+  const tone = dayTone(war.result, war.state);
+  const toneClass = DAY_TONE_CLASS[tone];
+  const stateWord = preparation
+    ? "Preparation day"
+    : ended
+      ? war.result === "win"
+        ? "Victory"
+        : war.result === "lose"
+          ? "Defeat"
+          : war.result === "tie"
+            ? "Draw"
+            : "War ended"
+      : "Battle day";
+
   const scoreboard = (
-    <Panel aria-label="Score" className="space-y-4">
+    <Panel aria-label="Score" className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-semibold ${toneClass.soft}`}
+          >
+            <span aria-hidden className={`size-2 rounded-full ${toneClass.dot} ${tone === "live" ? "animate-pulse" : ""}`} />
+            {stateWord}
+          </span>
+          <span className="text-muted-foreground inline-flex items-center gap-1 text-sm">
+            <Users aria-hidden className="size-4" />
+            {size} vs {size}
+          </span>
+        </div>
+        {/* The one timestamp here a member ACTS on: how long is left, ticking,
+            and when that is in their own timezone. */}
+        {ended ? (
+          <p className="text-muted-foreground text-sm">
+            Ended <LocalTime iso={war.endTime} style="weekday" />
+          </p>
+        ) : (
+          <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+            <span className="text-muted-foreground">{preparation ? "Battle day starts in" : "Ends in"}</span>
+            <Countdown
+              iso={preparation ? war.startTime : war.endTime}
+              className="cb-title text-lg"
+            />
+            <span className="text-muted-foreground">
+              · <LocalTime iso={preparation ? war.startTime : war.endTime} style="weekday" />
+            </span>
+          </p>
+        )}
+      </div>
+
       <WarScoreboard
         us={{
           name: clan.name,
@@ -308,34 +370,50 @@ export default async function WarBoardPage({
         }}
         accent={accent}
       />
-      {/* The rest of the war in a line — three facts that used to be three
-          framed stat blocks. */}
-      <FactRow
-        items={[
-          { label: "war", value: `${size} vs ${size}`, icon: Users },
-          {
-            label: preparation ? "battle day starts" : ended ? "ended" : "battle day ends",
-            // The one timestamp here a member ACTS on, so it upgrades to their
-            // real timezone rather than the clan default.
-            value: <LocalTime iso={preparation ? war.startTime : war.endTime} style="weekday" />,
-            icon: CalendarClock,
-          },
-          {
-            label: `of ${attacksAllowed} attacks used`,
-            value: attacksUsed,
-            icon: Target,
-            title: `${attacksLeft} left`,
-          },
-        ]}
-      />
-      <div
-        className="cb-gauge h-2"
-        role="img"
-        aria-label={`${attacksUsed} of ${attacksAllowed} attacks used`}
-        style={{ "--gauge": accent } as React.CSSProperties}
-      >
-        <span style={{ width: `${attacksAllowed ? (attacksUsed / attacksAllowed) * 100 : 0}%` }} />
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <StatTile
+          label="Attacks used"
+          icon={Target}
+          value={`${attacksUsed} / ${attacksAllowed}`}
+          sub={attacksLeft === 0 ? "all used" : `${attacksLeft} left`}
+        >
+          <div
+            className="cb-gauge mt-1 h-1.5"
+            role="img"
+            aria-label={`${attacksUsed} of ${attacksAllowed} attacks used`}
+            style={{ "--gauge": accent } as React.CSSProperties}
+          >
+            <span style={{ width: `${attacksAllowed ? (attacksUsed / attacksAllowed) * 100 : 0}%` }} />
+          </div>
+        </StatTile>
+        <StatTile
+          label="Three-star hits"
+          icon={Star}
+          value={summary.threeStars}
+          sub={attacksUsed ? `of ${attacksUsed} attacks` : "no attacks yet"}
+        />
+        <StatTile
+          label="Stars per attack"
+          icon={Gauge}
+          value={summary.averageStars === null ? "—" : summary.averageStars.toFixed(2)}
+          sub="average"
+        />
+        <StatTile
+          label="Destruction per attack"
+          icon={Percent}
+          value={summary.averageDestruction === null ? "—" : `${summary.averageDestruction.toFixed(1)}%`}
+          sub="average"
+        />
+        <StatTile
+          label="Enemy bases"
+          icon={Shield}
+          value={`${summary.basesCleared} / ${board.length}`}
+          sub={`three-starred · ${summary.basesFree} free`}
+          className="col-span-2 sm:col-span-1"
+        />
       </div>
+
       {preparation && (
         <p className="text-muted-foreground text-sm">
           Preparation day — nobody can attack yet. This is the time to give everyone a
@@ -345,7 +423,33 @@ export default async function WarBoardPage({
     </Panel>
   );
 
+  // The plan, sent to the pickers once (components/war-assign.tsx). Only
+  // leadership during a live war gets pickers at all.
+  const canPlan = leadership && !ended;
+  const plan = {
+    action: mutate,
+    clanTag: clan.tag,
+    warId: war.id,
+    members: record.map((m) => ({
+      playerId: m.playerId,
+      name: m.name,
+      mapPosition: m.mapPosition,
+      thLevel: m.thLevel,
+      attacksUsed: m.attacksUsed,
+      attacksAllowed: m.attacksAllowed,
+      targetPosition: m.target?.targetPosition ?? null,
+    })),
+    bases: board.map((b) => ({
+      position: b.position,
+      name: b.name,
+      thLevel: b.thLevel,
+      bestStars: b.bestStars,
+      assignedTo: b.assignedTo,
+    })),
+  };
+
   return (
+    <WarPlanProvider plan={plan}>
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       {header}
 
@@ -521,7 +625,10 @@ export default async function WarBoardPage({
                     <td className="py-3 pr-3">
                       {m.target ? (
                         <span className="block">
-                          <span className="font-medium">{targetLabel(m.target.targetPosition)}</span>
+                          <span className="bg-gold text-gold-ink inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
+                            <Crosshair aria-hidden className="size-3" />
+                            {targetLabel(m.target.targetPosition)}
+                          </span>
                           {m.target.note && (
                             <span className="text-muted-foreground block text-xs">{m.target.note}</span>
                           )}
@@ -530,35 +637,13 @@ export default async function WarBoardPage({
                         <span className="text-muted-foreground">No target</span>
                       )}
 
-                      {leadership && !ended && (
+                      {canPlan && (
                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                          <form action={mutate} className="flex items-center gap-1.5">
-                            <input type="hidden" name="clanTag" value={clan.tag} />
-                            <input type="hidden" name="warId" value={war.id} />
-                            <input type="hidden" name="action" value="assign" />
-                            <input type="hidden" name="playerId" value={m.playerId} />
-                            <select
-                              name="position"
-                              aria-label={`Target for ${m.name}`}
-                              className="border-input bg-background h-8 max-w-44 rounded-chip border px-2 text-xs"
-                              defaultValue={m.target?.targetPosition ?? ""}
-                              required
-                            >
-                              <option value="" disabled>
-                                Choose a base
-                              </option>
-                              {board.map((b) => (
-                                <option key={b.position} value={b.position}>
-                                  {b.position}
-                                  {b.thLevel ? ` · TH ${b.thLevel}` : ""}
-                                  {b.free ? " · free" : b.assignedTo.length ? " · assigned" : ""}
-                                </option>
-                              ))}
-                            </select>
-                            <SubmitButton size="xs" variant="outline" pendingLabel="Saving">
-                              {m.target ? "Change" : "Assign"}
-                            </SubmitButton>
-                          </form>
+                          {/* Keyed on the assignment, so a save remounts it closed. */}
+                          <AssignMemberButton
+                            key={`${m.playerId}:${m.target?.targetPosition ?? ""}`}
+                            playerId={m.playerId}
+                          />
                           {m.target && (
                             <form action={mutate}>
                               <input type="hidden" name="clanTag" value={clan.tag} />
@@ -613,83 +698,49 @@ export default async function WarBoardPage({
         </div>
       </Disclosure>
 
-      {/* ── T6.3 — the other side ─────────────────────────────────────────── */}
-      <Disclosure
-        title={`Their bases: ${war.opponentName ?? "the opposition"}`}
-        count={board.length}
-        defaultOpen={leadership && preparation}
-        summary={freeBases.length > 0 && !ended ? `${freeBases.length} free` : undefined}
-      >
-        <div className="space-y-4">
-          <p className="text-muted-foreground flex items-center gap-2 text-sm">
-            <ClanBadge src={war.opponentBadgeUrl} name={war.opponentName ?? "?"} size="sm" tone="var(--foe)" />
-            <span>
-              <span className="text-foreground font-medium">Free</span> means nobody is assigned
-              to it and nobody has attacked it yet.
-            </span>
-          </p>
-
-          {opponents.length === 0 && (
-            <p className="text-muted-foreground text-sm">
-              The opposing lineup was not captured for this war. Base numbers are still right;
-              only names and Town Hall levels are missing.
-            </p>
-          )}
-
-          <div className="-mx-5 overflow-x-auto px-5">
-            <table className="w-full min-w-[36rem] text-sm">
-              <thead className="text-muted-foreground border-b text-left text-xs uppercase">
-                <tr>
-                  <th className="py-2 pr-3 font-medium">Base</th>
-                  <th className="py-2 pr-3 font-medium">Player</th>
-                  <th className="py-2 pr-3 font-medium">Assigned to</th>
-                  <th className="py-2 font-medium">Best attack so far</th>
-                </tr>
-              </thead>
-              <tbody>
-                {board.map((b) => (
-                  <tr key={b.position} className="border-b align-top last:border-0">
-                    <td className="py-3 pr-3 font-medium tabular-nums">{b.position}</td>
-                    <td className="py-3 pr-3">
-                      <span className="block">{b.name ?? <span className="text-muted-foreground">Unknown</span>}</span>
-                      <span className="mt-1 inline-block">
-                        <TownHall level={b.thLevel} />
-                      </span>
-                    </td>
-                    <td className="py-3 pr-3">
-                      {b.assignedTo.length ? (
-                        b.assignedTo.map((a) => a.name).join(", ")
-                      ) : b.free ? (
-                        <Badge variant="info">Free</Badge>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </td>
-                    <td className="py-3">
-                      {b.bestStars === null ? (
-                        // Not "0 stars", which would read as somebody having attacked
-                        // and failed — a different and worse thing to tell a leader.
-                        <span className="text-muted-foreground">Not attacked yet</span>
-                      ) : (
-                        <span className="block">
-                          <Stars stars={b.bestStars} />{" "}
-                          <span className="text-muted-foreground text-xs tabular-nums">
-                            {b.bestDestruction?.toFixed(0)}%
-                          </span>
-                          <span className="text-muted-foreground block text-xs">
-                            by {b.attackedBy.map((a) => a.name).join(", ")}
-                          </span>
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {/* ── T6.3 — the other side, as a board of bases ───────────────────── */}
+      <Panel className="space-y-4" aria-labelledby="bases-title">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SectionHeader
+            id="bases-title"
+            icon={Crosshair}
+            title={`Their bases · ${war.opponentName ?? "the opposition"}`}
+            count={board.length}
+          />
+          <BaseStateLegend />
         </div>
-      </Disclosure>
+        <p className="text-muted-foreground text-sm">
+          {canPlan
+            ? "Each base takes one member. Press Assign on a base to choose who hits it; a base someone holds is locked until you move or remove them."
+            : "Who is on each base, and what has happened to it so far."}
+        </p>
+
+        {opponents.length === 0 && (
+          <p className="text-muted-foreground text-sm">
+            The opposing lineup was not captured for this war. Base numbers are still right;
+            only names and Town Hall levels are missing.
+          </p>
+        )}
+
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {board.map((b) => (
+            <BaseCard
+              key={b.position}
+              base={b}
+              action={
+                canPlan ? (
+                  <AssignBaseButton
+                    key={`${b.position}:${b.assignedTo.map((a) => a.playerId).join(",")}`}
+                    position={b.position}
+                  />
+                ) : undefined
+              }
+            />
+          ))}
+        </ul>
+      </Panel>
     </main>
+    </WarPlanProvider>
   );
 }
 

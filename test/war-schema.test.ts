@@ -385,14 +385,34 @@ describe("Phase 6 — the war schema (024)", () => {
       ).rejects.toThrow(/already taken/i);
     });
 
-    it("still lets a leader deliberately double-assign that base", async () => {
+    // 047 — one member per base now binds leadership too, and the refusal names
+    // who holds it so the leader knows whom to move.
+    it("refuses a leader assigning a base another member holds, naming them", async () => {
       await h.asUser(LEADER_A);
       await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A2}', 4::smallint);`);
-      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 4::smallint);`);
+      await expect(
+        h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 4::smallint);`),
+      ).rejects.toThrow(/base 4 is already assigned to/i);
 
       expect(
-        await count(h, `select 1 from war_targets where target_position = 4`),
-      ).toBe(2);
+        await count(h, `select 1 from war_targets where target_position = 4 and deleted_at is null`),
+      ).toBe(1);
+    });
+
+    it("frees the base once the holder is moved or cleared", async () => {
+      await h.asUser(LEADER_A);
+      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A2}', 4::smallint);`);
+      // Moving the holder frees 4…
+      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A2}', 6::smallint);`);
+      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 4::smallint);`);
+      // …and clearing frees 6.
+      await h.db.exec(`select clear_war_target('${WAR_A}', '${PLAYER_A2}');`);
+      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 6::smallint);`);
+
+      const res = await h.db.query<{ target_position: number }>(
+        `select target_position from war_targets where player_id = '${PLAYER_A}' and deleted_at is null`,
+      );
+      expect(res.rows[0]!.target_position).toBe(6);
     });
 
     it("lets a member change their own mind", async () => {

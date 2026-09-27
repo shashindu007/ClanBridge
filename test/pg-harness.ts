@@ -117,6 +117,9 @@ export const PHASE1_MIGRATIONS = [
   // poll option integrity, cross-clan roster guard. Replaces functions from
   // 006, 010, 011, 015, 016, 021 and 025, so it must follow all of them.
   "046_qa_hardening.sql",
+  // One member per enemy base for leadership too, and a war-row lock in both
+  // assign and claim. Replaces 024's assign and 046's claim.
+  "047_war_one_member_per_base.sql",
 ] as const;
 
 /**

@@ -315,3 +315,45 @@ export function EmptyState({
     </div>
   );
 }
+
+/**
+ * One number with its label, in a sunken well: the war board's and the CWL
+ * pages' stat grids. The label is always words — "Three-star hits", not "3★".
+ *
+ * `tone` colours the number only (a status token for a result, a clan colour
+ * for a share); `children` is room for a gauge under it.
+ */
+export function StatTile({
+  label,
+  value,
+  sub,
+  icon: Icon,
+  tone,
+  className,
+  children,
+}: {
+  label: string;
+  value: React.ReactNode;
+  sub?: React.ReactNode;
+  icon?: LucideIcon;
+  tone?: string;
+  className?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className={cn("cb-sunken min-w-0 space-y-1 rounded-control p-3", className)}>
+      <p className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
+        {Icon && <Icon aria-hidden className="size-3.5 shrink-0" />}
+        <span className="truncate">{label}</span>
+      </p>
+      <p
+        className="cb-title truncate text-2xl leading-tight tabular-nums"
+        style={tone ? { color: tone } : undefined}
+      >
+        {value}
+      </p>
+      {sub && <p className="text-muted-foreground truncate text-xs tabular-nums">{sub}</p>}
+      {children}
+    </div>
+  );
+}
