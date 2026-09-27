@@ -15,6 +15,7 @@
 
 import { fromZonedTime } from "date-fns-tz";
 import { DISPLAY_ZONE } from "@/lib/display-time";
+import { cwlWindow } from "@/lib/coc-time";
 
 export type Availability = "in" | "maybe" | "out" | "none" | "other";
 
@@ -154,10 +155,29 @@ export function seasonOf(now: Date): string {
   return now.toISOString().slice(0, 7);
 }
 
-/** This month and next, the only seasons a leader has reason to start. */
+/** "2026-12" -> "2027-01". */
+export function nextSeason(season: string): string {
+  const [year, month] = season.split("-").map(Number) as [number, number];
+  return seasonOf(new Date(Date.UTC(year, month, 1)));
+}
+
+/**
+ * The season a lineup screen should open on.
+ *
+ * This month's CWL until its war week is over (cwlWindow in lib/coc-time.ts),
+ * then NEXT month's. The calendar month alone was wrong for three weeks out of
+ * four: on 27 September "this month" is a CWL that finished on the 12th, and
+ * the lineup a leader is actually building — due by the 2nd — is October's.
+ */
+export function lineupFocusSeason(now: Date): string {
+  const window = cwlWindow(now);
+  return now < window.warsEnd ? window.season : nextSeason(window.season);
+}
+
+/** The focus season and the one after — the only seasons a leader has reason to start. */
 export function startableSeasons(now: Date): string[] {
-  const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-  return [seasonOf(now), seasonOf(next)];
+  const focus = lineupFocusSeason(now);
+  return [focus, nextSeason(focus)];
 }
 
 export interface PoolEntry {

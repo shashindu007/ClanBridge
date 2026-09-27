@@ -10,6 +10,8 @@ import {
   publishedSummary,
   seasonLabel,
   startableSeasons,
+  lineupFocusSeason,
+  nextSeason,
   type PoolEntry,
 } from "./roster-view";
 
@@ -115,8 +117,11 @@ describe("seasons", () => {
     expect(seasonLabel("next")).toBe("next");
   });
 
-  it("offers this month and next, across a year boundary", () => {
-    expect(startableSeasons(new Date("2026-12-31T23:00:00Z"))).toEqual(["2026-12", "2027-01"]);
+  it("offers the focus season and the one after, across a year boundary", () => {
+    // December's CWL is long over on the 31st, so January leads.
+    expect(startableSeasons(new Date("2026-12-31T23:00:00Z"))).toEqual(["2027-01", "2027-02"]);
+    // During December's war week, December is still the one to work on.
+    expect(startableSeasons(new Date("2026-12-05T12:00:00Z"))).toEqual(["2026-12", "2027-01"]);
   });
 });
 
@@ -141,5 +146,19 @@ describe("lineupDeadline", () => {
 
   it("refuses anything that is not a season key", () => {
     expect(lineupDeadline("October")).toBeNull();
+  });
+});
+
+describe("lineupFocusSeason", () => {
+  it("moves to next month once this month's CWL is over", () => {
+    expect(lineupFocusSeason(new Date("2026-09-27T10:00:00Z"))).toBe("2026-10");
+  });
+
+  it("stays on this month while its CWL is running", () => {
+    expect(lineupFocusSeason(new Date("2026-10-05T10:00:00Z"))).toBe("2026-10");
+  });
+
+  it("rolls the year", () => {
+    expect(nextSeason("2026-12")).toBe("2027-01");
   });
 });

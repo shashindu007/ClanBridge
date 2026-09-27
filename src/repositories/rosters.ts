@@ -102,6 +102,29 @@ export async function rosterSeasons(supabase: SupabaseClient): Promise<string[]>
   return [...seasons].reverse();
 }
 
+/**
+ * The seasons ONE clan has a roster for that the caller can see, newest first.
+ *
+ * rosterSeasons() above is the cross-clan history index; using it to choose a
+ * default for one clan's page picked seasons this clan had no roster for, and
+ * — because members only see published rosters — last month's, for as long as
+ * next month's was still a draft.
+ */
+export async function rosterSeasonsForClan(
+  supabase: SupabaseClient,
+  clanId: string,
+): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("cwl_rosters")
+    .select("season")
+    .eq("clan_id", clanId) // R3
+    .is("deleted_at", null)
+    .order("season");
+
+  if (error || !data) return [];
+  return [...new Set((data as unknown as Array<{ season: string }>).map((r) => r.season))].reverse();
+}
+
 /** The selected players, with names attached. */
 export async function membersOfRoster(
   supabase: SupabaseClient,
@@ -206,6 +229,37 @@ export async function addToRoster(
     .insert({ roster_id: rosterId, player_id: playerId, added_by: addedBy });
 
   return error ? { error: error.message } : {};
+}
+
+/**
+ * Several players into one roster, in one server action — the picker's
+ * "Add 4 selected".
+ *
+ * Capacity is checked HERE, not only in the page: the slot count was enforced
+ * by hiding the Add button, so four queued clicks could overfill a lineup.
+ * Each player still goes through addToRoster(), one at a time, so the
+ * double-booking trigger (011/046) refuses someone already in another clan's
+ * roster by name — and one refusal does not cost the others their place.
+ */
+export async function addManyToRoster(
+  supabase: SupabaseClient,
+  roster: { id: string; slotCount: number },
+  playerIds: readonly string[],
+  addedBy: string,
+): Promise<{ added: number; refused: string[]; full: boolean }> {
+  const current = await membersOfRoster(supabase, roster.id);
+  const already = new Set(current.map((m) => m.playerId));
+  const wanted = [...new Set(playerIds)].filter((id) => !already.has(id));
+  const room = Math.max(0, roster.slotCount - current.length);
+
+  let added = 0;
+  const refused: string[] = [];
+  for (const playerId of wanted.slice(0, room)) {
+    const result = await addToRoster(supabase, roster.id, playerId, addedBy);
+    if (result.error) refused.push(result.error);
+    else added += 1;
+  }
+  return { added, refused, full: wanted.length > room };
 }
 
 /** Drop a player. Soft delete (R4) — members ask when they were dropped. */

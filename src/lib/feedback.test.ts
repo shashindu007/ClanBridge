@@ -102,6 +102,8 @@ describe("every action's code has wording", () => {
   for (const { text } of sources) {
     for (const m of text.matchAll(/[?&]ok=([a-z][a-z-]*)/g)) literal.add(m[1]!);
     for (const m of text.matchAll(/\bdone = "([a-z][a-z-]*)"/g)) viaVariable.add(m[1]!);
+    // Actions that RETURN their result (components/action-form.tsx).
+    for (const m of text.matchAll(/\bok: "([a-z][a-z-]*)"/g)) viaVariable.add(m[1]!);
   }
 
   it("finds the codes at all, so a passing suite means something", () => {

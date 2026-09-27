@@ -7,6 +7,7 @@
 // Server components. The only interactive part is each card's Remove form,
 // which posts to the page's own server action.
 
+import { ActionForm, type ResultAction } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { TownHall } from "@/components/game/town-hall";
 import type { HeroLevel } from "@/repositories/player-progress";
@@ -122,7 +123,7 @@ export function LineupCard({
   index: number;
   player: LineupCardPlayer;
   /** The Remove form, when the viewer may edit. */
-  remove?: { action: (formData: FormData) => Promise<void>; hidden: Record<string, string> };
+  remove?: { action: ResultAction; hidden: Record<string, string> };
 }) {
   return (
     <li className="bg-tile print-avoid-break flex min-w-0 flex-col gap-2 rounded-panel border p-3">
@@ -155,10 +156,11 @@ export function LineupCard({
       <div className="mt-auto flex items-end justify-between gap-2 border-t pt-2">
         <CwlHistoryChips seasons={player.history.slice(0, 2)} />
       {remove && (
-        <form action={remove.action} className="shrink-0" data-no-capture>
-          {Object.entries({ ...remove.hidden, action: "remove", playerId: player.playerId }).map(([name, value]) => (
-            <input key={name} type="hidden" name={name} value={value} />
-          ))}
+        <ActionForm
+          action={remove.action}
+          hidden={{ ...remove.hidden, action: "remove", playerId: player.playerId }}
+          className="shrink-0"
+        >
           <SubmitButton
             size="xs"
             variant="ghost"
@@ -167,7 +169,7 @@ export function LineupCard({
           >
             Remove
           </SubmitButton>
-        </form>
+        </ActionForm>
       )}
       </div>
     </li>

@@ -28,20 +28,57 @@
 // SubmitButton (components/submit-button.tsx) covers the other half of the same
 // problem: it shows the press is doing something while the round trip is in
 // flight, and this says how it ended.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// AND A SECOND DOOR: showToast()
+//
+// The busiest forms (the CWL lineup builder, the war board) no longer redirect
+// at all — a redirect from a Server Action remounts the whole page, which reset
+// scroll, closed dialogs and discarded the next queued action. They return
+// { ok } / { error } to components/action-form.tsx instead, and that calls
+// showToast(), which reaches this component as a window event. The URL path
+// above still serves every other page.
+//
+// Dismissal uses history.replaceState, not router.replace: stripping ?ok= is a
+// change to the address bar, not a reason to render the page on the server
+// again — which router.replace did, five seconds after every save.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { CircleCheck, TriangleAlert, X } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { messageFor } from "@/lib/feedback";
 
 /** How long a success sits there. Long enough to read twice, short enough not to nag. */
 const DISMISS_AFTER_MS = 5000;
 
+const TOAST_EVENT = "cb:toast";
+
+interface PushedToast {
+  kind: "ok" | "error";
+  code: string;
+  /** Distinguishes two identical results in a row. */
+  id: number;
+}
+
+/** Show a toast without a navigation. `code` is a feedback.ts code or plain text. */
+export function showToast(kind: "ok" | "error", code: string): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent<PushedToast>(TOAST_EVENT, { detail: { kind, code, id: Date.now() + Math.random() } }),
+  );
+}
+
 export function Toaster() {
   const params = useSearchParams();
   const pathname = usePathname();
-  const router = useRouter();
+  const [pushed, setPushed] = useState<PushedToast | null>(null);
+
+  useEffect(() => {
+    const onToast = (event: Event) => setPushed((event as CustomEvent<PushedToast>).detail);
+    window.addEventListener(TOAST_EVENT, onToast);
+    return () => window.removeEventListener(TOAST_EVENT, onToast);
+  }, []);
 
   const ok = params.get("ok");
   const error = params.get("error");
@@ -72,9 +109,12 @@ export function Toaster() {
   // React-sanctioned form of this, for the reason the note above gives.
   if (code === null && dismissed !== null) setDismissed(null);
 
-  const visible = code !== null && dismissed !== code;
-  const kind: "ok" | "error" = error ? "error" : "ok";
-  const text = code ? messageFor(kind, code) : "";
+  // A pushed toast is newer than anything in the URL, so it wins.
+  const fromUrl = code !== null && dismissed !== code;
+  const visible = pushed !== null || fromUrl;
+  const kind: "ok" | "error" = pushed ? pushed.kind : error ? "error" : "ok";
+  const shown = pushed ? pushed.code : code;
+  const text = shown ? messageFor(kind, shown) : "";
 
   // Dismissal is what strips the param, rather than a separate effect on
   // arrival. Stripping it immediately would delete the very thing the toast is
@@ -83,6 +123,10 @@ export function Toaster() {
   // Only our two params go. A page whose filters live in the URL — /layouts
   // documents "a filtered library is a link" — must not lose them to a toast.
   const dismiss = useCallback(() => {
+    if (pushed) {
+      setPushed(null);
+      return;
+    }
     if (code === null) return;
     setDismissed(code);
 
@@ -90,10 +134,11 @@ export function Toaster() {
     next.delete("ok");
     next.delete("error");
     const query = next.toString();
-    // replace, not push: Back should go where the member expects, not back to
-    // the same page carrying a stale result that announces itself again.
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [code, params, pathname, router]);
+    // replaceState, not router.replace: Next keeps useSearchParams in step with
+    // it, and it costs no server render. Not push: Back should go where the
+    // member expects, not to a page carrying a stale result.
+    window.history.replaceState(window.history.state, "", query ? `${pathname}?${query}` : pathname);
+  }, [pushed, code, params, pathname]);
 
   // Successes fade; failures stay until dismissed. A member who missed "Saved"
   // loses nothing, and one who missed "Already in the DH v2 roster" is left
@@ -102,7 +147,7 @@ export function Toaster() {
     if (!visible || kind === "error") return;
     const timer = setTimeout(dismiss, DISMISS_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [visible, kind, dismiss]);
+  }, [visible, kind, dismiss, pushed?.id]);
 
   return (
     // Always mounted, even when empty: an aria-live region has to exist BEFORE
@@ -115,7 +160,7 @@ export function Toaster() {
     <div
       aria-live={kind === "error" && visible ? "assertive" : "polite"}
       aria-atomic="true"
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center p-4 sm:inset-x-auto sm:right-0 sm:justify-end"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] flex justify-center p-4 sm:inset-x-auto sm:right-0 sm:justify-end"
     >
       {visible && (
         <div

@@ -20,7 +20,8 @@ import { playerDetails } from "@/lib/cwl-lineup-data";
 import { requireClanByTag } from "@/lib/clans";
 import { isLeadership } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
-import { membersOfRoster, rosterFor, rosterSeasons } from "@/repositories/rosters";
+import { membersOfRoster, rosterFor, rosterSeasonsForClan } from "@/repositories/rosters";
+import { lineupFocusSeason, seasonLabel } from "@/lib/roster-view";
 import { DISPLAY_ZONE } from "@/lib/display-time";
 
 export const dynamic = "force-dynamic";
@@ -48,12 +49,18 @@ export default async function PublishedRosterPage({
 
   const clan = await requireClanByTag(supabase, clanTag);
 
-  const seasons = await rosterSeasons(supabase);
-  const season = requested ?? seasons[0] ?? new Date().toISOString().slice(0, 7);
+  // THIS clan's seasons, and the upcoming one first. It used to take the newest
+  // season with a roster in ANY clan, which — since members only see published
+  // rosters — was last month's for as long as next month's was a draft.
+  const focus = lineupFocusSeason(new Date());
+  const clanSeasons = await rosterSeasonsForClan(supabase, clan.id);
+  const requestedOk = requested && /^\d{4}-\d{2}$/.test(requested) ? requested : null;
+  const season = requestedOk ?? focus;
+  const seasons = [...new Set([focus, ...clanSeasons])].sort().reverse();
   const roster = await rosterFor(supabase, clan.id, season);
   const members = roster ? await membersOfRoster(supabase, roster.id) : [];
   // The same cards the leader picked from: Town Hall, heroes, progress, last CWLs.
-  const details = await playerDetails(supabase, members.map((m) => m.playerId));
+  const details = await playerDetails(supabase, members.map((m) => m.playerId), { before: season });
 
   const base = `/${encodeURIComponent(clan.tag)}/cwl/roster`;
 
@@ -64,7 +71,7 @@ export default async function PublishedRosterPage({
       <PageHeader
         eyebrow={clan.name}
         title="CWL lineup"
-        description={`Who your leader picked for season ${season}. Read-only; it appears once it is published.`}
+        description={`Who your leader picked for ${seasonLabel(season)}. Read-only; it appears once it is published.`}
       />
 
       {seasons.length > 1 && (
@@ -86,7 +93,7 @@ export default async function PublishedRosterPage({
         <Panel>
           <EmptyState
             icon={ClipboardList}
-            title={`Nothing published for ${season}`}
+            title={`Nothing published for ${seasonLabel(season)} yet`}
             body="The lineup appears here once your leader publishes it. If they are still deciding, it is deliberately not visible yet."
             action={
               isLeadership(clan.role) ? (

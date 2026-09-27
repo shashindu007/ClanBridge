@@ -18,7 +18,7 @@
 //
 //   1. What is happening THIS month — each clan's lineup, how full it is, whether
 //      members can see it, and one button to carry on picking.
-//   2. How to start a season — a choice of this month or next, never a typed code,
+//   2. How to start a season — a choice of the next two, never a typed code,
 //      naming the clans it will create lineups for.
 //   3. What happened before — past seasons in plain month names, with every
 //      clan's status written out rather than implied by colour.
@@ -38,7 +38,8 @@ import { LineupStatus, SlotMeter } from "@/components/lineup-parts";
 import { currentUserId } from "@/lib/auth";
 import { visibleClans, type VisibleClan } from "@/lib/clans";
 import { isLeadership } from "@/lib/visibility";
-import { publishedSummary, seasonLabel, seasonOf, startableSeasons } from "@/lib/roster-view";
+import { cwlWindow } from "@/lib/coc-time";
+import { lineupFocusSeason, publishedSummary, seasonLabel, startableSeasons } from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
 import {
   createRoster,
@@ -93,7 +94,11 @@ export default async function RosterSeasonsPage() {
   const seasons = await rosterSeasons(supabase);
 
   const now = new Date();
-  const thisMonth = seasonOf(now);
+  // The season being worked on: this month's until its CWL is over, then next
+  // month's (lineupFocusSeason). It was the calendar month, so on 27 September
+  // the finished September CWL led the page with the gold button.
+  const focus = lineupFocusSeason(now);
+  const running = cwlWindow(now).season === focus && now >= cwlWindow(now).signupOpens;
   const byName = (a: Roster, b: Roster) =>
     (clanById.get(a.clanId)?.name ?? "").localeCompare(clanById.get(b.clanId)?.name ?? "");
 
@@ -106,11 +111,11 @@ export default async function RosterSeasonsPage() {
     })),
   );
 
-  // "Open" is this month and anything after it; "past" is everything before.
+  // "Open" is the focus season and anything after it; "past" is everything before.
   // Only open seasons pay for member counts, because only they have a lineup
   // still being filled — history needs its statuses, not its headcounts.
-  const open = perSeason.filter((s) => s.season >= thisMonth).sort((a, b) => a.season.localeCompare(b.season));
-  const past = perSeason.filter((s) => s.season < thisMonth);
+  const open = perSeason.filter((s) => s.season >= focus).sort((a, b) => a.season.localeCompare(b.season));
+  const past = perSeason.filter((s) => s.season < focus);
 
   const filled = new Map<string, number>();
   await Promise.all(
@@ -156,8 +161,8 @@ export default async function RosterSeasonsPage() {
             key={season}
             accent="var(--ribbon-cwl)"
             ribbon={
-              <Ribbon tone={season === thisMonth ? "cwl" : "neutral"} icon={Trophy}>
-                {season === thisMonth ? "This month" : "Upcoming"}
+              <Ribbon tone={season === focus ? "cwl" : "neutral"} icon={Trophy}>
+                {season === focus ? (running ? "Running now" : "Up next") : "Later"}
               </Ribbon>
             }
             className="space-y-5"
@@ -233,7 +238,7 @@ export default async function RosterSeasonsPage() {
                 {canStart.map((s) => (
                   <option key={s} value={s}>
                     {seasonLabel(s)}
-                    {s === thisMonth ? " (this month)" : " (next month)"}
+                    {s === focus ? " (up next)" : " (the month after)"}
                   </option>
                 ))}
               </select>
@@ -251,7 +256,7 @@ export default async function RosterSeasonsPage() {
               ? leads.length > 0
                 ? "No seasons yet. Start one above and it will be kept here."
                 : "No lineups have been published yet."
-              : "Nothing before this month yet."}
+              : "No earlier seasons yet."}
           </p>
         ) : (
           <ul className="cb-panel divide-y rounded-panel border">

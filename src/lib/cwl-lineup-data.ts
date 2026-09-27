@@ -19,9 +19,15 @@ export interface PlayerDetail {
   starsPerAttack: number | null;
 }
 
+/**
+ * `before` leaves out seasons from that one on: building October's lineup, the
+ * "last CWL" worth reading is September's, and a season still being played is
+ * half a record that reads as a bad one.
+ */
 export async function playerDetails(
   supabase: SupabaseClient,
   playerIds: readonly string[],
+  options: { before?: string } = {},
 ): Promise<Map<string, PlayerDetail>> {
   const ids = [...new Set(playerIds)];
   const [progress, history] = await Promise.all([
@@ -32,13 +38,16 @@ export async function playerDetails(
   const out = new Map<string, PlayerDetail>();
   for (const id of ids) {
     const snap = progress.get(id);
-    const seasons = (history.get(id) ?? []).slice(0, 3).map((s) => ({
-      season: s.season,
-      clanName: s.clanName,
-      stars: s.stars,
-      attacksUsed: s.attacksUsed,
-      warsRostered: s.warsRostered,
-    }));
+    const seasons = (history.get(id) ?? [])
+      .filter((s) => !options.before || s.season < options.before)
+      .slice(0, 3)
+      .map((s) => ({
+        season: s.season,
+        clanName: s.clanName,
+        stars: s.stars,
+        attacksUsed: s.attacksUsed,
+        warsRostered: s.warsRostered,
+      }));
     const attacks = seasons.reduce((t, s) => t + s.attacksUsed, 0);
     out.set(id, {
       thLevel: snap?.thLevel ?? null,
