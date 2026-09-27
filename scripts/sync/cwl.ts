@@ -311,7 +311,9 @@ async function upsertWar(
         their_stars: theirs.stars ?? null,
         our_destruction: ours.destruction ?? null,
         their_destruction: theirs.destruction ?? null,
-        result: warResult(ours, theirs),
+        // Only once the day is over: a running day's "result" was the stars so
+        // far, and read as won or lost before anyone had finished attacking.
+        result: storedState(war.state) === "warEnded" ? warResult(ours, theirs) : null,
         start_time: war.startTime?.toISOString() ?? null,
         end_time: war.endTime?.toISOString() ?? null,
       },

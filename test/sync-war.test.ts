@@ -23,7 +23,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createHarness, type Harness } from "./pg-harness";
 import { createPgliteSupabase } from "./pglite-supabase";
 import { runSyncJob } from "../scripts/sync/shared";
-import { isLeagueWar, syncWar } from "../scripts/sync/war";
+import { isLeagueWar, matchLogEntry, syncWar } from "../scripts/sync/war";
 import { parseCocTime } from "@/lib/coc-time";
 import type { War } from "@/types/domain";
 
@@ -641,10 +641,101 @@ describe("T6.1 — the clan war sync", () => {
 
         await runSyncJob("war", syncWar, { client });
 
-        const row = await h.db.query<{ state: string; our_stars: number }>(
-          `select state, our_stars from wars where clan_id = '${CLAN_A}'`,
+        const row = await h.db.query<{ state: string; our_stars: number; result: string | null }>(
+          `select state, our_stars, result from wars where clan_id = '${CLAN_A}'`,
         );
-        expect(row.rows[0]).toMatchObject({ state: "warEnded", our_stars: 20 });
+        // Ended, on the last score seen — but NOT called a loss: that score is
+        // an hour old and the war may have turned.
+        expect(row.rows[0]).toMatchObject({ state: "warEnded", our_stars: 20, result: null });
+      });
+
+      // The real case, Dark Hell vs LEGENDARY BOYZ, 26 Sept 2026: /currentwar
+      // said the war ended 18:57:05, the war log said 18:57:06. Matched on the
+      // exact millisecond, the log was missed and a 120–120 draw was stored as
+      // the 106–114 loss it had been an hour earlier.
+      it("finds the war in the log when its end time is a second out", async () => {
+        await h.db.exec(`
+          insert into wars (clan_id, state, opponent_tag, our_stars, their_stars,
+                            result, start_time, end_time)
+          values ('${CLAN_A}', 'inWar', '${THEIR_TAG}', 106, 114, null,
+                  '2026-09-25T18:57:05Z', '2026-09-26T18:57:05Z');
+        `);
+        respondByPath([
+          ["/currentwar", { state: "notInWar" }],
+          [
+            "/warlog",
+            {
+              items: [
+                {
+                  result: "tie",
+                  endTime: "20260926T185706.000Z",
+                  clan: { tag: OUR_TAG, stars: 120, destructionPercentage: 100 },
+                  opponent: { tag: THEIR_TAG, stars: 120, destructionPercentage: 100 },
+                },
+              ],
+            },
+          ],
+        ]);
+
+        await runSyncJob("war", syncWar, { client });
+
+        const row = await h.db.query<{ our_stars: number; their_stars: number; result: string }>(
+          `select our_stars, their_stars, result from wars where clan_id = '${CLAN_A}'`,
+        );
+        expect(row.rows[0]).toMatchObject({ our_stars: 120, their_stars: 120, result: "tie" });
+      });
+
+      // And the row that bug already wrote: ended, wrong. The log is the game's
+      // final record, so a war that ended in the last two days is corrected.
+      it("corrects a recently ended war to the war log's final score", async () => {
+        const end = new Date(Date.now() - 20 * 60 * 60 * 1000);
+        const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+        await h.db.exec(`
+          insert into wars (clan_id, state, opponent_tag, our_stars, their_stars,
+                            our_destruction, their_destruction, result, start_time, end_time)
+          values ('${CLAN_A}', 'warEnded', '${THEIR_TAG}', 106, 114, 91.3, 96.2, 'lose',
+                  '${start.toISOString()}', '${end.toISOString()}');
+        `);
+        const logEnd = new Date(end.getTime() + 1000).toISOString().replace(/[-:]/g, "");
+        respondByPath([
+          ["/currentwar", { state: "notInWar" }],
+          [
+            "/warlog",
+            {
+              items: [
+                {
+                  result: "tie",
+                  endTime: logEnd,
+                  clan: { tag: OUR_TAG, stars: 120, destructionPercentage: 100 },
+                  opponent: { tag: THEIR_TAG, stars: 120, destructionPercentage: 100 },
+                },
+              ],
+            },
+          ],
+        ]);
+
+        await runSyncJob("war", syncWar, { client });
+
+        const row = await h.db.query<{ our_stars: number; their_stars: number; result: string }>(
+          `select our_stars, their_stars, result from wars where clan_id = '${CLAN_A}'`,
+        );
+        expect(row.rows[0]).toMatchObject({ our_stars: 120, their_stars: 120, result: "tie" });
+      });
+
+      it("matches a war that ended early on its opponent, not its scheduled end", () => {
+        const log = [
+          {
+            // Every attack used: the log's end is three hours before the schedule.
+            endMs: Date.parse("2026-09-26T15:57:05Z"),
+            ours: { tag: OUR_TAG, stars: 120, destruction: 100, members: [] },
+            theirs: { tag: THEIR_TAG, stars: 118, destruction: 99, members: [] },
+          },
+        ];
+        expect(
+          matchLogEntry({ opponent_tag: THEIR_TAG, end_time: "2026-09-26T18:57:05Z" }, log),
+        ).toBe(log[0]);
+        // A different opponent is not the same war, however close the time.
+        expect(matchLogEntry({ opponent_tag: "#PQL0289", end_time: "2026-09-26T18:57:05Z" }, log)).toBeUndefined();
       });
 
       it("leaves the war the API is describing right now alone", async () => {

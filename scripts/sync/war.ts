@@ -126,8 +126,11 @@ async function upsertWar(
         our_destruction: ours.destruction ?? null,
         their_destruction: theirs.destruction ?? null,
         // The API reports no winner for a regular war either, so it is computed
-        // from stars then destruction, exactly as CWL's is.
-        result: warResult(ours, theirs),
+        // from stars then destruction, exactly as CWL's is — but only once the
+        // war is OVER. Computed live it stored "tie" for every 0–0 preparation
+        // day and "lose" for a war we were behind in at lunchtime, and a war
+        // closed without its final score (closeStaleWars) kept that guess.
+        result: war.state === "warEnded" ? warResult(ours, theirs) : null,
         start_time: startIso,
         end_time: war.endTime?.toISOString() ?? null,
       },
@@ -274,7 +277,8 @@ async function upsertWarAttacks(
 }
 
 /**
- * Finish any war the hourly sync never saw end.
+ * Finish any war the hourly sync never saw end — and correct the ones it did
+ * close, once the war log has their final score.
  *
  * THE GAP THIS CLOSES. `/currentwar` only ever describes the clan's CURRENT war.
  * A war ends, the clan starts searching (or is already in preparation for the
@@ -285,82 +289,210 @@ async function upsertWarAttacks(
  *
  * A row is stale when it is still preparation/inWar, its end_time has passed,
  * and it is not the war the API is describing right now. The war log supplies
- * the final totals, matched on end time. Returns how many rows it closed.
+ * the final totals.
+ *
+ * MATCHING THE LOG, AND THE BUG IT HAD. The log was matched on the end time to
+ * the millisecond. The log's end time is not the one /currentwar reported: it
+ * was 18:57:06 against a stored 18:57:05 for a 120–120 war, the match missed,
+ * and the war was closed as the 106–114 loss it had been an hour before the
+ * end. A war that finishes early (every attack used) ends hours before its
+ * scheduled time in the log, too. So entries are matched on the OPPONENT'S TAG
+ * with the end within a day, and only failing that on the nearest end time
+ * within a few minutes (logs from before opponents carried tags).
+ *
+ * THE LOG IS THE GAME'S FINAL RECORD, so a war that ended in the last two days
+ * is compared with it on every run and corrected where it differs — the score
+ * a closed war was given from its last-known totals is replaced by the real
+ * one. That is not rewriting history (R5): it is the history arriving. Only
+ * the score and result change; the roster and attacks are untouched.
  *
  * What cannot be recovered: attacks landed in that last hour. The log carries
- * totals, not attacks, and Supercell keeps no other copy — the reason
- * "Refresh now" exists is to make this gap rarer, not to pretend it is gone.
+ * totals, not attacks, and Supercell keeps no other copy.
  *
  * Never throws for the API's sake: a private log, a fixture run with no warlog
- * file, or a timeout all fall back to closing the row on its last-known totals.
- * A war that has ended is ended, whether or not the final score is known.
+ * file, or a timeout all fall back to closing the row on its last-known totals,
+ * WITHOUT a result — a war that has ended is ended, but "lost" is a claim the
+ * last-known totals cannot support.
  */
+const RECONCILE_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
+const EXACT_END_TOLERANCE_MS = 10 * 60 * 1000;
+const SAME_WAR_END_WINDOW_MS = 26 * 60 * 60 * 1000;
+
+interface StoredWarRow {
+  id: string;
+  state: string | null;
+  opponent_tag: string | null;
+  start_time: string;
+  end_time: string | null;
+  our_stars: number | null;
+  their_stars: number | null;
+  our_destruction: number | string | null;
+  their_destruction: number | string | null;
+  result: string | null;
+}
+
+type LogEntry = Awaited<ReturnType<typeof readWarLog>>[number];
+
+/** Tag equality that never throws — a malformed tag simply does not match. */
+function sameTag(a: string, b: string): boolean {
+  const clean = (t: string) => `#${t.trim().toUpperCase().replace(/^#/, "")}`;
+  return clean(a) === clean(b);
+}
+
+/** The war-log entry for one stored war, or undefined. Exported for tests. */
+export function matchLogEntry(
+  row: { opponent_tag: string | null; end_time: string | null },
+  log: LogEntry[],
+): LogEntry | undefined {
+  if (!row.end_time) return undefined;
+  const endMs = new Date(row.end_time).getTime();
+  const distance = (entry: LogEntry) => Math.abs(entry.endMs - endMs);
+
+  const byOpponent = row.opponent_tag
+    ? log
+        .filter((e) => e.theirs.tag && sameTag(e.theirs.tag, row.opponent_tag!))
+        .filter((e) => distance(e) <= SAME_WAR_END_WINDOW_MS)
+        .sort((a, b) => distance(a) - distance(b))[0]
+    : undefined;
+  if (byOpponent) return byOpponent;
+
+  return log
+    .filter((e) => distance(e) <= EXACT_END_TOLERANCE_MS)
+    .sort((a, b) => distance(a) - distance(b))[0];
+}
+
+function finalPatch(entry: LogEntry): Record<string, unknown> {
+  return {
+    our_stars: entry.ours.stars ?? null,
+    their_stars: entry.theirs.stars ?? null,
+    our_destruction: entry.ours.destruction ?? null,
+    their_destruction: entry.theirs.destruction ?? null,
+    result: warResult(entry.ours, entry.theirs),
+  };
+}
+
+/**
+ * Whether the stored score disagrees with the log's. Destruction within a
+ * hundredth counts as equal: the log says 99.975 where the column (numeric
+ * 5,2) holds 99.98, and an exact compare would "correct" the war every hour.
+ */
+function differs(row: StoredWarRow, patch: Record<string, unknown>): boolean {
+  const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+  const apart = (a: unknown, b: unknown, tolerance: number) => {
+    const x = num(a);
+    const y = num(b);
+    if (x === null || y === null) return x !== y;
+    return Math.abs(x - y) > tolerance;
+  };
+  return (
+    apart(row.our_stars, patch.our_stars, 0) ||
+    apart(row.their_stars, patch.their_stars, 0) ||
+    apart(row.our_destruction, patch.our_destruction, 0.011) ||
+    apart(row.their_destruction, patch.their_destruction, 0.011) ||
+    row.result !== patch.result
+  );
+}
+
 export async function closeStaleWars(
   supabase: SupabaseClient,
   clan: ClanRow,
   currentStart: Date | undefined,
   now: Date = new Date(),
 ): Promise<number> {
-  const { data, error } = await supabase
-    .from("wars")
-    .select("id, state, start_time, end_time")
-    .eq("clan_id", clan.id) // R3
-    .is("deleted_at", null)
-    .in("state", ["preparation", "inWar"]);
+  const columns =
+    "id, state, opponent_tag, start_time, end_time, our_stars, their_stars, " +
+    "our_destruction, their_destruction, result";
+  // Two small reads: every war still open (however old — one the sync missed
+  // must still be closed), and the wars that ended recently enough to check
+  // against the log.
+  const [open, ended] = await Promise.all([
+    supabase
+      .from("wars")
+      .select(columns)
+      .eq("clan_id", clan.id) // R3
+      .is("deleted_at", null)
+      .in("state", ["preparation", "inWar"]),
+    supabase
+      .from("wars")
+      .select(columns)
+      .eq("clan_id", clan.id) // R3
+      .is("deleted_at", null)
+      .eq("state", "warEnded")
+      .gte("end_time", new Date(now.getTime() - RECONCILE_WINDOW_MS).toISOString()),
+  ]);
 
-  if (error) throw new Error(`wars read failed for ${clan.tag}: ${error.message}`);
+  if (open.error || ended.error) {
+    throw new Error(`wars read failed for ${clan.tag}: ${(open.error ?? ended.error)!.message}`);
+  }
+  const rows = [...(open.data ?? []), ...(ended.data ?? [])] as unknown as StoredWarRow[];
 
-  const stale = ((data ?? []) as Array<{
-    id: string;
-    start_time: string;
-    end_time: string | null;
-  }>).filter(
+  const isCurrent = (row: StoredWarRow) => new Date(row.start_time).getTime() === currentStart?.getTime();
+  const stale = rows.filter(
     (row) =>
+      (row.state === "preparation" || row.state === "inWar") &&
       row.end_time !== null &&
       new Date(row.end_time).getTime() < now.getTime() &&
-      new Date(row.start_time).getTime() !== currentStart?.getTime(),
+      !isCurrent(row),
   );
-  if (!stale.length) return 0;
+  const recent = rows.filter(
+    (row) =>
+      row.state === "warEnded" &&
+      row.end_time !== null &&
+      now.getTime() - new Date(row.end_time).getTime() < RECONCILE_WINDOW_MS,
+  );
+  if (!stale.length && !recent.length) return 0;
 
-  let log: Awaited<ReturnType<typeof readWarLog>> = [];
+  let log: LogEntry[] = [];
   try {
     log = await readWarLog(clan.tag);
   } catch (error) {
-    console.warn(
-      `  ${clan.tag}: war log unreadable (${error instanceof Error ? error.message : error}); ` +
-        "closing on last-known totals",
-    );
+    // Only worth saying when a war is being closed blind; the reconcile pass
+    // simply has nothing to compare against.
+    if (stale.length) {
+      console.warn(
+        `  ${clan.tag}: war log unreadable (${error instanceof Error ? error.message : error}); ` +
+          "closing on last-known totals",
+      );
+    }
   }
 
-  for (const row of stale) {
-    const endMs = new Date(row.end_time!).getTime();
-    const entry = log.find((item) => item.endMs === endMs);
-
-    const patch: Record<string, unknown> = { state: "warEnded" };
-    if (entry) {
-      patch.our_stars = entry.ours.stars ?? null;
-      patch.their_stars = entry.theirs.stars ?? null;
-      patch.our_destruction = entry.ours.destruction ?? null;
-      patch.their_destruction = entry.theirs.destruction ?? null;
-      patch.result = warResult(entry.ours, entry.theirs);
-    }
-
+  let written = 0;
+  const update = async (row: StoredWarRow, patch: Record<string, unknown>) => {
     const { error: updateError } = await supabase
       .from("wars")
       .update(patch)
       .eq("id", row.id)
       .eq("clan_id", clan.id);
-
     if (updateError) {
       throw new Error(`wars close failed for ${clan.tag}: ${updateError.message}`);
     }
+    written += 1;
+  };
+
+  for (const row of stale) {
+    const entry = matchLogEntry(row, log);
+    // No log entry: the war is over, but its result is not known — the stars
+    // are an hour old, and calling it won or lost on those is a guess.
+    await update(row, { state: "warEnded", ...(entry ? finalPatch(entry) : { result: null }) });
     console.log(
       `  ${clan.tag}: closed a war that ended unseen at ${row.end_time}` +
-        (entry ? " (final score from the war log)" : " (last-known score)"),
+        (entry ? " (final score from the war log)" : " (last-known score, result unknown)"),
     );
   }
 
-  return stale.length;
+  for (const row of recent) {
+    const entry = matchLogEntry(row, log);
+    if (!entry) continue;
+    const patch = finalPatch(entry);
+    if (!differs(row, patch)) continue;
+    await update(row, patch);
+    console.log(
+      `  ${clan.tag}: corrected the war that ended ${row.end_time} to the war log's final score ` +
+        `${String(patch.our_stars)}–${String(patch.their_stars)}`,
+    );
+  }
+
+  return written;
 }
 
 /** The war log's regular wars, as sides already oriented to "us". */
