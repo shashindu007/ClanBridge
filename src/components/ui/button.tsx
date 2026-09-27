@@ -21,6 +21,20 @@ import { cn } from "@/lib/utils"
 // the one; every other action is `outline`. globals.css says why gold no
 // longer collides with the amber warning.
 //
+// WHICH VARIANT AND SIZE, so the same action looks the same on every page:
+//
+//   gold     the page's single main action (Add players, Open the war days)
+//   default  the confirming action inside a dialog or panel (Assign, Add selected)
+//   outline  secondary actions (Move, Change, Publish, Export, Search)
+//   ghost    dismissive or undo actions (Remove, Give back, Clear)
+//
+//   xs       inside table rows and cards
+//   sm       toolbars, dialogs, page-header actions
+//   default  standalone calls to action; cta on hero tiles
+//
+// One size per row. Icons on actions that go somewhere or make something
+// (UserPlus, Crosshair, FileDown); none on Remove / Undo / Clear.
+//
 // T12.10 — buttons are in the BODY face. T12.8 put the display face on them,
 // and with it on titles, numbers and buttons alike nothing stood out; a button
 // has to be read, not admired. The raised plinth is what makes it a game

@@ -7,9 +7,15 @@
 import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function PrintButton({ label = "Download PDF" }: { label?: string }) {
+export function PrintButton({
+  label = "Download PDF",
+  size = "sm",
+}: {
+  label?: string;
+  size?: "sm" | "default";
+}) {
   return (
-    <Button type="button" variant="gold" onClick={() => window.print()} className="print:hidden">
+    <Button type="button" variant="gold" size={size} onClick={() => window.print()} className="print:hidden">
       <Printer aria-hidden />
       {label}
     </Button>

@@ -31,19 +31,33 @@ export function DownloadImageButton({
     try {
       // Loaded on demand: nobody who never presses this pays for it.
       const { toPng } = await import("html-to-image");
-      const url = await toPng(node, {
+      const options = {
         pixelRatio: 2,
-        cacheBust: true,
         backgroundColor: "#ffffff",
+        // A transparent pixel for any image that cannot be fetched. Without it
+        // html-to-image sets the clone's src to "" and ONE unreadable image —
+        // a clan badge from a CDN that sends no CORS header — rejects the whole
+        // export. (The sheets now load badges same-origin; this is the net.)
+        imagePlaceholder:
+          "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
         // Buttons inside the captured node are for the screen, not the image.
-        filter: (el) => !(el instanceof HTMLElement && el.dataset.noCapture !== undefined),
-      });
+        filter: (el: Node) => !(el instanceof HTMLElement && el.dataset.noCapture !== undefined),
+      };
+      let url: string;
+      try {
+        url = await toPng(node, options);
+      } catch (first) {
+        // Font embedding is the other thing that fails in the wild; the sheet
+        // still reads fine in the system font.
+        console.error("PNG export failed, retrying without web fonts", first);
+        url = await toPng(node, { ...options, skipFonts: true });
+      }
       const link = document.createElement("a");
       link.href = url;
       link.download = fileName.endsWith(".png") ? fileName : `${fileName}.png`;
       link.click();
-    } catch {
-      // Most often a cross-origin image (a clan badge the CDN will not share).
+    } catch (error) {
+      console.error("PNG export failed", error);
       setFailed(true);
     } finally {
       setBusy(false);

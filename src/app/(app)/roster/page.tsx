@@ -202,7 +202,7 @@ export default async function RosterSeasonsPage() {
                   </Link>
                 </Button>
                 {/* The finished lineups as a PDF, or an image per clan. */}
-                <Button asChild variant="outline">
+                <Button asChild variant="outline" size={i === 0 ? "default" : "sm"}>
                   <Link href={`/roster/${season}/print`}>
                     <FileDown aria-hidden />
                     Export

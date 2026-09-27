@@ -93,7 +93,7 @@ export default async function LineupExportPage({
                 className="flex items-center gap-4 border-b-4 pb-3"
                 style={{ borderColor: "var(--ribbon-cwl)" }}
               >
-                <ClanBadge src={clan.badgeUrl} name={clan.name} size="lg" tone="var(--primary)" />
+                <ClanBadge src={clan.badgeUrl} name={clan.name} size="lg" tone="var(--primary)" sameOrigin />
                 <div className="min-w-0 flex-1">
                   <p className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
                     Clan War League lineup

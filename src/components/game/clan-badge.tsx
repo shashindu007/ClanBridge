@@ -30,6 +30,7 @@ export function ClanBadge({
   tone,
   label,
   priority = false,
+  sameOrigin = false,
   className,
 }: {
   src: string | null | undefined;
@@ -40,6 +41,13 @@ export function ClanBadge({
   /** The accessible name, when no text beside the badge already names the clan. */
   label?: string;
   priority?: boolean;
+  /**
+   * Serve the badge through this site's /_next/image instead of straight from
+   * api-assets.clashofclans.com. That CDN sends no CORS header, so a badge
+   * loaded from it cannot be drawn into a PNG (components/download-image-button)
+   * — one such image failed the whole export. Only the export sheets need it.
+   */
+  sameOrigin?: boolean;
   className?: string;
 }) {
   const px = PX[size];
@@ -53,7 +61,7 @@ export function ClanBadge({
           alt=""
           width={px}
           height={px}
-          unoptimized
+          unoptimized={!sameOrigin}
           priority={priority}
           className="cb-art object-contain"
           style={{ width: px, height: px }}

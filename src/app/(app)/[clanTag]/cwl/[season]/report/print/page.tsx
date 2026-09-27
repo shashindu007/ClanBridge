@@ -82,7 +82,7 @@ export default async function CwlReportPrintPage({
       <article className="cb-sheet space-y-6 rounded-panel border p-8 shadow-lg print:rounded-none print:border-0 print:p-0 print:shadow-none">
         {/* ── Masthead ──────────────────────────────────────────────────── */}
         <header className="flex items-center gap-4 border-b-4 pb-4" style={{ borderColor: "var(--ribbon-cwl)" }}>
-          <ClanBadge src={clan.badgeUrl} name={clan.name} size="lg" tone="var(--primary)" />
+          <ClanBadge src={clan.badgeUrl} name={clan.name} size="lg" tone="var(--primary)" sameOrigin />
           <div className="min-w-0 flex-1">
             <p className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">{clan.name} · {clan.tag}</p>
             <h1 className="cb-title text-3xl leading-tight">{title}</h1>
