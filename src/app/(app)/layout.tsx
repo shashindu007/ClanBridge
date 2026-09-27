@@ -156,7 +156,7 @@ export default async function AppLayout({
           Sticky, because the clan switcher is the control members use most and
           it was previously scrolled off the top of every long roster. z-30 sits
           above page content and below any dialog. */}
-      <header className="cb-rail sticky top-0 z-30">
+      <header className="cb-rail sticky top-0 z-30 print:hidden">
         {/* max-w-page is every page's width too, so the rail's edges and the
             content's line up. They did not (7xl here, 6xl on Home), and the
             account menu, pinned to the rail's right edge, landed 64px inside

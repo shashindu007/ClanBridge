@@ -855,3 +855,75 @@
     }
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE PRINT SHEET
+
+   The CWL report and the lineup export are PAPER: a white sheet with dark ink,
+   the same on screen as on the printed page, whatever theme the app is in.
+   `.cb-sheet` re-declares the light tokens on its own subtree, so every
+   utility inside it (text-muted-foreground, bg-success-tint, border…) resolves
+   to the light, measured value even while <html> carries `.dark`.
+
+   The values are copied from :root above, not referenced — the dark block
+   overrides the same names, so `var(--x)` here would read the dark ones. If a
+   light token changes, change it here too.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cb-sheet {
+  color-scheme: light;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.24 0.045 264);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.24 0.045 264);
+  --tile: oklch(1 0 0);
+  --primary: oklch(0.5 0.14 255);
+  --primary-foreground: oklch(0.99 0.005 250);
+  --secondary: oklch(0.945 0.015 255);
+  --secondary-foreground: oklch(0.28 0.045 264);
+  --muted: oklch(0.945 0.015 255);
+  --muted-foreground: oklch(0.5 0.04 258);
+  --accent: oklch(0.915 0.03 255);
+  --accent-foreground: oklch(0.3 0.06 262);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.88 0.02 255);
+  --input: oklch(0.88 0.02 255);
+  --success: oklch(0.621 0.207 142.6);
+  --success-ink: oklch(0.433 0.147 142.5);
+  --warning: oklch(0.8 0.16 68);
+  --warning-ink: oklch(0.47 0.12 55);
+  --info: oklch(0.575 0.163 255.5);
+  --info-ink: oklch(0.433 0.128 256.5);
+  --success-tint: oklch(0.949 0.031 145.5);
+  --warning-tint: oklch(0.973 0.022 75.3);
+  --info-tint: oklch(0.948 0.018 252.9);
+  --trim: oklch(0.7 0.14 78);
+  --foe: oklch(0.52 0.16 25);
+  background: var(--background);
+  color: var(--foreground);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  html {
+    font-size: 11pt;
+  }
+
+  /* No textured backdrop, no app chrome: the sheet is the page. */
+  body {
+    background: white !important;
+  }
+
+  .print-page-break {
+    break-before: page;
+  }
+
+  .print-avoid-break {
+    break-inside: avoid;
+  }
+}

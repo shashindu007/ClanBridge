@@ -95,7 +95,7 @@ export default function RootLayout({
             sentence on it used to leave the fan content notice. */}
         <div className="flex-1">{children}</div>
 
-        <footer className="mt-8 border-t px-4 py-4 text-center">
+        <footer className="mt-8 border-t px-4 py-4 text-center print:hidden">
           {/* T9.8 — the exact notice named in Supercell's Fan Content Policy
               ("Insert disclaimers"), recorded at T0.12. Not paraphrased: the
               policy asks for this wording "or a substantially similar
