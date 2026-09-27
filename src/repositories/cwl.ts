@@ -321,3 +321,77 @@ export const familyCwlHistory = cache(async function familyCwlHistory(
   }
   return result;
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 048 — the rest of the group. `seasonId` must already be clan-checked, as for
+// every read above; the season is what ties these rows to this clan.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface GroupClan {
+  tag: string;
+  name: string | null;
+  badgeUrl: string | null;
+  clanLevel: number | null;
+}
+
+/** One war in the group, in the API's side order — neither side is "us". */
+export interface GroupWar {
+  warTag: string;
+  dayNumber: number | null;
+  state: string | null;
+  teamSize: number | null;
+  clanTag: string;
+  opponentTag: string;
+  clanStars: number | null;
+  opponentStars: number | null;
+  clanDestruction: number | null;
+  opponentDestruction: number | null;
+  clanAttacks: number | null;
+  opponentAttacks: number | null;
+}
+
+export async function groupForSeason(
+  supabase: SupabaseClient,
+  seasonId: string,
+): Promise<{ clans: GroupClan[]; wars: GroupWar[] }> {
+  const [clans, wars] = await Promise.all([
+    supabase
+      .from("cwl_group_clans")
+      .select("clan_tag, name, badge_url, clan_level")
+      .eq("season_id", seasonId)
+      .is("deleted_at", null),
+    supabase
+      .from("cwl_group_wars")
+      .select(
+        "war_tag, day_number, state, team_size, clan_tag, opponent_tag, clan_stars, " +
+          "opponent_stars, clan_destruction, opponent_destruction, clan_attacks, opponent_attacks",
+      )
+      .eq("season_id", seasonId)
+      .is("deleted_at", null)
+      .order("day_number"),
+  ]);
+
+  const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+  return {
+    clans: ((clans.error ? [] : clans.data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+      tag: r.clan_tag as string,
+      name: (r.name as string | null) ?? null,
+      badgeUrl: (r.badge_url as string | null) ?? null,
+      clanLevel: num(r.clan_level),
+    })),
+    wars: ((wars.error ? [] : wars.data ?? []) as unknown as Array<Record<string, unknown>>).map((r) => ({
+      warTag: r.war_tag as string,
+      dayNumber: num(r.day_number),
+      state: (r.state as string | null) ?? null,
+      teamSize: num(r.team_size),
+      clanTag: r.clan_tag as string,
+      opponentTag: r.opponent_tag as string,
+      clanStars: num(r.clan_stars),
+      opponentStars: num(r.opponent_stars),
+      clanDestruction: num(r.clan_destruction),
+      opponentDestruction: num(r.opponent_destruction),
+      clanAttacks: num(r.clan_attacks),
+      opponentAttacks: num(r.opponent_attacks),
+    })),
+  };
+}

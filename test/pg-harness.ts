@@ -120,6 +120,9 @@ export const PHASE1_MIGRATIONS = [
   // One member per enemy base for leadership too, and a war-row lock in both
   // assign and claim. Replaces 024's assign and 046's claim.
   "047_war_one_member_per_base.sql",
+  // The CWL group's other clans and wars, for standings and medals. Must follow
+  // 002 (cwl_seasons) and 046 (auth_clan_ids).
+  "048_cwl_group.sql",
 ] as const;
 
 /**
@@ -305,6 +308,8 @@ export const PHASE1_TABLES = [
   "clans",
   "cwl_attacks",
   "cwl_bonuses",
+  "cwl_group_clans",
+  "cwl_group_wars",
   "cwl_roster_members",
   "cwl_rosters",
   "cwl_seasons",

@@ -84,6 +84,15 @@ async function seedFixtures(h: Harness) {
       ('11111111-0000-4000-8000-000000000002', '${PLAYER_A}', 1, 3, 100.00),
       ('22222222-0000-4000-8000-000000000002', '${PLAYER_B}', 1, 2, 75.50);
 
+    -- 048. The rest of the group, one row per clan's season.
+    insert into cwl_group_clans (season_id, clan_tag, name) values
+      ('11111111-0000-4000-8000-000000000001', '#2PP', 'Group rival A'),
+      ('22222222-0000-4000-8000-000000000001', '#2QQ', 'Group rival B');
+
+    insert into cwl_group_wars (season_id, war_tag, day_number, state, clan_tag, opponent_tag) values
+      ('11111111-0000-4000-8000-000000000001', '#8G9QRVJL', 1, 'warEnded', '#2PP', '#2QQ'),
+      ('22222222-0000-4000-8000-000000000001', '#9CUVPYQ2', 1, 'warEnded', '#2QQ', '#2PP');
+
     insert into cwl_bonuses (season_id, player_id, awarded_by, note) values
       ('11111111-0000-4000-8000-000000000001', '${PLAYER_A}', '${USER_A}', 'top stars'),
       ('22222222-0000-4000-8000-000000000001', '${PLAYER_B}', '${USER_B}', 'top stars');

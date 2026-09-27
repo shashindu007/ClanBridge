@@ -26,6 +26,7 @@ import { runSyncJob } from "../scripts/sync/shared";
 import {
   chooseSides,
   dayNumbers,
+  groupTagsToFetch,
   storedState,
   syncCwl,
   tagsToFetch,
@@ -192,7 +193,7 @@ describe("T4.1 — the CWL sync", () => {
   describe("dayNumbers — the round index the mapper throws away", () => {
     it("numbers rounds from one and drops the #0 placeholders", () => {
       // Real tag characters only — the alphabet is 0289PYLQGRJCUV, so a
-      // plausible-looking '#AAA' is rejected by normaliseTag.
+      // plausible-looking '#PPP' is rejected by normaliseTag.
       const group = {
         season: "2026-08",
         clans: [],
@@ -499,6 +500,58 @@ describe("T4.1 — the CWL sync", () => {
         const result = await runSyncJob("cwl", syncCwl, { client });
         expect(result).toBe("success");
         expect(await count(h, "cwl_wars")).toBe(WAR_COUNT);
+      });
+    });
+
+    describe("048 — the rest of the group, and the season's league", () => {
+      const GROUP_TAGS = new Set(
+        CWL_GROUP.rounds.flatMap((r) => r.warTags).filter((t) => t && t !== "#0"),
+      );
+
+      it("records all eight clans and every war in the group", async () => {
+        await runSyncJob("cwl", syncCwl, { client });
+        expect(await count(h, "cwl_group_clans")).toBe(8);
+        // Ours included: standings are decided by all of them.
+        expect(await count(h, "cwl_group_wars")).toBe(GROUP_TAGS.size);
+        // Day numbers come from the round a tag sits in.
+        expect(await count(h, "cwl_group_wars", "day_number is null")).toBe(0);
+      });
+
+      it("never asks for a group war again once it has ended", async () => {
+        await runSyncJob("cwl", syncCwl, { client });
+        const stored = await h.db.query<{ war_tag: string; state: string }>(
+          `select war_tag, state from cwl_group_wars`,
+        );
+        const map = new Map(stored.rows.map((r) => [r.war_tag, r.state]));
+        expect(groupTagsToFetch(CWL_GROUP as unknown as ApiCwlGroup, map, new Set())).toEqual([]);
+        // …and a run in between changes nothing.
+        await runSyncJob("cwl", syncCwl, { client });
+        expect(await count(h, "cwl_group_wars")).toBe(GROUP_TAGS.size);
+      });
+
+      it("skips placeholder tags and tags already fetched this run", () => {
+        const group = {
+          season: "2026-10-01",
+          clans: [],
+          rounds: [{ warTags: ["#0", "#PPP", "#QQQ"] }, { warTags: ["#RRR"] }],
+        } as unknown as ApiCwlGroup;
+        expect(groupTagsToFetch(group, new Map([["#QQQ", "inWar"]]), new Set(["#RRR"]))).toEqual([
+          "#PPP",
+          "#QQQ",
+        ]);
+      });
+
+      it("stamps the league while the season runs, and never overwrites it", async () => {
+        await h.db.exec(`update clans set war_league = 'Master League III' where id = '${CLAN_A}'`);
+        await runSyncJob("cwl", syncCwl, { client });
+        const first = await h.db.query<{ league: string | null }>(`select league from cwl_seasons`);
+        expect(first.rows[0]!.league).toBe("Master League III");
+
+        // Promoted later — the season it was played in keeps its league.
+        await h.db.exec(`update clans set war_league = 'Master League II' where id = '${CLAN_A}'`);
+        await runSyncJob("cwl", syncCwl, { client });
+        const second = await h.db.query<{ league: string | null }>(`select league from cwl_seasons`);
+        expect(second.rows[0]!.league).toBe("Master League III");
       });
     });
 

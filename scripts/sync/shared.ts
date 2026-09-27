@@ -13,7 +13,7 @@
 //
 //   MAY WRITE (game facts, from Supercell):
 //     clans, players, clan_roles, member_snapshots
-//     cwl_seasons, cwl_wars, cwl_attacks
+//     cwl_seasons, cwl_wars, cwl_attacks, cwl_group_clans, cwl_group_wars
 //     wars, war_attacks
 //     raid_seasons, raid_participants, clan_games, clan_games_scores
 //     sync_log
