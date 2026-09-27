@@ -444,11 +444,9 @@ export default async function DashboardPage({
           <h2 id="clans-title" className="text-lg font-semibold">
             Your clans
           </h2>
-          {/* auto-fit at lg: two clans get two wide tiles, three get three,
-              and a fourth wraps rather than squeezing every tile below a
-              readable width. The row gap is large because each badge rises
-              out of its tile. */}
-          <ul className="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
+          {/* A list of small rows: any number of clans reads top to bottom,
+              with no orphan tile on a second line. */}
+          <ul className="space-y-2.5">
             {loaded.map((l, i) => (
               <ClanStatusTile
                 key={l.clan.id}

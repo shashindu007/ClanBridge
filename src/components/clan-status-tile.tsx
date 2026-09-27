@@ -17,9 +17,15 @@
 // the clan page makes. Both optional: a leader may have no village here, and
 // a clan may have posted nothing.
 //
-// The whole tile opens the clan (the same page the Clans menu opens — the tabs'
+// A ROW, NOT A TALL CARD. Four clans as tiles wrapped into a grid with one
+// orphan and a lot of empty card; as rows they are a list you scan top to
+// bottom, each about a hand tall. On a wide screen the three answers sit side
+// by side — who, what is happening, you here — and they stack on a phone.
+//
+// The whole row opens the clan (the same page the Clans menu opens — the tabs'
 // ?clan= links, which went somewhere else under the same name, are gone). The
-// action button inside rises above that link; see Tile in kit.tsx.
+// controls inside carry `relative z-10` to rise above that one link, the same
+// pattern as Tile in kit.tsx.
 //
 // GOLD AT MOST ONCE. The page decides which single tile, if any, gets the gold
 // "Attack" — the first clan where you still have one — and says so with `gold`.
@@ -41,7 +47,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { FactRow, Tile } from "@/components/kit";
+import { FactRow } from "@/components/kit";
 import { ClanBadge } from "@/components/game/clan-badge";
 import { GameArt } from "@/components/game/game-art";
 import { Ribbon } from "@/components/game/ribbon";
@@ -118,97 +124,105 @@ export function ClanStatusTile({
   const leagueKey = artKeyForLeague(warLeague);
 
   return (
-    <Tile
-      as="li"
-      accent={clan.color}
-      art={<ClanBadge src={clan.badgeUrl} name={clan.name} size="xl" tone={clan.color} priority />}
-      ribbon={
-        <Ribbon tone={status.tone} icon={RIBBON_ICON[status.kind]}>
-          {status.label}
-        </Ribbon>
-      }
-      href={`/${encodeURIComponent(clan.tag)}`}
-      label={`Open ${clan.name}`}
-      className="flex flex-col gap-4"
-    >
-      <div className="min-w-0">
-        <p className="cb-title truncate text-xl leading-tight">{clan.name}</p>
-        <p className="text-muted-foreground text-xs">
-          <span className="font-mono">{clan.tag}</span> · <span className="capitalize">{clan.role}</span>
-        </p>
-      </div>
+    <li className="cb-panel cb-panel-interactive relative overflow-hidden rounded-panel border">
+      {/* The clan's colour, as an edge rather than a band: a row reads left
+          to right, so that is where its owner's mark goes. */}
+      <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ background: clan.color }} />
+      {/* One link for the whole row; the controls inside rise above it. */}
+      <Link
+        href={`/${encodeURIComponent(clan.tag)}`}
+        aria-label={`Open ${clan.name}`}
+        className="focus-visible:ring-ring/50 absolute inset-0 z-[1] rounded-panel outline-none focus-visible:ring-[3px]"
+      />
 
-      <Action status={status} gold={gold} clanLeft={clanLeft} />
-
-      <div className="cb-sunken divide-border/60 divide-y rounded-control text-sm">
-        {village && (
-          <Link
-            href={village.href}
-            className="hover:bg-accent/50 relative z-10 flex items-center gap-2.5 rounded-control px-3 py-2"
-          >
-            <TownHall level={village.thLevel} size="xs" />
-            <span className="min-w-0 flex-1 truncate font-medium">{village.label}</span>
-            <span className="text-primary inline-flex shrink-0 items-center gap-1 text-xs font-medium">
-              <Castle aria-hidden className="size-3.5" />
-              Base details
-            </span>
-          </Link>
-        )}
-        {notice ? (
-          <Link
-            href={`/${encodeURIComponent(clan.tag)}/notices`}
-            className="hover:bg-accent/50 relative z-10 flex items-center gap-2.5 rounded-control px-3 py-2"
-          >
-            {notice.pinned ? (
-              <Pin aria-label="Pinned" className="text-info-ink size-4 shrink-0" />
-            ) : (
-              <Megaphone aria-hidden className="text-muted-foreground size-4 shrink-0" />
+      <div className="grid gap-x-6 gap-y-3 py-3 pr-3 pl-4 sm:pr-4 md:grid-cols-2 xl:grid-cols-[minmax(0,23rem)_minmax(0,1fr)_minmax(0,1.1fr)] xl:items-center">
+        {/* Who: the clan, and its facts in one small line. */}
+        <div className="flex min-w-0 items-center gap-3">
+          <ClanBadge src={clan.badgeUrl} name={clan.name} size="lg" tone={clan.color} priority />
+          <div className="min-w-0 space-y-0.5">
+            <p className="cb-title truncate text-lg leading-tight">{clan.name}</p>
+            <p className="text-muted-foreground truncate text-xs">
+              <span className="font-mono">{clan.tag}</span> · <span className="capitalize">{clan.role}</span>
+            </p>
+            <FactRow
+              className="gap-x-3 gap-y-0.5 pt-0.5 text-xs"
+              items={[
+                { label: memberCount === 1 ? "member" : "members", value: memberCount, icon: Users },
+                ...(level ? [{ label: "level", value: level, icon: Shield }] : []),
+                ...(warLeague
+                  ? [
+                      {
+                        label: "league",
+                        value: warLeague.replace(/ League/, ""),
+                        title: warLeague,
+                        art: (
+                          <GameArt
+                            art={leagueKey}
+                            size={16}
+                            alt=""
+                            fallback={<Trophy aria-hidden className="text-muted-foreground size-3.5" />}
+                          />
+                        ),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+            {behind && (
+              <Badge variant="warning" title={`Game data ${fresh.label} — numbers here may be out of date.`}>
+                <TriangleAlert aria-hidden />
+                Data {fresh.label}
+              </Badge>
             )}
-            <span className="min-w-0 flex-1 truncate">{notice.title}</span>
-            <span className="text-muted-foreground shrink-0 text-xs">{timeAgo(notice.createdAt, now)}</span>
-            <ChevronRight aria-hidden className="text-muted-foreground -mr-1 size-3.5 shrink-0" />
-          </Link>
-        ) : (
-          <p className="text-muted-foreground flex items-center gap-2.5 px-3 py-2 text-xs">
-            <Megaphone aria-hidden className="size-4 shrink-0" />
-            No announcements yet
-          </p>
-        )}
-      </div>
+          </div>
+        </div>
 
-      <div className="mt-auto space-y-2 border-t pt-3">
-        <FactRow
-          className="gap-x-4 text-[0.8125rem]"
-          items={[
-            { label: memberCount === 1 ? "member" : "members", value: memberCount, icon: Users },
-            ...(level ? [{ label: "level", value: level, icon: Shield }] : []),
-            ...(warLeague
-              ? [
-                  {
-                    label: "league",
-                    value: warLeague.replace(/ League/, ""),
-                    title: warLeague,
-                    art: (
-                      <GameArt
-                        art={leagueKey}
-                        size={20}
-                        alt=""
-                        fallback={<Trophy aria-hidden className="text-muted-foreground size-4" />}
-                      />
-                    ),
-                  },
-                ]
-              : []),
-          ]}
-        />
-        {behind && (
-          <Badge variant="warning" title={`Game data ${fresh.label} — numbers here may be out of date.`}>
-            <TriangleAlert aria-hidden />
-            Data {fresh.label}
-          </Badge>
-        )}
+        {/* What is happening, and what you owe it. */}
+        <div className="min-w-0 space-y-1.5">
+          <Ribbon tone={status.tone} icon={RIBBON_ICON[status.kind]}>
+            {status.label}
+          </Ribbon>
+          <Action status={status} gold={gold} clanLeft={clanLeft} />
+        </div>
+
+        {/* You here: your village, and the latest notice. */}
+        <div className="cb-sunken divide-border/60 min-w-0 divide-y rounded-control text-sm md:col-span-2 xl:col-span-1">
+          {village && (
+            <Link
+              href={village.href}
+              className="hover:bg-accent/50 relative z-10 flex items-center gap-2.5 rounded-control px-3 py-1.5"
+            >
+              <TownHall level={village.thLevel} size="xs" />
+              <span className="min-w-0 flex-1 truncate font-medium">{village.label}</span>
+              <span className="text-primary inline-flex shrink-0 items-center gap-1 text-xs font-medium">
+                <Castle aria-hidden className="size-3.5" />
+                Base details
+              </span>
+            </Link>
+          )}
+          {notice ? (
+            <Link
+              href={`/${encodeURIComponent(clan.tag)}/notices`}
+              className="hover:bg-accent/50 relative z-10 flex items-center gap-2.5 rounded-control px-3 py-1.5"
+            >
+              {notice.pinned ? (
+                <Pin aria-label="Pinned" className="text-info-ink size-4 shrink-0" />
+              ) : (
+                <Megaphone aria-hidden className="text-muted-foreground size-4 shrink-0" />
+              )}
+              <span className="min-w-0 flex-1 truncate">{notice.title}</span>
+              <span className="text-muted-foreground shrink-0 text-xs">{timeAgo(notice.createdAt, now)}</span>
+              <ChevronRight aria-hidden className="text-muted-foreground -mr-1 size-3.5 shrink-0" />
+            </Link>
+          ) : (
+            <p className="text-muted-foreground flex items-center gap-2.5 px-3 py-1.5 text-xs">
+              <Megaphone aria-hidden className="size-4 shrink-0" />
+              No announcements yet
+            </p>
+          )}
+        </div>
       </div>
-    </Tile>
+    </li>
   );
 }
 
@@ -232,12 +246,12 @@ function Action({
     return (
       <div className="flex items-center justify-between gap-3">
         <p className="leading-tight">
-          <span className="cb-title text-3xl tabular-nums">{mine.left}</span>{" "}
+          <span className="cb-title text-2xl tabular-nums">{mine.left}</span>{" "}
           <span className="text-sm font-medium">
             {mine.left === 1 ? "attack" : "attacks"} left
           </span>
         </p>
-        <Button asChild variant={gold ? "gold" : "outline"} size={gold ? "cta" : "default"} className="relative z-10">
+        <Button asChild variant={gold ? "gold" : "outline"} size="sm" className="relative z-10">
           <Link href={status.href}>
             <Swords aria-hidden />
             Attack
