@@ -27,7 +27,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { ArrowRight, CalendarPlus, ClipboardList, Trophy } from "lucide-react";
+import { ArrowRight, CalendarPlus, ClipboardList, FileDown, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, Panel, SectionHeader, Tile } from "@/components/kit";
@@ -189,12 +189,21 @@ export default async function RosterSeasonsPage() {
             </ul>
 
             {leads.length > 0 && (
-              <Button asChild variant={i === 0 ? "gold" : "outline"} size={i === 0 ? "cta" : "default"}>
-                <Link href={`/roster/${season}`}>
-                  Continue picking
-                  <ArrowRight aria-hidden />
-                </Link>
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button asChild variant={i === 0 ? "gold" : "outline"} size={i === 0 ? "cta" : "default"}>
+                  <Link href={`/roster/${season}`}>
+                    Continue picking
+                    <ArrowRight aria-hidden />
+                  </Link>
+                </Button>
+                {/* The finished lineups as a PDF, or an image per clan. */}
+                <Button asChild variant="outline">
+                  <Link href={`/roster/${season}/print`}>
+                    <FileDown aria-hidden />
+                    Export
+                  </Link>
+                </Button>
+              </div>
             )}
           </Tile>
         );

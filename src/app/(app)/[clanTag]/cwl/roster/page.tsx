@@ -15,7 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, Panel, SectionHeader } from "@/components/kit";
-import { TownHall } from "@/components/game/town-hall";
+import { LineupCard } from "@/components/cwl-lineup";
+import { playerDetails } from "@/lib/cwl-lineup-data";
 import { requireClanByTag } from "@/lib/clans";
 import { isLeadership } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
@@ -51,6 +52,8 @@ export default async function PublishedRosterPage({
   const season = requested ?? seasons[0] ?? new Date().toISOString().slice(0, 7);
   const roster = await rosterFor(supabase, clan.id, season);
   const members = roster ? await membersOfRoster(supabase, roster.id) : [];
+  // The same cards the leader picked from: Town Hall, heroes, progress, last CWLs.
+  const details = await playerDetails(supabase, members.map((m) => m.playerId));
 
   const base = `/${encodeURIComponent(clan.tag)}/cwl/roster`;
 
@@ -109,23 +112,28 @@ export default async function PublishedRosterPage({
               mistake — ask your leader.
             </p>
           ) : (
-            <ul className="divide-y">
-              {members.map((m, index) => (
-                <li key={m.playerId} className="flex items-center gap-4 py-3">
-                  <span className="text-muted-foreground w-6 text-sm tabular-nums">
-                    {index + 1}
-                  </span>
-                  <Link
-                    className="min-w-0 flex-1 underline-offset-2 hover:underline"
-                    href={`/${encodeURIComponent(clan.tag)}/player/${encodeURIComponent(m.tag)}`}
-                  >
-                    {m.name}
-                  </Link>
-                  <TownHall level={m.thLevel} />
-                  <span className="text-muted-foreground font-mono text-xs">{m.tag}</span>
-                </li>
-              ))}
-            </ul>
+            <ol className="grid gap-3 sm:grid-cols-2">
+              {members.map((m, index) => {
+                const d = details.get(m.playerId);
+                return (
+                  <LineupCard
+                    key={m.playerId}
+                    index={index + 1}
+                    player={{
+                      playerId: m.playerId,
+                      tag: m.tag,
+                      name: m.name,
+                      clanName: null,
+                      thLevel: d?.thLevel ?? m.thLevel,
+                      heroes: d?.heroes ?? [],
+                      maxPct: d?.maxPct ?? null,
+                      heroPct: d?.heroPct ?? null,
+                      history: d?.history ?? [],
+                    }}
+                  />
+                );
+              })}
+            </ol>
           )}
 
           <p className="text-muted-foreground text-xs">

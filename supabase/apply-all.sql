@@ -7,7 +7,7 @@
 -- BEGIN/COMMIT means a failure anywhere rolls the entire thing back, so you
 -- cannot end up with a half-applied schema.
 --
--- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql
+-- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql
 --
 -- Two numbers are absent, retired rather than reused so that apply order
 -- stays equal to numeric order: 009 (cwl_signups, superseded by Phase 4B)
@@ -8917,6 +8917,48 @@ grant select, insert, update on cwl_group_clans, cwl_group_wars to service_role;
 
 -- No insert or update grant to authenticated: these are game facts, and only
 -- the sync writes them. No delete grant for anybody (R4).
+
+-- ========================================================================
+-- 049_latest_player_progress.sql
+-- ========================================================================
+
+-- 049 — The newest progress reading for many villages, in one round trip.
+--
+-- The CWL lineup builder now shows every candidate's hero levels and how close
+-- to max their village is, for a pool of sixty to ninety players across the
+-- family. player_progress keeps one reading a day per village, so a plain
+-- `in (…)` read returns months of rows to use one per player; and one query per
+-- player is ninety round trips on a page a leader reloads after every Add.
+--
+-- `distinct on (player_id)` over the (player_id, captured_at desc) index 036
+-- already built is exactly "the newest row each", done where the data is.
+--
+-- SECURITY INVOKER, deliberately: this adds no access. The caller's own RLS on
+-- player_progress (036 — their clans' villages, and their own) decides which
+-- rows exist to be picked from, as it would for the plain select this replaces.
+
+create or replace function latest_player_progress(p_player_ids uuid[])
+returns table (
+  player_id    uuid,
+  captured_at  timestamptz,
+  th_level     smallint,
+  units        jsonb
+)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select distinct on (pp.player_id)
+         pp.player_id, pp.captured_at, pp.th_level, pp.units
+  from public.player_progress pp
+  where pp.player_id = any (p_player_ids)
+    and pp.deleted_at is null
+  order by pp.player_id, pp.captured_at desc;
+$$;
+
+revoke execute on function latest_player_progress(uuid[]) from public;
+grant execute on function latest_player_progress(uuid[]) to authenticated, service_role;
 
 commit;
 

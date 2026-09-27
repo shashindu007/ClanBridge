@@ -13,6 +13,9 @@
 // co-leader. builderSearch() is how the actions put the leader back exactly
 // where they were.
 
+import { fromZonedTime } from "date-fns-tz";
+import { DISPLAY_ZONE } from "@/lib/display-time";
+
 export type Availability = "in" | "maybe" | "out" | "none" | "other";
 
 /** The availability chips, in the order a leader works down them. */
@@ -58,6 +61,12 @@ export interface BuilderQuery {
   from: string | null;
   /** Whether players already picked for any lineup are listed. */
   picked: "hide" | "show";
+  /**
+   * Whether the "Add players" dialog is open. In the URL, not in component
+   * state, so it survives the redirect every Add makes — a leader adding
+   * fifteen players stays in the list instead of reopening it fifteen times.
+   */
+  pick: boolean;
 }
 
 export const DEFAULT_QUERY: BuilderQuery = {
@@ -66,6 +75,7 @@ export const DEFAULT_QUERY: BuilderQuery = {
   q: "",
   from: null,
   picked: "hide",
+  pick: false,
 };
 
 type Params = Record<string, string | string[] | undefined> | URLSearchParams;
@@ -95,6 +105,7 @@ export function parseBuilderQuery(params: Params): BuilderQuery {
     q: (read(params, "q") ?? "").trim().slice(0, 40),
     from: from && /^[0-9a-f-]{36}$/i.test(from) ? from : null,
     picked: read(params, "picked") === "show" ? "show" : "hide",
+    pick: read(params, "pick") === "1",
   };
 }
 
@@ -107,6 +118,7 @@ export function builderSearch(query: BuilderQuery, overrides: Partial<BuilderQue
   if (merged.q) params.set("q", merged.q);
   if (merged.from) params.set("from", merged.from);
   if (merged.picked !== "hide") params.set("picked", merged.picked);
+  if (merged.pick) params.set("pick", "1");
   const text = params.toString();
   return text ? `?${text}` : "";
 }
@@ -125,6 +137,19 @@ export function seasonLabel(season: string): string {
 }
 
 /** "2026-09" for the month containing `now`, in UTC — CWL months are UTC months. */
+/**
+ * When a season's CWL lineups must be final: the start of the 2nd of that
+ * month, in the clans' own time.
+ *
+ * Signup opens on the 1st and the leader has to register the lineup in game
+ * before war days begin, so the site's plan is due by the 2nd — the rule the
+ * clans work to, stated once here rather than as a date on every page.
+ */
+export function lineupDeadline(season: string): Date | null {
+  if (!/^\d{4}-\d{2}$/.test(season)) return null;
+  return fromZonedTime(`${season}-02T00:00:00`, DISPLAY_ZONE);
+}
+
 export function seasonOf(now: Date): string {
   return now.toISOString().slice(0, 7);
 }

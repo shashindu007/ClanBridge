@@ -123,6 +123,9 @@ export const PHASE1_MIGRATIONS = [
   // The CWL group's other clans and wars, for standings and medals. Must follow
   // 002 (cwl_seasons) and 046 (auth_clan_ids).
   "048_cwl_group.sql",
+  // The newest player_progress row for many villages at once, for the CWL
+  // lineup builder. Security invoker over 036's policies.
+  "049_latest_player_progress.sql",
 ] as const;
 
 /**

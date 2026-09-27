@@ -4,6 +4,7 @@ import {
   availabilityCounts,
   availabilityOf,
   builderSearch,
+  lineupDeadline,
   filterPool,
   parseBuilderQuery,
   publishedSummary,
@@ -49,6 +50,15 @@ describe("parseBuilderQuery", () => {
     expect(query.from).toBeNull();
     expect(query.picked).toBe("hide");
     expect(query.q).toHaveLength(40);
+  });
+
+  it("keeps the Add players dialog open across a redirect, and only for pick=1", () => {
+    const open = parseBuilderQuery({ pick: "1", show: "in" });
+    expect(open.pick).toBe(true);
+    expect(builderSearch(open)).toContain("pick=1");
+    expect(parseBuilderQuery(new URLSearchParams(builderSearch(open).slice(1)))).toEqual(open);
+    expect(parseBuilderQuery({ pick: "yes" }).pick).toBe(false);
+    expect(builderSearch(open, { pick: false })).not.toContain("pick");
   });
 
   it("round-trips through builderSearch, including a # in the clan tag", () => {
@@ -120,5 +130,16 @@ describe("publishedSummary", () => {
     [1, 1, "Published"],
   ])("%i of %i → %s", (published, total, text) => {
     expect(publishedSummary(published, total)).toBe(text);
+  });
+});
+
+describe("lineupDeadline", () => {
+  it("is the start of the 2nd of the season's month, Sri Lanka time", () => {
+    // 00:00 on 2 Oct in Colombo (UTC+05:30) is 18:30 UTC on 1 Oct.
+    expect(lineupDeadline("2026-10")?.toISOString()).toBe("2026-10-01T18:30:00.000Z");
+  });
+
+  it("refuses anything that is not a season key", () => {
+    expect(lineupDeadline("October")).toBeNull();
   });
 });

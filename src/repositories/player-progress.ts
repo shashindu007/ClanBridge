@@ -24,7 +24,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { StoredUnit } from "@/services/progress";
+import { overallProgress, tally, type StoredUnit } from "@/services/progress";
 
 export type ProgressScope = { clanId: string } | "owner";
 
@@ -112,4 +112,69 @@ export async function baseProgress(
     // The same reading at both ends is not a comparison.
     baseline: baseline && latest && baseline.capturedAt !== latest.capturedAt ? baseline : null,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The CWL lineup builder's view of many villages at once (049).
+//
+// Not scoped like baseProgress above: the RPC runs as the caller, so 036's
+// policies decide which villages come back — a leader sees their clans' members
+// and nobody else's. A village with no reading is simply absent from the map.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface HeroLevel {
+  /** "BK", "AQ", "MP", "GW", "RC", "DD" — short, so they all fit on a table row. */
+  short: string;
+  name: string;
+  level: number;
+  cap: number;
+}
+
+export interface VillageSnapshot {
+  thLevel: number | null;
+  capturedAt: string;
+  heroes: HeroLevel[];
+  /** Overall progress towards this Town Hall's caps, 0–100 (services/progress). */
+  maxPct: number;
+  /** Heroes alone, 0–100 — the number a CWL lineup is really decided on. */
+  heroPct: number;
+}
+
+const HERO_ORDER: Array<[string, string]> = [
+  ["Barbarian King", "BK"],
+  ["Archer Queen", "AQ"],
+  ["Minion Prince", "MP"],
+  ["Grand Warden", "GW"],
+  ["Royal Champion", "RC"],
+  ["Dragon Duke", "DD"],
+];
+
+export async function latestProgressFor(
+  supabase: SupabaseClient,
+  playerIds: readonly string[],
+): Promise<Map<string, VillageSnapshot>> {
+  const out = new Map<string, VillageSnapshot>();
+  const ids = [...new Set(playerIds)];
+  if (!ids.length) return out;
+
+  const { data, error } = await supabase.rpc("latest_player_progress", { p_player_ids: ids });
+  if (error || !data) return out;
+
+  for (const row of data as Array<Record<string, unknown>>) {
+    const reading = toReading(row);
+    const home = reading.units.filter((u) => u.village === "home");
+    const heroUnits = home.filter((u) => u.group === "hero");
+    const heroes = HERO_ORDER.flatMap(([name, short]) => {
+      const unit = heroUnits.find((u) => u.name === name);
+      return unit && unit.cap > 0 ? [{ short, name, level: unit.level, cap: unit.cap }] : [];
+    });
+    out.set(row.player_id as string, {
+      thLevel: reading.thLevel,
+      capturedAt: reading.capturedAt,
+      heroes,
+      maxPct: overallProgress(reading.units, "home").pct,
+      heroPct: tally(heroUnits).pct,
+    });
+  }
+  return out;
 }

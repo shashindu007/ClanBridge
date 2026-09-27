@@ -33,13 +33,22 @@
 //   - A "How this works" panel, open until the first player is picked.
 //   - Someone without a leadership role gets the published lineups, read-only,
 //     rather than an empty builder telling them to run a sync.
+//
+// AND AGAIN (the CWL dashboard pass). The list-beside-lineup halves left each
+// too narrow to read: the lineup is now the page, full width, as a grid of
+// cards — Town Hall, heroes, % of max and the last CWLs on every one — and the
+// player list moved into an "Add players" dialog with room for those same
+// columns. The dialog's open state is in the URL (?pick=1), so it stays open
+// through every Add. A deadline banner counts down to the 2nd, when lineups
+// are due, and the export sheet (./print) turns the final lineups into a PDF or
+// an image for each clan.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { PageHeader } from "@/components/page-header";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { CircleAlert } from "lucide-react";
+import { CalendarClock, CircleAlert, FileDown, UserPlus } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,13 +57,18 @@ import {
   AvailabilityBadge,
   AvailabilityChips,
   HowItWorks,
-  LastCwl,
   LineupPanel,
   LineupStatus,
   PoolSearch,
+  SlotMeter,
   Step,
   TownHall,
 } from "@/components/lineup-parts";
+import { CwlHistoryChips, HeroLevels, LineupCard, MaxPct } from "@/components/cwl-lineup";
+import { PickerDialog } from "@/components/picker-dialog";
+import { Countdown } from "@/components/countdown";
+import { LocalTime } from "@/components/local-time";
+import { playerDetails, type PlayerDetail } from "@/lib/cwl-lineup-data";
 import { currentUserId } from "@/lib/auth";
 import { visibleClans, type VisibleClan } from "@/lib/clans";
 import { isLeadership } from "@/lib/visibility";
@@ -63,12 +77,12 @@ import {
   availabilityCounts,
   builderSearch,
   filterPool,
+  lineupDeadline,
   parseBuilderQuery,
   seasonLabel,
 } from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
 import { membersForClan } from "@/repositories/members";
-import { familyCwlHistory } from "@/repositories/cwl";
 import {
   optionsForPoll,
   pollsForClan,
@@ -146,11 +160,8 @@ interface PoolPlayer {
   clanName: string;
   answer: string | null;
   answerNote: string | null;
-  lastSeasonAttacks: number | null;
-  lastSeasonWars: number | null;
-  lastSeason: string | null;
-  /** T11C.4 — the clan that last CWL was played in, which may not be clanName. */
-  lastSeasonClanName: string | null;
+  /** Heroes, % of max and the last three CWLs (T11C.4: from any family clan). */
+  detail: PlayerDetail | null;
   assignedTo: string | null;
 }
 
@@ -261,16 +272,16 @@ export default async function RosterBuilderPage({
   const perClan = await Promise.all(
     leads.map(async (clan) => ({ clan, members: await membersForClan(supabase, clan.id) })),
   );
-  const history = await familyCwlHistory(
-    supabase,
-    perClan.flatMap(({ members }) => members.map((m) => m.playerId)),
-  );
+  // Picked players are included even if they have since left the clans in the
+  // pool, so every card in the lineup has its details.
+  const details = await playerDetails(supabase, [
+    ...perClan.flatMap(({ members }) => members.map((m) => m.playerId)),
+    ...selectedMembers.map((m) => m.playerId),
+  ]);
 
   const pool: PoolPlayer[] = [];
   for (const { clan, members } of perClan) {
     for (const member of members) {
-      // Newest season first across every clan, so [0] is the member's last CWL.
-      const previous = (history.get(member.playerId) ?? [])[0] ?? null;
       const answer = answers.get(member.playerId);
       pool.push({
         playerId: member.playerId,
@@ -281,10 +292,7 @@ export default async function RosterBuilderPage({
         clanName: clan.name,
         answer: answer ? (optionLabel.get(answer.optionId) ?? null) : null,
         answerNote: answer?.note ?? null,
-        lastSeasonAttacks: previous ? previous.attacksUsed : null,
-        lastSeasonWars: previous ? previous.warsRostered : null,
-        lastSeason: previous ? seasonLabel(previous.season) : null,
-        lastSeasonClanName: previous ? previous.clanName : null,
+        detail: details.get(member.playerId) ?? null,
         assignedTo: assignment.get(member.playerId) ?? null,
       });
     }
@@ -313,10 +321,33 @@ export default async function RosterBuilderPage({
     clanById.get(rosters.find((r) => r.id === rosterId)?.clanId ?? "")?.name ?? "another";
   const pollClanTag = encodeURIComponent(leads[0]!.tag);
   const view = builderSearch(current);
+  const pickerHref = `${base}${builderSearch(current, { pick: true })}`;
+  const closeHref = `${base}${builderSearch(current, { pick: false })}`;
+
+  // The lineup as cards. The pool knows each player's clan; a picked player who
+  // has since left the clans in the pool falls back to what the roster knows.
+  const poolById = new Map(pool.map((p) => [p.playerId, p]));
+  const cards = selectedMembers.map((m) => {
+    const inPool = poolById.get(m.playerId);
+    const detail = details.get(m.playerId);
+    return {
+      playerId: m.playerId,
+      tag: m.tag,
+      name: m.name,
+      clanName: inPool?.clanName ?? null,
+      thLevel: detail?.thLevel ?? m.thLevel,
+      heroes: detail?.heroes ?? [],
+      maxPct: detail?.maxPct ?? null,
+      heroPct: detail?.heroPct ?? null,
+      history: detail?.history ?? [],
+    };
+  });
+  const deadline = lineupDeadline(season);
+  const beforeDeadline = deadline !== null && deadline.getTime() > Date.now();
 
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
-      <RosterHeader title={title} />
+      <RosterHeader title={title} exportHref={`${base}/print`} />
 
       <HowItWorks open={nobodyPickedYet}>
         <Step n={1} title="Check who is available">
@@ -324,7 +355,7 @@ export default async function RosterBuilderPage({
           in the player list.
         </Step>
         <Step n={2} title="Pick each clan's lineup">
-          Choose a clan in the tabs, then press Add beside a player. Up to{" "}
+          Choose a clan in the tabs, press Add players, and Add beside each player. Up to{" "}
           {selected.slotCount} per clan. Everything saves as you go.
         </Step>
         <Step n={3} title="Publish">
@@ -332,6 +363,30 @@ export default async function RosterBuilderPage({
           clan&apos;s members can see it.
         </Step>
       </HowItWorks>
+
+      {deadline && (
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-panel border-2 px-5 py-3 text-sm ${
+            beforeDeadline ? "border-warning/60 bg-warning-tint" : "bg-muted border-border"
+          }`}
+        >
+          <p className="flex flex-wrap items-center gap-2">
+            <CalendarClock aria-hidden className="size-4" />
+            <span className="font-semibold">
+              {beforeDeadline ? "Lineups due by" : "Lineups were due"}{" "}
+              <LocalTime iso={deadline.toISOString()} style="date" />
+            </span>
+            {beforeDeadline && (
+              <span className="text-warning-ink">
+                · <Countdown iso={deadline.toISOString()} refreshOnDone={false} /> left
+              </span>
+            )}
+          </p>
+          <span className="text-muted-foreground">
+            CWL starts at the beginning of the month — finish and publish before the 2nd.
+          </span>
+        </div>
+      )}
 
       {availabilityPoll ? (
         <div className="cb-panel flex flex-wrap items-center justify-between gap-3 rounded-panel border px-5 py-3 text-sm">
@@ -391,165 +446,236 @@ export default async function RosterBuilderPage({
         </nav>
       )}
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
-        {/* The lineup first on a phone, beside the list on a wide screen — sticky,
-            so the result of an Add is visible without scrolling. */}
-        <aside className="order-first lg:sticky lg:top-4 lg:order-last">
-          <LineupPanel
-            title={selectedClan.name}
-            status={selected.status}
-            slots={selected.slotCount}
-            members={selectedMembers}
-            action={mutate}
-            hidden={{ season, view, rosterId: selected.id }}
-          />
-        </aside>
-
-        <section className="cb-panel min-w-0 space-y-4 rounded-panel border p-5">
+      {/* ── The lineup being built, full width ──────────────────────────── */}
+      <section aria-label={`${selectedClan.name} lineup`} className="cb-panel space-y-5 rounded-panel border p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-1">
-            <h2 className="text-lg font-semibold">Add players to {selectedClan.name}</h2>
-            <p className="text-muted-foreground text-sm">
-              Everyone in the clans you lead. Players who said In are listed first, then
-              the highest Town Hall.
+            <h2 className="flex flex-wrap items-center gap-2 text-xl font-semibold">
+              {selectedClan.name}
+              <LineupStatus status={selected.status} />
+            </h2>
+            <p className="text-muted-foreground text-xs">
+              {selected.status === "published"
+                ? "Published — members of this clan can see this lineup."
+                : "Draft — only leaders and co-leaders can see it until you publish."}
             </p>
           </div>
-
-          <AvailabilityChips
-            active={current.show}
-            counts={counts}
-            hrefFor={(show) => `${base}${builderSearch(current, { show })}`}
-          />
-
-          {/* A plain GET form
-          {/* A plain GET form: the filters are URL state, so no client code. */}
-          <PoolSearch
-            action={base}
-            hidden={{
-              clan: selectedClan.tag,
-              ...(current.show !== "all" ? { show: current.show } : {}),
-              ...(current.picked !== "hide" ? { picked: current.picked } : {}),
-            }}
-            q={current.q}
-            clans={leads}
-            from={current.from}
-            clearHref={
-              filtersActive
-                ? `${base}${builderSearch({ ...DEFAULT_QUERY, clan: selectedClan.tag, picked: current.picked })}`
-                : null
-            }
-          />
-
-          <p className="text-muted-foreground text-sm">
-            Showing {shown.length} player{shown.length === 1 ? "" : "s"}
-            {pickedCount > 0 && (
-              <>
-                {" · "}
-                {pickedCount} already in a lineup{" "}
-                <Link
-                  className="text-foreground underline underline-offset-2"
-                  href={`${base}${builderSearch(current, { picked: current.picked === "hide" ? "show" : "hide" })}`}
-                >
-                  {current.picked === "hide" ? "show them" : "hide them"}
-                </Link>
-              </>
-            )}
-          </p>
-
-          {pool.length === 0 ? (
-            <p className="text-muted-foreground rounded-panel border border-dashed p-6 text-center text-sm">
-              No players found in the clans you lead. They appear after the clan sync has
-              run once.
-            </p>
-          ) : shown.length === 0 ? (
-            <p className="text-muted-foreground rounded-panel border border-dashed p-6 text-center text-sm">
-              No players match these filters.{" "}
-              <Link
-                className="text-foreground underline underline-offset-2"
-                href={`${base}${builderSearch({ ...DEFAULT_QUERY, clan: selectedClan.tag, picked: "show" })}`}
-              >
-                Show everyone
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant={selectedFull ? "outline" : "gold"}>
+              <Link href={pickerHref} scroll={false}>
+                <UserPlus aria-hidden />
+                Add players
               </Link>
+            </Button>
+            <form action={mutate}>
+              <input type="hidden" name="season" value={season} />
+              <input type="hidden" name="view" value={view} />
+              <input type="hidden" name="rosterId" value={selected.id} />
+              <input
+                type="hidden"
+                name="action"
+                value={selected.status === "published" ? "unpublish" : "publish"}
+              />
+              <SubmitButton
+                variant="outline"
+                disabled={selected.status !== "published" && selectedMembers.length === 0}
+                pendingLabel={selected.status === "published" ? "Unpublishing" : "Publishing"}
+              >
+                {selected.status === "published" ? "Unpublish" : "Publish to members"}
+              </SubmitButton>
+            </form>
+          </div>
+        </div>
+
+        <SlotMeter filled={selectedMembers.length} slots={selected.slotCount} />
+
+        {cards.length === 0 ? (
+          <p className="text-muted-foreground rounded-panel border border-dashed p-6 text-center text-sm">
+            Nobody picked yet. Press <span className="text-foreground font-medium">Add players</span>{" "}
+            to open the player list.
+          </p>
+        ) : (
+          <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {cards.map((player, index) => (
+              <LineupCard
+                key={player.playerId}
+                index={index + 1}
+                player={player}
+                remove={{ action: mutate, hidden: { season, view, rosterId: selected.id } }}
+              />
+            ))}
+          </ol>
+        )}
+      </section>
+
+      {/* ── The player list, in a dialog with room for every column ───────── */}
+      <PickerDialog
+        open={current.pick}
+        closeHref={closeHref}
+        title={`Add players to ${selectedClan.name}`}
+        description={
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="text-foreground font-medium tabular-nums">
+              {selectedMembers.length} of {selected.slotCount} picked
+            </span>
+            <span>
+              Everyone in the clans you lead. Said In first, then the highest Town Hall.
+            </span>
+          </span>
+        }
+        toolbar={
+          <>
+            <AvailabilityChips
+              active={current.show}
+              counts={counts}
+              hrefFor={(show) => `${base}${builderSearch(current, { show })}`}
+            />
+            {/* A plain GET form: the filters are URL state, so no client code.
+                pick=1 rides along so the dialog is still open afterwards. */}
+            <PoolSearch
+              action={base}
+              hidden={{
+                clan: selectedClan.tag,
+                pick: "1",
+                ...(current.show !== "all" ? { show: current.show } : {}),
+                ...(current.picked !== "hide" ? { picked: current.picked } : {}),
+              }}
+              q={current.q}
+              clans={leads}
+              from={current.from}
+              clearHref={
+                filtersActive
+                  ? `${base}${builderSearch({ ...DEFAULT_QUERY, clan: selectedClan.tag, picked: current.picked, pick: true })}`
+                  : null
+              }
+            />
+            <p className="text-muted-foreground text-sm">
+              Showing {shown.length} player{shown.length === 1 ? "" : "s"}
+              {pickedCount > 0 && (
+                <>
+                  {" · "}
+                  {pickedCount} already in a lineup{" "}
+                  <Link
+                    className="text-foreground underline underline-offset-2"
+                    href={`${base}${builderSearch(current, { picked: current.picked === "hide" ? "show" : "hide" })}`}
+                    scroll={false}
+                  >
+                    {current.picked === "hide" ? "show them" : "hide them"}
+                  </Link>
+                </>
+              )}
             </p>
-          ) : (
-            <div className="-mx-5 overflow-x-auto px-5">
-              <table className="w-full min-w-[40rem] text-sm">
-                <thead className="text-muted-foreground border-b text-left text-xs uppercase">
-                  <tr>
-                    <th className="py-2 pr-3 font-medium">Player</th>
-                    <th className="py-2 pr-3 font-medium">Town Hall</th>
-                    <th className="py-2 pr-3 font-medium">Availability</th>
-                    <th className="py-2 pr-3 font-medium">Last CWL</th>
-                    <th className="py-2 text-right font-medium">
-                      <span className="sr-only">Action</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {shown.map((p) => (
-                    <tr key={p.playerId} className="border-b align-middle last:border-0">
-                      <td className="py-2.5 pr-3">
-                        <span className="block font-medium">{p.name}</span>
-                        <span className="text-muted-foreground block text-xs">
-                          {p.clanName} · <span className="font-mono">{p.tag}</span>
-                        </span>
-                        {p.answerNote && (
-                          <span className="text-muted-foreground mt-0.5 block text-xs italic">
-                            “{p.answerNote}”
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2.5 pr-3">
-                        <TownHall level={p.thLevel} />
-                      </td>
-                      <td className="py-2.5 pr-3">
-                        <AvailabilityBadge answer={p.answer} />
-                      </td>
-                      <td className="py-2.5 pr-3">
-                        <LastCwl
-                          attacks={p.lastSeasonAttacks}
-                          wars={p.lastSeasonWars}
-                          season={p.lastSeason}
-                          clanName={p.lastSeasonClanName}
-                          ownClanName={p.clanName}
-                        />
-                      </td>
-                      <td className="py-2.5 text-right">
-                        {p.assignedTo === selected.id ? (
-                          <Badge variant="success">In this lineup</Badge>
-                        ) : p.assignedTo ? (
-                          <span className="text-muted-foreground text-xs">
-                            In {rosterClanName(p.assignedTo)}
-                          </span>
-                        ) : selectedFull ? (
-                          <span className="text-muted-foreground text-xs">Lineup full</span>
-                        ) : (
-                          <form action={mutate}>
-                            <input type="hidden" name="season" value={season} />
-                            <input type="hidden" name="view" value={view} />
-                            <input type="hidden" name="action" value="add" />
-                            <input type="hidden" name="rosterId" value={selected.id} />
-                            <input type="hidden" name="playerId" value={p.playerId} />
-                            {/* Each button owns its own form, so useFormStatus
-                                reports only THIS add as pending. */}
-                            <SubmitButton
-                              size="sm"
-                              variant={p.answer?.toLowerCase() === "in" ? "default" : "outline"}
-                              pendingLabel="Adding"
-                              aria-label={`Add ${p.name} to the ${selectedClan.name} lineup`}
-                            >
-                              Add
-                            </SubmitButton>
-                          </form>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      </div>
+          </>
+        }
+      >
+        {pool.length === 0 ? (
+          <p className="text-muted-foreground rounded-panel border border-dashed p-6 text-center text-sm">
+            No players found in the clans you lead. They appear after the clan sync has
+            run once.
+          </p>
+        ) : shown.length === 0 ? (
+          <p className="text-muted-foreground rounded-panel border border-dashed p-6 text-center text-sm">
+            No players match these filters.{" "}
+            <Link
+              className="text-foreground underline underline-offset-2"
+              href={`${base}${builderSearch({ ...DEFAULT_QUERY, clan: selectedClan.tag, picked: "show", pick: true })}`}
+              scroll={false}
+            >
+              Show everyone
+            </Link>
+          </p>
+        ) : (
+          <table className="w-full min-w-[52rem] text-sm">
+            <thead className="bg-card text-muted-foreground sticky top-0 z-10 border-b text-left text-xs uppercase">
+              <tr>
+                <th className="py-2 pr-3 font-medium">Player</th>
+                <th className="py-2 pr-3 font-medium">TH</th>
+                <th className="py-2 pr-3 font-medium">Heroes</th>
+                <th className="py-2 pr-3 font-medium">Max</th>
+                <th className="py-2 pr-3 font-medium">Last CWLs (stars · attacks)</th>
+                <th className="py-2 pr-3 font-medium">Availability</th>
+                <th className="py-2 text-right font-medium">
+                  <span className="sr-only">Action</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((p) => (
+                <tr
+                  key={p.playerId}
+                  className={`border-b align-middle last:border-0 ${p.assignedTo === selected.id ? "bg-success-tint/50" : ""}`}
+                >
+                  <td className="py-2.5 pr-3">
+                    <span className="block font-medium">{p.name}</span>
+                    <span className="text-muted-foreground block text-xs">
+                      {p.clanName} · <span className="font-mono">{p.tag}</span>
+                    </span>
+                    {p.answerNote && (
+                      <span className="text-muted-foreground mt-0.5 block text-xs italic">
+                        “{p.answerNote}”
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2.5 pr-3">
+                    <TownHall level={p.detail?.thLevel ?? p.thLevel} />
+                  </td>
+                  <td className="max-w-56 py-2.5 pr-3">
+                    <HeroLevels heroes={p.detail?.heroes ?? []} compact />
+                  </td>
+                  <td className="py-2.5 pr-3">
+                    <MaxPct pct={p.detail?.maxPct ?? null} />
+                  </td>
+                  <td className="py-2.5 pr-3">
+                    <CwlHistoryChips seasons={p.detail?.history ?? []} ownClanName={p.clanName} />
+                  </td>
+                  <td className="py-2.5 pr-3">
+                    <AvailabilityBadge answer={p.answer} />
+                  </td>
+                  <td className="py-2.5 text-right">
+                    {p.assignedTo === selected.id ? (
+                      <form action={mutate} className="flex items-center justify-end gap-2">
+                        <Badge variant="success">Selected ✓</Badge>
+                        <input type="hidden" name="season" value={season} />
+                        <input type="hidden" name="view" value={builderSearch(current, { pick: true })} />
+                        <input type="hidden" name="action" value="remove" />
+                        <input type="hidden" name="rosterId" value={selected.id} />
+                        <input type="hidden" name="playerId" value={p.playerId} />
+                        <SubmitButton size="xs" variant="ghost" pendingLabel="Removing" aria-label={`Remove ${p.name}`}>
+                          Undo
+                        </SubmitButton>
+                      </form>
+                    ) : p.assignedTo ? (
+                      <span className="text-muted-foreground text-xs">
+                        In {rosterClanName(p.assignedTo)}
+                      </span>
+                    ) : selectedFull ? (
+                      <span className="text-muted-foreground text-xs">Lineup full</span>
+                    ) : (
+                      <form action={mutate}>
+                        <input type="hidden" name="season" value={season} />
+                        <input type="hidden" name="view" value={builderSearch(current, { pick: true })} />
+                        <input type="hidden" name="action" value="add" />
+                        <input type="hidden" name="rosterId" value={selected.id} />
+                        <input type="hidden" name="playerId" value={p.playerId} />
+                        {/* Each button owns its own form, so useFormStatus
+                            reports only THIS add as pending. */}
+                        <SubmitButton
+                          size="sm"
+                          variant={p.answer?.toLowerCase() === "in" ? "default" : "outline"}
+                          pendingLabel="Adding"
+                          aria-label={`Add ${p.name} to the ${selectedClan.name} lineup`}
+                        >
+                          Add
+                        </SubmitButton>
+                      </form>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </PickerDialog>
 
       {editable.length > 1 && (
         <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
@@ -573,12 +699,22 @@ export default async function RosterBuilderPage({
  * PageHeader, shadowing the shared one with a hand-built copy of it; now it is
  * the shared one, with the back link it always had.
  */
-function RosterHeader({ title }: { title: string }) {
+function RosterHeader({ title, exportHref }: { title: string; exportHref?: string }) {
   return (
     <PageHeader
       back={{ href: "/roster", label: "All CWL seasons" }}
       title={`CWL lineups · ${title}`}
       description="Pick who plays Clan War League for each clan this season."
+      actions={
+        exportHref ? (
+          <Button asChild variant="outline" size="sm">
+            <Link href={exportHref}>
+              <FileDown aria-hidden />
+              Export lineups
+            </Link>
+          </Button>
+        ) : undefined
+      }
     />
   );
 }
