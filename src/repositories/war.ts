@@ -522,29 +522,40 @@ async function callRpc(
   return {};
 }
 
-/** Leadership assigns. The function's own message is surfaced verbatim. */
+/**
+ * Leadership assigns a base (050: one of up to "attacks left" per member).
+ * `replace` moves the member off that base onto `position` in one step. The
+ * function's own message is surfaced verbatim.
+ */
 export function assignTarget(
   supabase: SupabaseClient,
   warId: string,
   playerId: string,
   position: number,
   note: string | null,
+  replace: number | null = null,
 ): Promise<{ error?: string }> {
   return callRpc(supabase, "assign_war_target", {
     p_war: warId,
     p_player: playerId,
     p_position: position,
     p_note: note,
+    p_replace: replace,
   });
 }
 
-/** Leadership withdraws. Soft delete inside the function (R4). */
+/** Leadership withdraws one base, or all of a member's when `position` is null. Soft delete (R4). */
 export function clearTarget(
   supabase: SupabaseClient,
   warId: string,
   playerId: string,
+  position: number | null = null,
 ): Promise<{ error?: string }> {
-  return callRpc(supabase, "clear_war_target", { p_war: warId, p_player: playerId });
+  return callRpc(supabase, "clear_war_target", {
+    p_war: warId,
+    p_player: playerId,
+    p_position: position,
+  });
 }
 
 /**
@@ -569,13 +580,18 @@ export function claimTarget(
   });
 }
 
-/** A member gives back a base they claimed. Not one leadership assigned them. */
+/** A member gives back a base they claimed (all of them when `position` is null). Not one leadership assigned them. */
 export function releaseTarget(
   supabase: SupabaseClient,
   warId: string,
   playerId: string | null = null,
+  position: number | null = null,
 ): Promise<{ error?: string }> {
-  return callRpc(supabase, "release_war_target", { p_war: warId, p_player: playerId });
+  return callRpc(supabase, "release_war_target", {
+    p_war: warId,
+    p_player: playerId,
+    p_position: position,
+  });
 }
 
 // ---------------------------------------------------------------------------

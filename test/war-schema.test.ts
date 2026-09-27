@@ -157,22 +157,66 @@ describe("Phase 6 — the war schema (024)", () => {
       ).toBe(1);
     });
 
-    // 003's comment says reassigning UPDATES the row and records the change,
-    // rather than inserting a second target. Two live targets for one player is
-    // not a plan.
-    it("updates rather than duplicating when reassigned", async () => {
+    // 050 — one base per attack left. Two attacks, two bases; a third is refused.
+    it("gives a member one base per attack left, and no more", async () => {
       await h.asUser(LEADER_A);
       await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 3::smallint);`);
       await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 7::smallint);`);
-
-      expect(await count(h, `select 1 from war_targets where war_id = '${WAR_A}'`)).toBe(1);
+      await expect(
+        h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 9::smallint);`),
+      ).rejects.toThrow(/no attacks left to plan/i);
 
       const res = await h.db.query<{ target_position: number }>(
-        `select target_position from war_targets where war_id = '${WAR_A}'`,
+        `select target_position from war_targets where war_id = '${WAR_A}' and deleted_at is null order by 1`,
       );
-      expect(res.rows[0]!.target_position).toBe(7);
-      // Both assignments recorded — "when was I moved off base 3" has an answer.
+      expect(res.rows.map((r) => r.target_position)).toEqual([3, 7]);
       expect(await count(h, `select 1 from audit_log where action = 'assign-target'`)).toBe(2);
+    });
+
+    it("moves a base with p_replace, in one step, keeping one row per base", async () => {
+      await h.asUser(LEADER_A);
+      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 3::smallint);`);
+      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 7::smallint);`);
+      // Full, but moving 7 -> 9 gives 7's slot back first.
+      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 9::smallint, null, 7::smallint);`);
+
+      const live = await h.db.query<{ target_position: number }>(
+        `select target_position from war_targets where war_id = '${WAR_A}' and deleted_at is null order by 1`,
+      );
+      expect(live.rows.map((r) => r.target_position)).toEqual([3, 9]);
+      // Assigning 7 again later revives its row rather than adding a second (R4).
+      await h.db.exec(`select clear_war_target('${WAR_A}', '${PLAYER_A}', 9::smallint);`);
+      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 7::smallint);`);
+      expect(
+        await count(h, `select 1 from war_targets where war_id = '${WAR_A}' and target_position = 7`),
+      ).toBe(1);
+    });
+
+    it("counts an attack already made against the slots", async () => {
+      await h.asSuperuser();
+      await h.db.exec(`
+        insert into war_attacks (war_id, player_id, attack_order, stars, destruction, defender_position)
+        values ('${WAR_A}', '${PLAYER_A}', 1, 2, 80, 5);
+      `);
+      await h.asUser(LEADER_A);
+      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 3::smallint);`);
+      await expect(
+        h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 7::smallint);`),
+      ).rejects.toThrow(/no attacks left to plan/i);
+    });
+
+    it("clears one base by position, or all of them", async () => {
+      await h.asUser(LEADER_A);
+      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 3::smallint);`);
+      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 7::smallint);`);
+      await h.db.exec(`select clear_war_target('${WAR_A}', '${PLAYER_A}', 3::smallint);`);
+      expect(
+        await count(h, `select 1 from war_targets where war_id = '${WAR_A}' and deleted_at is null`),
+      ).toBe(1);
+      await h.db.exec(`select clear_war_target('${WAR_A}', '${PLAYER_A}');`);
+      expect(
+        await count(h, `select 1 from war_targets where war_id = '${WAR_A}' and deleted_at is null`),
+      ).toBe(0);
     });
 
     it("refuses an ordinary member", async () => {
@@ -403,44 +447,50 @@ describe("Phase 6 — the war schema (024)", () => {
       await h.asUser(LEADER_A);
       await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A2}', 4::smallint);`);
       // Moving the holder frees 4…
-      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A2}', 6::smallint);`);
+      await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A2}', 6::smallint, null, 4::smallint);`);
       await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 4::smallint);`);
       // …and clearing frees 6.
-      await h.db.exec(`select clear_war_target('${WAR_A}', '${PLAYER_A2}');`);
+      await h.db.exec(`select clear_war_target('${WAR_A}', '${PLAYER_A2}', 6::smallint);`);
       await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 6::smallint);`);
 
       const res = await h.db.query<{ target_position: number }>(
-        `select target_position from war_targets where player_id = '${PLAYER_A}' and deleted_at is null`,
+        `select target_position from war_targets where player_id = '${PLAYER_A}' and deleted_at is null order by 1`,
       );
-      expect(res.rows[0]!.target_position).toBe(6);
+      expect(res.rows.map((r) => r.target_position)).toEqual([4, 6]);
     });
 
-    it("lets a member change their own mind", async () => {
+    it("lets a member claim one base per attack, and give one back", async () => {
       await h.asUser(MEMBER_A);
       await h.db.exec(`select claim_war_target('${WAR_A}', 4::smallint);`);
       await h.db.exec(`select claim_war_target('${WAR_A}', 9::smallint);`);
+      await expect(
+        h.db.exec(`select claim_war_target('${WAR_A}', 11::smallint);`),
+      ).rejects.toThrow(/already has a base/i);
 
-      expect(await count(h, `select 1 from war_targets where player_id = '${PLAYER_A}'`)).toBe(1);
+      await h.db.exec(`select release_war_target('${WAR_A}', null, 4::smallint);`);
+      await h.db.exec(`select claim_war_target('${WAR_A}', 11::smallint);`);
       const res = await h.db.query<{ target_position: number }>(
-        `select target_position from war_targets where player_id = '${PLAYER_A}'`,
+        `select target_position from war_targets where player_id = '${PLAYER_A}' and deleted_at is null order by 1`,
       );
-      expect(res.rows[0]!.target_position).toBe(9);
+      expect(res.rows.map((r) => r.target_position)).toEqual([9, 11]);
 
-      // Both claims recorded — "when did I move off base 4" has an answer.
       await h.asUser(LEADER_A);
-      expect(await count(h, `select 1 from audit_log where action = 'claim-target'`)).toBe(2);
+      expect(await count(h, `select 1 from audit_log where action = 'claim-target'`)).toBe(3);
     });
 
-    // Rule 3. Replacing what a co-leader told you to do is not a claim, it is a
-    // refusal, and it must not be able to look identical to one.
-    it("refuses to overwrite a target leadership assigned", async () => {
+    // A claim now ADDS; it can no longer undo what leadership planned. So it is
+    // allowed beside an assignment — and cannot turn that assignment into the
+    // member's own (to then release it).
+    it("adds beside a leadership assignment without taking it over", async () => {
       await h.asUser(LEADER_A);
       await h.db.exec(`select assign_war_target('${WAR_A}', '${PLAYER_A}', 3::smallint);`);
 
       await h.asUser(MEMBER_A);
+      await h.db.exec(`select claim_war_target('${WAR_A}', 9::smallint);`);
+      await h.db.exec(`select claim_war_target('${WAR_A}', 3::smallint);`); // already theirs: no-op
       await expect(
-        h.db.exec(`select claim_war_target('${WAR_A}', 9::smallint);`),
-      ).rejects.toThrow(/leadership has already assigned/i);
+        h.db.exec(`select release_war_target('${WAR_A}', null, 3::smallint);`),
+      ).rejects.toThrow(/leadership assigned this target/i);
     });
 
     it("refuses the leader of another clan (R3)", async () => {

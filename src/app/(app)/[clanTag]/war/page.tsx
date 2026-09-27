@@ -60,6 +60,7 @@ import { CalendarClock, Crosshair, Flag, Gauge, Percent, Shield, Star, Swords, T
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/submit-button";
+import { ActionForm, type ActionResult } from "@/components/action-form";
 import { SyncBadge } from "@/components/sync-badge";
 import { TownHall } from "@/components/lineup-parts";
 import { PageHeader } from "@/components/page-header";
@@ -135,20 +136,24 @@ function stateRibbon(war: WarRow) {
 }
 
 /**
- * Every write on this page, through the definer functions in 024 and 025.
+ * Every write on this page, through the definer functions (050 is the latest).
  *
  * Those functions are the authority — not this action, and not the buttons it
- * renders. They check the role, the clan, whether the player is in the war and
- * whether it has ended, and they write audit_log in the same statement. This
- * only routes and reports. A role check here as well would be a second opinion
- * that can disagree with the first, and the first is the one that counts.
+ * renders. They check the role, the clan, whether the player is in the war,
+ * whether the base is free, whether the member has an attack left to plan, and
+ * whether the war has ended, and they write audit_log in the same statement.
+ * This only routes and reports.
  *
  * The ONE thing it does check is the base number, because nothing else does.
- * 003's war_targets has no range CHECK and neither definer function validates
- * the position, so the range is unowned — and an unowned check is not a second
+ * 003's war_targets has no range CHECK and no definer function validates the
+ * position, so the range is unowned — and an unowned check is not a second
  * opinion, it is the only one. See parseBasePosition.
+ *
+ * It RETURNS its result rather than redirecting (components/action-form.tsx):
+ * a redirect remounted the board, folding every section back to its default
+ * and jumping to the top after each assignment.
  */
-async function mutate(formData: FormData) {
+async function mutate(formData: FormData): Promise<ActionResult> {
   "use server";
 
   const supabase = await createClient();
@@ -161,46 +166,50 @@ async function mutate(formData: FormData) {
   const playerId = String(formData.get("playerId") ?? "");
   const note = String(formData.get("note") ?? "").trim() || null;
 
-  const here = `/${encodeURIComponent(clanTag)}/war?war=${encodeURIComponent(warId)}`;
-
-  // Only for the two actions that carry one. Resolving the war costs two
-  // queries, so clear and release — which have no position — do not pay for it.
-  let position = Number.NaN;
-  if (action === "assign" || action === "claim") {
+  // Positions are checked against the war's own size. Resolving the war costs
+  // two queries, so only the actions that carry a position pay for it.
+  const needsWar = ["assign", "claim", "clear", "release"].includes(action) && formData.get("position") !== null;
+  let teamSize: number | null = null;
+  if (needsWar) {
     const clan = await requireClanByTag(supabase, clanTag);
-    const war = await warById(supabase, clan.id, warId);
-    const parsed = parseBasePosition(formData.get("position"), war?.teamSize ?? null);
-    if (parsed === null) redirect(`${here}&error=pick-a-base`);
-    position = parsed;
+    teamSize = (await warById(supabase, clan.id, warId))?.teamSize ?? null;
   }
+  const position = (name: string) =>
+    formData.get(name) === null || formData.get(name) === ""
+      ? null
+      : parseBasePosition(formData.get(name), teamSize);
 
   let result: { error?: string } = {};
   let done = "";
   if (action === "assign") {
-    result = await assignTarget(supabase, warId, playerId, position, note);
+    const base = position("position");
+    if (base === null) return { error: "pick-a-base" };
+    result = await assignTarget(supabase, warId, playerId, base, note, position("replace"));
     done = "target-assigned";
   } else if (action === "clear") {
-    result = await clearTarget(supabase, warId, playerId);
+    result = await clearTarget(supabase, warId, playerId, position("position"));
     done = "target-cleared";
   } else if (action === "claim") {
-    result = await claimTarget(supabase, warId, position, note, playerId || null);
+    const base = position("position");
+    if (base === null) return { error: "pick-a-base" };
+    result = await claimTarget(supabase, warId, base, note, playerId || null);
     done = "target-claimed";
   } else if (action === "release") {
-    result = await releaseTarget(supabase, warId, playerId || null);
+    result = await releaseTarget(supabase, warId, playerId || null, position("position"));
     done = "target-released";
   } else {
-    redirect(`${here}&error=unknown-action`);
+    return { error: "unknown-action" };
   }
 
-  // The functions' own messages name the reason — "base 4 is already taken",
-  // "that player is not in this war", "this war has ended". Passed through
-  // verbatim, because each of those is actionable and "could not save" is not.
-  if (result.error) redirect(`${here}&error=${encodeURIComponent(result.error)}`);
+  // The functions' own messages name the reason — "base 4 is already assigned
+  // to Kasun", "Ravi has no attacks left to plan". Passed through verbatim,
+  // because each of those is actionable and "could not save" is not.
+  if (result.error) return { error: result.error };
 
-  revalidatePath(here);
-  // `&`, not `?` — `here` already carries the war id. Getting this wrong makes
-  // a second query string that silently drops the war being looked at.
-  redirect(`${here}&ok=${done}`);
+  // The route pattern, not the encoded URL: "#TAG" segments are easy to get
+  // subtly wrong, and any revalidation makes Next return this page fresh.
+  revalidatePath("/[clanTag]/war", "page");
+  return { ok: done };
 }
 
 export default async function WarBoardPage({
@@ -300,9 +309,10 @@ export default async function WarBoardPage({
     return `Base ${position}${b?.thLevel ? ` · TH ${b.thLevel}` : ""}`;
   };
   // The page's ONE gold button: the first free base you could claim, on the
-  // first of your villages that still needs a target.
+  // first of your villages that still has an attack without a base.
   const claimsOpen = !ended && !leadership && freeBases.length > 0;
-  const goldFor = claimsOpen ? myRecord.find((m) => !m.target)?.playerId ?? null : null;
+  const goldFor = claimsOpen ? myRecord.find((m) => m.targetSlotsLeft > 0)?.playerId ?? null : null;
+  const hidden = { clanTag: clan.tag, warId: war.id };
 
   // The war's state as a coloured chip, in the same vocabulary the CWL day
   // tabs use, so "live" is the same yellow on both pages.
@@ -437,7 +447,8 @@ export default async function WarBoardPage({
       thLevel: m.thLevel,
       attacksUsed: m.attacksUsed,
       attacksAllowed: m.attacksAllowed,
-      targetPosition: m.target?.targetPosition ?? null,
+      targets: m.targets.map((t) => t.targetPosition),
+      slotsLeft: m.targetSlotsLeft,
     })),
     bases: board.map((b) => ({
       position: b.position,
@@ -476,52 +487,75 @@ export default async function WarBoardPage({
                 </Badge>
               </div>
 
-              {m.target ? (
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm">
-                    Your target: <span className="font-semibold">{targetLabel(m.target.targetPosition)}</span>
-                    {m.target.note && <span className="text-muted-foreground"> — {m.target.note}</span>}
-                    <span className="text-muted-foreground block text-xs">
-                      {m.target.assignedBy === userId ? "You claimed this base." : "Assigned by your leader."}
-                    </span>
-                  </p>
-                  {/* Only your own claim can be given back. A leader's assignment is
-                      theirs to withdraw — 025 refuses, and the button is not offered. */}
-                  {!ended && m.target.assignedBy === userId && (
-                    <form action={mutate}>
-                      <input type="hidden" name="clanTag" value={clan.tag} />
-                      <input type="hidden" name="warId" value={war.id} />
-                      <input type="hidden" name="action" value="release" />
-                      <input type="hidden" name="playerId" value={m.playerId} />
-                      <SubmitButton size="sm" variant="outline" pendingLabel="Releasing">
-                        Give this base back
-                      </SubmitButton>
-                    </form>
-                  )}
-                </div>
-              ) : ended ? (
-                <p className="text-muted-foreground text-sm">No target was set for this war.</p>
+              {m.targets.length > 0 && (
+                <ul className="space-y-2">
+                  {m.targets.map((t) => {
+                    const done = !m.openTargets.includes(t);
+                    return (
+                      <li key={t.targetPosition} className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm">
+                          <span className="bg-gold text-gold-ink inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
+                            <Crosshair aria-hidden className="size-3" />
+                            {targetLabel(t.targetPosition)}
+                          </span>
+                          {done && <span className="text-success-ink ml-2 text-xs font-medium">attacked</span>}
+                          {t.note && <span className="text-muted-foreground"> — {t.note}</span>}
+                          <span className="text-muted-foreground block text-xs">
+                            {t.assignedBy === userId ? "You claimed this base." : "Assigned by your leader."}
+                          </span>
+                        </p>
+                        {/* Only your own claim can be given back. A leader's assignment is
+                            theirs to withdraw — 050 refuses, and the button is not offered. */}
+                        {!ended && !done && t.assignedBy === userId && (
+                          <ActionForm
+                            action={mutate}
+                            hidden={{ ...hidden, action: "release", playerId: m.playerId, position: String(t.targetPosition) }}
+                          >
+                            <SubmitButton size="xs" variant="ghost" pendingLabel="Releasing">
+                              Give back
+                            </SubmitButton>
+                          </ActionForm>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {ended ? (
+                m.targets.length === 0 && (
+                  <p className="text-muted-foreground text-sm">No target was set for this war.</p>
+                )
+              ) : m.targetSlotsLeft === 0 ? (
+                m.attacksRemaining > 0 && (
+                  <p className="text-muted-foreground text-sm">Every attack you have left has a base.</p>
+                )
               ) : leadership ? (
-                <p className="text-muted-foreground text-sm">No target yet — set one in the lineup table below.</p>
+                <p className="text-muted-foreground text-sm">
+                  {m.targetSlotsLeft} attack{m.targetSlotsLeft === 1 ? "" : "s"} without a base — set it in the
+                  lineup table below.
+                </p>
               ) : freeBases.length === 0 ? (
                 <p className="text-muted-foreground text-sm">
                   Every base is already assigned or attacked. Ask your leader where to hit.
                 </p>
               ) : (
                 <div className="space-y-2">
-                  <p className="text-sm">Pick a free base to claim:</p>
+                  <p className="text-sm">
+                    Pick a free base to claim
+                    {m.targetSlotsLeft > 1 ? ` — you can claim ${m.targetSlotsLeft}` : ""}:
+                  </p>
                   {/* One button per free base: a tap on "Base 7 · TH 15" is a clearer
                       choice than a dropdown of bare numbers. */}
                   <div className="flex flex-wrap gap-2">
                     {freeBases.map((b, i) => (
-                      <form key={b.position} action={mutate}>
-                        <input type="hidden" name="clanTag" value={clan.tag} />
-                        <input type="hidden" name="warId" value={war.id} />
-                        <input type="hidden" name="action" value="claim" />
-                        <input type="hidden" name="position" value={b.position} />
-                        {/* Which of your villages is claiming. Without it 025 picked
-                            one of them arbitrarily — the wrong one, for anyone with two. */}
-                        <input type="hidden" name="playerId" value={m.playerId} />
+                      <ActionForm
+                        key={b.position}
+                        action={mutate}
+                        // Which of your villages is claiming. Without it 025 picked
+                        // one of them arbitrarily — the wrong one, for anyone with two.
+                        hidden={{ ...hidden, action: "claim", position: String(b.position), playerId: m.playerId }}
+                      >
                         <SubmitButton
                           size="sm"
                           variant={goldFor === m.playerId && i === 0 ? "gold" : "outline"}
@@ -530,7 +564,7 @@ export default async function WarBoardPage({
                         >
                           {targetLabel(b.position)}
                         </SubmitButton>
-                      </form>
+                      </ActionForm>
                     ))}
                   </div>
                 </div>
@@ -623,38 +657,65 @@ export default async function WarBoardPage({
 
                     {/* THE PLAN */}
                     <td className="py-3 pr-3">
-                      {m.target ? (
-                        <span className="block">
-                          <span className="bg-gold text-gold-ink inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
-                            <Crosshair aria-hidden className="size-3" />
-                            {targetLabel(m.target.targetPosition)}
-                          </span>
-                          {m.target.note && (
-                            <span className="text-muted-foreground block text-xs">{m.target.note}</span>
-                          )}
-                        </span>
-                      ) : (
+                      {m.targets.length === 0 ? (
                         <span className="text-muted-foreground">No target</span>
+                      ) : (
+                        <ul className="space-y-1.5">
+                          {m.targets.map((t) => {
+                            const open = m.openTargets.includes(t);
+                            return (
+                              <li key={t.targetPosition} className="flex flex-wrap items-center gap-1.5">
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                    open ? "bg-gold text-gold-ink" : "bg-success-tint text-success-ink"
+                                  }`}
+                                  title={open ? "Planned" : "Attacked"}
+                                >
+                                  <Crosshair aria-hidden className="size-3" />
+                                  {targetLabel(t.targetPosition)}
+                                  {!open && " ✓"}
+                                </span>
+                                {canPlan && open && (
+                                  <>
+                                    {/* Keyed on the plan, so a save remounts it closed. */}
+                                    <AssignMemberButton
+                                      key={`move:${m.playerId}:${m.targets.map((x) => x.targetPosition).join(",")}`}
+                                      playerId={m.playerId}
+                                      replace={t.targetPosition}
+                                    />
+                                    <ActionForm
+                                      action={mutate}
+                                      hidden={{
+                                        ...hidden,
+                                        action: "clear",
+                                        playerId: m.playerId,
+                                        position: String(t.targetPosition),
+                                      }}
+                                    >
+                                      <SubmitButton
+                                        size="xs"
+                                        variant="ghost"
+                                        pendingLabel="Removing"
+                                        aria-label={`Remove base ${t.targetPosition} from ${m.name}`}
+                                      >
+                                        Remove
+                                      </SubmitButton>
+                                    </ActionForm>
+                                  </>
+                                )}
+                                {t.note && <span className="text-muted-foreground block w-full text-xs">{t.note}</span>}
+                              </li>
+                            );
+                          })}
+                        </ul>
                       )}
 
-                      {canPlan && (
-                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                          {/* Keyed on the assignment, so a save remounts it closed. */}
+                      {canPlan && m.targetSlotsLeft > 0 && (
+                        <div className="mt-2">
                           <AssignMemberButton
-                            key={`${m.playerId}:${m.target?.targetPosition ?? ""}`}
+                            key={`add:${m.playerId}:${m.targets.map((x) => x.targetPosition).join(",")}`}
                             playerId={m.playerId}
                           />
-                          {m.target && (
-                            <form action={mutate}>
-                              <input type="hidden" name="clanTag" value={clan.tag} />
-                              <input type="hidden" name="warId" value={war.id} />
-                              <input type="hidden" name="action" value="clear" />
-                              <input type="hidden" name="playerId" value={m.playerId} />
-                              <SubmitButton size="xs" variant="ghost" pendingLabel="Removing">
-                                Remove
-                              </SubmitButton>
-                            </form>
-                          )}
                         </div>
                       )}
                     </td>
@@ -776,7 +837,9 @@ function ChaseList({
                 {m.name}
               </Link>
               <span className="text-muted-foreground shrink-0 text-xs">
-                {m.target ? targetLabel(m.target.targetPosition) : "No target"}
+                {m.openTargets.length
+                  ? m.openTargets.map((t) => targetLabel(t.targetPosition)).join(", ")
+                  : "No target"}
               </span>
             </li>
           ))}

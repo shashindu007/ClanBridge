@@ -126,6 +126,9 @@ export const PHASE1_MIGRATIONS = [
   // The newest player_progress row for many villages at once, for the CWL
   // lineup builder. Security invoker over 036's policies.
   "049_latest_player_progress.sql",
+  // Several targets per member, up to their attacks left; replaces 047's
+  // assign/claim and 024/046's clear/release with position-aware versions.
+  "050_war_targets_per_attack.sql",
 ] as const;
 
 /**

@@ -589,6 +589,26 @@ describe("services/war — the derivations", () => {
     });
   });
 
+  // 050 — targets are a list, and only unhit ones use an attack.
+  describe("targets per member", () => {
+    it("lists every target, counts only unhit ones as open, and leaves slots for the rest", () => {
+      const members = [member("a", { attacksAllowed: 2 })];
+      const attacks = [attack("a", 1, { defenderPosition: 3 })];
+      const [rec] = warRecord(members, attacks, [target("a", 7), target("a", 3)]);
+      expect(rec!.targets.map((t) => t.targetPosition)).toEqual([3, 7]);
+      expect(rec!.openTargets.map((t) => t.targetPosition)).toEqual([7]);
+      // Two allowed, one used, one open target: nothing left to plan.
+      expect(rec!.targetSlotsLeft).toBe(0);
+      // It hit one of its planned bases, so it followed the plan.
+      expect(rec!.followedTarget).toBe(true);
+    });
+
+    it("gives a fresh member two slots", () => {
+      const [rec] = warRecord([member("a", { attacksAllowed: 2 })], []);
+      expect(rec!.targetSlotsLeft).toBe(2);
+    });
+  });
+
   describe("warSummary", () => {
     it("averages over attacks made, and says nothing before the first", () => {
       const members = [member("a", { mapPosition: 1 }), member("b", { mapPosition: 2 })];

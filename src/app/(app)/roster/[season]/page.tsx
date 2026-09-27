@@ -155,7 +155,7 @@ async function mutate(formData: FormData): Promise<ActionResult> {
   }
 
   // The fresh page comes back in this same response — no redirect, no remount.
-  revalidatePath(`/roster/${encodeURIComponent(season)}`);
+  revalidatePath("/roster/[season]", "page");
   return result;
 }
 

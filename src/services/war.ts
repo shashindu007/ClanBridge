@@ -52,10 +52,17 @@ export interface MemberWarRecord {
   missedEntirely: boolean;
   stars: number;
   destruction: number;
-  /** The base they were told to hit, if anyone told them. */
-  target: WarTargetRow | null;
   /**
-   * Did they attack the base they were assigned?
+   * The bases they were told to hit (or claimed), by base number. Up to their
+   * attacks allowed since 050 — one per attack — so a list, never one row.
+   */
+  targets: WarTargetRow[];
+  /** Targets on bases they have not attacked yet: each one uses an attack. */
+  openTargets: WarTargetRow[];
+  /** How many more bases they can be given: attacks left minus open targets. */
+  targetSlotsLeft: number;
+  /**
+   * Did they attack a base they were assigned?
    *
    * null when unknowable — no assignment, no attack yet, or an attack whose
    * defender_position the sync could not resolve. Never false in those cases:
@@ -84,13 +91,23 @@ export function warRecord(
     byPlayer.set(attack.playerId, list);
   }
 
-  const targetOf = new Map(targets.map((t) => [t.playerId, t]));
+  const targetsOf = new Map<string, WarTargetRow[]>();
+  for (const target of targets) {
+    const list = targetsOf.get(target.playerId) ?? [];
+    list.push(target);
+    targetsOf.set(target.playerId, list);
+  }
 
   return members.map((member) => {
     const mine = (byPlayer.get(member.playerId) ?? [])
       .slice()
       .sort((a, b) => a.attackOrder - b.attackOrder);
-    const target = targetOf.get(member.playerId) ?? null;
+    const mineTargets = (targetsOf.get(member.playerId) ?? [])
+      .slice()
+      .sort((a, b) => a.targetPosition - b.targetPosition);
+    const hitBases = new Set(mine.map((a) => a.defenderPosition).filter((p) => p !== null));
+    const openTargets = mineTargets.filter((t) => !hitBases.has(t.targetPosition));
+    const attacksRemaining = Math.max(0, member.attacksAllowed - mine.length);
 
     return {
       playerId: member.playerId,
@@ -104,18 +121,20 @@ export function warRecord(
       // Clamped at zero. A member with more attacks than allowed is not a
       // negative remainder, it is a data problem, and reporting "-1 left" sends
       // the reader looking for a bug in the wrong place.
-      attacksRemaining: Math.max(0, member.attacksAllowed - mine.length),
+      attacksRemaining,
       missedEntirely: mine.length === 0,
       stars: mine.reduce((total, a) => total + a.stars, 0),
       destruction: mine.reduce((total, a) => total + a.destruction, 0),
-      target,
-      followedTarget: didFollowTarget(target, mine),
+      targets: mineTargets,
+      openTargets,
+      targetSlotsLeft: Math.max(0, attacksRemaining - openTargets.length),
+      followedTarget: didFollowTarget(mineTargets, mine),
     };
   });
 }
 
 /**
- * Whether any of a member's attacks landed on the base they were assigned.
+ * Whether any of a member's attacks landed on a base they were assigned.
  *
  * ANY, not the first: a member told to hit base 3 who scouts base 7 first and
  * then takes base 3 has done what they were asked. Judging only the first
@@ -123,10 +142,10 @@ export function warRecord(
  * to prevent.
  */
 function didFollowTarget(
-  target: WarTargetRow | null,
+  targets: WarTargetRow[],
   attacks: WarAttackRow[],
 ): boolean | null {
-  if (!target) return null;
+  if (!targets.length) return null;
   if (!attacks.length) return null;
 
   // Every attack missing a defender_position means the sync could not resolve
@@ -134,7 +153,8 @@ function didFollowTarget(
   const known = attacks.filter((a) => a.defenderPosition !== null);
   if (!known.length) return null;
 
-  return known.some((a) => a.defenderPosition === target.targetPosition);
+  const planned = new Set(targets.map((t) => t.targetPosition));
+  return known.some((a) => a.defenderPosition !== null && planned.has(a.defenderPosition));
 }
 
 /**
@@ -398,7 +418,7 @@ export function targetCompliance(record: MemberWarRecord[]): TargetCompliance {
   };
 
   for (const member of record) {
-    if (!member.target) {
+    if (!member.targets.length) {
       if (member.attacksUsed > 0) compliance.unassigned += 1;
       continue;
     }
@@ -534,11 +554,11 @@ export const MAX_WAR_SIZE = 50;
  * tested `Number.isFinite`, which passes `0`: an empty select coerces to zero,
  * and zero is finite.
  *
- * A base-0 row is not a harmless bad value. It occupies the member's one
- * `unique (war_id, player_id)` slot, so they cannot be given a real target
- * without it being cleared first — while being invisible on the board, because
- * `enemyBoard` iterates 1..teamSize. The member appears unassigned and cannot
- * be assigned, and nothing on screen says why.
+ * A base-0 row is not a harmless bad value. It uses up one of the member's
+ * target slots (050: one per attack left), so it blocks a real target — while
+ * being invisible on the board, because `enemyBoard` iterates 1..teamSize. The
+ * member appears to have a free attack that cannot be planned, and nothing on
+ * screen says why.
  *
  * Bounded above by the war's own size when known: base 47 in a 15v15 is the
  * same invisible row as base 0, and MAX_WAR_SIZE alone would let it through.
