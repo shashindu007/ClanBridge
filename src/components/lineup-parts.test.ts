@@ -53,7 +53,7 @@ const panel = {
 
 describe("labels", () => {
   it("labels a Town Hall level instead of printing a bare number", () => {
-    expect(html(createElement(TownHall, { level: 18 }))).toContain("TH 18");
+    expect(html(createElement(TownHall, { level: 18 }))).toContain('aria-label="Town Hall 18"');
     expect(html(createElement(TownHall, { level: null }))).toContain("TH ?");
   });
 
@@ -136,7 +136,8 @@ describe("LineupPanel", () => {
         hidden: { season: "2026-09", view: "?show=in", rosterId: "r1" },
       }),
     );
-    expect(out).toContain("TH 18");
+    // The accessible name, which holds with the Fan Kit picture or without it.
+    expect(out).toContain('aria-label="Town Hall 18"');
     expect(out).toContain('aria-label="Remove Player 1 from the Dark Hell lineup"');
     expect(out).toContain('name="view" value="?show=in"');
     // The lineup's id rides in `hidden` under the name the page's action reads.

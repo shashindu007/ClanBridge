@@ -12,8 +12,8 @@
 //   1. Walks the kit for .png/.webp/.jpg files.
 //   2. Names each one with a key the product owns (scripts/game-art.map.ts),
 //      or leaves it unused. When several files name the same thing — a kit
-//      often ships a render and an icon — the largest file wins, being the
-//      highest-resolution source.
+//      often ships a render and an icon — the icon wins, and between two of
+//      the same kind the larger file, being the higher-resolution source.
 //   3. Trims the transparent border, fits the picture inside a square (160px
 //      for Town Halls, 128px for the rest) WITHOUT cropping or recolouring,
 //      and writes webp to public/game/<family>/<key>.webp.
@@ -35,7 +35,7 @@ import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import unitsFile from "../src/data/game/units.json";
 import { artKeyForUnit, type ArtManifest } from "../src/lib/game-art";
-import { folderFor, matchArtKey, type KnownUnit } from "./game-art.map";
+import { folderFor, isIconFile, matchArtKey, type KnownUnit } from "./game-art.map";
 
 const OUT_DIR = join(process.cwd(), "public", "game");
 const MANIFEST = join(process.cwd(), "src", "data", "game", "art-manifest.json");
@@ -80,7 +80,7 @@ async function main() {
   }));
 
   const files = await walk(kit);
-  const chosen = new Map<string, { path: string; bytes: number }>();
+  const chosen = new Map<string, { path: string; bytes: number; icon: boolean }>();
   const unused: string[] = [];
 
   for (const path of files) {
@@ -95,8 +95,14 @@ async function main() {
       continue;
     }
     const { size: bytes } = await stat(path);
+    const icon = isIconFile(rel);
     const current = chosen.get(key);
-    if (!current || bytes > current.bytes) chosen.set(key, { path, bytes });
+    // The kit's square icon beats a render of the same unit, however large the
+    // render: a full-body picture on grass shrinks to a smudge at 128px.
+    // Between two of the same kind, the larger file is the better source.
+    const better =
+      !current || (icon !== current.icon ? icon : bytes > current.bytes);
+    if (better) chosen.set(key, { path, bytes, icon });
   }
 
   const keys = [...chosen.keys()].sort();

@@ -63,6 +63,35 @@ const NOISE = new Set([
   "clans",
 ]);
 
+/**
+ * Words that mark a FILE as a scene or a badge rather than one unit's
+ * portrait. Checked on the file name only, so a folder called "Badges" does
+ * not hide the icons filed inside it.
+ */
+const SCENE = new Set([
+  "badge",
+  "loading",
+  "screen",
+  "wallpaper",
+  "banner",
+  "poster",
+  "kingdom",
+  "characters",
+  "clashiversary",
+  "villager",
+  "scene",
+]);
+
+/**
+ * Whether a file is the kit's square icon ("Icon_HV_Hog_Rider") rather than
+ * a render. Icons are what a 128px square wants, so they win over a larger
+ * full-body picture of the same unit.
+ */
+export function isIconFile(relativePath: string): boolean {
+  const file = relativePath.replace(/\\/g, "/").split("/").pop() ?? "";
+  return /(^|[^a-z])icons?([^a-z]|$)/i.test(file);
+}
+
 /** A path as a list of lowercase words, noise removed. */
 export function words(path: string): string[] {
   const base = path
@@ -96,20 +125,27 @@ export function matchArtKey(relativePath: string, units: readonly KnownUnit[]): 
   const fileWords = words(relativePath.replace(/\\/g, "/").split("/").pop() ?? "");
   const joined = w.join(" ");
 
+  // Scenes, not portraits: a "League_Badge_Archer" is a badge with an archer
+  // on it, "SkeletonKingdom_withCharacters" a poster. Filed under a unit's key
+  // they would stand in for the unit, so they are never matched.
+  if (fileWords.some((word) => SCENE.has(word))) return null;
+
   // Town Hall: "Town Hall 17", "Town_Hall_17", "TH17", "th 17". Checked on the
   // FILE name only — a folder called "Town Hall" holds the hall's weapons too.
   const file = fileWords.join(" ");
-  const th = /\btown ?hall ?(\d{1,2})\b/.exec(file) ?? /\bth ?(\d{1,2})\b/.exec(file);
+  // The kit also says "Building_HV_Town_Hall_level_16".
+  const th = /\btown ?hall(?: level)? ?(\d{1,2})\b/.exec(file) ?? /\bth ?(\d{1,2})\b/.exec(file);
   if (th) {
     const level = Number(th[1]);
     if (level >= 1 && level <= 30) return `th-${level}`;
   }
 
-  // Leagues: "Crystal League I", "crystal_league_1", "Legend League".
+  // Leagues: "Crystal League I", "crystal_league_1", "Legend League", and the
+  // other way round — "league-legend", "League_Crystal_2".
+  const tiers = "bronze|silver|gold|crystal|master|champion|titan|legend";
   const league =
-    /\b(bronze|silver|gold|crystal|master|champion|titan|legend) league(?: (i{1,3}|[1-3]))?\b/.exec(
-      joined,
-    );
+    new RegExp(`\\b(${tiers}) league(?: (i{1,3}|[1-3]))?\\b`).exec(joined) ??
+    new RegExp(`\\bleague (${tiers})(?: (i{1,3}|[1-3]))?\\b`).exec(joined);
   if (league) {
     const division = league[2] ? (/^\d$/.test(league[2]) ? league[2] : league[2].toUpperCase()) : "";
     const name = `${league[1]} League${division ? ` ${division}` : ""}`;
@@ -118,13 +154,20 @@ export function matchArtKey(relativePath: string, units: readonly KnownUnit[]): 
 
   // Units: the longest unit name found as a whole run of words wins, so
   // "Super Barbarian" beats "Barbarian" and "Barbarian King" beats both.
-  const builder = containsRun(w, ["builder", "base"]) || w.includes("builder");
+  // The kit prefixes files "Icon_BB_…" (Builder Base) and "Icon_HV_…" (home
+  // village); a folder name is the other place the village is said.
+  const builder =
+    containsRun(w, ["builder", "base"]) || w.includes("builder") || fileWords.includes("bb");
+  const inSpellsFolder = w.includes("spells") || w.includes("spell");
   let best: { unit: KnownUnit; length: number } | null = null;
   for (const unit of units) {
     const full = artSlug(unit.name).split("-");
-    // "Lightning Spell" is often filed as just "Lightning" inside a Spells folder.
+    // "Lightning Spell" is often filed as just "Lightning" inside a Spells
+    // folder — but only there: a lone "Skeleton" elsewhere is not a spell.
     const needles =
-      full.length > 1 && full[full.length - 1] === "spell" ? [full, full.slice(0, -1)] : [full];
+      full.length > 1 && full[full.length - 1] === "spell" && inSpellsFolder
+        ? [full, full.slice(0, -1)]
+        : [full];
     const needle = needles.find((n) => containsRun(w, n));
     if (!needle) continue;
     const onRightSide = unit.village === "home" ? !builder : builder;

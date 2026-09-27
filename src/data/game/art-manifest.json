@@ -1,4 +1,198 @@
 {
-  "source": null,
-  "files": {}
+  "source": {
+    "fanKit": "coc-fankit",
+    "generatedAt": "2026-09-27"
+  },
+  "files": {
+    "builder-troop-boxer-giant": {
+      "src": "/game/builder-troops/builder-troop-boxer-giant.webp",
+      "width": 128,
+      "height": 128
+    },
+    "builder-troop-raged-barbarian": {
+      "src": "/game/builder-troops/builder-troop-raged-barbarian.webp",
+      "width": 128,
+      "height": 128
+    },
+    "builder-troop-sneaky-archer": {
+      "src": "/game/builder-troops/builder-troop-sneaky-archer.webp",
+      "width": 128,
+      "height": 128
+    },
+    "hero-archer-queen": {
+      "src": "/game/heroes/hero-archer-queen.webp",
+      "width": 128,
+      "height": 128
+    },
+    "hero-barbarian-king": {
+      "src": "/game/heroes/hero-barbarian-king.webp",
+      "width": 128,
+      "height": 128
+    },
+    "hero-dragon-duke": {
+      "src": "/game/heroes/hero-dragon-duke.webp",
+      "width": 128,
+      "height": 128
+    },
+    "hero-grand-warden": {
+      "src": "/game/heroes/hero-grand-warden.webp",
+      "width": 128,
+      "height": 128
+    },
+    "hero-minion-prince": {
+      "src": "/game/heroes/hero-minion-prince.webp",
+      "width": 128,
+      "height": 128
+    },
+    "hero-royal-champion": {
+      "src": "/game/heroes/hero-royal-champion.webp",
+      "width": 128,
+      "height": 128
+    },
+    "league-legend": {
+      "src": "/game/leagues/league-legend.webp",
+      "width": 128,
+      "height": 128
+    },
+    "pet-angry-jelly": {
+      "src": "/game/pets/pet-angry-jelly.webp",
+      "width": 128,
+      "height": 128
+    },
+    "pet-diggy": {
+      "src": "/game/pets/pet-diggy.webp",
+      "width": 128,
+      "height": 128
+    },
+    "pet-electro-owl": {
+      "src": "/game/pets/pet-electro-owl.webp",
+      "width": 128,
+      "height": 128
+    },
+    "pet-frosty": {
+      "src": "/game/pets/pet-frosty.webp",
+      "width": 128,
+      "height": 128
+    },
+    "pet-greedy-raven": {
+      "src": "/game/pets/pet-greedy-raven.webp",
+      "width": 128,
+      "height": 128
+    },
+    "pet-lassi": {
+      "src": "/game/pets/pet-lassi.webp",
+      "width": 128,
+      "height": 128
+    },
+    "pet-mighty-yak": {
+      "src": "/game/pets/pet-mighty-yak.webp",
+      "width": 128,
+      "height": 128
+    },
+    "pet-phoenix": {
+      "src": "/game/pets/pet-phoenix.webp",
+      "width": 128,
+      "height": 128
+    },
+    "pet-poison-lizard": {
+      "src": "/game/pets/pet-poison-lizard.webp",
+      "width": 128,
+      "height": 128
+    },
+    "pet-sneezy": {
+      "src": "/game/pets/pet-sneezy.webp",
+      "width": 128,
+      "height": 128
+    },
+    "pet-spirit-fox": {
+      "src": "/game/pets/pet-spirit-fox.webp",
+      "width": 128,
+      "height": 128
+    },
+    "pet-unicorn": {
+      "src": "/game/pets/pet-unicorn.webp",
+      "width": 128,
+      "height": 128
+    },
+    "siege-flame-flinger": {
+      "src": "/game/sieges/siege-flame-flinger.webp",
+      "width": 128,
+      "height": 128
+    },
+    "th-11": {
+      "src": "/game/townhall/th-11.webp",
+      "width": 160,
+      "height": 160
+    },
+    "th-12": {
+      "src": "/game/townhall/th-12.webp",
+      "width": 160,
+      "height": 160
+    },
+    "th-13": {
+      "src": "/game/townhall/th-13.webp",
+      "width": 160,
+      "height": 160
+    },
+    "th-14": {
+      "src": "/game/townhall/th-14.webp",
+      "width": 160,
+      "height": 160
+    },
+    "th-15": {
+      "src": "/game/townhall/th-15.webp",
+      "width": 160,
+      "height": 160
+    },
+    "th-16": {
+      "src": "/game/townhall/th-16.webp",
+      "width": 160,
+      "height": 160
+    },
+    "th-17": {
+      "src": "/game/townhall/th-17.webp",
+      "width": 160,
+      "height": 160
+    },
+    "th-18": {
+      "src": "/game/townhall/th-18.webp",
+      "width": 160,
+      "height": 160
+    },
+    "troop-bowler": {
+      "src": "/game/troops/troop-bowler.webp",
+      "width": 128,
+      "height": 128
+    },
+    "troop-dragon": {
+      "src": "/game/troops/troop-dragon.webp",
+      "width": 128,
+      "height": 128
+    },
+    "troop-electro-dragon": {
+      "src": "/game/troops/troop-electro-dragon.webp",
+      "width": 128,
+      "height": 128
+    },
+    "troop-hog-rider": {
+      "src": "/game/troops/troop-hog-rider.webp",
+      "width": 128,
+      "height": 128
+    },
+    "troop-lava-hound": {
+      "src": "/game/troops/troop-lava-hound.webp",
+      "width": 128,
+      "height": 128
+    },
+    "troop-valkyrie": {
+      "src": "/game/troops/troop-valkyrie.webp",
+      "width": 128,
+      "height": 128
+    },
+    "troop-witch": {
+      "src": "/game/troops/troop-witch.webp",
+      "width": 128,
+      "height": 128
+    }
+  }
 }
