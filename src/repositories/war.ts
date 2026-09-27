@@ -506,8 +506,7 @@ export async function warRostersFor(
 // ---------------------------------------------------------------------------
 // T6.4 — target writes, all four through definer functions.
 //
-// Same shape as awardBonus/withdrawBonus in ./rosters.ts, INCLUDING the
-// `data === false` check. These functions return false rather than raising when
+// Every one checks `data === false` as well as `error`. These functions return false rather than raising when
 // they decline, so a caller that only inspects `error` reports success on a
 // write that did not happen.
 // ---------------------------------------------------------------------------

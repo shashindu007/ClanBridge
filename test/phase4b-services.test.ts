@@ -22,9 +22,7 @@ import {
   type EligibleMember,
 } from "@/services/polls";
 import {
-  allocationList,
   contributionReport,
-  nextAwardOrder,
   planVsReality,
   type SeasonWarData,
 } from "@/services/rosters";
@@ -296,7 +294,7 @@ describe("T4B.12 — contribution report", () => {
   ];
 
   it("counts attacks against wars the player was actually placed in", () => {
-    const rows = contributionReport(wars, []);
+    const rows = contributionReport(wars);
     const p2 = rows.find((r) => r.playerId === "p2")!;
     // In two wars, attacked in one — that is one miss, and it is the member's,
     // not the leader's.
@@ -304,62 +302,25 @@ describe("T4B.12 — contribution report", () => {
   });
 
   it("averages destruction over attacks made, not wars entered", () => {
-    const p1 = contributionReport(wars, []).find((r) => r.playerId === "p1")!;
+    const p1 = contributionReport(wars).find((r) => r.playerId === "p1")!;
     expect(p1.averageDestruction).toBe(90); // (100 + 80) / 2
   });
 
   // A day still being fought is not a miss yet, and a preparation day cannot be.
   it("counts no misses for days that have not ended", () => {
-    const rows = contributionReport(
-      [
-        { apiRoster: [apiEntry(5)], attacks: [], state: "inWar" },
-        { apiRoster: [apiEntry(5)], attacks: [], state: "preparation" },
-        { apiRoster: [apiEntry(5)], attacks: [], state: "warEnded" },
-      ],
-      [],
-    );
+    const rows = contributionReport([
+      { apiRoster: [apiEntry(5)], attacks: [], state: "inWar" },
+      { apiRoster: [apiEntry(5)], attacks: [], state: "preparation" },
+      { apiRoster: [apiEntry(5)], attacks: [], state: "warEnded" },
+    ]);
     expect(rows[0]!.warsPlayed).toBe(1);
     expect(rows[0]!.missed).toBe(1);
   });
 
   it("does not divide by zero for someone who never attacked", () => {
-    const rows = contributionReport([{ apiRoster: [apiEntry(5)], attacks: [] }], []);
+    const rows = contributionReport([{ apiRoster: [apiEntry(5)], attacks: [] }]);
     expect(rows[0]!.averageDestruction).toBe(0);
     expect(rows[0]!.missed).toBe(1);
   });
-
-  it("marks who already has a medal", () => {
-    const rows = contributionReport(wars, [{ playerId: "p2", awardOrder: 1 }]);
-    expect(rows.find((r) => r.playerId === "p2")!.hasBonus).toBe(true);
-    expect(rows.find((r) => r.playerId === "p1")!.hasBonus).toBe(false);
-  });
 });
 
-describe("T4B.13 — the leader's allocation order", () => {
-  const rows = contributionReport(
-    [{ apiRoster: [apiEntry(1), apiEntry(2), apiEntry(3)], attacks: [attack("p1", 3), attack("p2", 2)] }],
-    [
-      { playerId: "p3", awardOrder: 1 },
-      { playerId: "p2", awardOrder: 2 },
-    ],
-  );
-
-  // The whole point of the answer to T0.11: the order is the leader's, not a
-  // formula's. p3 scored nothing and is still first, because that is what was
-  // decided and recorded.
-  it("keeps the awarded list in the leader's order, not by performance", () => {
-    const { awarded } = allocationList(rows);
-    expect(awarded.map((a) => a.playerId)).toEqual(["p3", "p2"]);
-  });
-
-  it("leaves everyone else as candidates in the default reading order", () => {
-    const { candidates } = allocationList(rows);
-    expect(candidates.map((c) => c.playerId)).toEqual(["p1"]);
-  });
-
-  it("suggests the next free position", () => {
-    const { awarded } = allocationList(rows);
-    expect(nextAwardOrder(awarded)).toBe(3);
-    expect(nextAwardOrder([])).toBe(1);
-  });
-});

@@ -61,10 +61,6 @@ export const OK_MESSAGES: Record<string, string> = {
   "notice-pinned": "Pin updated.",
   "notice-removed": "Announcement removed.",
 
-  // CWL bonus medals (T4.7).
-  "bonus-awarded": "Medal awarded.",
-  "bonus-withdrawn": "Medal taken back.",
-
   // Base layouts (Phase 8).
   voted: "Vote counted.",
   unvoted: "Vote withdrawn.",
@@ -116,8 +112,6 @@ export const ERROR_MESSAGES: Record<string, string> = {
   "unknown-action": "That is not something this page can do.",
   // Notification settings.
   "notifications-failed": "Could not save your notification settings. Try again.",
-  // CWL report.
-  "bad-order": "The medal place must be a whole number, 1 or more.",
   // Create poll.
   "no-title": "Give the poll a title so members know what they are answering.",
   "need-options": "A poll needs at least two answers to choose from.",

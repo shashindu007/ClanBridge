@@ -249,67 +249,8 @@ export async function unpublishRoster(
   return error ? { error: error.message } : {};
 }
 
-export interface BonusAward {
-  playerId: string;
-  awardOrder: number | null;
-  note: string | null;
-  awardedAt: string;
-}
-
-/** T4.7 — who has a bonus medal this season, in the leader's order. */
-export async function bonusesForSeason(
-  supabase: SupabaseClient,
-  seasonId: string,
-): Promise<BonusAward[]> {
-  const { data, error } = await supabase
-    .from("cwl_bonuses")
-    .select("player_id, award_order, note, awarded_at")
-    .eq("season_id", seasonId)
-    .is("deleted_at", null)
-    .order("award_order");
-
-  if (error || !data) return [];
-  return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
-    playerId: r.player_id as string,
-    awardOrder: (r.award_order as number | null) ?? null,
-    note: (r.note as string | null) ?? null,
-    awardedAt: r.awarded_at as string,
-  }));
-}
-
-/** Award or reorder. Goes through the definer function so it is always audited. */
-export async function awardBonus(
-  supabase: SupabaseClient,
-  seasonId: string,
-  playerId: string,
-  awardOrder: number | null,
-  note: string | null,
-): Promise<{ error?: string }> {
-  const { data, error } = await supabase.rpc("award_cwl_bonus", {
-    p_season: seasonId,
-    p_player: playerId,
-    p_order: awardOrder,
-    p_note: note,
-  });
-
-  if (error) return { error: error.message };
-  // The function returns false rather than raising when it refuses, so a silent
-  // no-op has to be treated as a failure or the UI reports success wrongly.
-  if (data === false) return { error: "not permitted" };
-  return {};
-}
-
-export async function withdrawBonus(
-  supabase: SupabaseClient,
-  seasonId: string,
-  playerId: string,
-): Promise<{ error?: string }> {
-  const { data, error } = await supabase.rpc("withdraw_cwl_bonus", {
-    p_season: seasonId,
-    p_player: playerId,
-  });
-
-  if (error) return { error: error.message };
-  if (data === false) return { error: "not permitted" };
-  return {};
-}
+// Bonus medals are given by the clan leader IN GAME, and the game keeps the
+// record. The site used to hold a second copy (bonusesForSeason / awardBonus /
+// withdrawBonus over cwl_bonuses, 022); that was removed with the medals page
+// redesign. The table and its functions stay in the database — nothing already
+// recorded is lost — but nothing reads or writes them any more.

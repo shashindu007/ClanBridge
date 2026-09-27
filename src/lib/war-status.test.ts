@@ -5,12 +5,16 @@ import { describe, expect, it } from "vitest";
 import { dayTone, formatRemaining, ordinal } from "@/lib/war-status";
 
 describe("dayTone", () => {
-  it("lets a result win over the state", () => {
+  it("reads the result of a day that is over", () => {
     expect(dayTone("win", "warEnded")).toBe("win");
     expect(dayTone("lose", "warEnded")).toBe("loss");
     expect(dayTone("tie", "warEnded")).toBe("tie");
-    // A result is only ever set once a day is over; if both exist, the result is the truth.
-    expect(dayTone("win", "inWar")).toBe("win");
+  });
+
+  // The sync sets `result` from the stars as they stand, so a running day
+  // carries one. It is still a running day.
+  it("calls a running day live even while it is being won", () => {
+    expect(dayTone("win", "inWar")).toBe("live");
   });
 
   it("reads a running day as live and a preparation day as prep", () => {

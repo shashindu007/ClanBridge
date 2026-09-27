@@ -118,22 +118,17 @@ export interface ContributionRow {
   missed: number;
   stars: number;
   averageDestruction: number;
-  hasBonus: boolean;
-  bonusOrder: number | null;
 }
 
 /**
  * T4B.12 — per player for the season: attacks used out of the wars they were in,
- * stars, average destruction, missed days, and whether they got a medal.
+ * stars, average destruction and missed days.
  *
  * `missed` counts wars they were ON THE API ROSTER for and did not attack in —
  * not wars they sat out. Being left out of a war is the leader's decision; not
  * attacking in one you were placed in is the member's.
  */
-export function contributionReport(
-  wars: SeasonWarData[],
-  bonuses: Array<{ playerId: string; awardOrder: number | null }>,
-): ContributionRow[] {
+export function contributionReport(wars: SeasonWarData[]): ContributionRow[] {
   const acc = new Map<
     string,
     { tag: string; name: string; wars: number; attacks: number; stars: number; destruction: number }
@@ -165,8 +160,6 @@ export function contributionReport(
     }
   }
 
-  const bonusByPlayer = new Map(bonuses.map((b) => [b.playerId, b.awardOrder]));
-
   const rows: ContributionRow[] = [...acc.entries()].map(([playerId, r]) => ({
     playerId,
     tag: r.tag,
@@ -176,40 +169,12 @@ export function contributionReport(
     missed: r.wars - r.attacks,
     stars: r.stars,
     averageDestruction: r.attacks === 0 ? 0 : r.destruction / r.attacks,
-    hasBonus: bonusByPlayer.has(playerId),
-    bonusOrder: bonusByPlayer.get(playerId) ?? null,
   }));
 
-  // Stars first, then fewest missed. This is a DEFAULT READING ORDER, not the
-  // bonus rule — T4B.13 leaves the allocation order to the leader, and this sort
-  // exists so the evidence is legible while they decide.
+  // Stars first, then fewest missed. A DEFAULT READING ORDER — the evidence a
+  // leader looks at before handing out bonus medals in game, not a ranking
+  // that decides them.
   return rows.sort(
     (a, b) => b.stars - a.stars || a.missed - b.missed || a.name.localeCompare(b.name),
   );
-}
-
-/**
- * T4B.13 — the leader's allocation list, in their order.
- *
- * Deliberately NOT a ranking function. The rule for this deployment is the
- * leader's final decision order, so the system's job is to hold that order once
- * it is set, and to show the contribution evidence beside it while it is being
- * decided. Anything already awarded keeps its place; everyone else follows in
- * the default reading order for consideration.
- */
-export function allocationList(
-  contributions: ContributionRow[],
-): { awarded: ContributionRow[]; candidates: ContributionRow[] } {
-  const awarded = contributions
-    .filter((c) => c.hasBonus)
-    .sort((a, b) => (a.bonusOrder ?? 999) - (b.bonusOrder ?? 999));
-
-  const candidates = contributions.filter((c) => !c.hasBonus);
-  return { awarded, candidates };
-}
-
-/** The next free position in the leader's order. */
-export function nextAwardOrder(awarded: ContributionRow[]): number {
-  const used = awarded.map((a) => a.bonusOrder ?? 0);
-  return used.length === 0 ? 1 : Math.max(...used) + 1;
 }

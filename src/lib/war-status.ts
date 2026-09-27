@@ -16,11 +16,14 @@
 export type DayTone = "win" | "loss" | "tie" | "live" | "prep" | "pending";
 
 export function dayTone(result: string | null | undefined, state: string | null | undefined): DayTone {
+  // State first. The CWL sync computes `result` from the stars as they stand,
+  // so a day still being fought already carries "win" or "lose" — and a live
+  // day painted green because we are ahead at lunchtime is the wrong message.
+  if (state === "inWar") return "live";
+  if (state === "preparation") return "prep";
   if (result === "win") return "win";
   if (result === "lose" || result === "loss") return "loss";
   if (result === "tie") return "tie";
-  if (state === "inWar") return "live";
-  if (state === "preparation") return "prep";
   return "pending";
 }
 

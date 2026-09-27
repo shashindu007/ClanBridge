@@ -14,27 +14,19 @@
 //
 // REDESIGNED: the season as a month name; "Picked versus played" as three
 // explained cards with the two lists that matter side by side; contribution
-// columns that say "War days", "Attacks 6 of 7" and "Avg destruction"; and bonus
-// medals as an awarded list beside one card per candidate with labelled "Place"
-// and "Reason" fields, instead of two unlabelled inputs squeezed onto each row.
+// columns that say "War days", "Attacks 6 of 7" and "Avg destruction".
 //
-// T4B.13 — the bonus order is the LEADER'S, not a formula's. The rule for this
-// deployment is their final decision order, so the system lays out the evidence
-// and then records what was decided. A ranking that can be recomputed answers
-// "why did they get one and I did not" by re-running a sort, which is exactly
-// the answer that starts the argument.
+// BONUS MEDALS ARE NO LONGER AWARDED HERE. They are given in game; the medals
+// tab shows how many there are and the evidence for them, and records nothing.
+// The printable monthly report for leadership is ./print.
 
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
-import { CheckCircle2, CircleAlert, Medal, UserPlus, UserX } from "lucide-react";
+import { notFound } from "next/navigation";
+import { CheckCircle2, CircleAlert, UserPlus, UserX } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FactRow } from "@/components/kit";
-import { PageHeader } from "@/components/page-header";
-import { SubmitButton } from "@/components/submit-button";
-import { Input } from "@/components/ui/input";
+import { CwlSeasonHeader } from "@/components/cwl-season-header";
 import {
   Table,
   TableBody,
@@ -44,62 +36,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { requireClanByTag } from "@/lib/clans";
+import { canPrintCwlReport, loadSeasonView } from "@/lib/cwl-season";
 import { isLeadership } from "@/lib/visibility";
-import { seasonLabel } from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
-import { attacksForWar, rosterForWar, seasonByName, warsInSeason } from "@/repositories/cwl";
-import {
-  awardBonus,
-  bonusesForSeason,
-  membersOfRoster,
-  rosterFor,
-  withdrawBonus,
-} from "@/repositories/rosters";
-import {
-  allocationList,
-  contributionReport,
-  nextAwardOrder,
-  planVsReality,
-  type SeasonWarData,
-} from "@/services/rosters";
+import { seasonByName } from "@/repositories/cwl";
+import { membersOfRoster, rosterFor } from "@/repositories/rosters";
+import { planVsReality } from "@/services/rosters";
 
 export const dynamic = "force-dynamic";
-
-async function bonusAction(formData: FormData) {
-  "use server";
-
-  const supabase = await createClient();
-  const clanTag = String(formData.get("clanTag") ?? "");
-  const season = String(formData.get("season") ?? "");
-  const clan = await requireClanByTag(supabase, clanTag);
-  const here = `/${encodeURIComponent(clan.tag)}/cwl/${encodeURIComponent(season)}/report`;
-
-  const seasonId = String(formData.get("seasonId") ?? "");
-  const playerId = String(formData.get("playerId") ?? "");
-  const action = String(formData.get("action") ?? "");
-
-  let result: { error?: string };
-  // The toast used to say "Bonus recorded." after taking a medal BACK.
-  let done = "";
-  if (action === "withdraw") {
-    result = await withdrawBonus(supabase, seasonId, playerId);
-    done = "bonus-withdrawn";
-  } else {
-    done = "bonus-awarded";
-    const orderRaw = String(formData.get("awardOrder") ?? "").trim();
-    const order = orderRaw ? Number(orderRaw) : null;
-    if (order !== null && (!Number.isInteger(order) || order < 1)) {
-      redirect(`${here}?error=bad-order`);
-    }
-    const note = String(formData.get("note") ?? "").trim() || null;
-    result = await awardBonus(supabase, seasonId, playerId, order, note);
-  }
-
-  if (result.error) redirect(`${here}?error=${encodeURIComponent(result.error)}`);
-
-  revalidatePath(here);
-  redirect(`${here}?ok=${done}`);
-}
 
 export default async function CwlSeasonReportPage({
   params,
@@ -114,39 +58,17 @@ export default async function CwlSeasonReportPage({
   const seasonRow = await seasonByName(supabase, clan.id, season);
   if (!seasonRow) notFound();
 
-  // ── TWO WAVES, NOT SIX ────────────────────────────────────────────────────
-  //
-  // These five reads were issued one after another, and only two of the
-  // dependencies were real: warData needs the war list, and membersOfRoster
-  // needs the roster's id. Everything else was queued behind work it had no use
-  // for — the season's wars, the leader's roster and the bonus awards are three
-  // independent reads off ids already in hand.
-  //
-  // The fan-out inside warData was sequential too: `await` then `await` for two
-  // reads of the same war that do not depend on each other, so a seven-war
-  // season paid two full waves of latency where it needed one.
-  const [wars, roster, bonuses] = await Promise.all([
-    warsInSeason(supabase, seasonRow.id),
+  // The season (wars, every day's roster and attacks) comes from the shared
+  // loader; the leader's roster is the one extra read, and they run together.
+  const [view, roster, canPrint] = await Promise.all([
+    loadSeasonView(supabase, clan, seasonRow, { withPlayers: true }),
     rosterFor(supabase, clan.id, season),
-    bonusesForSeason(supabase, seasonRow.id),
+    canPrintCwlReport(supabase, clan.role),
   ]);
-
-  const [warData, selected] = await Promise.all([
-    Promise.all(
-      wars.map(async (war): Promise<SeasonWarData> => {
-        const [apiRoster, attacks] = await Promise.all([
-          rosterForWar(supabase, war.id),
-          attacksForWar(supabase, war.id),
-        ]);
-        return { apiRoster, attacks, state: war.state };
-      }),
-    ),
-    roster ? membersOfRoster(supabase, roster.id) : [],
-  ]);
+  const selected = roster ? await membersOfRoster(supabase, roster.id) : [];
+  const { wars, warData, contributions } = view;
 
   const comparison = planVsReality(selected, warData);
-  const contributions = contributionReport(warData, bonuses);
-  const { awarded, candidates } = allocationList(contributions);
   const leadership = isLeadership(clan.role);
 
   const absent = comparison.filter((r) => r.outcome === "absent");
@@ -154,16 +76,16 @@ export default async function CwlSeasonReportPage({
   const played = comparison.filter((r) => r.outcome === "played");
 
   const clanBase = `/${encodeURIComponent(clan.tag)}`;
-  const base = `${clanBase}/cwl/${encodeURIComponent(season)}`;
-  const nextOrder = nextAwardOrder(awarded);
 
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
-      <PageHeader
-        back={{ href: base, label: "Day by day" }}
-        eyebrow={clan.name}
-        title={`CWL report · ${seasonLabel(season)}`}
-        description={`Who you picked compared with who played, what each player contributed over ${wars.length} war day${wars.length === 1 ? "" : "s"}, and the bonus medals.`}
+      <CwlSeasonHeader
+        clanName={clan.name}
+        clanBase={clanBase}
+        view={view}
+        active="report"
+        canPrint={canPrint}
+        description={`Who you picked compared with who played, and what each player contributed over ${wars.length} war day${wars.length === 1 ? "" : "s"}.`}
       />
 
       {!roster && (
@@ -271,7 +193,6 @@ export default async function CwlSeasonReportPage({
                   <TableHead className="text-right">Missed</TableHead>
                   <TableHead className="text-right">Stars</TableHead>
                   <TableHead className="text-right">Avg destruction</TableHead>
-                  <TableHead className="text-right">Medal</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -294,15 +215,6 @@ export default async function CwlSeasonReportPage({
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{c.stars}</TableCell>
                     <TableCell className="text-right tabular-nums">{c.averageDestruction.toFixed(1)}%</TableCell>
-                    <TableCell className="text-right">
-                      {c.hasBonus ? (
-                        <Badge variant="success">
-                          <Medal aria-hidden />#{c.bonusOrder ?? "?"}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -311,102 +223,6 @@ export default async function CwlSeasonReportPage({
         )}
       </section>
 
-      {/* ── T4B.13 — the leader's bonus order ──────────────────────────────── */}
-      {leadership && contributions.length > 0 && (
-        <section className="cb-panel space-y-5 rounded-panel border p-5">
-          <div className="space-y-1">
-            <h2 className="flex items-center gap-2 text-lg font-semibold">
-              <Medal aria-hidden className="size-5" />
-              Bonus medals
-            </h2>
-            <p className="text-muted-foreground text-sm">
-              You decide who gets a medal and in what order; the table above is the evidence.
-              Add a reason so the decision can be explained later.
-            </p>
-          </div>
-
-          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium">
-                Awarded <span className="text-muted-foreground tabular-nums">({awarded.length})</span>
-              </h3>
-              {awarded.length === 0 ? (
-                <p className="text-muted-foreground rounded-panel border border-dashed p-4 text-sm">
-                  No medals awarded yet. Award the first from the list of players.
-                </p>
-              ) : (
-                <ol className="divide-y rounded-md border">
-                  {awarded.map((a) => (
-                    <li key={a.playerId} className="flex items-center gap-3 px-3 py-2">
-                      <Badge variant="success">#{a.bonusOrder ?? "?"}</Badge>
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{a.name}</span>
-                      <form action={bonusAction}>
-                        <input type="hidden" name="clanTag" value={clanTag} />
-                        <input type="hidden" name="season" value={season} />
-                        <input type="hidden" name="seasonId" value={seasonRow.id} />
-                        <input type="hidden" name="playerId" value={a.playerId} />
-                        <input type="hidden" name="action" value="withdraw" />
-                        <SubmitButton
-                          size="xs"
-                          variant="ghost"
-                          pendingLabel="Removing"
-                          aria-label={`Take back ${a.name}'s medal`}
-                        >
-                          Take back
-                        </SubmitButton>
-                      </form>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium">Award a medal</h3>
-              {candidates.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Every player already has a medal.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {candidates.slice(0, 10).map((c) => (
-                    <li key={c.playerId} className="bg-card space-y-2 rounded-panel border p-3">
-                      <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <span className="text-sm font-medium">{c.name}</span>
-                        <span className="text-muted-foreground text-xs tabular-nums">
-                          {c.stars} stars · {c.attacksUsed} of {c.warsPlayed} attacks
-                          {c.missed > 0 ? ` · ${c.missed} missed` : ""}
-                        </span>
-                      </div>
-                      <form action={bonusAction} className="flex flex-wrap items-end gap-2">
-                        <input type="hidden" name="clanTag" value={clanTag} />
-                        <input type="hidden" name="season" value={season} />
-                        <input type="hidden" name="seasonId" value={seasonRow.id} />
-                        <input type="hidden" name="playerId" value={c.playerId} />
-                        <input type="hidden" name="action" value="award" />
-                        <label className="space-y-1">
-                          <span className="text-muted-foreground block text-xs">Place</span>
-                          <Input name="awardOrder" type="number" min={1} defaultValue={nextOrder} className="h-9 w-20" />
-                        </label>
-                        <label className="min-w-40 flex-1 space-y-1">
-                          <span className="text-muted-foreground block text-xs">Reason (optional)</span>
-                          <Input name="note" placeholder="e.g. Most stars, no misses" maxLength={200} className="h-9" />
-                        </label>
-                        <SubmitButton size="sm" pendingLabel="Awarding">
-                          Award medal
-                        </SubmitButton>
-                      </form>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {candidates.length > 10 && (
-                <p className="text-muted-foreground text-xs">
-                  Showing the top 10 of {candidates.length} players without a medal.
-                </p>
-              )}
-            </div>
-          </div>
-        </section>
-      )}
     </main>
   );
 }

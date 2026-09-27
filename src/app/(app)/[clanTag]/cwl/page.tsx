@@ -8,50 +8,34 @@
 // data", because those mean very different things to a leader wondering whether
 // the sync is broken.
 //
-// A RUNNING SEASON LEADS. It used to be one row among the rest, marked only by
-// "· running" in a date cell — during the one week a month when this page
-// matters most, the way into it looked like the way into last March. Now it is
-// a tile with its league's art, its record so far and the page's one gold
-// button; the past seasons are a table under it, each opened by name.
+// A RUNNING SEASON LEADS: a large tile with its league, the group position, the
+// week as seven coloured days, the day being fought with its countdown, and what
+// the week pays in medals. Past seasons follow as cards — each with the same
+// coloured strip, so a month's story reads at a glance instead of as "3–4–0".
+//
+// Everything about a season is gathered by lib/cwl-season.ts, the same loader
+// the season's own pages use, so the numbers here cannot disagree with them.
 
 import Link from "next/link";
-import { Trophy } from "lucide-react";
+import { ChevronRight, Swords, Trophy } from "lucide-react";
 import { SyncBadge } from "@/components/sync-badge";
 import { LocalTime } from "@/components/local-time";
 import { PageHeader } from "@/components/page-header";
-import { EmptyState, FactRow, Panel, SectionHeader, Tile } from "@/components/kit";
-import { GameArt } from "@/components/game/game-art";
+import { Countdown } from "@/components/countdown";
+import { EmptyState, Panel, SectionHeader, StatTile, Tile } from "@/components/kit";
+import { DayStrip, LeagueArt, MedalHint, RankBadge } from "@/components/cwl-parts";
 import { Ribbon } from "@/components/game/ribbon";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { requireClanByTag } from "@/lib/clans";
-import { artKeyForLeague } from "@/lib/game-art";
 import { isLeader } from "@/lib/visibility";
 import { cwlPhase, nextCwlWindow } from "@/lib/coc-time";
+import { loadSeasonView } from "@/lib/cwl-season";
+import { seasonLabel } from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
-import { seasonsForClan, warsInSeason } from "@/repositories/cwl";
+import { seasonsForClan } from "@/repositories/cwl";
 import { latestRun } from "@/repositories/sync-log";
-import { seasonSpan, seasonTotals } from "@/services/cwl";
 
 export const dynamic = "force-dynamic";
-
-function LeagueArt({ league, size }: { league: string | null; size: number }) {
-  return (
-    <GameArt
-      art={artKeyForLeague(league)}
-      size={size}
-      alt=""
-      fallback={<Trophy aria-hidden className="text-muted-foreground size-4 shrink-0" />}
-    />
-  );
-}
 
 export default async function CwlSeasonListPage({
   params,
@@ -66,33 +50,28 @@ export default async function CwlSeasonListPage({
   const clan = await requireClanByTag(supabase, clanTag);
   const base = `/${encodeURIComponent(clan.tag)}`;
 
-  const seasons = await seasonsForClan(supabase, clan.id);
-  const run = await latestRun(supabase, "cwl", clan.id);
+  const [seasons, run] = await Promise.all([
+    seasonsForClan(supabase, clan.id),
+    latestRun(supabase, "cwl", clan.id),
+  ]);
 
-  // Season totals need each season's wars. There are at most a handful of
-  // seasons and seven wars each, so this stays small; if it ever does not, it
-  // becomes one grouped query rather than a cache.
-  const rows = await Promise.all(
-    seasons.map(async (season) => {
-      const wars = await warsInSeason(supabase, season.id);
-      // Both derived from the same read. The span costs nothing extra here —
-      // the wars were already being loaded for the totals.
-      return { season, totals: seasonTotals(wars), span: seasonSpan(wars) };
-    }),
-  );
+  // A handful of seasons, seven wars each, and one group per season: small.
+  const views = await Promise.all(seasons.map((season) => loadSeasonView(supabase, clan, season)));
 
-  // T4.4. Only ever read by the empty state below — once there are rows, the
-  // seasons themselves are the answer and an inferred date has nothing to add
-  // (R12: the plan is compared to reality, never substituted for it).
+  // T4.4. Only ever read by the empty state below.
   const now = new Date();
   const next = nextCwlWindow(now);
   const phase = cwlPhase(now);
 
-  const running = rows.find((r) => r.span?.state === "running") ?? null;
-  const past = rows.filter((r) => r !== running);
+  const running = views.find((v) => v.running) ?? null;
+  const past = views.filter((v) => v !== running);
+  const hrefFor = (season: string) => `${base}/cwl/${encodeURIComponent(season)}`;
+
+  const live = running?.wars.find((w) => w.state === "inWar") ?? null;
+  const prep = running?.wars.find((w) => w.state === "preparation") ?? null;
 
   return (
-    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <PageHeader
         eyebrow={clan.name}
         title="Clan War League"
@@ -111,36 +90,68 @@ export default async function CwlSeasonListPage({
               Running now
             </Ribbon>
           }
-          className="space-y-4"
+          className="space-y-5"
         >
-          <div className="flex items-center gap-3">
-            <LeagueArt league={running.season.league} size={48} />
-            <div>
-              <h2 className="cb-title text-2xl">{running.season.season}</h2>
-              {running.season.league && (
-                <p className="text-muted-foreground text-sm">{running.season.league}</p>
-              )}
+          <div className="flex flex-wrap items-center gap-4">
+            <LeagueArt league={running.league} size={64} />
+            <div className="min-w-0 flex-1">
+              <h2 className="cb-title text-2xl sm:text-3xl">{seasonLabel(running.season.season)}</h2>
+              <p className="text-muted-foreground text-sm">{running.league ?? "League not recorded yet"}</p>
             </div>
+            {running.us && (
+              <RankBadge rank={running.us.rank} of={running.standings.length} final={false} />
+            )}
           </div>
-          <FactRow
-            items={[
-              {
-                label: "won–lost–drawn so far",
-                value: `${running.totals.wins}–${running.totals.losses}–${running.totals.ties}`,
-              },
-              {
-                label: "stars for / against",
-                value: `${running.totals.stars} / ${running.totals.starsAgainst}`,
-              },
-            ]}
-          />
+
+          <DayStrip wars={running.wars} hrefFor={(w) => `${hrefFor(running.season.season)}?day=${w.dayNumber ?? ""}`} />
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatTile
+              label="Won – lost – drawn"
+              value={`${running.totals.wins}–${running.totals.losses}–${running.totals.ties}`}
+            />
+            <StatTile
+              label="Stars for / against"
+              value={`${running.totals.stars} / ${running.totals.starsAgainst}`}
+            />
+            <StatTile
+              label={live ? "Today's war ends in" : prep ? "Next battle day in" : "Status"}
+              icon={Swords}
+              value={
+                live ? (
+                  <Countdown iso={live.endTime} />
+                ) : prep ? (
+                  <Countdown iso={prep.startTime} />
+                ) : (
+                  "Between days"
+                )
+              }
+              sub={
+                live ? (
+                  <>
+                    Day {live.dayNumber} · {live.ourStars ?? 0} ★ vs {live.theirStars ?? 0} ★
+                  </>
+                ) : undefined
+              }
+            />
+            <StatTile
+              label="Group position"
+              value={running.us ? `${running.us.rank} / ${running.standings.length}` : "—"}
+              sub={running.us ? `${running.us.stars} stars incl. win bonus` : "group not captured yet"}
+            />
+          </div>
+
+          {running.medals?.fullPayout && (
+            <MedalHint perFull={running.medals.fullPayout} bonus={running.medals.bonusCount} />
+          )}
+
           <Button asChild variant="gold" size="cta">
-            <Link href={`${base}/cwl/${running.season.season}`}>Open the war days</Link>
+            <Link href={hrefFor(running.season.season)}>Open the war days</Link>
           </Button>
         </Tile>
       )}
 
-      {rows.length === 0 ? (
+      {views.length === 0 ? (
         <Panel>
           <EmptyState
             icon={Trophy}
@@ -168,61 +179,67 @@ export default async function CwlSeasonListPage({
           />
         </Panel>
       ) : past.length > 0 ? (
-        <Panel padded={false} aria-labelledby="past-title">
-          <div className="p-5 pb-2">
-            <SectionHeader id="past-title" title="Past seasons" count={past.length} />
-          </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="pl-5">Season</TableHead>
-                <TableHead>League</TableHead>
-                <TableHead className="text-right">W–L–D</TableHead>
-                <TableHead className="text-right">Stars</TableHead>
-                <TableHead className="pr-5" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {past.map(({ season, totals, span }) => (
-                <TableRow key={season.id}>
-                  <TableCell className="pl-5">
-                    <span className="font-medium">{season.season}</span>
-                    {/* "2026-09" is a key, not a date a member recognises a
-                        year later. */}
-                    {span && (
-                      <span className="text-muted-foreground block text-xs">
-                        from <LocalTime iso={span.from} style="date" />
+        <section aria-labelledby="past-title" className="space-y-3">
+          <SectionHeader id="past-title" title="Past seasons" count={past.length} />
+          <ul className="grid gap-4 md:grid-cols-2">
+            {past.map((v) => {
+              const record = `${v.totals.wins}–${v.totals.losses}–${v.totals.ties}`;
+              const tone =
+                v.totals.wins > v.totals.losses
+                  ? "var(--success)"
+                  : v.totals.wins < v.totals.losses
+                    ? "var(--destructive)"
+                    : undefined;
+              return (
+                <Tile
+                  as="li"
+                  key={v.season.id}
+                  href={hrefFor(v.season.season)}
+                  label={`Open ${seasonLabel(v.season.season)}`}
+                  accent={tone ?? "var(--ribbon-cwl)"}
+                  className="space-y-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <LeagueArt league={v.league} size={44} />
+                    <div className="min-w-0 flex-1">
+                      <p className="cb-title truncate text-xl">{seasonLabel(v.season.season)}</p>
+                      <p className="text-muted-foreground truncate text-xs">
+                        {v.league ?? "League not recorded"}
+                        {v.span && (
+                          <>
+                            {" · from "}
+                            <LocalTime iso={v.span.from} style="date" />
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    {v.us ? (
+                      <span className="text-right">
+                        <span className="cb-title block text-xl">#{v.us.rank}</span>
+                        <span className="text-muted-foreground text-xs">of {v.standings.length}</span>
                       </span>
+                    ) : (
+                      <ChevronRight aria-hidden className="text-muted-foreground size-5" />
                     )}
-                  </TableCell>
-                  <TableCell>
-                    <span className="flex items-center gap-2 text-sm">
-                      <LeagueArt league={season.league} size={24} />
-                      {season.league ?? <span className="text-muted-foreground">—</span>}
+                  </div>
+                  <DayStrip wars={v.wars} size="sm" />
+                  <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                    <span>
+                      <span className="font-semibold tabular-nums" style={tone ? { color: tone } : undefined}>
+                        {record}
+                      </span>{" "}
+                      <span className="text-muted-foreground">W–L–D</span>
                     </span>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {totals.wins}–{totals.losses}–{totals.ties}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {totals.stars}
-                    <span className="text-muted-foreground"> / {totals.starsAgainst}</span>
-                  </TableCell>
-                  <TableCell className="pr-5 text-right">
-                    <Button asChild variant="outline" size="sm">
-                      <Link
-                        href={`${base}/cwl/${season.season}`}
-                        aria-label={`Open ${season.season}`}
-                      >
-                        Open
-                      </Link>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Panel>
+                    <span>
+                      <span className="font-semibold tabular-nums">{v.totals.stars}</span>
+                      <span className="text-muted-foreground"> / {v.totals.starsAgainst} stars</span>
+                    </span>
+                  </p>
+                </Tile>
+              );
+            })}
+          </ul>
+        </section>
       ) : null}
     </main>
   );

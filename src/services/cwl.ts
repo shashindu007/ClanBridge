@@ -147,6 +147,9 @@ export function seasonTotals(wars: CwlWar[]): SeasonTotals {
 
   for (const war of wars) {
     if (!war.result) continue;
+    // The sync gives a running day a provisional result from the stars so far.
+    // It is not a win or a loss until the day ends.
+    if (war.state === "inWar" || war.state === "preparation") continue;
     totals.warsPlayed += 1;
     if (war.result === "win") totals.wins += 1;
     else if (war.result === "lose") totals.losses += 1;
