@@ -129,6 +129,8 @@ export const PHASE1_MIGRATIONS = [
   // Several targets per member, up to their attacks left; replaces 047's
   // assign/claim and 024/046's clear/release with position-aware versions.
   "050_war_targets_per_attack.sql",
+  // latest_player_progress as a family-guarded definer, like 037.
+  "051_latest_progress_family.sql",
 ] as const;
 
 /**

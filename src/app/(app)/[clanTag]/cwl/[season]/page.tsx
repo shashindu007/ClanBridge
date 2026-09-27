@@ -63,10 +63,10 @@ export default async function CwlDayDetailPage({
   searchParams,
 }: {
   params: Promise<{ clanTag: string; season: string }>;
-  searchParams: Promise<{ day?: string }>;
+  searchParams: Promise<{ day?: string; war?: string }>;
 }) {
   const { clanTag, season: seasonName } = await params;
-  const { day } = await searchParams;
+  const { day, war: warParam } = await searchParams;
   const supabase = await createClient();
 
   const clan = await requireClanByTag(supabase, clanTag);
@@ -86,7 +86,11 @@ export default async function CwlDayDetailPage({
   // attack". The day being fought is the one a leader is chasing.
   const started = [...wars].reverse().find((w) => w.state !== "preparation");
   const selected =
-    wars.find((w) => String(w.dayNumber) === day) ?? started ?? wars[wars.length - 1] ?? null;
+    wars.find((w) => w.dayNumber !== null && String(w.dayNumber) === day) ??
+    wars.find((w) => w.id === warParam) ??
+    started ??
+    wars[wars.length - 1] ??
+    null;
   const selectedIndex = selected ? wars.indexOf(selected) : -1;
 
   // The loader already read every day's roster and attacks; the selected day's
@@ -138,7 +142,9 @@ export default async function CwlDayDetailPage({
               return (
                 <Link
                   key={war.id}
-                  href={`${base}?day=${war.dayNumber ?? ""}`}
+                  // A war stored without a day number is linked by id instead, or
+                  // every such tab would fall back to the default day.
+                  href={war.dayNumber !== null ? `${base}?day=${war.dayNumber}` : `${base}?war=${war.id}`}
                   aria-current={active ? "page" : undefined}
                   aria-label={`Day ${war.dayNumber ?? "?"}: ${DAY_TONE_LABEL[tone]}`}
                   className={cn(

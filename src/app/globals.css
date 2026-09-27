@@ -919,6 +919,10 @@
     background: white !important;
   }
 
+  .cb-backdrop {
+    display: none !important;
+  }
+
   .print-page-break {
     break-before: page;
   }

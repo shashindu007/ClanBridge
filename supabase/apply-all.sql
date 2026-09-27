@@ -7,7 +7,7 @@
 -- BEGIN/COMMIT means a failure anywhere rolls the entire thing back, so you
 -- cannot end up with a half-applied schema.
 --
--- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql
+-- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql
 --
 -- Two numbers are absent, retired rather than reused so that apply order
 -- stays equal to numeric order: 009 (cwl_signups, superseded by Phase 4B)
@@ -9448,6 +9448,64 @@ grant execute on function release_war_target(uuid, uuid, smallint) to authentica
 --   select assign_war_target('<war>', '<A>', 9::smallint, null, 7::smallint); -- true (7 -> 9)
 --   select clear_war_target('<war>', '<A>', 3::smallint);    -- true (only base 3)
 -- ---------------------------------------------------------------------------
+
+-- ========================================================================
+-- 051_latest_progress_family.sql
+-- ========================================================================
+
+-- 051 — latest_player_progress sees a village's newest reading wherever it
+-- was taken, for anyone in the family.
+--
+-- 049 ran as the caller, so 036's policy — "readings whose clan_id is one of
+-- mine" — decided which rows DISTINCT ON could pick from. player_progress.clan_id
+-- is the clan at capture time, so for a member who moved between the family's
+-- clans the newest VISIBLE reading could be months old, or missing: a lineup
+-- card showing last spring's heroes as today's, which is worse than a blank.
+--
+-- It now follows 037's family_cwl_history, which has the same problem and the
+-- same answer: SECURITY DEFINER, guarded so that anyone holding a role in some
+-- platform clan sees every requested village, anyone else only their own, and
+-- the service role everything. It returns the columns 049 did and nothing more.
+
+create or replace function latest_player_progress(p_player_ids uuid[])
+returns table (
+  player_id    uuid,
+  captured_at  timestamptz,
+  th_level     smallint,
+  units        jsonb
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if coalesce(cardinality(p_player_ids), 0) > 500 then
+    raise exception 'latest_player_progress: at most 500 players per call, got %',
+      cardinality(p_player_ids)
+      using errcode = '22023';
+  end if;
+
+  return query
+  with allowed as (
+    select requested.id
+    from unnest(coalesce(p_player_ids, '{}'::uuid[])) as requested(id)
+    where exists (select 1 from public.auth_clan_ids())
+       or current_setting('role', true) = 'service_role'
+       or requested.id in (select public.auth_owned_player_ids())
+  )
+  select distinct on (pp.player_id)
+         pp.player_id, pp.captured_at, pp.th_level, pp.units
+  from public.player_progress pp
+  where pp.player_id in (select id from allowed)
+    and pp.deleted_at is null
+  order by pp.player_id, pp.captured_at desc;
+end;
+$$;
+
+revoke execute on function latest_player_progress(uuid[]) from public;
+grant execute on function latest_player_progress(uuid[]) to authenticated, service_role;
 
 commit;
 

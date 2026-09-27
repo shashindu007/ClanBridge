@@ -154,7 +154,11 @@ async function upsertSeason(
   }
   const id = (data as Array<{ id: string }> | null)?.[0]?.id;
   if (!id) throw new Error(`cwl_seasons row vanished for ${clan.tag} ${season}`);
-  await stampLeague(supabase, clan, id, groupState);
+  // Never allowed to cost the season: a failure here is logged and the capture
+  // of our wars carries on (see "THE REST OF THE GROUP" below).
+  await stampLeague(supabase, clan, id, groupState).catch((error: unknown) =>
+    console.warn(`  ${clan.tag}: league not stamped — ${error instanceof Error ? error.message : String(error)}`),
+  );
   return id;
 }
 
@@ -617,8 +621,23 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
       const days = dayNumbers(group);
       const seasonId = await upsertSeason(supabase, clan, mapped.season, group.state);
       const stored = await storedWars(supabase, seasonId);
-      await upsertGroupClans(supabase, seasonId, group);
-      const groupStored = await storedGroupWars(supabase, seasonId);
+      // The group is secondary to our own wars, so none of it may stop them
+      // being captured — the API deletes them when the season ends. If 048 is
+      // missing, or a group write fails, this run captures ours and warns.
+      const groupWarn = (what: string, error: unknown) =>
+        console.warn(`  ${clan.tag}: ${what} — ${error instanceof Error ? error.message : String(error)}`);
+      let groupOk = true;
+      await upsertGroupClans(supabase, seasonId, group).catch((error: unknown) => {
+        groupOk = false;
+        groupWarn("group clans not captured", error);
+      });
+      const groupStored = groupOk
+        ? await storedGroupWars(supabase, seasonId).catch((error: unknown) => {
+            groupOk = false;
+            groupWarn("group wars not readable", error);
+            return new Map<string, string | null>();
+          })
+        : new Map<string, string | null>();
       // Every war fetched this run, ours or not, by the tag the group listed.
       const fetched = new Set<string>();
       const settled = new Set(
@@ -632,8 +651,10 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
 
           const war = mapWar(await request(cwlWarEndpoint(requestedTag), warSchema));
           fetched.add(requestedTag);
-          if (groupStored.get(requestedTag) !== "warEnded") {
-            await upsertGroupWar(supabase, seasonId, requestedTag, war, days.get(requestedTag));
+          if (groupOk && groupStored.get(requestedTag) !== "warEnded") {
+            await upsertGroupWar(supabase, seasonId, requestedTag, war, days.get(requestedTag)).catch(
+              (error: unknown) => groupWarn(`group war ${requestedTag} not captured`, error),
+            );
           }
           const sides = chooseSides(war, clanTag);
           if (!sides) continue; // another clan's war in the same round — try the next
@@ -678,7 +699,7 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
 
       // The rest of the group, after ours are safely written.
       let groupWars = 0;
-      for (const tag of groupTagsToFetch(group, groupStored, fetched)) {
+      for (const tag of groupOk ? groupTagsToFetch(group, groupStored, fetched) : []) {
         try {
           const war = mapWar(await request(cwlWarEndpoint(tag), warSchema));
           if (await upsertGroupWar(supabase, seasonId, tag, war, days.get(tag))) groupWars += 1;

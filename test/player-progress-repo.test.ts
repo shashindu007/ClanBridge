@@ -110,6 +110,8 @@ describe("latestProgressFor", () => {
         ('${PLAYER}', '${CLAN_A}', '2026-09-20T06:00:00Z', 16, '${heroes(90)}');
     `);
 
+    // 051 is a family-guarded definer: the service role sees every village.
+    await h.asServiceRole();
     const map = await latestProgressFor(client, [PLAYER, OTHER]);
     expect(map.has(OTHER)).toBe(false);
     const snap = map.get(PLAYER)!;

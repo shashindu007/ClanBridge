@@ -134,10 +134,10 @@ export interface VillageSnapshot {
   thLevel: number | null;
   capturedAt: string;
   heroes: HeroLevel[];
-  /** Overall progress towards this Town Hall's caps, 0–100 (services/progress). */
-  maxPct: number;
-  /** Heroes alone, 0–100 — the number a CWL lineup is really decided on. */
-  heroPct: number;
+  /** Overall progress towards this Town Hall's caps, 0–100 (services/progress); null with nothing to count. */
+  maxPct: number | null;
+  /** Heroes alone, 0–100 — the number a CWL lineup is really decided on; null with no heroes. */
+  heroPct: number | null;
 }
 
 const HERO_ORDER: Array<[string, string]> = [
@@ -148,6 +148,10 @@ const HERO_ORDER: Array<[string, string]> = [
   ["Royal Champion", "RC"],
   ["Dragon Duke", "DD"],
 ];
+
+function nullIfEmpty(t: { total: number; pct: number }): number | null {
+  return t.total > 0 ? t.pct : null;
+}
 
 export async function latestProgressFor(
   supabase: SupabaseClient,
@@ -172,8 +176,11 @@ export async function latestProgressFor(
       thLevel: reading.thLevel,
       capturedAt: reading.capturedAt,
       heroes,
-      maxPct: overallProgress(reading.units, "home").pct,
-      heroPct: tally(heroUnits).pct,
+      // Null, not tally()'s 100, when there is nothing to count: an empty or
+      // malformed reading, or a Town Hall below the first hero, is "unknown",
+      // and 100% in green would read as a maxed village.
+      maxPct: nullIfEmpty(overallProgress(reading.units, "home")),
+      heroPct: nullIfEmpty(tally(heroUnits)),
     });
   }
   return out;

@@ -111,7 +111,7 @@ export interface SeasonSpan {
  * Null when no day has a start — a season row whose wars were never captured,
  * which is the case the page's empty state already names.
  */
-export function seasonSpan(wars: CwlWar[]): SeasonSpan | null {
+export function seasonSpan(wars: CwlWar[], now?: Date): SeasonSpan | null {
   let from: string | null = null;
   let to: string | null = null;
   let running = false;
@@ -121,11 +121,24 @@ export function seasonSpan(wars: CwlWar[]): SeasonSpan | null {
     if (war.endTime && (to === null || war.endTime > to)) to = war.endTime;
     // Anything not finished keeps the season open, including a day still in
     // preparation — which is a day nobody has attacked in yet, not a past one.
-    if (war.state !== "warEnded") running = true;
+    //
+    // UNLESS it is stale (given `now`): a day whose end passed two days ago and
+    // is still not "warEnded" is one the sync missed before the API deleted the
+    // group. Left as it was, that season stayed "Running now" for ever, and its
+    // medals were priced against whatever league the clan was in months later.
+    if (war.state !== "warEnded" && !isStale(war, now)) running = true;
   }
 
   if (from === null) return null;
   return { from, to, state: running ? "running" : "ended" };
+}
+
+const STALE_AFTER_MS = 2 * 24 * 60 * 60 * 1000;
+
+function isStale(war: CwlWar, now: Date | undefined): boolean {
+  if (!now) return false;
+  const last = war.endTime ?? war.startTime;
+  return last !== null && new Date(last).getTime() < now.getTime() - STALE_AFTER_MS;
 }
 
 /**

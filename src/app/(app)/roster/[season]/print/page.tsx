@@ -50,7 +50,23 @@ export default async function LineupExportPage({
     .filter((r) => leads.some((c) => c.id === r.clanId))
     .map((r) => ({ roster: r, clan: leads.find((c) => c.id === r.clanId)! }))
     .sort((a, b) => a.clan.name.localeCompare(b.clan.name));
-  if (rosters.length === 0) notFound();
+  if (rosters.length === 0) {
+    return (
+      <main className="mx-auto max-w-narrow space-y-4 p-4 sm:p-6">
+        <Link
+          href={`/roster/${encodeURIComponent(season)}`}
+          className="text-muted-foreground inline-flex items-center gap-1 text-sm hover:underline"
+        >
+          <ArrowLeft aria-hidden className="size-4" />
+          Back to the lineups
+        </Link>
+        <p className="cb-panel rounded-panel border p-6 text-sm">
+          None of the clans you lead has a lineup for {seasonLabel(season)} yet, so there is
+          nothing to export. Start one from the lineups page.
+        </p>
+      </main>
+    );
+  }
 
   const members = await Promise.all(rosters.map(({ roster }) => membersOfRoster(supabase, roster.id)));
   const details = await playerDetails(supabase, members.flat().map((m) => m.playerId));

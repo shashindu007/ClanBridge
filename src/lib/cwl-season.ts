@@ -65,7 +65,7 @@ export async function loadSeasonView(
     warsInSeason(supabase, season.id),
     groupForSeason(supabase, season.id),
   ]);
-  const span = seasonSpan(wars);
+  const span = seasonSpan(wars, new Date());
   const running = span?.state === "running";
 
   const standings = groupStandings(group.clans, group.wars, clan.tag);

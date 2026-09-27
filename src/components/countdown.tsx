@@ -40,6 +40,11 @@ export function Countdown({
   const target = iso ? new Date(iso).getTime() : Number.NaN;
   const [now, setNow] = useState(() => Date.now());
   const refreshed = useRef(false);
+  // Refresh only when the deadline passes WHILE this is on screen. A deadline
+  // already past on arrival (the war ended, the hourly sync has not run yet)
+  // used to refresh on every visit — a second server render for nothing, twice
+  // on the war board, which shows the same deadline in two places.
+  const pendingAtMount = useRef(Number.isFinite(target) ? target > Date.now() : false);
 
   useEffect(() => {
     if (!Number.isFinite(target)) return;
@@ -50,7 +55,9 @@ export function Countdown({
   const left = target - now;
 
   useEffect(() => {
-    if (!refreshOnDone || refreshed.current || !Number.isFinite(left) || left > 0) return;
+    if (!refreshOnDone || !pendingAtMount.current || refreshed.current || !Number.isFinite(left) || left > 0) {
+      return;
+    }
     // Once. The state change lands at the next sync, not at the stroke of the
     // deadline, so refreshing every second until then would be a loop.
     refreshed.current = true;

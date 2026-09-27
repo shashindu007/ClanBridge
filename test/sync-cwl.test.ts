@@ -541,6 +541,23 @@ describe("T4.1 — the CWL sync", () => {
         ]);
       });
 
+      // The group is secondary. Deployed before 048 (or with a group write
+      // failing), the sync must still capture OUR wars — the API deletes them
+      // when the season ends and nothing can bring them back.
+      it("still captures our wars when the group tables are unusable", async () => {
+        await h.db.exec(`alter table cwl_group_wars rename to cwl_group_wars_hidden`);
+        await h.db.exec(`alter table cwl_group_clans rename to cwl_group_clans_hidden`);
+        try {
+          const result = await runSyncJob("cwl", syncCwl, { client });
+          expect(result).toBe("success");
+          expect(await count(h, "cwl_wars")).toBe(WAR_COUNT);
+          expect(await count(h, "cwl_attacks")).toBe(ATTACK_COUNT * WAR_COUNT);
+        } finally {
+          await h.db.exec(`alter table cwl_group_wars_hidden rename to cwl_group_wars`);
+          await h.db.exec(`alter table cwl_group_clans_hidden rename to cwl_group_clans`);
+        }
+      });
+
       it("stamps the league while the season runs, and never overwrites it", async () => {
         await h.db.exec(`update clans set war_league = 'Master League III' where id = '${CLAN_A}'`);
         await runSyncJob("cwl", syncCwl, { client });

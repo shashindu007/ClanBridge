@@ -28,6 +28,7 @@ import { createClient } from "@/lib/supabase/server";
 import { seasonByName } from "@/repositories/cwl";
 import { membersOfRoster, rosterFor } from "@/repositories/rosters";
 import { planVsReality } from "@/services/rosters";
+import { playerMedals } from "@/data/cwl-medals";
 
 export const dynamic = "force-dynamic";
 
@@ -201,7 +202,9 @@ export default async function CwlReportPrintPage({
               </thead>
               <tbody>
                 {contributions.map((c, index) => {
-                  const m = medals?.players.find((p) => p.playerId === c.playerId);
+                  // From THIS row's stars, so the two columns cannot disagree
+                  // (medals.players counts a day still being fought).
+                  const earned = medals?.position ? playerMedals(medals.payout, medals.position, c.stars) : null;
                   return (
                     <tr key={c.playerId} className="print-avoid-break border-t">
                       <td className="text-muted-foreground px-2 py-1 tabular-nums">{index + 1}</td>
@@ -213,7 +216,7 @@ export default async function CwlReportPrintPage({
                       </td>
                       <td className="px-2 py-1 text-right font-semibold tabular-nums">{c.stars}</td>
                       <td className="px-2 py-1 text-right tabular-nums">{c.averageDestruction.toFixed(1)}%</td>
-                      <td className="px-2 py-1 text-right tabular-nums">{m && medals?.position ? m.medals : "—"}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{earned ?? "—"}</td>
                     </tr>
                   );
                 })}

@@ -282,6 +282,17 @@ describe("seasonSpan", () => {
     expect(seasonSpan(wars)!.state).toBe("running");
   });
 
+  // A day the sync never saw end — the group was deleted first — must not keep
+  // an old season "running" for ever.
+  it("treats a long-overdue unfinished day as over, given now", () => {
+    const wars = [
+      war({ id: "d1", state: "warEnded", startTime: "2026-09-03T06:00:00Z", endTime: "2026-09-04T06:00:00Z" }),
+      war({ id: "d2", state: "inWar", startTime: "2026-09-04T06:00:00Z", endTime: "2026-09-05T06:00:00Z" }),
+    ];
+    expect(seasonSpan(wars, new Date("2026-09-05T12:00:00Z"))!.state).toBe("running");
+    expect(seasonSpan(wars, new Date("2026-09-27T12:00:00Z"))!.state).toBe("ended");
+  });
+
   it("counts a day still in preparation as running", () => {
     // Nobody has attacked in it yet, so the season is emphatically not over.
     const wars = [
