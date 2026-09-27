@@ -2,7 +2,8 @@
 // in the way of the words on top of it.
 //
 // WHERE IT GOES: the three places that are "arriving" rather than "working" —
-// the landing page's hero, the sign-in screen, and the welcome banner on Home.
+// the landing page's hero, the sign-in screen, and the whole of Home, behind
+// its opaque panels.
 // A war board or a table is read closely, and a picture behind it would cost
 // legibility for nothing, so it is not used there.
 //
@@ -37,8 +38,12 @@ export function SceneBackdrop({
   scene: SceneName;
   /** How far the picture recedes: `sm` for a hero, `lg` behind a form. */
   blur?: "sm" | "md" | "lg";
-  /** Where the words sit, so the scrim is heaviest there. */
-  fade?: "left" | "even";
+  /**
+   * Where the words sit, so the scrim is heaviest there. `page` is the whole
+   * screen behind Home: clearest at the top, fading into the theme below,
+   * where the dense panels are.
+   */
+  fade?: "left" | "even" | "page";
   /** Pinned to the viewport — the sign-in screen's whole-page backdrop. */
   fixed?: boolean;
   className?: string;

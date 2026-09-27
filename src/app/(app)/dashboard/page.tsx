@@ -17,7 +17,8 @@
 // "Needs you" beneath (services/home.ts, pure and tested, because the ORDER is
 // the design).
 //
-// Above the clans, the member's own main base — Town Hall, progress, heroes —
+// Above the clans, the member's own bases — Town Hall, progress, heroes —
+// the main one first and the rest in turn (components/base-carousel.tsx),
 // with Base details one click away instead of four. Each clan tile carries
 // your village there and the clan's latest notice, and a small Announcements
 // feed sits beside "Needs you", so "anything new?" needs no Notices page.
@@ -96,7 +97,8 @@ import {
 import { EmptyState, ListRow, Panel, SectionHeader } from "@/components/kit";
 import { PageHeader } from "@/components/page-header";
 import { ClanStatusTile } from "@/components/clan-status-tile";
-import { MainBaseCard, type MainBaseView } from "@/components/main-base-card";
+import { NoBaseCard, type MainBaseView } from "@/components/main-base-card";
+import { BaseCarousel } from "@/components/base-carousel";
 import { AnnouncementFeed } from "@/components/announcement-feed";
 import { SceneBackdrop } from "@/components/game/scene-backdrop";
 import { Button } from "@/components/ui/button";
@@ -219,16 +221,30 @@ async function loadClan(
 
 const detailsHref = (b: OwnedBase) => `/account/bases/${encodeTag(b.tag)}/details`;
 
+/** How many villages the Home card turns through. More live on /account. */
+const MAX_BASES_ON_HOME = 8;
+
 /**
- * The main base, drawn from its latest reading. Home village only: that is the
+ * The order Home shows a member's villages in: the main one first, then the
+ * rest by Town Hall, highest first — the same preference mainBase() applies.
+ */
+function basesInOrder(bases: OwnedBase[], main: OwnedBase | null): OwnedBase[] {
+  const rest = bases
+    .filter((b) => b !== main)
+    .sort((a, b) => (b.thLevel ?? 0) - (a.thLevel ?? 0));
+  return (main ? [main, ...rest] : rest).slice(0, MAX_BASES_ON_HOME);
+}
+
+/**
+ * One village, drawn from its latest reading. Home village only: that is the
  * Town Hall the card names, and its heroes are what a member checks first.
  */
-async function loadMainBase(
+async function loadBaseView(
   supabase: Supabase,
-  base: OwnedBase | null,
+  base: OwnedBase,
+  isMain: boolean,
   clanNames: Map<string, string>,
-): Promise<MainBaseView | null> {
-  if (!base) return null;
+): Promise<MainBaseView> {
   // "owner" scope: the member's own village, wherever it plays.
   const { latest } = await baseProgress(supabase, "owner", base.playerId);
   const home = latest?.units.filter((u) => u.village === "home") ?? [];
@@ -241,6 +257,7 @@ async function loadMainBase(
     tag: base.tag,
     thLevel: latest?.thLevel ?? base.thLevel,
     verified: base.verified,
+    isMain,
     clanName: playing ? (clanNames.get(base.clanId!) ?? null) : null,
     clanRole: playing ? base.clanRole : null,
     detailsHref: detailsHref(base),
@@ -329,11 +346,12 @@ export default async function DashboardPage({
   const main = mainBase(bases);
   const clanNames = new Map(clans.map((c) => [c.id, c.name]));
 
-  const [loaded, accounts, mainView] = await Promise.all([
+  const [loaded, accounts, baseViews] = await Promise.all([
     Promise.all(clans.map((clan) => loadClan(supabase, clan, now, phase === "wars"))),
     // Scoped by admin_accounts() to accounts THIS caller may approve.
     admin || leads ? adminAccounts(supabase) : Promise.resolve([]),
-    loadMainBase(supabase, main, clanNames),
+    // Each village's latest reading, all at once: two small reads apiece.
+    Promise.all(basesInOrder(bases, main).map((b) => loadBaseView(supabase, b, b === main, clanNames))),
   ]);
 
   // Your village in each clan: the same rule as the main base, applied to the
@@ -406,15 +424,14 @@ export default async function DashboardPage({
 
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
-      {/* The welcome, on a banner with the game behind it — the one place on
-          Home that is greeting rather than work. */}
-      <section className="cb-hero rounded-hero border px-5 py-7 sm:px-8 sm:py-9">
-        <SceneBackdrop scene="crystal" blur="md" fade="left" />
-        <PageHeader title={`Welcome back, ${name}`} description={summary} />
-      </section>
+      {/* The game behind the whole of Home, blurred and dimmed into the
+          theme: every panel on top is opaque, so nothing loses contrast. */}
+      <SceneBackdrop scene="crystal" blur="lg" fade="page" fixed />
 
-      {/* ── Your main base ─────────────────────────────────────────────── */}
-      <MainBaseCard base={mainView} otherBases={Math.max(0, bases.length - 1)} />
+      <PageHeader title={`Welcome back, ${name}`} description={summary} />
+
+      {/* ── Your bases: the main one first, then every other in turn ─── */}
+      {baseViews.length > 0 ? <BaseCarousel bases={baseViews} /> : <NoBaseCard />}
 
       {/* ── Every clan, at once ────────────────────────────────────────── */}
       {loaded.length === 0 ? (

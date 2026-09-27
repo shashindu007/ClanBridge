@@ -741,12 +741,60 @@
     opacity: 0.62;
   }
 
+  /* The whole page behind Home: an even veil, then a fall into the page
+     colour toward the bottom, so the picture reads at the top and the long
+     lists further down sit on something calm. */
+  .cb-scene[data-fade="page"]::after {
+    opacity: 0.5;
+  }
+
+  .cb-scene[data-fade="page"]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(180deg, transparent 0%, var(--background) 80%);
+    opacity: 0.9;
+  }
+
+  .dark .cb-scene[data-fade="page"]::after {
+    opacity: 0.45;
+  }
+
   .dark .cb-scene[data-fade="left"]::after {
     opacity: 0.9;
   }
 
   .dark .cb-scene[data-fade="left"]::before {
     opacity: 0.25;
+  }
+
+  /* The base carousel's clock: a hairline along the card's bottom edge that
+     fills over the interval (components/base-carousel.tsx sets the duration
+     and pauses it). Width, not a transform, so a paused bar stays put. */
+  .cb-carousel-timer {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 2px;
+    width: 0;
+    background: var(--trim);
+    opacity: 0.7;
+    animation-name: cb-carousel-fill;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+  }
+
+  @keyframes cb-carousel-fill {
+    to {
+      width: 100%;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cb-carousel-timer {
+      display: none;
+    }
   }
 
   /* The stripe along the top of a hero — the clan's colour, fading out. */

@@ -1,13 +1,14 @@
-// "Your main base" on Home: the member's own village, up front, one click from
-// its details.
+// One of the member's villages on Home: Town Hall, progress, heroes, and Base
+// details one click away.
 //
 // Before this, Base details was three clicks deep — account menu, Profile, the
 // base, then its button — for the page a member opens most after a war. Now
-// Home answers "how far along am I" at a glance (Town Hall, progress, heroes)
-// and the button goes straight there.
+// Home answers "how far along am I" at a glance.
 //
-// Which base is "main" is services/home.ts's mainBase(); this only draws it.
-// A SERVER COMPONENT, like the tiles around it.
+// PRESENTATION ONLY, and safe in the browser: components/base-carousel.tsx
+// rotates these when a member owns more than one village, so nothing here may
+// import a repository or anything server-only. Which base is "main" is
+// services/home.ts's mainBase(); the page puts it first.
 
 import Link from "next/link";
 import { Castle, ChevronRight, Link2, ScrollText, ShieldCheck } from "lucide-react";
@@ -17,7 +18,7 @@ import { UnitIcon } from "@/components/game/unit-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { dayLabel } from "@/components/player-report-sections";
+import { formatDisplay } from "@/lib/display-time";
 import type { StoredUnit } from "@/services/progress";
 
 export interface MainBaseView {
@@ -27,6 +28,8 @@ export interface MainBaseView {
   tag: string;
   thLevel: number | null;
   verified: boolean;
+  /** This is the member's main base (services/home.ts mainBase()). */
+  isMain: boolean;
   clanName: string | null;
   clanRole: string | null;
   detailsHref: string;
@@ -41,47 +44,60 @@ export interface MainBaseView {
   } | null;
 }
 
-export function MainBaseCard({
-  base,
-  otherBases,
-}: {
-  base: MainBaseView | null;
-  /** How many more villages the member owns. */
-  otherBases: number;
-}) {
-  if (!base) {
-    return (
-      <Tile as="section" accent="var(--trim)" className="flex flex-wrap items-center gap-4">
-        <span className="cb-emblem size-11 shrink-0 rounded-control" style={{ "--emblem": "var(--primary)" } as React.CSSProperties}>
-          <Castle aria-hidden className="size-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 className="font-semibold">Link your village</h2>
-          <p className="text-muted-foreground text-sm">
-            Add your base by its tag to see its Town Hall, heroes and progress here.
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/account">
-            <Link2 aria-hidden />
-            Add a base
-          </Link>
-        </Button>
-      </Tile>
-    );
-  }
+/** Shown when the member has linked no village yet. */
+export function NoBaseCard() {
+  return (
+    <Tile as="section" accent="var(--trim)" className="flex flex-wrap items-center gap-4">
+      <span
+        className="cb-emblem size-11 shrink-0 rounded-control"
+        style={{ "--emblem": "var(--primary)" } as React.CSSProperties}
+      >
+        <Castle aria-hidden className="size-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <h2 className="font-semibold">Link your village</h2>
+        <p className="text-muted-foreground text-sm">
+          Add your base by its tag to see its Town Hall, heroes and progress here.
+        </p>
+      </div>
+      <Button asChild>
+        <Link href="/account">
+          <Link2 aria-hidden />
+          Add a base
+        </Link>
+      </Button>
+    </Tile>
+  );
+}
 
+/** One village's row: who, how far along, where next. No frame of its own. */
+export function BaseSlide({
+  base,
+  position,
+  total,
+}: {
+  base: MainBaseView;
+  /** 1-based, for "2 of 4". */
+  position: number;
+  total: number;
+}) {
   const named = base.label !== base.name;
   const { progress } = base;
 
   return (
-    <Tile as="section" accent="var(--trim)" className="grid gap-5 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)_auto] lg:items-center">
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)_auto] lg:items-center">
       {/* Who: the village itself. */}
       <div className="flex min-w-0 items-center gap-4">
         <TownHall level={base.thLevel} size="lg" />
         <div className="min-w-0 space-y-0.5">
           <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-            Your main base
+            {base.isMain ? "Your main base" : "Your base"}
+            {total > 1 && (
+              <span className="normal-case tracking-normal tabular-nums">
+                {" "}
+                · {position} of {total}
+              </span>
+            )}
           </p>
           <h2 className="cb-title truncate text-2xl leading-tight">{base.label}</h2>
           <p className="text-muted-foreground truncate text-xs">
@@ -118,15 +134,19 @@ export function MainBaseCard({
                 </span>
                 <span className="cb-title text-2xl tabular-nums">{progress.pct}%</span>
               </div>
-              <Progress value={progress.pct} label="Main base progress" />
+              <Progress value={progress.pct} label={`${base.label} progress`} />
               <p className="text-muted-foreground text-xs">
-                {progress.maxed} of {progress.counted} units maxed · read {dayLabel(progress.capturedAt)}
+                {progress.maxed} of {progress.counted} units maxed · read{" "}
+                {formatDisplay(progress.capturedAt, "date")}
               </p>
             </div>
             {progress.heroes.length > 0 && (
               <ul aria-label="Heroes" className="flex flex-wrap gap-4">
                 {progress.heroes.map((h) => (
-                  <li key={h.name} title={`${h.name} — ${h.level === 0 ? "locked" : `level ${h.level} of ${h.cap}`}`}>
+                  <li
+                    key={h.name}
+                    title={`${h.name} — ${h.level === 0 ? "locked" : `level ${h.level} of ${h.cap}`}`}
+                  >
                     <UnitIcon
                       name={h.name}
                       group={h.group}
@@ -164,16 +184,16 @@ export function MainBaseCard({
             Report
           </Link>
         </Button>
-        {otherBases > 0 && (
+        {total > 1 && (
           <Link
             href="/account"
             className="text-primary inline-flex items-center justify-center gap-0.5 text-xs font-medium hover:underline"
           >
-            {otherBases} more {otherBases === 1 ? "base" : "bases"}
+            All {total} bases
             <ChevronRight aria-hidden className="size-3.5" />
           </Link>
         )}
       </div>
-    </Tile>
+    </div>
   );
 }
