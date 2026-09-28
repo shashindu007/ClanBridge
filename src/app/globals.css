@@ -776,14 +776,23 @@
   }
 
   /* A card's veil is the card's own colour, so the panel still reads as the
-     same surface and every text colour on it keeps its measured contrast. */
+     same surface. At 0.84 the picture washed out to a plain card; these are
+     the lightest that keep muted text ("No target") easy to read.
+
+     The radius is the panel's own rather than `inherit`: inside a Disclosure
+     the scene's parent is the <summary>, whose bottom corners go square when
+     it opens, and the picture poked out past the panel's rounded ones. */
+  .cb-scene[data-fade="card"] {
+    border-radius: var(--radius-panel);
+  }
+
   .cb-scene[data-fade="card"]::after {
     background: var(--card);
-    opacity: 0.84;
+    opacity: 0.72;
   }
 
   .dark .cb-scene[data-fade="card"]::after {
-    opacity: 0.8;
+    opacity: 0.64;
   }
 
   .dark .cb-scene[data-fade="left"]::after {

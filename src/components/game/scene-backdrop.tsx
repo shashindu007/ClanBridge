@@ -67,8 +67,11 @@ export function SceneBackdrop({
         height={art.height}
         alt=""
         unoptimized
-        // A card's scene is often below the fold; the page's own is not.
-        priority={fade !== "card"}
+        // A card's scene loads straight away, not lazily: a lazy picture behind
+        // a panel can be skipped and leave the card plain. Low priority, so it
+        // never holds up the page's own picture or data. It is the sign-in
+        // screen's file, so most visitors already have it cached.
+        {...(fade === "card" ? { loading: "eager" as const, fetchPriority: "low" as const } : { priority: true })}
         className="cb-scene-img"
       />
     </div>
