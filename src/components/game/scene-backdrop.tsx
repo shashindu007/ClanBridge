@@ -10,7 +10,7 @@
 // blurred further than the page behind, and veiled in the card's own colour,
 // so a members list or a war board reads as clearly as it did on a plain card.
 // Each page's summary card — the base card on Home, the war score — carries
-// the siege in flames instead, a little less blurred, so the card that says
+// the ghost army instead, a little less blurred, so the card that says
 // what the page is about stands apart from the lists under it. Those are pure
 // CSS on .cb-panel and .cb-tile (globals.css, "Every card in the signed-in
 // app"); only the clan banner, which has pseudo-elements of its own, still
@@ -33,8 +33,8 @@ export const SCENES = {
   crystal: { src: "/scenes/crystal-cave.webp", width: 1370, height: 630 },
   /** The Skeleton Kingdom: Archer Queen against the skeleton army. */
   skeleton: { src: "/scenes/skeleton-kingdom.webp", width: 1920, height: 1105 },
-  /** Siege machines and a wrecking ball breaking a wall, in a sea of fire. */
-  siege: { src: "/scenes/siege-fire.webp", width: 1094, height: 629 },
+  /** The ghost army: a spectral Warden, Queen and King, balloons and a golem. */
+  ghost: { src: "/scenes/ghost-army.webp", width: 1200, height: 554 },
 } as const;
 
 export type SceneName = keyof typeof SCENES;
@@ -91,12 +91,12 @@ export function SceneBackdrop({
  * are its clan-colour pools. Cards get theirs from globals.css.
  *
  * The surface needs `isolation: isolate` so the picture's z-index:-1 stays
- * inside it, above its background and below its text. `banner` is the siege in
- * flames, for a page's summary; otherwise the Skeleton Kingdom.
+ * inside it, above its background and below its text. `banner` is the ghost
+ * army, for a page's summary; otherwise the Skeleton Kingdom.
  */
 export function CardScene({ banner = false, className }: { banner?: boolean; className?: string }) {
   return banner ? (
-    <SceneBackdrop scene="siege" blur="lg" fade="card" className={className} />
+    <SceneBackdrop scene="ghost" blur="lg" fade="card" className={className} />
   ) : (
     <SceneBackdrop scene="skeleton" blur="xl" fade="card" className={className} />
   );

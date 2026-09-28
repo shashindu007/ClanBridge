@@ -810,7 +810,13 @@
      box, so the border stays outside both layers and carries the rim colour.
 
      A summary card (data-scene="banner" — Panel/Tile `banner`) swaps the
-     sign-in screen's Skeleton Kingdom for the siege in flames. */
+     sign-in screen's Skeleton Kingdom for the ghost army.
+
+     NO COLOURED EDGE LINES in here. A tile's accent band, the clan banner's
+     colour stripe and gold trim, the gold hover edge and the carousel's gold
+     clock all give way to the one aqua rim, so every card reads as the same
+     bubble. `accent` on a Tile still sets --tile-accent; the app just does not
+     paint it. */
 
   /* clip-path hides the picture's extra 40px but the browser still counts it
      as overflow, and a card at the edge of a phone screen gave the whole page
@@ -827,8 +833,8 @@
     --scene-blur: 18px;
     --scene-veil: var(--card);
     --scene-radius: var(--radius-panel);
-    /* The tile keeps its 3px accent band and its lip, both inset shadows the
-       picture would otherwise cover. */
+    /* How far in from the top and bottom the picture stops. 0 now that no
+       card keeps a band or a lip of its own to leave uncovered. */
     --scene-edge: 0px;
     border-color: oklch(0.83 0.075 212);
     box-shadow:
@@ -840,17 +846,10 @@
   .cb-app .cb-tile {
     --scene-veil: var(--tile);
     --scene-radius: var(--radius-tile);
-    --scene-edge: 3px;
-    box-shadow:
-      inset 0 3px 0 var(--tile-accent, transparent),
-      inset 0 -3px 0 oklch(0.3 0.05 264 / 0.08),
-      0 0 0 1px oklch(0.86 0.09 210 / 0.35),
-      0 0 20px -6px oklch(0.72 0.13 215 / 0.4),
-      0 14px 28px -18px oklch(0.25 0.05 264 / 0.4);
   }
 
   .cb-app [data-scene="banner"] {
-    --scene-art: url("/scenes/siege-fire.webp");
+    --scene-art: url("/scenes/ghost-army.webp");
     --scene-blur: 14px;
   }
 
@@ -891,15 +890,6 @@
       0 12px 28px -18px oklch(0 0 0 / 0.8);
   }
 
-  .dark .cb-app .cb-tile {
-    box-shadow:
-      inset 0 3px 0 var(--tile-accent, transparent),
-      inset 0 -3px 0 oklch(0 0 0 / 0.35),
-      0 0 0 1px oklch(0.72 0.12 215 / 0.16),
-      0 0 24px -8px oklch(0.68 0.14 215 / 0.5),
-      0 16px 30px -18px oklch(0 0 0 / 0.85);
-  }
-
   .dark .cb-app :is(.cb-panel, .cb-tile)::after {
     opacity: 0.64;
     box-shadow:
@@ -908,10 +898,43 @@
       inset 0 0 16px oklch(0.7 0.13 215 / 0.22);
   }
 
-  /* The rim above is declared after .cb-panel-interactive, so the gold
-     "this one is a door" edge has to be restated to win on hover. */
+  /* "This one is a door": the rim brightens on hover, where it turned gold. */
   .cb-app .cb-panel-interactive:hover {
-    border-color: var(--trim);
+    border-color: oklch(0.78 0.13 210);
+  }
+
+  .dark .cb-app .cb-panel-interactive:hover {
+    border-color: oklch(0.75 0.13 210);
+  }
+
+  /* The clan banner (.cb-hero) wears the same rim: its clan-colour stripe
+     along the top and its gold trim along the bottom go. Its soft clan-colour
+     pools stay — a glow, not a line. */
+  .cb-app .cb-hero-stripe {
+    display: none;
+  }
+
+  .cb-app .cb-hero {
+    border-color: oklch(0.83 0.075 212);
+    box-shadow:
+      inset 0 1.5px 0 oklch(1 0 0 / 0.9),
+      0 0 0 1px oklch(0.86 0.09 210 / 0.35),
+      0 0 20px -6px oklch(0.72 0.13 215 / 0.4),
+      0 12px 30px -20px oklch(0.25 0.05 264 / 0.45);
+  }
+
+  .dark .cb-app .cb-hero {
+    border-color: oklch(0.6 0.1 222 / 0.75);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.35),
+      0 0 0 1px oklch(0.72 0.12 215 / 0.16),
+      0 0 24px -8px oklch(0.68 0.14 215 / 0.5),
+      0 14px 34px -22px oklch(0 0 0 / 0.85);
+  }
+
+  /* The base carousel's clock, aqua rather than gold. */
+  .cb-app .cb-carousel-timer {
+    background: oklch(0.8 0.12 208);
   }
 
   /* A printable sheet is paper: no picture and no glow, on screen or printed. */

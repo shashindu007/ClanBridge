@@ -42,7 +42,7 @@ export function Panel({
   /**
    * The page's summary card — the war score, the month, the weekend. Every
    * panel carries a blurred scene (globals.css, "Every card in the signed-in
-   * app"); a banner carries the siege in flames instead of the Skeleton Kingdom.
+   * app"); a banner carries the ghost army instead of the Skeleton Kingdom.
    */
   banner?: boolean;
   className?: string;
@@ -91,7 +91,7 @@ export function Tile({
   href?: string;
   /** The link's accessible name. Required with href. */
   label?: string;
-  /** The page's summary card: the siege picture, not the Skeleton Kingdom (see Panel). */
+  /** The page's summary card: the ghost army, not the Skeleton Kingdom (see Panel). */
   banner?: boolean;
   className?: string;
   children: React.ReactNode;
