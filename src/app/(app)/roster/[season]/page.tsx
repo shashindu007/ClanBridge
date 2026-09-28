@@ -106,7 +106,6 @@ import {
   unpublishRoster,
   type RosterMember,
 } from "@/repositories/rosters";
-import { CardScene } from "@/components/game/scene-backdrop";
 
 export const dynamic = "force-dynamic";
 
@@ -372,20 +371,6 @@ export default async function RosterBuilderPage({
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <RosterHeader title={title} exportHref={`${base}/print`} />
 
-      <HowItWorks open={nobodyPickedYet}>
-        <Step n={1} title="Check who is available">
-          Members answer the CWL availability poll with In, Maybe or Out. Their answers show
-          in the player list.
-        </Step>
-        <Step n={2} title="Pick each clan's lineup">
-          Choose a clan in the tabs, press Add players, tick everyone you want and press Add
-          selected. Up to {selected.slotCount} per clan. Everything saves as you go.
-        </Step>
-        <Step n={3} title="Publish">
-          Drafts are private to leaders. Publish a lineup when it is ready and that
-          clan&apos;s members can see it.
-        </Step>
-      </HowItWorks>
 
       {deadline && (
         <div
@@ -412,8 +397,7 @@ export default async function RosterBuilderPage({
       )}
 
       {availabilityPoll ? (
-        <div className="cb-panel isolate flex flex-wrap items-center justify-between gap-3 rounded-panel border px-5 py-3 text-sm">
-          <CardScene banner />
+        <div data-scene="banner" className="cb-panel flex flex-wrap items-center justify-between gap-3 rounded-panel border px-5 py-3 text-sm">
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="font-medium">Availability poll</span>
             <span className="tabular-nums">{everyone.in} In</span>
@@ -471,8 +455,7 @@ export default async function RosterBuilderPage({
       )}
 
       {/* ── The lineup being built, full width ──────────────────────────── */}
-      <section aria-label={`${selectedClan.name} lineup`} className="cb-panel isolate space-y-5 rounded-panel border p-5">
-        <CardScene />
+      <section aria-label={`${selectedClan.name} lineup`} className="cb-panel space-y-5 rounded-panel border p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-1">
             <h2 className="flex flex-wrap items-center gap-2 text-xl font-semibold">
@@ -694,6 +677,24 @@ export default async function RosterBuilderPage({
             ))}
         </p>
       )}
+
+      {/* How this works, at the foot: the page opens on the lineup itself, and
+          the three steps are there for whoever scrolls down for them. Still
+          open until the page has something in it. */}
+      <HowItWorks open={nobodyPickedYet}>
+        <Step n={1} title="Check who is available">
+          Members answer the CWL availability poll with In, Maybe or Out. Their answers show
+          in the player list.
+        </Step>
+        <Step n={2} title="Pick each clan's lineup">
+          Choose a clan in the tabs, press Add players, tick everyone you want and press Add
+          selected. Up to {selected.slotCount} per clan. Everything saves as you go.
+        </Step>
+        <Step n={3} title="Publish">
+          Drafts are private to leaders. Publish a lineup when it is ready and that
+          clan&apos;s members can see it.
+        </Step>
+      </HowItWorks>
     </main>
   );
 }

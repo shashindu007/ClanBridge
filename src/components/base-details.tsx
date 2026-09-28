@@ -38,7 +38,6 @@ import {
 } from "@/services/progress";
 import { cn } from "@/lib/utils";
 import type { Village } from "@/types/domain";
-import { CardScene } from "@/components/game/scene-backdrop";
 
 export interface BaseDetailsProps {
   progress: BaseProgress;
@@ -95,8 +94,7 @@ export function BaseDetails({ progress, village, path }: BaseDetailsProps) {
 
   return (
     <>
-      <section className="cb-panel isolate space-y-5 rounded-panel border p-5">
-        <CardScene banner />
+      <section data-scene="banner" className="cb-panel space-y-5 rounded-panel border p-5">
         <nav aria-label="Village" className="cb-sunken inline-flex gap-1 rounded-control p-1">
           <VillageLink path={path} village="home" current={village}>
             Home village

@@ -42,7 +42,6 @@ import { createClient } from "@/lib/supabase/server";
 import { seasonByName } from "@/repositories/cwl";
 import { membersOfRoster, rosterFor } from "@/repositories/rosters";
 import { planVsReality } from "@/services/rosters";
-import { CardScene } from "@/components/game/scene-backdrop";
 
 export const dynamic = "force-dynamic";
 
@@ -109,8 +108,7 @@ export default async function CwlSeasonReportPage({
       )}
 
       {/* ── T4B.11 — plan versus reality ───────────────────────────────────── */}
-      <section className="cb-panel isolate space-y-5 rounded-panel border p-5">
-        <CardScene />
+      <section className="cb-panel space-y-5 rounded-panel border p-5">
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">Picked versus played</h2>
           <p className="text-muted-foreground text-sm">
@@ -174,8 +172,7 @@ export default async function CwlSeasonReportPage({
       </section>
 
       {/* ── T4B.12 — contribution ──────────────────────────────────────────── */}
-      <section className="cb-panel isolate space-y-4 rounded-panel border p-5">
-        <CardScene />
+      <section className="cb-panel space-y-4 rounded-panel border p-5">
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">What each player contributed</h2>
           <p className="text-muted-foreground text-sm">

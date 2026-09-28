@@ -79,7 +79,6 @@ import {
   type Lineup,
 } from "@/repositories/war";
 import { openWarAvailabilityPoll } from "@/services/polls";
-import { CardScene } from "@/components/game/scene-backdrop";
 
 export const dynamic = "force-dynamic";
 
@@ -225,8 +224,7 @@ export default async function WarLineupPage({
         )}
 
         {!published ? (
-          <section className="cb-panel isolate space-y-2 rounded-panel border p-5">
-            <CardScene />
+          <section className="cb-panel space-y-2 rounded-panel border p-5">
             <h2 className="text-lg font-semibold">No lineup published yet</h2>
             {/* Honest about WHY it is empty: a leader mid-decision has a draft this
                 page genuinely cannot see. */}
@@ -306,24 +304,9 @@ export default async function WarLineupPage({
         description="Plan who plays in the next war. Members only see a lineup after you publish it."
       />
 
-      <HowItWorks open={lineups.length === 0 || (selected !== null && picked.length === 0)}>
-        <Step n={1} title="Ask who can play">
-          Open a war availability poll. The answers show here, with the largest war they
-          can fill.
-        </Step>
-        <Step n={2} title="Pick the size and the players">
-          Start a lineup at the size you will declare in game, then press Add beside each
-          player.
-        </Step>
-        <Step n={3} title="Publish, then link it">
-          Publish so members know who is in. Once the war starts, link the lineup to it to
-          compare the plan with who actually played.
-        </Step>
-      </HowItWorks>
 
       {availabilityPoll ? (
-        <div className="cb-panel isolate flex flex-wrap items-center justify-between gap-3 rounded-panel border px-5 py-3 text-sm">
-          <CardScene banner />
+        <div data-scene="banner" className="cb-panel flex flex-wrap items-center justify-between gap-3 rounded-panel border px-5 py-3 text-sm">
           <div className="space-y-0.5">
             <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="font-medium">War availability poll</span>
@@ -474,8 +457,7 @@ export default async function WarLineupPage({
             </LineupPanel>
           </aside>
 
-          <section className="cb-panel isolate min-w-0 space-y-4 rounded-panel border p-5">
-            <CardScene />
+          <section className="cb-panel min-w-0 space-y-4 rounded-panel border p-5">
             <div className="space-y-1">
               <h2 className="text-lg font-semibold">Add players</h2>
               <p className="text-muted-foreground text-sm">
@@ -583,6 +565,24 @@ export default async function WarLineupPage({
           </section>
         </div>
       )}
+
+      {/* How this works, at the foot: the page opens on the lineup itself, and
+          the three steps are there for whoever scrolls down for them. Still
+          open until the page has something in it. */}
+      <HowItWorks open={lineups.length === 0 || (selected !== null && picked.length === 0)}>
+        <Step n={1} title="Ask who can play">
+          Open a war availability poll. The answers show here, with the largest war they
+          can fill.
+        </Step>
+        <Step n={2} title="Pick the size and the players">
+          Start a lineup at the size you will declare in game, then press Add beside each
+          player.
+        </Step>
+        <Step n={3} title="Publish, then link it">
+          Publish so members know who is in. Once the war starts, link the lineup to it to
+          compare the plan with who actually played.
+        </Step>
+      </HowItWorks>
     </main>
   );
 }

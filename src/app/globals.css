@@ -795,6 +795,136 @@
     opacity: 0.64;
   }
 
+  /* ── Every card in the signed-in app: a scene, and a water-bubble rim ────
+     .cb-app is the root of app/(app)/layout.tsx, so the landing page and the
+     sign-in form keep their plain cards.
+
+     The picture is ::before and the veil ::after, both at z-index -1 inside a
+     card that isolates — above the card's own background, below its words.
+     Nothing in a card needs to escape that: the app's only dropdowns are the
+     two menus on the rail, and dialogs portal to <body>.
+
+     The picture is drawn 40px larger than the card and clipped back to its
+     padding box, so the blur's soft, see-through edge is cut away rather than
+     fading into the corners. Absolute insets are measured from the padding
+     box, so the border stays outside both layers and carries the rim colour.
+
+     A summary card (data-scene="banner" — Panel/Tile `banner`) swaps the
+     sign-in screen's Skeleton Kingdom for the siege in flames. */
+
+  /* clip-path hides the picture's extra 40px but the browser still counts it
+     as overflow, and a card at the edge of a phone screen gave the whole page
+     a sideways scroll. `clip` rather than `hidden`: it makes no scroll
+     container, so the rail stays sticky, and fixed layers (the page's scene,
+     the toaster) are not clipped by it. */
+  .cb-app {
+    overflow: clip;
+  }
+
+  .cb-app :is(.cb-panel, .cb-tile) {
+    isolation: isolate;
+    --scene-art: url("/scenes/skeleton-kingdom.webp");
+    --scene-blur: 18px;
+    --scene-veil: var(--card);
+    --scene-radius: var(--radius-panel);
+    /* The tile keeps its 3px accent band and its lip, both inset shadows the
+       picture would otherwise cover. */
+    --scene-edge: 0px;
+    border-color: oklch(0.83 0.075 212);
+    box-shadow:
+      0 0 0 1px oklch(0.86 0.09 210 / 0.35),
+      0 0 20px -6px oklch(0.72 0.13 215 / 0.4),
+      0 10px 24px -18px oklch(0.25 0.05 264 / 0.35);
+  }
+
+  .cb-app .cb-tile {
+    --scene-veil: var(--tile);
+    --scene-radius: var(--radius-tile);
+    --scene-edge: 3px;
+    box-shadow:
+      inset 0 3px 0 var(--tile-accent, transparent),
+      inset 0 -3px 0 oklch(0.3 0.05 264 / 0.08),
+      0 0 0 1px oklch(0.86 0.09 210 / 0.35),
+      0 0 20px -6px oklch(0.72 0.13 215 / 0.4),
+      0 14px 28px -18px oklch(0.25 0.05 264 / 0.4);
+  }
+
+  .cb-app [data-scene="banner"] {
+    --scene-art: url("/scenes/siege-fire.webp");
+    --scene-blur: 14px;
+  }
+
+  .cb-app :is(.cb-panel, .cb-tile)::before {
+    content: "";
+    position: absolute;
+    inset: -40px;
+    z-index: -1;
+    pointer-events: none;
+    background: var(--scene-art) center / cover no-repeat;
+    filter: blur(var(--scene-blur)) saturate(1.1);
+    clip-path: inset(calc(40px + var(--scene-edge)) 40px calc(40px + var(--scene-edge)) round var(--scene-radius));
+  }
+
+  /* The veil, in the card's own colour, so every text colour on it keeps its
+     contrast. The bubble's shine rides on it: a bright line along the top and
+     a faint aqua ring inside the edge, like light caught on water. */
+  .cb-app :is(.cb-panel, .cb-tile)::after {
+    content: "";
+    position: absolute;
+    inset: var(--scene-edge) 0;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: inherit;
+    background: var(--scene-veil);
+    opacity: 0.72;
+    box-shadow:
+      inset 0 1.5px 0 oklch(1 0 0 / 0.95),
+      inset 0 0 0 1px oklch(0.92 0.07 205 / 0.4),
+      inset 0 0 14px oklch(0.85 0.1 210 / 0.35);
+  }
+
+  .dark .cb-app :is(.cb-panel, .cb-tile) {
+    border-color: oklch(0.6 0.1 222 / 0.75);
+    box-shadow:
+      0 0 0 1px oklch(0.72 0.12 215 / 0.16),
+      0 0 24px -8px oklch(0.68 0.14 215 / 0.5),
+      0 12px 28px -18px oklch(0 0 0 / 0.8);
+  }
+
+  .dark .cb-app .cb-tile {
+    box-shadow:
+      inset 0 3px 0 var(--tile-accent, transparent),
+      inset 0 -3px 0 oklch(0 0 0 / 0.35),
+      0 0 0 1px oklch(0.72 0.12 215 / 0.16),
+      0 0 24px -8px oklch(0.68 0.14 215 / 0.5),
+      0 16px 30px -18px oklch(0 0 0 / 0.85);
+  }
+
+  .dark .cb-app :is(.cb-panel, .cb-tile)::after {
+    opacity: 0.64;
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.4),
+      inset 0 0 0 1px oklch(0.75 0.12 212 / 0.22),
+      inset 0 0 16px oklch(0.7 0.13 215 / 0.22);
+  }
+
+  /* The rim above is declared after .cb-panel-interactive, so the gold
+     "this one is a door" edge has to be restated to win on hover. */
+  .cb-app .cb-panel-interactive:hover {
+    border-color: var(--trim);
+  }
+
+  /* A printable sheet is paper: no picture and no glow, on screen or printed. */
+  .cb-app .cb-sheet :is(.cb-panel, .cb-tile)::before,
+  .cb-app .cb-sheet :is(.cb-panel, .cb-tile)::after {
+    content: none;
+  }
+
+  .cb-app .cb-sheet :is(.cb-panel, .cb-tile) {
+    border-color: var(--border);
+    box-shadow: none;
+  }
+
   .dark .cb-scene[data-fade="left"]::after {
     opacity: 0.9;
   }
@@ -1124,6 +1254,16 @@
 
   .cb-backdrop {
     display: none !important;
+  }
+
+  /* Every card's scene and bubble rim (see "Every card in the signed-in app"). */
+  .cb-app :is(.cb-panel, .cb-tile)::before,
+  .cb-app :is(.cb-panel, .cb-tile)::after {
+    content: none !important;
+  }
+
+  .cb-app :is(.cb-panel, .cb-tile) {
+    box-shadow: none !important;
   }
 
   .print-page-break {

@@ -26,14 +26,13 @@
 import Link from "next/link";
 import { ChevronDown, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CardScene } from "@/components/game/scene-backdrop";
 import { cn } from "@/lib/utils";
 
 /** A section. Always the same radius, the same frame, the same padding. */
 export function Panel({
   as: Tag = "section",
   padded = true,
-  scene = false,
+  banner = false,
   className = "",
   children,
   ...rest
@@ -41,19 +40,20 @@ export function Panel({
   as?: "section" | "div" | "article" | "aside";
   padded?: boolean;
   /**
-   * The blurred scene behind a big panel — a list or a board, not a notice.
-   * `"banner"` for the page's summary card (see CardScene).
+   * The page's summary card — the war score, the month, the weekend. Every
+   * panel carries a blurred scene (globals.css, "Every card in the signed-in
+   * app"); a banner carries the siege in flames instead of the Skeleton Kingdom.
    */
-  scene?: boolean | "banner";
+  banner?: boolean;
   className?: string;
   children: React.ReactNode;
 } & React.HTMLAttributes<HTMLElement>) {
   return (
     <Tag
-      className={cn("cb-panel rounded-panel border", scene && "isolate", padded && "p-5", className)}
+      className={cn("cb-panel rounded-panel border", padded && "p-5", className)}
+      data-scene={banner ? "banner" : undefined}
       {...rest}
     >
-      {scene && <CardScene banner={scene === "banner"} />}
       {children}
     </Tag>
   );
@@ -76,7 +76,7 @@ export function Tile({
   ribbon,
   href,
   label,
-  scene,
+  banner = false,
   className,
   children,
 }: {
@@ -91,8 +91,8 @@ export function Tile({
   href?: string;
   /** The link's accessible name. Required with href. */
   label?: string;
-  /** The page's summary picture behind the tile (see CardScene). */
-  scene?: "banner";
+  /** The page's summary card: the siege picture, not the Skeleton Kingdom (see Panel). */
+  banner?: boolean;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -100,16 +100,13 @@ export function Tile({
     <Tag
       className={cn(
         "cb-tile rounded-tile border p-4 sm:p-5",
-        scene && "isolate",
         art && "mt-7 pt-11 sm:pt-12",
         href && "cb-panel-interactive",
         className,
       )}
       style={accent ? ({ "--tile-accent": accent } as React.CSSProperties) : undefined}
+      data-scene={banner ? "banner" : undefined}
     >
-      {/* Starts under the accent band, which is an inset shadow and would
-          otherwise be painted over. */}
-      {scene && <CardScene banner className={cn("rounded-tile", accent && "top-[3px]")} />}
       {href && (
         <Link
           href={href}
@@ -246,11 +243,8 @@ export function Disclosure({
   children: React.ReactNode;
 }) {
   return (
-    <details open={defaultOpen} className={cn("group cb-panel isolate rounded-panel border", className)}>
+    <details open={defaultOpen} className={cn("group cb-panel rounded-panel border", className)}>
       <summary className="hover:bg-accent/40 flex cursor-pointer list-none items-center gap-3 rounded-panel p-5 transition-colors group-open:rounded-b-none [&::-webkit-details-marker]:hidden">
-        {/* A folding section is always a long one, so it always has the scene.
-            In the summary so it stays when folded — see CardScene. */}
-        <CardScene />
         <h2 className="flex min-w-0 flex-1 items-center gap-2 text-lg font-semibold">
           {Icon && <Icon aria-hidden className="text-muted-foreground size-4.5 shrink-0" />}
           <span className="truncate">{title}</span>

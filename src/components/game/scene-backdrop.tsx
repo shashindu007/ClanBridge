@@ -6,18 +6,20 @@
 // panels and a heavy veil, so a war board or a table stays as legible as on
 // the plain theme.
 //
-// The big panels carry the sign-in screen's scene inside them as well
-// (CardScene below): blurred further than the page behind, and veiled in the
-// card's own colour, so a members list or a war board reads as clearly as it
-// did on a plain card. Each page's summary card — the clan banner, the base
-// card on Home, the war score — carries the siege in flames instead, a little
-// less blurred, so the card that says what the page is about stands apart
-// from the lists under it.
+// Every card in the app carries the sign-in screen's scene inside it as well:
+// blurred further than the page behind, and veiled in the card's own colour,
+// so a members list or a war board reads as clearly as it did on a plain card.
+// Each page's summary card — the base card on Home, the war score — carries
+// the siege in flames instead, a little less blurred, so the card that says
+// what the page is about stands apart from the lists under it. Those are pure
+// CSS on .cb-panel and .cb-tile (globals.css, "Every card in the signed-in
+// app"); only the clan banner, which has pseudo-elements of its own, still
+// uses a component here (CardScene).
 //
 // THE FILES ARE UNTOUCHED. public/scenes/ holds the Fan Kit pictures resized
-// and re-encoded, and nothing else (public/game/README.md). The blur and the
-// scrim are CSS applied when the page is drawn, so the art itself is never
-// recoloured, cropped or combined.
+// and re-encoded (and one trimmed of the screenshot frame it arrived in), and
+// nothing else (public/game/README.md). The blur and the scrim are CSS applied
+// when the page is drawn, so the art itself is never recoloured or combined.
 //
 // DECORATION ONLY: aria-hidden, empty alt, and the scrim is the theme's own
 // background colour, so text on top keeps the contrast globals.css measured
@@ -84,15 +86,13 @@ export function SceneBackdrop({
 }
 
 /**
- * A scene inside a panel. The sign-in screen's for a big panel — a members
- * list, a war board. `banner` is the page's summary card: the clan banner, the
- * base card on Home, the war score.
+ * A card's scene as an element, for a surface that is not a .cb-panel or
+ * .cb-tile — today only the clan banner (.cb-hero), whose ::before and ::after
+ * are its clan-colour pools. Cards get theirs from globals.css.
  *
- * The panel needs `isolate` (Panel's `scene` prop adds it) so the picture's
- * z-index:-1 stays inside the panel, above its background and below its text.
- * In a <details>, put this in the <summary>: it is positioned against the
- * details itself, so it covers the panel folded or open, where a child of the
- * body would vanish with it when folded.
+ * The surface needs `isolation: isolate` so the picture's z-index:-1 stays
+ * inside it, above its background and below its text. `banner` is the siege in
+ * flames, for a page's summary; otherwise the Skeleton Kingdom.
  */
 export function CardScene({ banner = false, className }: { banner?: boolean; className?: string }) {
   return banner ? (

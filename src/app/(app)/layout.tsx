@@ -150,7 +150,10 @@ export default async function AppLayout({
     // The root layout owns the page height now (it flexes the footer to the
     // bottom), so a second min-h-screen here would guarantee a scrollbar on
     // every page: a full viewport of shell, plus the footer underneath it.
-    <div>
+    //
+    // cb-app scopes every card's scene and bubble rim to the signed-in app
+    // (globals.css), so the landing page and the sign-in form keep plain cards.
+    <div className="cb-app">
       {/* The game behind every page, blurred and dimmed into the theme. The
           panels on top are opaque, so nothing loses contrast. */}
       <SceneBackdrop scene="crystal" blur="lg" fade="page" fixed />

@@ -44,7 +44,6 @@ import {
   needsAttention,
   QUIET_DAYS,
 } from "@/services/members";
-import { CardScene } from "@/components/game/scene-backdrop";
 
 export const dynamic = "force-dynamic";
 
@@ -240,7 +239,7 @@ export default async function MemberDirectoryPage({
                 clan that has shrunk. */}
             {searching
               ? `${visible.length} of ${rows.length} matching “${q.q}”`
-              : `${rows.length} ${includeDeparted ? "including former members" : "current members"}`}
+              : `${rows.length} ${includeDeparted ? "including past members" : "current members"}`}
             . Donations are this season&rsquo;s; the game resets them monthly.
           </>
         }
@@ -268,100 +267,6 @@ export default async function MemberDirectoryPage({
         q={q.q}
         clearHref={searching ? `${base}${memberSearch(q, { q: "" })}` : null}
       />
-
-      <div className="flex flex-wrap gap-2">
-        <Button asChild variant="outline" size="xs">
-          <Link href={`${base}${memberSearch(q, { departed: !includeDeparted })}`}>
-            {includeDeparted ? "Hide former members" : "Include former members"}
-          </Link>
-        </Button>
-      </div>
-
-      {/* How to read the table, ABOVE it and folded. It sat at the very bottom
-          of the page, under fifty rows — the one block written to stop the
-          table being misread, placed where nobody reaches it before reading. */}
-      <Disclosure title="How to read this table" icon={CircleHelp}>
-        <div className="text-muted-foreground space-y-4 text-sm">
-          <div className="space-y-1">
-            <p className="text-foreground font-medium">What &ldquo;Ratio&rdquo; means</p>
-            <p>
-              How many troops someone gave for each one they got. 1.0 means they gave
-              back exactly what they took; below {LOW_RATIO_THRESHOLD} shows in red. It
-              stays blank for anyone who has not received anything yet, because there is
-              nothing to divide by — blank is not a perfect score.
-            </p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-foreground font-medium">What &ldquo;Last seen&rdquo; means</p>
-            <p>
-              The last time this member&rsquo;s donations or trophies changed.{" "}
-              <strong className="text-foreground">It is not a login time</strong>: someone
-              who plays every day without donating or moving trophies still looks inactive
-              here. Read it as &ldquo;at least this long ago&rdquo;, never as &ldquo;exactly
-              then&rdquo;.{" "}
-              {coveredDays > 0
-                ? `Only the last ${coveredDays} days are kept, so anything older shows as "more than ${coveredDays} days".`
-                : "Only recent days are kept, so older activity shows as a rough bound."}
-            </p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-foreground font-medium">What &ldquo;Worth a look&rdquo; means</p>
-            <p>
-              {QUIET_DAYS} days with no change to either of those numbers. A nudge to go and
-              ask someone how they are getting on — not a verdict, and never on its own a
-              reason to remove anyone.
-            </p>
-          </div>
-        </div>
-      </Disclosure>
-
-      {/* T3B.5 — advisory, and it shows its working. Placed above the table
-          because it is the reason a leader opened this page, but deliberately
-          worded as a prompt to look rather than a verdict. */}
-      {canSeeAttention(clan.role) && attention.length > 0 && (
-        <Disclosure
-          title="Worth a look"
-          icon={Eye}
-          count={attention.length}
-          defaultOpen={attention.length <= 5}
-        >
-          <div className="space-y-3">
-          <ul className="grid gap-2 sm:grid-cols-2">
-            {attention.map((flag) => {
-              // From the unfiltered map, and checked rather than asserted. The
-              // `!` this replaces threw the moment a search narrowed `rows`
-              // below the set these flags were computed from.
-              const member = memberById.get(flag.playerId);
-              if (!member) return null;
-              return (
-                <li key={flag.playerId} className="cb-sunken rounded-control px-3 py-2 text-sm">
-                  <Link
-                    className="font-medium underline-offset-2 hover:underline"
-                    href={`/${encodeURIComponent(clan.tag)}/player/${encodeURIComponent(member.tag)}`}
-                  >
-                    {flag.name}
-                  </Link>
-                  <p className="text-muted-foreground text-xs">{flag.reasons.join(" · ")}</p>
-                </li>
-              );
-            })}
-          </ul>
-          {/* Worded for a reader who has never used this before. The previous
-              version said "every line above is a proxy, not a fact", which is
-              exactly right and says nothing to someone who does not already
-              know what a proxy measurement is — and the people most likely to
-              act on this list are the ones least likely to know. The caveat is
-              the important part of the section, so it may not be the part that
-              needs a second reading. */}
-          <p className="text-muted-foreground text-xs">
-            These are hints, not facts. All &ldquo;quiet&rdquo; means is that two
-            numbers stopped moving, so someone away on holiday looks exactly the
-            same here as someone who has quit. Talk to them before you do
-            anything — this app never removes or changes anyone by itself.
-          </p>
-          </div>
-        </Disclosure>
-      )}
 
       {rows.length === 0 ? (
         <Panel>
@@ -393,14 +298,14 @@ export default async function MemberDirectoryPage({
                 Part of a name works, and so does part of a tag. Tags never contain the
                 letter O — what looks like one is a zero.
                 {!includeDeparted &&
-                  " Somebody who has left the clan is hidden unless you include former members."}
+                  " Somebody who has left the clan is hidden unless you show past members."}
               </>
             }
             action={
               !includeDeparted ? (
                 <Button asChild variant="outline" size="sm">
                   <Link href={`${base}${memberSearch(q, { departed: true })}`}>
-                    Search former members too
+                    Search past members too
                   </Link>
                 </Button>
               ) : undefined
@@ -408,8 +313,7 @@ export default async function MemberDirectoryPage({
           />
         </Panel>
       ) : (
-        <section className="cb-panel isolate rounded-panel border">
-          <CardScene />
+        <section className="cb-panel rounded-panel border">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -489,6 +393,108 @@ export default async function MemberDirectoryPage({
         </section>
       )}
 
+      {/* T3B.5 — advisory, and it shows its working. Under the table, so the
+          page opens on the members themselves, and worded as a prompt to look
+          rather than a verdict. */}
+      {canSeeAttention(clan.role) && attention.length > 0 && (
+        <Disclosure
+          title="Worth a look"
+          icon={Eye}
+          count={attention.length}
+          defaultOpen={attention.length <= 5}
+        >
+          <div className="space-y-3">
+          {/* Says what the list is before the names, for someone who opens it
+              without having read "How to read this table". */}
+          <p className="text-muted-foreground text-sm">
+            Members whose donations and trophies have not changed for {QUIET_DAYS}{" "}
+            days or more. A reason to check in with them, not a verdict.
+          </p>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {attention.map((flag) => {
+              // From the unfiltered map, and checked rather than asserted. The
+              // `!` this replaces threw the moment a search narrowed `rows`
+              // below the set these flags were computed from.
+              const member = memberById.get(flag.playerId);
+              if (!member) return null;
+              return (
+                <li key={flag.playerId} className="cb-sunken rounded-control px-3 py-2 text-sm">
+                  <Link
+                    className="font-medium underline-offset-2 hover:underline"
+                    href={`/${encodeURIComponent(clan.tag)}/player/${encodeURIComponent(member.tag)}`}
+                  >
+                    {flag.name}
+                  </Link>
+                  <p className="text-muted-foreground text-xs">{flag.reasons.join(" · ")}</p>
+                </li>
+              );
+            })}
+          </ul>
+          {/* Worded for a reader who has never used this before. The previous
+              version said "every line above is a proxy, not a fact", which is
+              exactly right and says nothing to someone who does not already
+              know what a proxy measurement is — and the people most likely to
+              act on this list are the ones least likely to know. The caveat is
+              the important part of the section, so it may not be the part that
+              needs a second reading. */}
+          <p className="text-muted-foreground text-xs">
+            These are hints, not facts. All &ldquo;quiet&rdquo; means is that two
+            numbers stopped moving, so someone away on holiday looks exactly the
+            same here as someone who has quit. Talk to them before you do
+            anything — this app never removes or changes anyone by itself.
+          </p>
+          </div>
+        </Disclosure>
+      )}
+
+      {/* How to read the table, folded, under it and "Worth a look". The page
+          leads with the members themselves; the explanations are for whoever
+          goes looking for them. */}
+      <Disclosure title="How to read this table" icon={CircleHelp}>
+        <div className="text-muted-foreground space-y-4 text-sm">
+          <div className="space-y-1">
+            <p className="text-foreground font-medium">What &ldquo;Ratio&rdquo; means</p>
+            <p>
+              How many troops someone gave for each one they got. 1.0 means they gave
+              back exactly what they took; below {LOW_RATIO_THRESHOLD} shows in red. It
+              stays blank for anyone who has not received anything yet, because there is
+              nothing to divide by — blank is not a perfect score.
+            </p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-foreground font-medium">What &ldquo;Last seen&rdquo; means</p>
+            <p>
+              The last time this member&rsquo;s donations or trophies changed.{" "}
+              <strong className="text-foreground">It is not a login time</strong>: someone
+              who plays every day without donating or moving trophies still looks inactive
+              here. Read it as &ldquo;at least this long ago&rdquo;, never as &ldquo;exactly
+              then&rdquo;.{" "}
+              {coveredDays > 0
+                ? `Only the last ${coveredDays} days are kept, so anything older shows as "more than ${coveredDays} days".`
+                : "Only recent days are kept, so older activity shows as a rough bound."}
+            </p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-foreground font-medium">What &ldquo;Worth a look&rdquo; means</p>
+            <p>
+              {QUIET_DAYS} days with no change to either of those numbers. A nudge to go and
+              ask someone how they are getting on — not a verdict, and never on its own a
+              reason to remove anyone.
+            </p>
+          </div>
+        </div>
+      </Disclosure>
+
+      {/* Past members, at the foot: a question someone comes here with now and
+          then, not the list the page is for. The link keeps the search and the
+          sort (memberSearch), and the header's count says which list is shown. */}
+      <div className="flex flex-wrap justify-center gap-2 pt-2">
+        <Button asChild variant="outline" size="sm">
+          <Link href={`${base}${memberSearch(q, { departed: !includeDeparted })}`}>
+            {includeDeparted ? "Hide past members" : "Show past members"}
+          </Link>
+        </Button>
+      </div>
     </main>
   );
 }

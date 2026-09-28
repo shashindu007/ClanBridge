@@ -23,10 +23,12 @@
 // REDESIGNED FOR A FIRST-TIME VISITOR, then again for a phone. Top to bottom:
 //
 //   the header      both clans' state as a ribbon (BATTLE DAY · 6h)
-//   your attacks    what YOU should do, with free bases as buttons — the first
-//                   one gold, the page's one call to action
 //   the scoreboard  the game's own picture of a war: two badges, VS, stars,
-//                   destruction; then size, deadline and attacks used in a line
+//                   destruction; then size, deadline and attacks used in a line.
+//                   First, because it is what the page is about.
+//   your attacks    attacks left, how each one went (base, stars, %), and what
+//                   YOU should do next, with free bases as buttons — the first
+//                   one gold, the page's one call to action
 //   still to attack split into "not at all" and "one left"
 //   the lineup      plan beside result
 //   their bases     a board of cards, one per base: free / assigned (named) /
@@ -331,7 +333,7 @@ export default async function WarBoardPage({
       : "Battle day";
 
   const scoreboard = (
-    <Panel scene="banner" aria-label="Score" className="space-y-5">
+    <Panel banner aria-label="Score" className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <span
@@ -464,7 +466,10 @@ export default async function WarBoardPage({
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       {header}
 
-      {/* ── The member's own plan, before anything about anyone else ─────── */}
+      {/* ── The war itself first: the score, the clock, the numbers ─────────── */}
+      {scoreboard}
+
+      {/* ── Then the member's own: attacks left, how they went, the plan ──── */}
       {myRecord.length > 0 && (
         <Tile as="section" accent={accent} className="space-y-4">
           <div className="space-y-1">
@@ -482,10 +487,33 @@ export default async function WarBoardPage({
                 <p className="font-medium">
                   {m.name} <span className="text-muted-foreground text-sm font-normal">· our base {m.mapPosition ?? "?"}</span>
                 </p>
-                <Badge variant={m.attacksRemaining === 0 ? "success" : "outline"}>
-                  {m.attacksUsed} of {m.attacksAllowed} attacks used
-                </Badge>
+                <span className="flex flex-wrap items-center gap-2">
+                  {m.attacksRemaining > 0 && !ended && (
+                    <Badge variant="warning">
+                      {m.attacksRemaining} attack{m.attacksRemaining === 1 ? "" : "s"} left
+                    </Badge>
+                  )}
+                  <Badge variant={m.attacksRemaining === 0 ? "success" : "outline"}>
+                    {m.attacksUsed} of {m.attacksAllowed} attacks used
+                  </Badge>
+                </span>
               </div>
+
+              {/* How it went, as the lineup table's "Attacked" column shows it. */}
+              {m.attacks.length > 0 && (
+                <ul className="space-y-1 text-sm">
+                  {/* Numbered 1, 2 for this member: attackOrder counts across the
+                      whole war, so it would read "Attack 57". */}
+                  {m.attacks.map((a, i) => (
+                    <li key={a.attackOrder} className="flex flex-wrap items-center gap-2 tabular-nums">
+                      <span className="text-muted-foreground">Attack {i + 1}</span>
+                      <span className="font-medium">Base {a.defenderPosition ?? "?"}</span>
+                      <Stars stars={a.stars} />
+                      <span className="text-muted-foreground text-xs">{a.destruction.toFixed(0)}%</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
               {m.targets.length > 0 && (
                 <ul className="space-y-2">
@@ -573,8 +601,6 @@ export default async function WarBoardPage({
           ))}
         </Tile>
       )}
-
-      {scoreboard}
 
       {/* ── T6.3 — who still has attacks. Counts ATTACKS, not people. ─────── */}
       {!preparation && (
@@ -760,7 +786,7 @@ export default async function WarBoardPage({
       </Disclosure>
 
       {/* ── T6.3 — the other side, as a board of bases ───────────────────── */}
-      <Panel scene className="space-y-4" aria-labelledby="bases-title">
+      <Panel className="space-y-4" aria-labelledby="bases-title">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <SectionHeader
             id="bases-title"
