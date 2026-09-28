@@ -92,6 +92,41 @@ export function isIconFile(relativePath: string): boolean {
   return /(^|[^a-z])icons?([^a-z]|$)/i.test(file);
 }
 
+/**
+ * How good a source a file is for its key, compared left to right when two
+ * files match the same key; the larger file breaks a tie.
+ *
+ *   1. A CWL badge ("Icon_HV_CWL_Master_2") over a trophy-league icon. Every
+ *      league picture in the product is a WAR league — the clan page, the CWL
+ *      pages, the clan tiles — and the two are different badges.
+ *   2. Not Clan Capital ("Icon_CC_…"). The product shows no Capital units, and
+ *      the kit's Capital Rage is a jar where the home village's is a vial. A
+ *      Capital file is still used when it is the only one there is.
+ *   3. The kit's square icon over a render: a full-body picture on grass
+ *      shrinks to a smudge at icon size.
+ *   4. Not a file marked "old" ("Icon_HV_Spell_Freeze_old"), where the kit
+ *      keeps a "new" beside it.
+ */
+export function preference(relativePath: string): number[] {
+  const fileWords = words(relativePath.replace(/\\/g, "/").split("/").pop() ?? "");
+  const capital = fileWords.includes("cc") || words(relativePath).includes("capital");
+  return [
+    fileWords.includes("cwl") ? 1 : 0,
+    capital ? 0 : 1,
+    isIconFile(relativePath) ? 1 : 0,
+    fileWords.includes("old") ? 0 : 1,
+  ];
+}
+
+/** Whether `a` is a better source than `b` by preference(), before file size. */
+export function comparePreference(a: number[], b: number[]): number {
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const d = (a[i] ?? 0) - (b[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
 /** A path as a list of lowercase words, noise removed. */
 export function words(path: string): string[] {
   const base = path
@@ -140,9 +175,16 @@ export function matchArtKey(relativePath: string, units: readonly KnownUnit[]): 
     if (level >= 1 && level <= 30) return `th-${level}`;
   }
 
+  const tiers = "bronze|silver|gold|crystal|master|champion|titan|legend";
+
+  // CWL badges: "Icon_HV_CWL_Master_2". The kit misnames two of them,
+  // "Silver_12" and "Silver_13"; the badges themselves read II and III, so a
+  // leading 1 is dropped. Their name is the war league's ("Master League II").
+  const cwl = new RegExp(`\\bcwl (${tiers}) (1?[1-3])\\b`).exec(joined);
+  if (cwl) return artKeyForLeague(`${cwl[1]} League ${cwl[2].slice(-1)}`);
+
   // Leagues: "Crystal League I", "crystal_league_1", "Legend League", and the
   // other way round — "league-legend", "League_Crystal_2".
-  const tiers = "bronze|silver|gold|crystal|master|champion|titan|legend";
   const league =
     new RegExp(`\\b(${tiers}) league(?: (i{1,3}|[1-3]))?\\b`).exec(joined) ??
     new RegExp(`\\bleague (${tiers})(?: (i{1,3}|[1-3]))?\\b`).exec(joined);
@@ -161,6 +203,11 @@ export function matchArtKey(relativePath: string, units: readonly KnownUnit[]): 
   const inSpellsFolder = w.includes("spells") || w.includes("spell");
   let best: { unit: KnownUnit; length: number } | null = null;
   for (const unit of units) {
+    // A file that says "super" is a super troop's. "Icon_CC_Troop_Super_P.E.K.K.A"
+    // names a troop the product does not have, and without this it was filed
+    // as the P.E.K.K.A. Ice Hound, Inferno Dragon and Rocket Balloon are super
+    // troops without the word in their name, so the test is the group.
+    if (fileWords.includes("super") && unit.group !== "superTroop") continue;
     const full = artSlug(unit.name).split("-");
     // "Lightning Spell" is often filed as just "Lightning" inside a Spells
     // folder — but only there: a lone "Skeleton" elsewhere is not a spell.

@@ -4,7 +4,15 @@
 
 import { describe, expect, it } from "vitest";
 import unitsFile from "../src/data/game/units.json";
-import { folderFor, isIconFile, matchArtKey, words, type KnownUnit } from "./game-art.map";
+import {
+  comparePreference,
+  folderFor,
+  isIconFile,
+  matchArtKey,
+  preference,
+  words,
+  type KnownUnit,
+} from "./game-art.map";
 
 const units = unitsFile.units as KnownUnit[];
 const key = (path: string) => matchArtKey(path, units);
@@ -81,6 +89,23 @@ describe("matchArtKey", () => {
     expect(key("Spells/Skeleton.png")).toBe("spell-skeleton-spell");
   });
 
+  it("reads the kit's CWL badges as the war league, typos and all", () => {
+    expect(key("Icon_HV_CWL_Master_1.png")).toBe("league-master-1");
+    expect(key("Icon_HV_CWL_Champion_3.png")).toBe("league-champion-3");
+    // Named "Silver_12" and "Silver_13" in the kit; the badges read II and III.
+    expect(key("Icon_HV_CWL_Silver_12.png")).toBe("league-silver-2");
+    expect(key("Icon_HV_CWL_Silver_13.png")).toBe("league-silver-3");
+  });
+
+  it("files a file that says Super only under a super troop", () => {
+    // The product has no Super P.E.K.K.A; this is not the P.E.K.K.A.
+    expect(key("Icon_CC_Troop_Super_P.E.K.K.A.png")).toBeNull();
+    expect(key("Icon_HV_P.E.K.K.A.png")).toBe("troop-pekka");
+    // Super troops whose own names lack the word.
+    expect(key("Icon_HV_Super_Ice_Hound.png")).toBe("troop-ice-hound");
+    expect(key("Icon_HV_Super_Inferno_Dragon.png")).toBe("troop-inferno-dragon");
+  });
+
   it("leaves anything it cannot name unused", () => {
     expect(key("Backgrounds/Loading Screen.jpg")).toBeNull();
     expect(key("Misc/Gems.png")).toBeNull();
@@ -102,5 +127,28 @@ describe("isIconFile", () => {
     expect(isIconFile("Troops/hog_rider_icon.webp")).toBe(true);
     expect(isIconFile("Archer_Queen_1.png")).toBe(false);
     expect(isIconFile("Icons/Lexicon_Poster.png")).toBe(false);
+  });
+});
+
+describe("preference", () => {
+  const better = (a: string, b: string) => comparePreference(preference(a), preference(b)) > 0;
+
+  it("takes a CWL badge over a trophy-league icon of the same name", () => {
+    expect(better("Icon_HV_CWL_Master_2.png", "Icon_HV_League_Master_2.png")).toBe(true);
+  });
+
+  it("takes the home village's file over Clan Capital's, icon or not", () => {
+    expect(better("Icon_HV_Spell_Rage.png", "Icon_CC_Spell_Rage.png")).toBe(true);
+    expect(better("Icon_HV_Dark_Spell_Haste.png", "Icon_CC_Spell_Endless_Haste.png")).toBe(true);
+    expect(better("Archer_Queen_1.png", "Clan Capital/Icon_Archer_Queen.png")).toBe(true);
+  });
+
+  it("takes an icon over a render, and a new file over an old one", () => {
+    expect(better("Icon_HV_Hero_Archer_Queen.png", "Archer_Queen_1.png")).toBe(true);
+    expect(better("Icon_HV_Spell_Freeze_new.png", "Icon_HV_Spell_Freeze_old.png")).toBe(true);
+  });
+
+  it("calls two files of the same kind even, for the file size to decide", () => {
+    expect(comparePreference(preference("Icon_HV_Golem.png"), preference("Icon_HV_Witch.png"))).toBe(0);
   });
 });

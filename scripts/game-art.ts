@@ -11,12 +11,15 @@
 //
 //   1. Walks the kit for .png/.webp/.jpg files.
 //   2. Names each one with a key the product owns (scripts/game-art.map.ts),
-//      or leaves it unused. When several files name the same thing — a kit
-//      often ships a render and an icon — the icon wins, and between two of
-//      the same kind the larger file, being the higher-resolution source.
-//   3. Trims the transparent border, fits the picture inside a square (160px
-//      for Town Halls, 128px for the rest) WITHOUT cropping or recolouring,
-//      and writes webp to public/game/<family>/<key>.webp.
+//      or leaves it unused. When several files name the same thing, the
+//      better source wins by preference() in the map — a CWL badge, then not
+//      Clan Capital, then the icon over a render, then not "old" — and after
+//      that the larger file, being the higher-resolution source.
+//   3. Trims the transparent border, fits the picture inside a square WITHOUT
+//      cropping or recolouring, and writes webp to
+//      public/game/<family>/<key>.webp. The square is twice the largest size
+//      the product draws that family at, for a sharp screen and no more
+//      (sizeFor below): every byte here ships in the repo and to members.
 //   4. Rewrites src/data/game/art-manifest.json to list exactly what it wrote.
 //
 // THE RULES THIS KEEPS (globals.css, public/game/README.md): Fan Kit art only,
@@ -35,12 +38,31 @@ import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import unitsFile from "../src/data/game/units.json";
 import { artKeyForUnit, type ArtManifest } from "../src/lib/game-art";
-import { folderFor, isIconFile, matchArtKey, type KnownUnit } from "./game-art.map";
+import { comparePreference, folderFor, matchArtKey, preference, type KnownUnit } from "./game-art.map";
 
 const OUT_DIR = join(process.cwd(), "public", "game");
 const MANIFEST = join(process.cwd(), "src", "data", "game", "art-manifest.json");
 const IMAGE = /\.(png|webp|jpe?g)$/i;
 const LOGO = /\blogo|wordmark|font/i;
+
+/**
+ * The square each family is written at: twice the largest it is drawn.
+ * Town Halls reach 72px (TownHall "lg"), leagues 64px (LeagueArt on the CWL
+ * page), everything else 52px (a hero on base details). A family drawn larger
+ * later needs this raised, or it will look soft.
+ */
+function sizeFor(key: string): number {
+  if (key.startsWith("th-")) return 144;
+  if (key.startsWith("league-")) return 128;
+  return 104;
+}
+
+/**
+ * webp settings. Around 72 the art is indistinguishable from 82 at these
+ * sizes and a good deal smaller; `effort` 6 is the slowest, smallest encode,
+ * which costs seconds on a script run a few times a year.
+ */
+const WEBP = { quality: 72, alphaQuality: 80, effort: 6 } as const;
 
 /** The keys the product actually asks for. Reported when the kit lacks one. */
 function wantedKeys(units: readonly KnownUnit[], homeHalls: number): string[] {
@@ -80,7 +102,7 @@ async function main() {
   }));
 
   const files = await walk(kit);
-  const chosen = new Map<string, { path: string; bytes: number; icon: boolean }>();
+  const chosen = new Map<string, { path: string; bytes: number; rank: number[] }>();
   const unused: string[] = [];
 
   for (const path of files) {
@@ -95,14 +117,13 @@ async function main() {
       continue;
     }
     const { size: bytes } = await stat(path);
-    const icon = isIconFile(rel);
+    const rank = preference(rel);
     const current = chosen.get(key);
-    // The kit's square icon beats a render of the same unit, however large the
-    // render: a full-body picture on grass shrinks to a smudge at 128px.
-    // Between two of the same kind, the larger file is the better source.
-    const better =
-      !current || (icon !== current.icon ? icon : bytes > current.bytes);
-    if (better) chosen.set(key, { path, bytes, icon });
+    // The better kind of source wins however large the other file is (see
+    // preference()); between two of the same kind, the larger file.
+    const order = current ? comparePreference(rank, current.rank) : 1;
+    const better = !current || order > 0 || (order === 0 && bytes > current.bytes);
+    if (better) chosen.set(key, { path, bytes, rank });
   }
 
   const keys = [...chosen.keys()].sort();
@@ -139,14 +160,14 @@ async function main() {
   };
 
   for (const key of keys) {
-    const size = key.startsWith("th-") ? 160 : 128;
+    const size = sizeFor(key);
     const folder = folderFor(key);
     await mkdir(join(OUT_DIR, folder), { recursive: true });
     const out = join(OUT_DIR, folder, `${key}.webp`);
     await sharp(chosen.get(key)!.path)
       .trim()
       .resize(size, size, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .webp({ quality: 82 })
+      .webp(WEBP)
       .toFile(out);
     manifest.files[key] = { src: `/game/${folder}/${key}.webp`, width: size, height: size };
   }

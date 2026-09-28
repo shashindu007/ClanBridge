@@ -39,7 +39,9 @@ allows this for a free, non-commercial fan tool. The notice in
    - how many files went unused
 
 3. Run it for real by dropping `--dry-run`. This writes
-   `public/game/<family>/<key>.webp` (160px for Town Halls, 128px for the rest)
+   `public/game/<family>/<key>.webp` (144px for Town Halls, 128px for leagues,
+   104px for the rest: twice the largest each is drawn, at webp quality 72, so
+   the whole set stays around 600 KB)
    and rewrites `src/data/game/art-manifest.json`, the list the app reads.
 4. Commit the webp files and the manifest together. The build needs nothing
    else: no kit, no network, no script.
