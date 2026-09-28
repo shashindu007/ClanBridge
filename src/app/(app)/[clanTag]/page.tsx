@@ -276,8 +276,9 @@ export default async function ClanDashboardPage({
         style={{ "--hero-accent": accent.color } as React.CSSProperties}
       >
         {/* Under the clan-colour pools (-z-10 against their -1), so the
-            banner keeps its own colour over the scene. */}
-        <CardScene className="-z-10" />
+            banner keeps its own colour over the scene; clear of the bottom
+            3px, the gold trim, which is an inset shadow. */}
+        <CardScene banner className="-z-10 bottom-[3px] rounded-hero" />
         <div aria-hidden className="cb-hero-stripe" />
         <div className="flex flex-wrap items-center gap-4 p-5 sm:gap-5 sm:p-6">
           <ClanBadge src={clan.badgeUrl} name={clan.name} size="xl" tone={accent.color} priority />

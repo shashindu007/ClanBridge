@@ -412,7 +412,8 @@ export default async function RosterBuilderPage({
       )}
 
       {availabilityPoll ? (
-        <div className="cb-panel flex flex-wrap items-center justify-between gap-3 rounded-panel border px-5 py-3 text-sm">
+        <div className="cb-panel isolate flex flex-wrap items-center justify-between gap-3 rounded-panel border px-5 py-3 text-sm">
+          <CardScene banner />
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="font-medium">Availability poll</span>
             <span className="tabular-nums">{everyone.in} In</span>

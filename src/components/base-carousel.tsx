@@ -65,6 +65,7 @@ export function BaseCarousel({
     <Tile
       as="section"
       accent="var(--trim)"
+      scene="banner"
       className={cn("overflow-hidden", many && "pb-4 sm:px-14")}
     >
       <div

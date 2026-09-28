@@ -148,7 +148,7 @@ export default async function RaidsPage({
         <>
           {/* ── The weekend ────────────────────────────────────────────────── */}
           <section className="cb-panel isolate space-y-4 rounded-panel border p-5">
-            <CardScene />
+            <CardScene banner />
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-semibold">
                 Weekend of {when(season.startTime)}

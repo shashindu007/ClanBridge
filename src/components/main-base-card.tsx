@@ -47,7 +47,7 @@ export interface MainBaseView {
 /** Shown when the member has linked no village yet. */
 export function NoBaseCard() {
   return (
-    <Tile as="section" accent="var(--trim)" className="flex flex-wrap items-center gap-4">
+    <Tile as="section" accent="var(--trim)" scene="banner" className="flex flex-wrap items-center gap-4">
       <span
         className="cb-emblem size-11 shrink-0 rounded-control"
         style={{ "--emblem": "var(--primary)" } as React.CSSProperties}

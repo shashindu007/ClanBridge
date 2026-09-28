@@ -10,6 +10,7 @@ import { DayStrip, LeagueArt, SeasonNav, type SeasonTab } from "@/components/cwl
 import type { SeasonView } from "@/lib/cwl-season";
 import { seasonLabel } from "@/lib/roster-view";
 import { ordinal } from "@/lib/war-status";
+import { CardScene } from "@/components/game/scene-backdrop";
 
 export function CwlSeasonHeader({
   clanName,
@@ -50,7 +51,8 @@ export function CwlSeasonHeader({
       />
 
       {/* The season in one line: league, position, record, and the week. */}
-      <div className="cb-panel flex flex-wrap items-center gap-x-6 gap-y-3 rounded-panel border px-5 py-3">
+      <div className="cb-panel isolate flex flex-wrap items-center gap-x-6 gap-y-3 rounded-panel border px-5 py-3">
+        <CardScene banner />
         <span className="text-sm">
           <span className="text-muted-foreground">League </span>
           <span className="font-semibold">{league ?? "not recorded"}</span>

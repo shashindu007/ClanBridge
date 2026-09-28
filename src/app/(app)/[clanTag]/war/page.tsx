@@ -331,7 +331,7 @@ export default async function WarBoardPage({
       : "Battle day";
 
   const scoreboard = (
-    <Panel scene aria-label="Score" className="space-y-5">
+    <Panel scene="banner" aria-label="Score" className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <span

@@ -40,8 +40,11 @@ export function Panel({
 }: {
   as?: "section" | "div" | "article" | "aside";
   padded?: boolean;
-  /** The blurred scene behind a big panel — a list or a board, not a notice. */
-  scene?: boolean;
+  /**
+   * The blurred scene behind a big panel — a list or a board, not a notice.
+   * `"banner"` for the page's summary card (see CardScene).
+   */
+  scene?: boolean | "banner";
   className?: string;
   children: React.ReactNode;
 } & React.HTMLAttributes<HTMLElement>) {
@@ -50,7 +53,7 @@ export function Panel({
       className={cn("cb-panel rounded-panel border", scene && "isolate", padded && "p-5", className)}
       {...rest}
     >
-      {scene && <CardScene />}
+      {scene && <CardScene banner={scene === "banner"} />}
       {children}
     </Tag>
   );
@@ -73,6 +76,7 @@ export function Tile({
   ribbon,
   href,
   label,
+  scene,
   className,
   children,
 }: {
@@ -87,6 +91,8 @@ export function Tile({
   href?: string;
   /** The link's accessible name. Required with href. */
   label?: string;
+  /** The page's summary picture behind the tile (see CardScene). */
+  scene?: "banner";
   className?: string;
   children: React.ReactNode;
 }) {
@@ -94,12 +100,16 @@ export function Tile({
     <Tag
       className={cn(
         "cb-tile rounded-tile border p-4 sm:p-5",
+        scene && "isolate",
         art && "mt-7 pt-11 sm:pt-12",
         href && "cb-panel-interactive",
         className,
       )}
       style={accent ? ({ "--tile-accent": accent } as React.CSSProperties) : undefined}
     >
+      {/* Starts under the accent band, which is an inset shadow and would
+          otherwise be painted over. */}
+      {scene && <CardScene banner className={cn("rounded-tile", accent && "top-[3px]")} />}
       {href && (
         <Link
           href={href}
