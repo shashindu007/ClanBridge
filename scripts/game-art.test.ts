@@ -106,6 +106,24 @@ describe("matchArtKey", () => {
     expect(key("Icon_HV_Super_Inferno_Dragon.png")).toBe("troop-inferno-dragon");
   });
 
+  it("files hero gear only as equipment, even when it names a hero or a troop", () => {
+    expect(key("HeroGear_RoyalChampion_RocketSpear_Equipment_02.png")).toBe("equipment-rocket-spear");
+    expect(key("Hero_Equipment_RC_Hog_Rider_Doll.png")).toBe("equipment-hog-rider-puppet");
+    expect(key("HG_DD_Fire Heart.png")).toBe("equipment-fire-heart");
+  });
+
+  it("knows the kit's own names for renamed items", () => {
+    expect(key("HeroGear_BK_StickFireHorse.png")).toBe("equipment-stick-horse");
+    expect(key("HG_DD_StunBlast.png")).toBe("equipment-stun-blaster");
+    expect(key("HG_DD_Rocket_BackPack.png")).toBe("equipment-rocket-backpack");
+    expect(key("Hero_Equipment_MP_Henchman.png")).toBe("equipment-henchmen-puppet");
+    expect(key("HeroEquipment_MP_IronPants.png")).toBe("equipment-metal-pants");
+    expect(key("Hero_Equipment_AQ_WWEActionFigure.png")).toBe("equipment-action-figure");
+    expect(key("Icon_HV_Spell_Heal.png")).toBe("spell-healing-spell");
+    // Unconfirmed which item it is, so it stays unused rather than guessed.
+    expect(key("Hero_Equipment_MP_PowerPump.png")).toBeNull();
+  });
+
   it("leaves anything it cannot name unused", () => {
     expect(key("Backgrounds/Loading Screen.jpg")).toBeNull();
     expect(key("Misc/Gems.png")).toBeNull();

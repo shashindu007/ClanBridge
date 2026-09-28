@@ -41,6 +41,23 @@ export function folderFor(key: string): string {
   return folders[prefix] ?? "misc";
 }
 
+/**
+ * Where the kit calls a unit something other than the game does — a working
+ * name, a collaboration's name, a shorter word. Each entry is the kit's words
+ * (as words() reads them) for that unit, and was checked against the picture
+ * itself before it went in: a guess here would put the wrong item on a base.
+ */
+const KIT_NAMES: Record<string, string[][]> = {
+  "Action Figure": [["wweaction", "figure"]], // Hero_Equipment_AQ_WWEActionFigure
+  "Healing Spell": [["spell", "heal"]], // Icon_HV_Spell_Heal
+  "Henchmen Puppet": [["henchman"]], // Hero_Equipment_MP_Henchman
+  "Hog Rider Puppet": [["hog", "rider", "doll"]], // Hero_Equipment_RC_Hog_Rider_Doll
+  "Metal Pants": [["iron", "pants"]], // HeroEquipment_MP_IronPants
+  "Rocket Backpack": [["rocket", "back", "pack"]], // HG_DD_Rocket_BackPack
+  "Stick Horse": [["stick", "fire", "horse"]], // HeroGear_BK_StickFireHorse
+  "Stun Blaster": [["stun", "blast"]], // HG_DD_StunBlast
+};
+
 /** Words that decorate a Fan Kit filename without naming anything. */
 const NOISE = new Set([
   "icon",
@@ -201,6 +218,12 @@ export function matchArtKey(relativePath: string, units: readonly KnownUnit[]): 
   const builder =
     containsRun(w, ["builder", "base"]) || w.includes("builder") || fileWords.includes("bb");
   const inSpellsFolder = w.includes("spells") || w.includes("spell");
+  // Hero equipment: "Hero_Equipment_…", "HeroEquipment_…", "HeroGear_…",
+  // "icon_gear_…", "HG_DD_…". Such a file is only ever a piece of equipment —
+  // "HeroGear_RoyalChampion_RocketSpear" names its hero as well as itself, and
+  // "Hero_Equipment_RC_Hog_Rider_Doll" names a troop.
+  const gear =
+    fileWords.includes("equipment") || fileWords.includes("gear") || fileWords[0] === "hg";
   let best: { unit: KnownUnit; length: number } | null = null;
   for (const unit of units) {
     // A file that says "super" is a super troop's. "Icon_CC_Troop_Super_P.E.K.K.A"
@@ -208,13 +231,16 @@ export function matchArtKey(relativePath: string, units: readonly KnownUnit[]): 
     // as the P.E.K.K.A. Ice Hound, Inferno Dragon and Rocket Balloon are super
     // troops without the word in their name, so the test is the group.
     if (fileWords.includes("super") && unit.group !== "superTroop") continue;
+    if (gear && unit.group !== "equipment") continue;
     const full = artSlug(unit.name).split("-");
     // "Lightning Spell" is often filed as just "Lightning" inside a Spells
     // folder — but only there: a lone "Skeleton" elsewhere is not a spell.
-    const needles =
-      full.length > 1 && full[full.length - 1] === "spell" && inSpellsFolder
+    const needles = [
+      ...(full.length > 1 && full[full.length - 1] === "spell" && inSpellsFolder
         ? [full, full.slice(0, -1)]
-        : [full];
+        : [full]),
+      ...(KIT_NAMES[unit.name] ?? []),
+    ];
     const needle = needles.find((n) => containsRun(w, n));
     if (!needle) continue;
     const onRightSide = unit.village === "home" ? !builder : builder;

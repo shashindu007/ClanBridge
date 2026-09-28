@@ -54,6 +54,11 @@
       "width": 104,
       "height": 104
     },
+    "equipment-action-figure": {
+      "src": "/game/equipment/equipment-action-figure.webp",
+      "width": 104,
+      "height": 104
+    },
     "equipment-archer-puppet": {
       "src": "/game/equipment/equipment-archer-puppet.webp",
       "width": 104,
@@ -144,6 +149,16 @@
       "width": 104,
       "height": 104
     },
+    "equipment-henchmen-puppet": {
+      "src": "/game/equipment/equipment-henchmen-puppet.webp",
+      "width": 104,
+      "height": 104
+    },
+    "equipment-hog-rider-puppet": {
+      "src": "/game/equipment/equipment-hog-rider-puppet.webp",
+      "width": 104,
+      "height": 104
+    },
     "equipment-invisibility-vial": {
       "src": "/game/equipment/equipment-invisibility-vial.webp",
       "width": 104,
@@ -164,6 +179,11 @@
       "width": 104,
       "height": 104
     },
+    "equipment-metal-pants": {
+      "src": "/game/equipment/equipment-metal-pants.webp",
+      "width": 104,
+      "height": 104
+    },
     "equipment-monolith-arrow": {
       "src": "/game/equipment/equipment-monolith-arrow.webp",
       "width": 104,
@@ -179,6 +199,16 @@
       "width": 104,
       "height": 104
     },
+    "equipment-rocket-backpack": {
+      "src": "/game/equipment/equipment-rocket-backpack.webp",
+      "width": 104,
+      "height": 104
+    },
+    "equipment-rocket-spear": {
+      "src": "/game/equipment/equipment-rocket-spear.webp",
+      "width": 104,
+      "height": 104
+    },
     "equipment-royal-gem": {
       "src": "/game/equipment/equipment-royal-gem.webp",
       "width": 104,
@@ -191,6 +221,16 @@
     },
     "equipment-snake-bracelet": {
       "src": "/game/equipment/equipment-snake-bracelet.webp",
+      "width": 104,
+      "height": 104
+    },
+    "equipment-stick-horse": {
+      "src": "/game/equipment/equipment-stick-horse.webp",
+      "width": 104,
+      "height": 104
+    },
+    "equipment-stun-blaster": {
+      "src": "/game/equipment/equipment-stun-blaster.webp",
       "width": 104,
       "height": 104
     },
@@ -471,6 +511,11 @@
     },
     "spell-haste-spell": {
       "src": "/game/spells/spell-haste-spell.webp",
+      "width": 104,
+      "height": 104
+    },
+    "spell-healing-spell": {
+      "src": "/game/spells/spell-healing-spell.webp",
       "width": 104,
       "height": 104
     },
