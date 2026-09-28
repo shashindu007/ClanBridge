@@ -32,7 +32,7 @@ export const SCENES = {
   /** The Skeleton Kingdom: Archer Queen against the skeleton army. */
   skeleton: { src: "/scenes/skeleton-kingdom.webp", width: 1920, height: 1105 },
   /** Barbarians, a goblin and the heroes charging under a full moon. */
-  halloween: { src: "/scenes/halloween-charge.webp", width: 1600, height: 742 },
+  halloween: { src: "/scenes/halloween-charge.webp", width: 1200, height: 557 },
 } as const;
 
 export type SceneName = keyof typeof SCENES;
