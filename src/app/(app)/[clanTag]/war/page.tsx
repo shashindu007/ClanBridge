@@ -331,7 +331,7 @@ export default async function WarBoardPage({
       : "Battle day";
 
   const scoreboard = (
-    <Panel aria-label="Score" className="space-y-5">
+    <Panel scene aria-label="Score" className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <span
@@ -760,7 +760,7 @@ export default async function WarBoardPage({
       </Disclosure>
 
       {/* ── T6.3 — the other side, as a board of bases ───────────────────── */}
-      <Panel className="space-y-4" aria-labelledby="bases-title">
+      <Panel scene className="space-y-4" aria-labelledby="bases-title">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <SectionHeader
             id="bases-title"

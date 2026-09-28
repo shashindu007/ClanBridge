@@ -709,6 +709,13 @@
     transform: scale(1.12);
   }
 
+  /* Inside a card: further than the page behind, because a card is smaller
+     than the screen and the same blur would show more of the picture. */
+  .cb-scene[data-blur="xl"] .cb-scene-img {
+    filter: blur(18px) saturate(1.1);
+    transform: scale(1.15);
+  }
+
   .cb-scene::after {
     content: "";
     position: absolute;
@@ -766,6 +773,17 @@
 
   .dark .cb-scene[data-fade="page"]::after {
     opacity: 0.45;
+  }
+
+  /* A card's veil is the card's own colour, so the panel still reads as the
+     same surface and every text colour on it keeps its measured contrast. */
+  .cb-scene[data-fade="card"]::after {
+    background: var(--card);
+    opacity: 0.84;
+  }
+
+  .dark .cb-scene[data-fade="card"]::after {
+    opacity: 0.8;
   }
 
   .dark .cb-scene[data-fade="left"]::after {

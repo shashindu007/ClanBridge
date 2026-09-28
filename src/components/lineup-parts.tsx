@@ -31,6 +31,7 @@ export type LineupStatusValue = "draft" | "published";
 
 // One Town Hall shape for the whole product; it lives with the other game art.
 import { TownHall } from "@/components/game/town-hall";
+import { CardScene } from "@/components/game/scene-backdrop";
 export { TownHall };
 
 /** A poll answer, with an icon so it never depends on colour alone. */
@@ -204,7 +205,8 @@ export function LineupPanel({
   const empty = members.length === 0;
 
   return (
-    <section aria-label={`${title} lineup`} className="cb-panel space-y-4 rounded-panel border p-5">
+    <section aria-label={`${title} lineup`} className="cb-panel isolate space-y-4 rounded-panel border p-5">
+      <CardScene />
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">{title}</h2>

@@ -44,6 +44,7 @@ import {
   needsAttention,
   QUIET_DAYS,
 } from "@/services/members";
+import { CardScene } from "@/components/game/scene-backdrop";
 
 export const dynamic = "force-dynamic";
 
@@ -407,7 +408,8 @@ export default async function MemberDirectoryPage({
           />
         </Panel>
       ) : (
-        <section className="cb-panel rounded-panel border">
+        <section className="cb-panel isolate rounded-panel border">
+          <CardScene />
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>

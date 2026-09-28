@@ -79,6 +79,7 @@ import {
   type Lineup,
 } from "@/repositories/war";
 import { openWarAvailabilityPoll } from "@/services/polls";
+import { CardScene } from "@/components/game/scene-backdrop";
 
 export const dynamic = "force-dynamic";
 
@@ -224,7 +225,8 @@ export default async function WarLineupPage({
         )}
 
         {!published ? (
-          <section className="cb-panel space-y-2 rounded-panel border p-5">
+          <section className="cb-panel isolate space-y-2 rounded-panel border p-5">
+            <CardScene />
             <h2 className="text-lg font-semibold">No lineup published yet</h2>
             {/* Honest about WHY it is empty: a leader mid-decision has a draft this
                 page genuinely cannot see. */}
@@ -471,7 +473,8 @@ export default async function WarLineupPage({
             </LineupPanel>
           </aside>
 
-          <section className="cb-panel min-w-0 space-y-4 rounded-panel border p-5">
+          <section className="cb-panel isolate min-w-0 space-y-4 rounded-panel border p-5">
+            <CardScene />
             <div className="space-y-1">
               <h2 className="text-lg font-semibold">Add players</h2>
               <p className="text-muted-foreground text-sm">

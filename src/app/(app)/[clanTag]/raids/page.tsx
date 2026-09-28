@@ -51,6 +51,7 @@ import {
 } from "@/services/raids";
 import { PageHeader } from "@/components/page-header";
 import { Disclosure, EmptyState, FactRow, Panel } from "@/components/kit";
+import { CardScene } from "@/components/game/scene-backdrop";
 
 export const dynamic = "force-dynamic";
 
@@ -146,7 +147,8 @@ export default async function RaidsPage({
       ) : (
         <>
           {/* ── The weekend ────────────────────────────────────────────────── */}
-          <section className="cb-panel space-y-4 rounded-panel border p-5">
+          <section className="cb-panel isolate space-y-4 rounded-panel border p-5">
+            <CardScene />
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-semibold">
                 Weekend of {when(season.startTime)}
@@ -184,7 +186,8 @@ export default async function RaidsPage({
 
           {/* ── The chase list, first ──────────────────────────────────────── */}
           {outstanding.length > 0 && (
-            <section className="cb-panel space-y-3 rounded-panel border p-5">
+            <section className="cb-panel isolate space-y-3 rounded-panel border p-5">
+              <CardScene />
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="flex items-center gap-2 font-medium">
                   <Target aria-hidden className="text-muted-foreground size-4" />
@@ -282,7 +285,8 @@ export default async function RaidsPage({
 
       {/* ── History ────────────────────────────────────────────────────────── */}
       {seasons.length > 0 && (
-        <section className="cb-panel space-y-4 rounded-panel border p-5">
+        <section className="cb-panel isolate space-y-4 rounded-panel border p-5">
+          <CardScene />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="flex items-center gap-2 font-medium">
               <Trophy aria-hidden className="text-muted-foreground size-4" />

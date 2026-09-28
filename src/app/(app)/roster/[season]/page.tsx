@@ -106,6 +106,7 @@ import {
   unpublishRoster,
   type RosterMember,
 } from "@/repositories/rosters";
+import { CardScene } from "@/components/game/scene-backdrop";
 
 export const dynamic = "force-dynamic";
 
@@ -469,7 +470,8 @@ export default async function RosterBuilderPage({
       )}
 
       {/* ── The lineup being built, full width ──────────────────────────── */}
-      <section aria-label={`${selectedClan.name} lineup`} className="cb-panel space-y-5 rounded-panel border p-5">
+      <section aria-label={`${selectedClan.name} lineup`} className="cb-panel isolate space-y-5 rounded-panel border p-5">
+        <CardScene />
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-1">
             <h2 className="flex flex-wrap items-center gap-2 text-xl font-semibold">

@@ -26,23 +26,31 @@
 import Link from "next/link";
 import { ChevronDown, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CardScene } from "@/components/game/scene-backdrop";
 import { cn } from "@/lib/utils";
 
 /** A section. Always the same radius, the same frame, the same padding. */
 export function Panel({
   as: Tag = "section",
   padded = true,
+  scene = false,
   className = "",
   children,
   ...rest
 }: {
   as?: "section" | "div" | "article" | "aside";
   padded?: boolean;
+  /** The blurred scene behind a big panel — a list or a board, not a notice. */
+  scene?: boolean;
   className?: string;
   children: React.ReactNode;
 } & React.HTMLAttributes<HTMLElement>) {
   return (
-    <Tag className={cn("cb-panel rounded-panel border", padded && "p-5", className)} {...rest}>
+    <Tag
+      className={cn("cb-panel rounded-panel border", scene && "isolate", padded && "p-5", className)}
+      {...rest}
+    >
+      {scene && <CardScene />}
       {children}
     </Tag>
   );
@@ -228,8 +236,11 @@ export function Disclosure({
   children: React.ReactNode;
 }) {
   return (
-    <details open={defaultOpen} className={cn("group cb-panel rounded-panel border", className)}>
+    <details open={defaultOpen} className={cn("group cb-panel isolate rounded-panel border", className)}>
       <summary className="hover:bg-accent/40 flex cursor-pointer list-none items-center gap-3 rounded-panel p-5 transition-colors group-open:rounded-b-none [&::-webkit-details-marker]:hidden">
+        {/* A folding section is always a long one, so it always has the scene.
+            In the summary so it stays when folded — see CardScene. */}
+        <CardScene />
         <h2 className="flex min-w-0 flex-1 items-center gap-2 text-lg font-semibold">
           {Icon && <Icon aria-hidden className="text-muted-foreground size-4.5 shrink-0" />}
           <span className="truncate">{title}</span>

@@ -55,6 +55,7 @@ import { createClient } from "@/lib/supabase/server";
 import { seasonByName } from "@/repositories/cwl";
 import { latestRun } from "@/repositories/sync-log";
 import { warRecord } from "@/services/cwl";
+import { CardScene } from "@/components/game/scene-backdrop";
 
 export const dynamic = "force-dynamic";
 
@@ -187,7 +188,8 @@ export default async function CwlDayDetailPage({
           )}
 
           {selected && selected.state !== "inWar" && (
-            <section className="cb-panel space-y-4 rounded-panel border p-5">
+            <section className="cb-panel isolate space-y-4 rounded-panel border p-5">
+              <CardScene />
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-lg font-semibold">
                   Day {selected.dayNumber ?? "?"}{" "}
@@ -245,7 +247,8 @@ export default async function CwlDayDetailPage({
           )}
 
           <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-            <section className="cb-panel space-y-4 rounded-panel border p-5">
+            <section className="cb-panel isolate space-y-4 rounded-panel border p-5">
+              <CardScene />
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="flex items-center gap-2 text-lg font-semibold">
                   <UserX aria-hidden className="text-muted-foreground size-4.5" />
@@ -287,7 +290,8 @@ export default async function CwlDayDetailPage({
               )}
             </section>
 
-            <section className="cb-panel space-y-3 rounded-panel border p-5" aria-labelledby="top-title">
+            <section className="cb-panel isolate space-y-3 rounded-panel border p-5" aria-labelledby="top-title">
+              <CardScene />
               <SectionHeader id="top-title" icon={Trophy} title="Top performers" />
               {top.length === 0 ? (
                 <p className="text-muted-foreground text-sm">Nobody has attacked yet this season.</p>

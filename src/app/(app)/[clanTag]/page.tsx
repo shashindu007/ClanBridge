@@ -78,6 +78,7 @@ import { timeUntil } from "@/services/home";
 import { openWarAvailabilityPoll } from "@/services/polls";
 import { outstandingAttacks, warRecord } from "@/services/war";
 import { DISPLAY_ZONE } from "@/lib/display-time";
+import { CardScene } from "@/components/game/scene-backdrop";
 
 export const dynamic = "force-dynamic";
 
@@ -274,6 +275,9 @@ export default async function ClanDashboardPage({
         className="cb-hero overflow-hidden rounded-hero border"
         style={{ "--hero-accent": accent.color } as React.CSSProperties}
       >
+        {/* Under the clan-colour pools (-z-10 against their -1), so the
+            banner keeps its own colour over the scene. */}
+        <CardScene className="-z-10" />
         <div aria-hidden className="cb-hero-stripe" />
         <div className="flex flex-wrap items-center gap-4 p-5 sm:gap-5 sm:p-6">
           <ClanBadge src={clan.badgeUrl} name={clan.name} size="xl" tone={accent.color} priority />

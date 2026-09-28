@@ -46,6 +46,7 @@ import { latestRun } from "@/repositories/sync-log";
 import { freshness } from "@/services/freshness";
 import { gamesTotals, isSettled, leaderboard } from "@/services/clan-games";
 import { DISPLAY_ZONE } from "@/lib/display-time";
+import { CardScene } from "@/components/game/scene-backdrop";
 
 export const dynamic = "force-dynamic";
 
@@ -183,7 +184,8 @@ export default async function ClanGamesPage({
       ) : (
         <>
           {/* ── The month ──────────────────────────────────────────────────── */}
-          <section className="cb-panel space-y-4 rounded-panel border p-5">
+          <section className="cb-panel isolate space-y-4 rounded-panel border p-5">
+            <CardScene />
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-semibold">{monthName(games.season)}</h2>
               {settledBadge(games)}
@@ -222,7 +224,8 @@ export default async function ClanGamesPage({
           </section>
 
           {/* ── The leaderboard ────────────────────────────────────────────── */}
-          <section className="cb-panel space-y-4 rounded-panel border p-5">
+          <section className="cb-panel isolate space-y-4 rounded-panel border p-5">
+            <CardScene />
             <h2 className="text-lg font-semibold">Scores</h2>
 
             {ranked.length === 0 ? (
@@ -270,7 +273,8 @@ export default async function ClanGamesPage({
 
           {/* ── Separately, and deliberately not in the ranking ─────────────── */}
           {unmeasured.length > 0 && (
-            <section className="cb-panel space-y-3 rounded-panel border p-5">
+            <section className="cb-panel isolate space-y-3 rounded-panel border p-5">
+              <CardScene />
               <h2 className="flex items-center gap-2 font-medium">
                 <HelpCircle aria-hidden className="text-muted-foreground size-4" />
                 Not measured this month
@@ -299,7 +303,8 @@ export default async function ClanGamesPage({
 
       {/* ── History ────────────────────────────────────────────────────────── */}
       {months.length > 1 && (
-        <section className="cb-panel space-y-3 rounded-panel border p-5">
+        <section className="cb-panel isolate space-y-3 rounded-panel border p-5">
+          <CardScene />
           <h2 className="text-lg font-semibold">Past months</h2>
           <ul className="divide-y">
             {months.map((m) => (
