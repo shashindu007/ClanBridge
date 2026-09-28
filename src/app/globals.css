@@ -741,11 +741,18 @@
     opacity: 0.62;
   }
 
-  /* The whole page behind Home: an even veil, then a fall into the page
+  /* The whole page behind every signed-in page: an even veil, then a fall into the page
      colour toward the bottom, so the picture reads at the top and the long
      lists further down sit on something calm. */
   .cb-scene[data-fade="page"]::after {
     opacity: 0.5;
+  }
+
+  /* A little less blur than behind a form: the veil and the fall below
+     already quiet it, so the scene can stay recognisable. */
+  .cb-scene[data-fade="page"] .cb-scene-img {
+    filter: blur(9px) saturate(1.2);
+    transform: scale(1.08);
   }
 
   .cb-scene[data-fade="page"]::before {

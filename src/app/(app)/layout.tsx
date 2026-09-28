@@ -27,6 +27,7 @@ import { visibleClans } from "@/lib/clans";
 import { isLeader, isLeadership } from "@/lib/visibility";
 import { isGateExempt, isSetupExempt } from "@/lib/gate";
 import { AccountMenu } from "@/components/account-menu";
+import { SceneBackdrop } from "@/components/game/scene-backdrop";
 import { Toaster } from "@/components/toaster";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -150,6 +151,10 @@ export default async function AppLayout({
     // bottom), so a second min-h-screen here would guarantee a scrollbar on
     // every page: a full viewport of shell, plus the footer underneath it.
     <div>
+      {/* The game behind every page, blurred and dimmed into the theme. The
+          panels on top are opaque, so nothing loses contrast. */}
+      <SceneBackdrop scene="crystal" blur="lg" fade="page" fixed />
+
       {/* The rail. A night-blue beam with a gold seam, the same in both
           themes — the chrome is the brand, and the page is what lies under it.
 

@@ -1,11 +1,10 @@
 // A Clash scene behind a surface: blurred, dimmed into the theme, and never
 // in the way of the words on top of it.
 //
-// WHERE IT GOES: the three places that are "arriving" rather than "working" —
-// the landing page's hero, the sign-in screen, and the whole of Home, behind
-// its opaque panels.
-// A war board or a table is read closely, and a picture behind it would cost
-// legibility for nothing, so it is not used there.
+// WHERE IT GOES: the landing page's hero, the sign-in screen, and behind every
+// signed-in page (app/(app)/layout.tsx). Inside the app it sits under opaque
+// panels and a heavy veil, so a war board or a table stays as legible as on
+// the plain theme.
 //
 // THE FILES ARE UNTOUCHED. public/scenes/ holds the Fan Kit pictures resized
 // and re-encoded, and nothing else (public/game/README.md). The blur and the
@@ -40,7 +39,7 @@ export function SceneBackdrop({
   blur?: "sm" | "md" | "lg";
   /**
    * Where the words sit, so the scrim is heaviest there. `page` is the whole
-   * screen behind Home: clearest at the top, fading into the theme below,
+   * screen behind the signed-in app: clearest at the top, fading into the theme below,
    * where the dense panels are.
    */
   fade?: "left" | "even" | "page";

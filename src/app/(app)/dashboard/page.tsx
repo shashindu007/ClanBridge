@@ -100,7 +100,6 @@ import { ClanStatusTile } from "@/components/clan-status-tile";
 import { NoBaseCard, type MainBaseView } from "@/components/main-base-card";
 import { BaseCarousel } from "@/components/base-carousel";
 import { AnnouncementFeed } from "@/components/announcement-feed";
-import { SceneBackdrop } from "@/components/game/scene-backdrop";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
@@ -424,10 +423,6 @@ export default async function DashboardPage({
 
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
-      {/* The game behind the whole of Home, blurred and dimmed into the
-          theme: every panel on top is opaque, so nothing loses contrast. */}
-      <SceneBackdrop scene="crystal" blur="lg" fade="page" fixed />
-
       <PageHeader title={`Welcome back, ${name}`} description={summary} />
 
       {/* ── Your bases: the main one first, then every other in turn ─── */}
