@@ -10,7 +10,7 @@
 // (CardScene below): blurred further than the page behind, and veiled in the
 // card's own colour, so a members list or a war board reads as clearly as it
 // did on a plain card. Each page's summary card — the clan banner, the base
-// card on Home, the war score — carries the Halloween charge instead, a little
+// card on Home, the war score — carries the siege in flames instead, a little
 // less blurred, so the card that says what the page is about stands apart
 // from the lists under it.
 //
@@ -31,8 +31,8 @@ export const SCENES = {
   crystal: { src: "/scenes/crystal-cave.webp", width: 1370, height: 630 },
   /** The Skeleton Kingdom: Archer Queen against the skeleton army. */
   skeleton: { src: "/scenes/skeleton-kingdom.webp", width: 1920, height: 1105 },
-  /** Barbarians, a goblin and the heroes charging under a full moon. */
-  halloween: { src: "/scenes/halloween-charge.webp", width: 1200, height: 557 },
+  /** Siege machines and a wrecking ball breaking a wall, in a sea of fire. */
+  siege: { src: "/scenes/siege-fire.webp", width: 1094, height: 629 },
 } as const;
 
 export type SceneName = keyof typeof SCENES;
@@ -96,7 +96,7 @@ export function SceneBackdrop({
  */
 export function CardScene({ banner = false, className }: { banner?: boolean; className?: string }) {
   return banner ? (
-    <SceneBackdrop scene="halloween" blur="lg" fade="card" className={className} />
+    <SceneBackdrop scene="siege" blur="lg" fade="card" className={className} />
   ) : (
     <SceneBackdrop scene="skeleton" blur="xl" fade="card" className={className} />
   );

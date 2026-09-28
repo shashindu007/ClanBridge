@@ -62,5 +62,6 @@ The blur and the dimming are CSS, applied when the page is drawn.
 
 - `skeleton-kingdom.webp` — the kit's `SkeletonKingdom_withCharacters.jpg`
 - `crystal-cave.webp` — a Fan Kit key-art scene (crystal cavern)
-- `halloween-charge.webp` — Halloween key art (barbarians charging under a full
-  moon), resized to 1200px wide; behind each page's summary card
+- `siege-fire.webp` — key art of siege machines and a wrecking ball breaking a
+  wall in a sea of fire, trimmed of the frame it came with; behind each page's
+  summary card
