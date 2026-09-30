@@ -43,13 +43,13 @@ function point(over: Partial<SnapshotPoint> & { playerId: string }): SnapshotPoi
   };
 }
 
-/** One clan, with latest readings and no history unless given. */
+/** One clan, with latest readings and no last activity unless given. */
 function clan(
   id: string,
   name: string,
   members: MemberRow[],
   latest: SnapshotPoint[] = [],
-  history: Array<[string, SnapshotPoint[]]> = [],
+  lastActivity: Array<[string, string | null]> = [],
 ): ClanInput {
   return {
     clanId: id,
@@ -57,7 +57,7 @@ function clan(
     clanName: name,
     members,
     latest: new Map(latest.map((p) => [p.playerId, p])),
-    history: new Map(history),
+    lastActivity: new Map(lastActivity),
   };
 }
 
@@ -132,9 +132,8 @@ describe("participation — every member of every clan in one list", () => {
     expect(rows[0]!.flags).toEqual([]);
   });
 
-  it("uses the history it is given, so last-activity flags can fire at all", () => {
-    const older = new Date(NOW.getTime() - 41 * 86_400_000).toISOString();
-    const old = new Date(NOW.getTime() - 40 * 86_400_000).toISOString();
+  it("uses the last activity it is given, so last-activity flags can fire at all", () => {
+    const old = new Date(NOW.getTime() - 20 * 86_400_000).toISOString();
 
     const rows = participation(
       [
@@ -142,19 +141,10 @@ describe("participation — every member of every clan in one list", () => {
           "a",
           "Clan A",
           [member({ playerId: "p1", name: "Quiet" })],
-          [point({ playerId: "p1", capturedAt: old, donations: 1000 })],
-          // lastActivityAt is the newest reading where a counter ROSE, not the
-          // newest reading. Two identical points mean nothing moved and it stays
-          // null — which is why this pair has to show a rise, 40 days ago.
-          [
-            [
-              "p1",
-              [
-                point({ playerId: "p1", capturedAt: older, donations: 900 }),
-                point({ playerId: "p1", capturedAt: old, donations: 1000 }),
-              ],
-            ],
-          ],
+          [point({ playerId: "p1", capturedAt: NOW.toISOString(), donations: 1000 })],
+          // From 055's last_activity(): the newest reading where a counter ROSE,
+          // which test/last-activity.test.ts pins against real Postgres.
+          [["p1", old]],
         ),
       ],
       NOW,

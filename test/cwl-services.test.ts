@@ -209,6 +209,18 @@ describe("freshness — T4.8", () => {
       expect(STALE_AFTER_MS[jobType]!).toBeGreaterThan(intervalMinutes * 60 * 1000);
     });
 
+    it("calls CWL stale only on the league days it runs", () => {
+      const lastRun = "2026-10-14T22:30:00Z";
+      // The 20th: no runs are scheduled, so a week-old run is not stale.
+      expect(freshness(run({ jobType: "cwl", finishedAt: lastRun }), new Date("2026-10-20T12:00:00Z")).level).toBe("fresh");
+      // The first hours of the 1st: the last run was on the 14th, as expected.
+      expect(freshness(run({ jobType: "cwl", finishedAt: lastRun }), new Date("2026-11-01T02:00:00Z")).level).toBe("fresh");
+      // League week, and nothing for four hours: that is a missed CWL day.
+      expect(
+        freshness(run({ jobType: "cwl", finishedAt: "2026-11-05T08:30:00Z" }), new Date("2026-11-05T12:40:00Z")).level,
+      ).toBe("stale");
+    });
+
     it("does not call raids stale between Monday and Friday", () => {
       const monday = "2026-09-28T08:45:00Z";
       const friday = new Date("2026-10-02T09:30:00Z");

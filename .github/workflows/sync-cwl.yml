@@ -16,8 +16,9 @@
 #
 # R6 — none of these may ever be set as a Vercel environment variable.
 #
-# R10 — no CWL group is a clean exit. This job reports "skipped" for three weeks
-# of every month by design, and that is a success, not something to investigate.
+# R10 — no CWL group is a clean exit. A run on day 1 before sign-up opens, or a
+# manual run mid-month, reports "skipped"; that is a success, not something to
+# investigate.
 
 name: sync-cwl
 
@@ -30,7 +31,14 @@ on:
     # twenty minutes under load, and skips them entirely if the repository has
     # been inactive for 60 days. Two-hourly gives a CWL day roughly twelve
     # chances to be captured, so several missed ticks still lose nothing.
-    - cron: "23 */2 * * *"
+    #
+    # DAYS 1-14 ONLY. A league opens for sign-up on the 1st and its seventh war
+    # day ends around the 10th or 11th; outside that every run skipped with "no
+    # CWL group". Fourteen, not eleven, because this is the one workflow whose
+    # missed run is a season gone for good — three days of margin for a late
+    # start cost a few skipped runs. services/freshness.ts knows this window, so
+    # the watchdog does not call the rest of the month "stale".
+    - cron: "23 */2 1-14 * *"
   workflow_dispatch: # not optional — you will need manual runs during CWL week
 
 # A slow run must never overlap the next tick. Overlap is survivable (every write
@@ -54,8 +62,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          # Minute budget: private repo, 2,000 minutes/month. Two-hourly is ~360
-          # runs/month, comfortably inside the allowance alongside sync-clans.
+          # Two-hourly on days 1-14 is ~168 runs a month. The repository is
+          # public, so Actions minutes are not the constraint they were.
           cache: npm
 
       - run: npm ci

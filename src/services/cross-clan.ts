@@ -15,7 +15,7 @@
 // what it means, which is what src/services/ is for.
 
 import type { MemberRow, SnapshotPoint } from "@/repositories/members";
-import { memberActivity, needsAttention, type MemberActivity } from "@/services/members";
+import { memberActivityAt, needsAttention, type MemberActivity } from "@/services/members";
 
 export interface ClanInput {
   clanId: string;
@@ -24,14 +24,14 @@ export interface ClanInput {
   members: MemberRow[];
   latest: Map<string, SnapshotPoint>;
   /**
-   * playerId -> that player's recent snapshots, ascending.
+   * playerId -> when they last did anything, or null.
    *
-   * From recentSnapshots(), which reads the whole clan's window in ONE query.
+   * From lastActivity() (055), one query per clan over weeks of readings.
    * Without it `lastActivityAt` is null for everybody and the only flag that can
    * ever fire is the donation ratio — which would make a "needs attention"
    * column that silently under-reports rather than one that is simply absent.
    */
-  history: Map<string, SnapshotPoint[]>;
+  lastActivity: Map<string, string | null>;
 }
 
 export interface ParticipationRow {
@@ -89,10 +89,10 @@ export function participation(
       clanTag: clan.clanTag,
       clanName: clan.clanName,
       thLevel: member.thLevel,
-      activity: memberActivity(
+      activity: memberActivityAt(
         member.playerId,
         clan.latest.get(member.playerId),
-        clan.history.get(member.playerId) ?? [],
+        clan.lastActivity.get(member.playerId) ?? null,
       ),
       flags: [] as string[],
     })),

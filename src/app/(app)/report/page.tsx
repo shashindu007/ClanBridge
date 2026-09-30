@@ -41,11 +41,7 @@ import { currentUserId } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
 import { canSeeMemberStats } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
-import {
-  latestSnapshots,
-  membersForClan,
-  recentSnapshots,
-} from "@/repositories/members";
+import { lastActivity, latestSnapshots, membersForClan } from "@/repositories/members";
 import { clanSummaries, participation, type ClanInput } from "@/services/cross-clan";
 import {
   SEGMENT_WINDOW_DAYS,
@@ -117,9 +113,9 @@ export default async function CrossClanReportPage({
   const [inputs, segments] = await Promise.all([
     Promise.all(clans.map(async (clan): Promise<ClanInput> => {
       const members = await membersForClan(supabase, clan.id);
-      const [latest, recent] = await Promise.all([
+      const [latest, activity] = await Promise.all([
         latestSnapshots(supabase, clan.id, members.length),
-        recentSnapshots(supabase, clan.id),
+        lastActivity(supabase, clan.id),
       ]);
       return {
         clanId: clan.id,
@@ -127,7 +123,7 @@ export default async function CrossClanReportPage({
         clanName: clan.name,
         members,
         latest,
-        history: recent.byPlayer,
+        lastActivity: activity.byPlayer,
       };
     })),
     donationSegments(supabase, clanIds, new Date(now - SEGMENT_WINDOW_DAYS * DAY)),

@@ -36,11 +36,11 @@ import {
 import { canSeeAttention, isLeader, tierOf } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import { familyCwlHistory } from "@/repositories/cwl";
-import { latestSnapshots, membersForClan, recentSnapshots } from "@/repositories/members";
+import { lastActivity, latestSnapshots, membersForClan } from "@/repositories/members";
 import { latestRun } from "@/repositories/sync-log";
 import {
   LOW_RATIO_THRESHOLD,
-  memberActivity,
+  memberActivityAt,
   needsAttention,
   QUIET_DAYS,
 } from "@/services/members";
@@ -93,12 +93,12 @@ export default async function MemberDirectoryPage({
   // spread over three.
   //
   // Layer one — everything keyed by the clan alone. Only membersForClan() was
-  // here before; recentSnapshots() and latestRun() were queued behind it despite
+  // here before; the activity read and latestRun() were queued behind it despite
   // needing nothing from it. A waterfall made of independent work, which is the
   // shape T10.9 removed from the layout and left behind on the pages.
   const [members, recent, clansRun] = await Promise.all([
     membersForClan(supabase, clan.id, { includeDeparted }),
-    recentSnapshots(supabase, clan.id),
+    lastActivity(supabase, clan.id),
     latestRun(supabase, "clans", clan.id),
   ]);
 
@@ -128,10 +128,10 @@ export default async function MemberDirectoryPage({
   const now = new Date();
   const rows = members.map((member) => ({
     member,
-    activity: memberActivity(
+    activity: memberActivityAt(
       member.playerId,
       latest.get(member.playerId),
-      recent.byPlayer.get(member.playerId) ?? [],
+      recent.byPlayer.get(member.playerId) ?? null,
     ),
   }));
 
@@ -470,8 +470,8 @@ export default async function MemberDirectoryPage({
               here. Read it as &ldquo;at least this long ago&rdquo;, never as &ldquo;exactly
               then&rdquo;.{" "}
               {coveredDays > 0
-                ? `Only the last ${coveredDays} days are kept, so anything older shows as "more than ${coveredDays} days".`
-                : "Only recent days are kept, so older activity shows as a rough bound."}
+                ? `Only the last ${coveredDays} days are checked, so anything older shows as "more than ${coveredDays} days".`
+                : "Only recent days are checked, so older activity shows as a rough bound."}
             </p>
           </div>
           <div className="space-y-1">

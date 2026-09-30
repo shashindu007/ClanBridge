@@ -210,6 +210,20 @@ export function memberActivity(
   };
 }
 
+/**
+ * memberActivity(), with last activity already known — from 055's
+ * last_activity(), which applies lastActivityAt()'s rule over weeks of readings
+ * in the database. The directory and Participation use this; the profile still
+ * derives it from the full history it reads anyway.
+ */
+export function memberActivityAt(
+  playerId: string,
+  latest: SnapshotPoint | undefined,
+  lastSeen: string | null,
+): MemberActivity {
+  return { ...memberActivity(playerId, latest), lastActivityAt: lastSeen };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // T3B.5 — inactivity.
 //

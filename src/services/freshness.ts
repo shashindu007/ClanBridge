@@ -13,8 +13,9 @@ import { clanGamesWindow } from "@/lib/coc-time";
 
 /** How long each job may go between successful runs before its data is suspect. */
 export const STALE_AFTER_MS: Record<string, number> = {
-  // Runs every 2 hours. Three hours allows a missed tick plus GitHub's habit of
-  // delaying scheduled runs by up to twenty minutes.
+  // Every 2 hours on days 1-14 only (sync-cwl.yml). Three hours allows a missed
+  // tick plus GitHub's habit of delaying scheduled runs by up to twenty minutes.
+  // isStale() applies it only inside that window.
   cwl: 3 * 60 * 60 * 1000,
   // Every 30 minutes since 054; two hours is four missed runs, not one.
   clans: 2 * 60 * 60 * 1000,
@@ -77,8 +78,25 @@ function clanGamesRunMissed(finishedAt: Date, now: Date): boolean {
  */
 export function isStale(jobType: string, finishedAt: Date, now: Date): boolean {
   const limit = STALE_AFTER_MS[jobType] ?? DEFAULT_STALE_AFTER_MS;
-  if (now.getTime() - finishedAt.getTime() > limit) return true;
+  const late = now.getTime() - finishedAt.getTime() > limit;
+  if (jobType === "cwl") return late && inCwlWindow(now);
+  if (late) return true;
   return jobType === "clan-games" && clanGamesRunMissed(finishedAt, now);
+}
+
+/** The last day of the month sync-cwl.yml runs on. */
+const CWL_LAST_DAY = 14;
+
+/**
+ * Is a CWL run expected right now? Days 1-14, but not in the first hours of the
+ * 1st, when the last run was naturally on the 14th of the month before.
+ */
+function inCwlWindow(now: Date): boolean {
+  const monthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+  return (
+    now.getUTCDate() <= CWL_LAST_DAY &&
+    now.getTime() - monthStart > STALE_AFTER_MS.cwl!
+  );
 }
 
 export type FreshnessLevel = "fresh" | "stale" | "failed" | "never";

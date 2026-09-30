@@ -138,6 +138,8 @@ export const PHASE1_MIGRATIONS = [
   "053_data_retention.sql",
   // The snapshot key becomes a 30-minute slot, for the half-hourly clans sync.
   "054_half_hour_snapshots.sql",
+  // Last activity per member over weeks of readings, not a capped window.
+  "055_last_activity.sql",
 ] as const;
 
 /**

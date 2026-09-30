@@ -7,7 +7,7 @@
 -- BEGIN/COMMIT means a failure anywhere rolls the entire thing back, so you
 -- cannot end up with a half-applied schema.
 --
--- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql, 054_half_hour_snapshots.sql
+-- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql, 054_half_hour_snapshots.sql, 055_last_activity.sql
 --
 -- Two numbers are absent, retired rather than reused so that apply order
 -- stays equal to numeric order: 009 (cwl_signups, superseded by Phase 4B)
@@ -9960,6 +9960,68 @@ alter table member_snapshots
 
 alter table member_snapshots
   drop constraint member_snapshots_player_id_captured_hour_key;
+
+-- ========================================================================
+-- 055_last_activity.sql
+-- ========================================================================
+
+-- 055 — Each member's last activity, worked out where the readings are.
+--
+-- THE BUG THIS FIXES. "Last seen" on the member directory and the "no activity
+-- for 14 days" flag on Worth a look were computed in TypeScript from
+-- recentSnapshots(), which read a clan's newest readings up to a row cap — and
+-- PostgREST returns at most 1,000 rows. For a 49-member clan that was about 20
+-- hours of history when the sync was hourly, and 10 hours at every 30 minutes
+-- (054). A member quiet for two days was simply absent from the window, so the
+-- 14-day flag could never fire, and "last seen" said "more than 0 days" for
+-- anyone quiet since yesterday. Nothing looked wrong; the page was just blind.
+--
+-- THE RULE IS UNCHANGED, and it is services/members.ts lastActivityAt()'s: the
+-- most recent reading at which donations ROSE, donations received ROSE, or
+-- trophies MOVED, compared with the reading before it. A fall is a monthly reset
+-- or a clan move, which nobody did anything to cause, so it is not activity.
+-- A comparison involving a missing value is unknown, and unknown is not
+-- activity — `max(...) filter (where null)` counts nothing, as rose() does.
+--
+-- Done here because the answer is one row per member however long the window,
+-- and the window can be weeks. first_reading_at says how far back this player's
+-- readings reach, so the page can say "more than N days" honestly.
+--
+-- SECURITY INVOKER: no new access. RLS on member_snapshots decides which rows
+-- exist; p_clan_ids is the explicit filter R3 asks for on top.
+
+create or replace function last_activity(p_clan_ids uuid[], p_since timestamptz)
+returns table (
+  player_id         uuid,
+  last_activity_at  timestamptz,
+  first_reading_at  timestamptz
+)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with points as (
+    select s.player_id,
+           s.captured_at,
+           s.donations          > lag(s.donations)          over w as gave,
+           s.donations_received > lag(s.donations_received) over w as got,
+           s.trophies          <> lag(s.trophies)           over w as moved
+    from public.member_snapshots s
+    where s.clan_id = any (p_clan_ids)
+      and s.captured_at >= p_since
+      and s.deleted_at is null
+    window w as (partition by s.player_id order by s.captured_at)
+  )
+  select p.player_id,
+         max(p.captured_at) filter (where p.gave or p.got or p.moved),
+         min(p.captured_at)
+  from points p
+  group by p.player_id;
+$$;
+
+revoke execute on function last_activity(uuid[], timestamptz) from public;
+grant execute on function last_activity(uuid[], timestamptz) to authenticated, service_role;
 
 commit;
 

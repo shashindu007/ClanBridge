@@ -232,57 +232,54 @@ export async function searchPlayers(
   return perClan.flat();
 }
 
-export interface RecentSnapshots {
-  /** playerId -> their points in this window, ASCENDING. */
-  byPlayer: Map<string, SnapshotPoint[]>;
+/**
+ * How far back last activity looks: more than twice QUIET_DAYS, so the 14-day
+ * flag has room to fire, without scanning months of readings on every load.
+ */
+export const LAST_ACTIVITY_DAYS = 35;
+
+export interface LastActivity {
+  /** playerId -> the newest reading at which they did something, or null. */
+  byPlayer: Map<string, string | null>;
   /** The oldest reading the window actually reached, or null if empty. */
   coveredFrom: string | null;
 }
 
 /**
- * A bounded window of the whole clan's snapshots, for deriving last-activity
- * across the directory in ONE query instead of one per member.
+ * Every member's last activity in one clan, worked out by 055's
+ * last_activity() — one row per member, however many readings lie behind it.
  *
- * Why a row cap rather than a date range: last-activity needs consecutive
- * readings to compare, so it wants every row, and at hourly × 50 members a
- * week is ~8,400 rows. PostgREST caps response size, and a truncated response
- * would silently produce wrong activity dates rather than an error — the worst
- * available failure. Asking for a fixed number of the newest rows makes the
- * limit explicit and the coverage knowable.
+ * This replaced recentSnapshots(), which read the clan's newest readings up to
+ * a row cap and derived the same thing here. PostgREST's 1,000-row ceiling made
+ * that window about ten hours deep at the half-hourly sync, so nobody quiet
+ * since yesterday could be seen, and the 14-day flag could never fire.
  *
- * `coveredFrom` is returned so the page can say how far back it looked. A member
- * with no activity inside the window is reported as "nothing in the last N days"
- * rather than a precise-looking date the query never had the data to support.
- * The full history for one player is snapshotHistory(), used by the profile.
+ * `coveredFrom` is returned so the page can say how far back it looked. A
+ * member with no activity inside the window is "more than N days", never a
+ * precise-looking date the query never had the data to support. The full
+ * history for one player is snapshotHistory(), used by the profile.
  */
-export async function recentSnapshots(
+export async function lastActivity(
   supabase: SupabaseClient,
   clanId: string,
-  maxRows = 1500,
-): Promise<RecentSnapshots> {
-  const { data, error } = await supabase
-    .from("member_snapshots")
-    .select("player_id, captured_at, donations, donations_received, trophies, th_level, role")
-    .eq("clan_id", clanId) // R3
-    .is("deleted_at", null)
-    .limit(maxRows)
-    .order("captured_at", { ascending: false });
+  days = LAST_ACTIVITY_DAYS,
+): Promise<LastActivity> {
+  const since = new Date(Date.now() - days * 86_400_000);
+  const { data, error } = await supabase.rpc("last_activity", {
+    p_clan_ids: [clanId], // R3
+    p_since: since.toISOString(),
+  });
 
   if (error || !data) return { byPlayer: new Map(), coveredFrom: null };
 
-  const rows = (data as Array<Record<string, unknown>>).map(toPoint);
-  const byPlayer = new Map<string, SnapshotPoint[]>();
-
-  // Fetched newest-first to make the cap take the RECENT rows; flipped here
-  // because every consumer walks forwards looking for a counter that dropped.
-  for (const point of rows.slice().reverse()) {
-    const list = byPlayer.get(point.playerId) ?? [];
-    list.push(point);
-    byPlayer.set(point.playerId, list);
+  const byPlayer = new Map<string, string | null>();
+  let coveredFrom: string | null = null;
+  for (const row of data as Array<Record<string, unknown>>) {
+    byPlayer.set(row.player_id as string, (row.last_activity_at as string | null) ?? null);
+    const first = row.first_reading_at as string;
+    if (coveredFrom === null || Date.parse(first) < Date.parse(coveredFrom)) coveredFrom = first;
   }
-
-  const oldest = rows.length ? rows[rows.length - 1]!.capturedAt : null;
-  return { byPlayer, coveredFrom: oldest };
+  return { byPlayer, coveredFrom };
 }
 
 /**
