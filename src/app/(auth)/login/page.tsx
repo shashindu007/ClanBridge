@@ -20,7 +20,7 @@
 
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { safeNext } from "@/lib/safe-next";
@@ -69,6 +69,21 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(callbackError ?? "");
+
+  // Supabase usually puts a rejected link's reason in the #fragment, which the
+  // callback cannot see. The redirect carries the fragment through to here, so
+  // it is read on the client — it is more specific than the callback's guess.
+  useEffect(() => {
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const reason = hash.get("error_description");
+    if (!reason) return;
+    setMessage(
+      hash.get("error_code") === "otp_expired"
+        ? "That sign-in link has expired or was already used. Each link works once — send yourself a new one."
+        : reason,
+    );
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }, []);
 
   function switchTo(target: Mode) {
     setMode(target);

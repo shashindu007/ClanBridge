@@ -28,6 +28,11 @@ import { safeNext } from "@/lib/safe-next";
 // that establishes a session and needs the identical guard — see the note in
 // that file on why there must be exactly one copy.
 
+// With no code and no stated reason, this is by far the likeliest cause, and it
+// tells the member what to do next.
+const EXPIRED_LINK =
+  "That sign-in link has expired or was already used. Each link works once — send yourself a new one.";
+
 function errorRedirect(request: NextRequest, reason: string): NextResponse {
   const url = request.nextUrl.clone();
   url.pathname = "/login";
@@ -49,14 +54,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const tokenHash = params.get("token_hash");
   const type = params.get("type") as EmailOtpType | null;
 
+  // A link Supabase already rejected (expired, used once already, or opened first
+  // by a mail scanner) still lands here, carrying the reason instead of a code.
+  // Sometimes that reason is in the query; more often it is in the #fragment,
+  // which never reaches the server — the redirect below keeps the fragment, and
+  // the login page reads it from there.
+  const linkError = params.get("error_code") ?? params.get("error");
+
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) return errorRedirect(request, error.message);
   } else if (tokenHash && type) {
     const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
     if (error) return errorRedirect(request, error.message);
+  } else if (linkError === "otp_expired") {
+    return errorRedirect(request, EXPIRED_LINK);
+  } else if (linkError) {
+    return errorRedirect(request, params.get("error_description") ?? EXPIRED_LINK);
   } else {
-    return errorRedirect(request, "That link is missing its sign-in code.");
+    return errorRedirect(request, EXPIRED_LINK);
   }
 
   // getUser(), not getSession() — the session was just written from a token this
