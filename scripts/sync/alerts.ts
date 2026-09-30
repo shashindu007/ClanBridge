@@ -39,7 +39,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordNotification, retireExpired, sendPush, type PushTarget } from "@/lib/push";
-import { STALE_AFTER_MS } from "@/services/freshness";
+import { isStale } from "@/services/freshness";
 import type { JobType } from "./shared";
 
 /** Where a member is sent to see the damage. T9.2 fills this page out further. */
@@ -186,15 +186,14 @@ export function staleJobs(
   return expected.map((jobType) => {
     const finishedAt = byType.get(jobType) ?? null;
     const ageMs = finishedAt ? now.getTime() - new Date(finishedAt).getTime() : null;
-    // The same thresholds the page indicator uses (T4.8), so a red badge and an
-    // alert cannot disagree about what "stale" means.
-    const limit = STALE_AFTER_MS[jobType] ?? 3 * 60 * 60 * 1000;
-
+    // The same rule the page indicator uses (T4.8), so a red badge and an alert
+    // cannot disagree about what "stale" means — including the schedule-aware
+    // check for Clan Games, which runs on two days a month.
     return {
       jobType,
       lastSuccessAt: finishedAt,
       ageMs,
-      stale: ageMs !== null && ageMs > limit,
+      stale: finishedAt !== null && isStale(jobType, new Date(finishedAt), now),
     };
   });
 }

@@ -101,8 +101,9 @@ async function syncMembers(
 /**
  * T2.9 — one snapshot row per player per run.
  *
- * `on conflict do nothing` against (player_id, captured_hour) from migration
- * 007. Re-running within the hour is free, which is what reconciles "one row per
+ * `on conflict do nothing` against (player_id, captured_slot) — migration 054's
+ * 30-minute slot, which replaced 007's hour when this job went half-hourly.
+ * Re-running within the slot is free, which is what reconciles "one row per
  * run" with R5's "a re-run changes nothing".
  */
 async function writeSnapshots(
@@ -140,7 +141,7 @@ async function writeSnapshots(
 
   const { error } = await supabase
     .from("member_snapshots")
-    .upsert(rows, { onConflict: "player_id,captured_hour", ignoreDuplicates: true });
+    .upsert(rows, { onConflict: "player_id,captured_slot", ignoreDuplicates: true });
 
   if (error) throw new Error(`member_snapshots failed for ${clan.tag}: ${error.message}`);
   return rows.length;

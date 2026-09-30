@@ -11,19 +11,17 @@
 # R6 — none of these may ever be set as a Vercel environment variable.
 #
 # ─────────────────────────────────────────────────────────────────────────────
-# DAILY IS ENOUGH FOR RAIDS, AND IS THE MINIMUM FOR CLAN GAMES
+# RAIDS FORGIVE A MISSED RUN; CLAN GAMES DO NOT
 #
 # `/capitalraidseasons?limit=10` returns the last ten weekends complete on every
-# call, so a missed raid run costs nothing — the next one backfills it. Daily is
-# generous.
+# call, so a missed raid run costs nothing — the next one backfills it.
 #
-# Clan Games is the opposite and is why this workflow cannot be weekly. The API
-# publishes NO per-season score; T7.4 derives it by differencing each player's
-# "Games Champion" achievement between a snapshot at the start of the period and
-# one at the end. Miss the start and that month cannot be reconstructed from
-# anywhere, which is the same permanence that makes CWL this project's reason to
-# exist. Running daily means the period boundary is caught within a day of it
-# opening, whenever Supercell moves it.
+# Clan Games is the opposite. The API publishes NO per-season score; T7.4
+# derives it by differencing each player's "Games Champion" achievement between
+# a snapshot at the start of the period and one at the end. Miss the start and
+# that month cannot be reconstructed from anywhere. Hence a backup run on each
+# boundary below. If Supercell ever moves the dates, the crons and
+# src/lib/coc-time.ts move together.
 #
 # WHY CLAN GAMES IS A STEP HERE AND NOT ITS OWN WORKFLOW
 #
@@ -37,29 +35,44 @@
 # nothing else.
 # ─────────────────────────────────────────────────────────────────────────────
 #
-# R10 — both jobs report "skipped" most days by design. Raids: every weekend
-# already settled, four days in seven. Clan Games: outside the monthly period,
-# three weeks in four. Neither is something to investigate.
+# R10 — a "skipped" run is still normal: a manual run outside the weekend or
+# the Games has nothing to collect. Not something to investigate.
 
 name: sync-raids
 
+# ─────────────────────────────────────────────────────────────────────────────
+# ONLY ON THE DAYS SOMETHING HAPPENS
+#
+# This ran every day, and on most of them both steps skipped. Now each step runs
+# only on its own days, told apart by `github.event.schedule` — the cron line
+# that fired. A manual run (workflow_dispatch) runs both, as before.
+#
+# RAIDS — the weekend runs Friday 07:00 to Monday 07:00 UTC. Daily at 08:41 on
+# Friday, Saturday, Sunday and Monday: Friday's is inside the new weekend, and
+# Monday's lands after the close, so the finished weekend is stored final. A
+# missed run still costs nothing — the API returns the last ten weekends on
+# every call, and the next run backfills.
+#
+# CLAN GAMES — 22nd to 28th, 08:00 UTC (src/lib/coc-time.ts). The score is the
+# "Games Champion" achievement at the end minus at the start, and a missed START
+# is a lost month (clan-games.ts). So each boundary gets a run and a backup:
+#   22nd 08:31, 22nd 10:31   start snapshot (the start phase lasts a day)
+#   28th 08:41, 29th 10:41   end snapshot (any time after the close is fine)
+# A second run on the same boundary writes nothing: the start is written once,
+# and a settled month is never rewritten (027's settled_at).
+#
+# Do not assume punctual execution: GitHub delays scheduled runs by up to
+# twenty minutes under load. services/freshness.ts knows this schedule, so the
+# watchdog does not call Tuesday-to-Thursday "stale".
+# ─────────────────────────────────────────────────────────────────────────────
+
 on:
   schedule:
-    # Once a day at 05:41 UTC. The minute is offset from sync-clans' :17,
-    # sync-cwl's :23 and sync-health's :47 so no two jobs contend for the same
-    # rate-limited API key.
-    #
-    # Do not assume punctual execution: GitHub delays scheduled runs by up to
-    # twenty minutes under load, and skips them entirely if the repository has
-    # been inactive for 60 days. The second of those is the one that would cost
-    # a Clan Games month, and it is what sync-health (T5.8) exists to catch.
-    - cron: "41 5 * * *"
-    # Clan Games opens on the 22nd at 08:00 UTC (src/lib/coc-time.ts). The daily
-    # 05:41 run first lands in that window on the 23rd — ~22 hours in, after
-    # everyone's first day of points is already inside the "start" reading, so
-    # every monthly score came out low. This one run a month takes the start
-    # snapshot half an hour after the Games open. Raids ride along, harmlessly.
-    - cron: "31 8 22 * *"
+    - cron: "41 8 * * 5,6,0,1" # raids: Friday to Monday
+    - cron: "31 8 22 * *"      # clan games: start
+    - cron: "31 10 22 * *"     # clan games: start, backup
+    - cron: "41 8 28 * *"      # clan games: end
+    - cron: "41 10 29 * *"     # clan games: end, backup
   workflow_dispatch: # for a manual catch-up after a missed period boundary
 
 concurrency:
@@ -85,6 +98,7 @@ jobs:
       - run: npm ci
 
       - name: Sync capital raid weekends
+        if: github.event_name != 'schedule' || github.event.schedule == '41 8 * * 5,6,0,1'
         run: npm run sync:raids
         env:
           COC_API_TOKEN: ${{ secrets.COC_API_TOKEN }}
@@ -101,7 +115,7 @@ jobs:
         # These two share a workflow for billing reasons alone and have no
         # dependency on each other — and of the pair, this is the one whose
         # missed run is unrecoverable. Same argument as sync-clans.yml's war step.
-        if: always()
+        if: always() && (github.event_name != 'schedule' || github.event.schedule != '41 8 * * 5,6,0,1')
         run: npm run sync:clan-games
         env:
           COC_API_TOKEN: ${{ secrets.COC_API_TOKEN }}

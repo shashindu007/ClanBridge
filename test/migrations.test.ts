@@ -647,6 +647,19 @@ describe("T2.9 — member_snapshots are idempotent within the hour", () => {
     expect(colombo).toBe(utc);
   });
 
+  // 054 — the key is a 30-minute slot now, for the half-hourly clans sync. If it
+  // were still the hour, the second run of every hour would write nothing and
+  // report success.
+  it("allows a new row in the next half hour (054)", async () => {
+    const before = await count(h, "member_snapshots");
+    await h.db.exec(`
+      insert into member_snapshots (clan_id, player_id, captured_at, donations)
+      values ('${CLAN_A}', '${PLAYER_A}', date_bin('30 minutes', now(), timestamptz '2000-01-01') + interval '31 minutes', 1350)
+      on conflict do nothing
+    `);
+    expect(await count(h, "member_snapshots")).toBe(before + 1);
+  });
+
   it("allows a new row in the next hour", async () => {
     const before = await count(h, "member_snapshots");
     await h.db.exec(`

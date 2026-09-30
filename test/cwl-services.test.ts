@@ -197,14 +197,49 @@ describe("freshness — T4.8", () => {
     // delaying scheduled runs by twenty minutes. A threshold at or below the
     // interval guarantees a permanent amber.
     it.each([
-      ["clans", 60],
+      ["clans", 30],
       ["cwl", 120],
-      ["war", 60],
-      ["raids", 24 * 60],
-      ["clan-games", 24 * 60],
+      ["war", 30],
+      // Monday 08:41 to Friday 08:41 — the longest raid gap.
+      ["raids", 96 * 60],
+      // 29th 10:41 to the next 22nd 08:31 — the longest Clan Games gap.
+      ["clan-games", 24 * 24 * 60],
       ["players", 24 * 60],
     ])("%s allows more than its %i-minute interval", (jobType, intervalMinutes) => {
       expect(STALE_AFTER_MS[jobType]!).toBeGreaterThan(intervalMinutes * 60 * 1000);
+    });
+
+    it("does not call raids stale between Monday and Friday", () => {
+      const monday = "2026-09-28T08:45:00Z";
+      const friday = new Date("2026-10-02T09:30:00Z");
+      expect(freshness(run({ jobType: "raids", finishedAt: monday }), friday).level).toBe("fresh");
+    });
+
+    it("does not call Clan Games stale in the weeks between boundaries", () => {
+      const end = "2026-09-28T08:45:00Z";
+      const midOctober = new Date("2026-10-15T12:00:00Z");
+      expect(freshness(run({ jobType: "clan-games", finishedAt: end }), midOctober).level).toBe(
+        "fresh",
+      );
+    });
+
+    // The one miss that loses a month: the start snapshot never ran.
+    it("calls Clan Games stale within hours of a missed start run", () => {
+      const lastEnd = "2026-09-28T08:45:00Z";
+      expect(
+        freshness(run({ jobType: "clan-games", finishedAt: lastEnd }), new Date("2026-10-22T10:00:00Z"))
+          .level,
+      ).toBe("fresh"); // still inside the grace, and the backup run is due at 10:31
+      expect(
+        freshness(run({ jobType: "clan-games", finishedAt: lastEnd }), new Date("2026-10-22T13:00:00Z"))
+          .level,
+      ).toBe("stale");
+      expect(
+        freshness(
+          run({ jobType: "clan-games", finishedAt: "2026-10-22T08:35:00Z" }),
+          new Date("2026-10-22T13:00:00Z"),
+        ).level,
+      ).toBe("fresh");
     });
 
     it("does not mark a daily job stale the morning after it ran", () => {

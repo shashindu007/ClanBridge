@@ -205,8 +205,8 @@ describe("T2.6 — sync:clans against real Postgres, offline", () => {
       await runSyncJob("clans", syncClans, { client });
       await runSyncJob("clans", syncClans, { client });
 
-      // The generated captured_hour key in migration 007 is what makes this
-      // free. Without it, an hourly job would grow this table every run.
+      // The generated captured_slot key (054, 30 minutes; 007's hour before it)
+      // is what makes this free. Without it, every run would grow this table.
       expect(await count(h, "member_snapshots")).toBe(afterFirst);
     });
 

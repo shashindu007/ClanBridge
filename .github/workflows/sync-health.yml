@@ -24,14 +24,14 @@ name: sync-health
 
 on:
   schedule:
-    # Every two hours, offset from sync-clans (:17) so it is not reading sync_log
+    # Every two hours at :32, between sync-clans' :17 and :47, so it is not reading sync_log
     # during the write it is about to judge.
     #
     # Was hourly. Every stale threshold it judges against is two hours or more
     # (src/services/freshness.ts), so the extra hourly look could never raise an
     # alert sooner — it only cost ~360 Actions minutes a month, which now pay
     # for the members' "Refresh now" button (services/sync-now.ts) instead.
-    - cron: "47 */2 * * *"
+    - cron: "32 */2 * * *"
   workflow_dispatch:
 
 concurrency:

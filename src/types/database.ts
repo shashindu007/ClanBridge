@@ -628,6 +628,7 @@ export interface Database {
           created_at: string;
           deleted_at: string | null;
           captured_hour: string | null;
+          captured_slot: string | null;
         };
         Insert: {
           id?: string;

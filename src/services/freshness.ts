@@ -9,36 +9,77 @@
 // `now` passed in, so the thresholds are testable without waiting.
 
 import type { SyncRun } from "@/repositories/sync-log";
+import { clanGamesWindow } from "@/lib/coc-time";
 
 /** How long each job may go between successful runs before its data is suspect. */
 export const STALE_AFTER_MS: Record<string, number> = {
   // Runs every 2 hours. Three hours allows a missed tick plus GitHub's habit of
   // delaying scheduled runs by up to twenty minutes.
   cwl: 3 * 60 * 60 * 1000,
-  // Hourly.
+  // Every 30 minutes since 054; two hours is four missed runs, not one.
   clans: 2 * 60 * 60 * 1000,
-  // Hourly, as a step of sync-clans.yml — NOT every 15 minutes as first planned
+  // Every 30 minutes, as a step of sync-clans.yml — NOT every 15 minutes as first planned
   // (see the T6.2 deviation note in IMPLEMENTATION.md §0). The old 45-minute
   // window was written for the 15-minute schedule and, against the hourly one,
   // marked the war sync stale for the last quarter of every single hour. An
   // indicator that is amber a quarter of the time is one nobody reads on the
   // day it means something — the same argument the R10 note above makes.
   war: 2 * 60 * 60 * 1000,
-  // Daily. 36 hours allows a missed run plus GitHub's delay.
-  raids: 36 * 60 * 60 * 1000,
-  // Daily too, as a step of sync-raids.yml, so the same window.
+  // Friday to Monday only, at 08:41 (sync-raids.yml). The longest gap is Monday
+  // to Friday, 96 hours; 100 allows GitHub's delay, and still flags a missed
+  // Friday run by lunchtime.
+  raids: 100 * 60 * 60 * 1000,
+  // Two boundary days a month (sync-raids.yml), so no single window fits: 36
+  // hours cried wolf for three weeks of every month, and this 25 days — the
+  // longest gap between runs — would sleep through a missed START, which is a
+  // lost month. isStale() adds the check that matters: a boundary run came due
+  // and nothing has finished since. This entry is only the outer bound.
   //
   // Without an entry here it would fall through to DEFAULT_STALE_AFTER_MS — 3
   // hours against a job that runs once a day, which reads stale for 21 hours
   // out of every 24. That is the same mistake the `war` note above records,
   // and it is worth stating that the default is not a safe fallback for a job
   // slower than a few hours: EVERY job on a schedule needs a line here.
-  "clan-games": 36 * 60 * 60 * 1000,
+  "clan-games": 25 * 24 * 60 * 60 * 1000,
   // T11B.6 — daily, its own workflow (sync-players.yml). Same window as raids.
   players: 36 * 60 * 60 * 1000,
 };
 
 const DEFAULT_STALE_AFTER_MS = 3 * 60 * 60 * 1000;
+
+/** How late a scheduled Clan Games run may be before it counts as missed. */
+const CLAN_GAMES_GRACE_MS = 4 * 60 * 60 * 1000;
+
+/**
+ * Was a Clan Games boundary run due, and has nothing finished since?
+ *
+ * The runs are due half an hour after the Games open and forty minutes after
+ * they close (sync-raids.yml). The dates come from clanGamesWindow(), so if
+ * Supercell moves the Games, this moves with the job rather than drifting.
+ */
+function clanGamesRunMissed(finishedAt: Date, now: Date): boolean {
+  const cutoff = now.getTime() - CLAN_GAMES_GRACE_MS;
+  const thisMonth = clanGamesWindow(now);
+  const lastMonth = clanGamesWindow(
+    new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15)),
+  );
+
+  const due = [lastMonth, thisMonth]
+    .flatMap((w) => [w.start.getTime() + 31 * 60_000, w.end.getTime() + 41 * 60_000])
+    .filter((t) => t <= cutoff);
+
+  return due.length > 0 && finishedAt.getTime() < Math.max(...due);
+}
+
+/**
+ * Has this job gone quiet? The one definition, shared by the page indicator and
+ * the watchdog's alerts (scripts/sync/alerts.ts), so the two cannot disagree.
+ */
+export function isStale(jobType: string, finishedAt: Date, now: Date): boolean {
+  const limit = STALE_AFTER_MS[jobType] ?? DEFAULT_STALE_AFTER_MS;
+  if (now.getTime() - finishedAt.getTime() > limit) return true;
+  return jobType === "clan-games" && clanGamesRunMissed(finishedAt, now);
+}
 
 export type FreshnessLevel = "fresh" | "stale" | "failed" | "never";
 
@@ -81,8 +122,7 @@ export function freshness(
     return { level: "failed", minutesAgo, label: `failed ${ago(minutesAgo)}`, skipReason };
   }
 
-  const limit = STALE_AFTER_MS[run.jobType] ?? DEFAULT_STALE_AFTER_MS;
-  const level: FreshnessLevel = elapsed > limit ? "stale" : "fresh";
+  const level: FreshnessLevel = isStale(run.jobType, new Date(finished), now) ? "stale" : "fresh";
 
   return { level, minutesAgo, label: `updated ${ago(minutesAgo)}`, skipReason };
 }

@@ -136,6 +136,8 @@ export const PHASE1_MIGRATIONS = [
   "052_donation_counters.sql",
   // Platform-admin thinning of old readings, and the storage figures beside it.
   "053_data_retention.sql",
+  // The snapshot key becomes a 30-minute slot, for the half-hourly clans sync.
+  "054_half_hour_snapshots.sql",
 ] as const;
 
 /**

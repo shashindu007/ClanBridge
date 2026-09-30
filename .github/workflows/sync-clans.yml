@@ -19,9 +19,14 @@ name: sync-clans
 
 on:
   schedule:
-    # Hourly. Members change slowly, and this cadence also keeps the Supabase
-    # free tier from suspending the project for inactivity.
-    - cron: "17 * * * *"
+    # Every 30 minutes, at :17 and :47. Was hourly; halved because a member's
+    # clan donation counter is wiped when they leave, and whatever they gave
+    # after our last reading is lost from that clan's figure (migration 052).
+    # Needs migration 054, whose 30-minute snapshot key lets the second run of
+    # each hour actually write. Free: the repository is public, and public
+    # repositories pay no Actions minutes. Also keeps the Supabase free tier
+    # from suspending the project for inactivity.
+    - cron: "17,47 * * * *"
   workflow_dispatch: # not optional — you will need manual runs while debugging
 
 # A slow run must never overlap the next tick and write the same rows twice.
@@ -40,10 +45,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          # Minute budget: the repo is private, so the allowance is 2,000
-          # minutes/month. Uncached `npm ci` is most of each run's wall time.
-          # At hourly this job is ~720 runs/month and comfortably inside budget,
-          # and the war step below rides along for the cost of one API call.
+          # Uncached `npm ci` is most of each run's wall time. The repository
+          # was private (2,000 minutes/month) when this was hourly; it is public
+          # now, which is what makes ~1,440 runs/month affordable. The war step
+          # below rides along for the cost of one API call per clan.
           cache: npm
 
       - run: npm ci

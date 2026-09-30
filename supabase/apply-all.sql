@@ -7,7 +7,7 @@
 -- BEGIN/COMMIT means a failure anywhere rolls the entire thing back, so you
 -- cannot end up with a half-applied schema.
 --
--- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql
+-- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql, 054_half_hour_snapshots.sql
 --
 -- Two numbers are absent, retired rather than reused so that apply order
 -- stays equal to numeric order: 009 (cwl_signups, superseded by Phase 4B)
@@ -9921,6 +9921,45 @@ $$;
 
 revoke execute on function thin_old_data(integer) from public;
 grant execute on function thin_old_data(integer) to authenticated;
+
+-- ========================================================================
+-- 054_half_hour_snapshots.sql
+-- ========================================================================
+
+-- 054 — member_snapshots every 30 minutes instead of every hour.
+--
+-- WHY. The clans sync moves to every 30 minutes (sync-clans.yml). The donation
+-- counter is wiped when a member leaves a clan, so whatever they gave after our
+-- last reading and before leaving is gone from that clan's figure (052).
+-- Halving the gap between readings halves what a move can lose. Free now: the
+-- repository is public, and public repositories do not pay Actions minutes.
+--
+-- WHY A MIGRATION AND NOT JUST A CRON LINE. 007's idempotency key is
+-- unique (player_id, captured_hour). A second run inside the same hour would be
+-- ON CONFLICT DO NOTHING — the half-hourly schedule would run, report success,
+-- and write nothing, which no page would ever reveal. The key becomes a
+-- 30-minute slot, derived the same way (UTC, generated, so it is immutable and
+-- independent of the session timezone — 007 explains both).
+--
+-- R5 STILL HOLDS: a retry, a manual run or one of GitHub's duplicate firings
+-- inside the same half hour writes nothing.
+--
+-- captured_hour stays. Dropping a column is not needed for anything, and 007's
+-- tests still describe it truthfully.
+--
+-- SIZE. Twice the rows, ~4,000 a day for ~85 members. Kept in check by 053's
+-- thinning: with three or four months kept in full, this table settles at
+-- roughly 100-150 MB and stops growing.
+
+alter table member_snapshots
+  add column captured_slot timestamp generated always as
+    (date_bin('30 minutes', captured_at at time zone 'UTC', timestamp '2000-01-01')) stored;
+
+alter table member_snapshots
+  add constraint member_snapshots_player_slot_key unique (player_id, captured_slot);
+
+alter table member_snapshots
+  drop constraint member_snapshots_player_id_captured_hour_key;
 
 commit;
 
