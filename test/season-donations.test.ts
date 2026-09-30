@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import {
   chooseFormula,
   seasonDonations,
+  seasonKey,
   seasonResets,
   seasonsFrom,
   type CounterReading,
@@ -190,11 +191,17 @@ describe("seasonResets", () => {
 });
 
 describe("seasonsFrom", () => {
-  it("offers the running season and each complete one, newest first", () => {
+  it("offers the running season, each complete one, then the partial one before", () => {
     expect(seasonsFrom(["2026-08-25T05:00:00.000Z", "2026-09-29T05:00:00.000Z"])).toEqual([
       { start: "2026-09-29T05:00:00.000Z", end: null },
       { start: "2026-08-25T05:00:00.000Z", end: "2026-09-29T05:00:00.000Z" },
+      { start: null, end: "2026-08-25T05:00:00.000Z" },
     ]);
+  });
+
+  it("gives every season a distinct key for its link", () => {
+    const keys = seasonsFrom(["2026-08-25T05:00:00.000Z", "2026-09-29T05:00:00.000Z"]).map(seasonKey);
+    expect(new Set(keys).size).toBe(3);
   });
 
   it("offers everything as one stretch until a reset has been seen", () => {

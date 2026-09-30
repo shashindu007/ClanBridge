@@ -160,8 +160,12 @@ export function seasonResets(segments: readonly DonationSegment[]): string[] {
 }
 
 /**
- * The seasons the data covers, newest first. The stretch before the first reset
- * found is not offered: it began before our window, so its totals are partial.
+ * The seasons the data covers, newest first.
+ *
+ * The stretch before the first reset found is offered LAST, with `start: null`:
+ * it began before our readings did, so its totals are only what we saw — the
+ * page labels it partial rather than hiding it, because a partial record of
+ * last month is still what leaders ask for.
  */
 export function seasonsFrom(resets: readonly string[]): Season[] {
   if (resets.length === 0) return [{ start: null, end: null }];
@@ -169,7 +173,13 @@ export function seasonsFrom(resets: readonly string[]): Season[] {
   for (let i = resets.length - 1; i > 0; i -= 1) {
     seasons.push({ start: resets[i - 1]!, end: resets[i]! });
   }
+  seasons.push({ start: null, end: resets[0]! });
   return seasons;
+}
+
+/** A stable key for a season, for the ?season= link. */
+export function seasonKey(season: Season): string {
+  return season.start ?? (season.end ? `until-${season.end}` : "all");
 }
 
 /**

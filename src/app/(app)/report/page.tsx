@@ -51,6 +51,7 @@ import {
 import {
   seasonDonations,
   seasonResets,
+  seasonKey,
   seasonsFrom,
   type Season,
   type SeasonDonationReport,
@@ -132,7 +133,7 @@ export default async function CrossClanReportPage({
   // 052 — the season is picked from resets found in the data, never a calendar.
   // An unknown ?season= falls back to the running one rather than an error.
   const seasons = seasonsFrom(seasonResets(segments));
-  const season = seasons.find((s) => s.start !== null && s.start === query.season) ?? seasons[0]!;
+  const season = seasons.find((s) => seasonKey(s) === query.season) ?? seasons[0]!;
   // The readings a season needs: its own, a few days before (a stay straddling
   // its start), and ten after (last month's missed tail is found through the
   // next stay's first reading).
@@ -154,7 +155,7 @@ export default async function CrossClanReportPage({
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <PageHeader
         title="Participation"
-        description={`Every member of ${clans.length === 1 ? "your clan" : `all ${clans.length} of your clans`}, in one view — the ones worth a look first.`}
+        description={`Every member of ${clans.length === 1 ? "your clan" : `all ${clans.length} of your clans`}, in one view — donations per clan and per season.`}
       />
 
       {rows.length === 0 ? (
@@ -201,22 +202,6 @@ export default async function CrossClanReportPage({
             </ul>
           </Panel>
 
-          {/* Flagged members were SORTED first in one long table; now they are
-              their own section, open, and everyone else folds beneath. */}
-          <Disclosure title="Worth a look" icon={Eye} count={flagged.length} defaultOpen>
-            {flagged.length === 0 ? (
-              <p className="text-muted-foreground text-sm">Nobody is flagged.</p>
-            ) : (
-              <MemberTable list={flagged} />
-            )}
-          </Disclosure>
-
-          {others.length > 0 && (
-            <Disclosure title="Everyone else" icon={Users} count={others.length}>
-              <MemberTable list={others} />
-            </Disclosure>
-          )}
-
           <SeasonDonations
             report={donations}
             seasons={seasons}
@@ -224,6 +209,22 @@ export default async function CrossClanReportPage({
             members={rows}
             clanNames={new Map(clans.map((c) => [c.id, c.name]))}
           />
+
+          {/* Season donations lead now; the flag lists are the page's footnote,
+              folded at the bottom, for whoever goes looking. */}
+          {others.length > 0 && (
+            <Disclosure title="Everyone else" icon={Users} count={others.length}>
+              <MemberTable list={others} />
+            </Disclosure>
+          )}
+
+          <Disclosure title="Worth a look" icon={Eye} count={flagged.length}>
+            {flagged.length === 0 ? (
+              <p className="text-muted-foreground text-sm">Nobody is flagged.</p>
+            ) : (
+              <MemberTable list={flagged} />
+            )}
+          </Disclosure>
         </>
       )}
     </main>
@@ -231,6 +232,10 @@ export default async function CrossClanReportPage({
 }
 
 function seasonLabel(season: Season): string {
+  // Before the first reset we saw: our readings began partway through it.
+  if (season.start === null && season.end !== null) {
+    return `Before ${formatDisplay(season.end, "date")} (partial)`;
+  }
   if (season.start === null) return "So far";
   if (season.end === null) return `Current season (since ${formatDisplay(season.start, "date")})`;
   return `${formatDisplay(season.start, "date")} – ${formatDisplay(season.end, "date")}`;
@@ -270,9 +275,9 @@ function SeasonDonations({
               const active = s === season;
               return (
                 <Link
-                  key={s.start ?? "all"}
+                  key={seasonKey(s)}
                   // The running season is the page's default, so it has no parameter.
-                  href={i === 0 ? "/report" : `/report?season=${encodeURIComponent(s.start ?? "")}`}
+                  href={i === 0 ? "/report" : `/report?season=${encodeURIComponent(seasonKey(s))}`}
                   aria-current={active ? "page" : undefined}
                   className={
                     active
@@ -358,6 +363,9 @@ function SeasonDonations({
           Each clan&apos;s figure survives a move between clans. &ldquo;Other clans&rdquo; is what the
           lifetime donation achievements saw beyond that: a clan outside the family, one of ours you
           are not in, or the last hour before leaving.{" "}
+          {season.start === null && season.end !== null
+            ? "This season began before our readings did, so it shows only what was given after they started. "
+            : ""}
           {check.checked === 0
             ? "Lifetime counters are still being collected — the first check needs two daily readings in the same clan."
             : `Counter check: ${check.consistent} of ${check.checked} stays matched exactly (${check.formula}).`}
