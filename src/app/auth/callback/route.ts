@@ -59,7 +59,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // sign-in.
   const code = params.get("code");
   const tokenHash = params.get("token_hash");
-  const type = params.get("type") as EmailOtpType | null;
+  // Defaults to "email" — the type that covers both the magic link and the
+  // sign-up confirmation, which are the only links this project sends. The live
+  // template once sent `type=` empty (Supabase has no {{ .Type }} variable), and
+  // requiring it made every link fail with a perfectly good token_hash in hand.
+  const type = (params.get("type") || "email") as EmailOtpType;
 
   // A link Supabase already rejected (expired, used once already, or opened first
   // by a mail scanner) still lands here, carrying the reason instead of a code.
@@ -71,7 +75,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) return errorRedirect(request, error.message);
-  } else if (tokenHash && type) {
+  } else if (tokenHash) {
     const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
     if (error) return errorRedirect(request, error.message);
   } else if (linkError === "otp_expired") {
