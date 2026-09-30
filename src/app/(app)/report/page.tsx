@@ -15,18 +15,16 @@
 // alone, and nothing in this system acts on them. A member on holiday and a
 // member who has quit are identical from this data.
 //
-// T10.8a — LEADERSHIP ONLY, and it is checked here rather than assumed.
+// OPEN TO EVERY MEMBER, over every clan they are in. This was leadership only
+// (T10.8a); the clan decided participation is everybody's business, so the role
+// filter is now canSeeMemberStats() — the same tier that already shows a member
+// donations and ratios in their own clan's directory.
 //
-// This page previously had no role check at all. The nav link in (app)/layout.tsx
-// is rendered only for a leader or co-leader, and that hiding was the whole of
-// the protection — so any approved member who typed the URL got a list of
-// everyone in their clan with the reasons each was flagged. RLS still scoped it
-// to their own clans, so nothing crossed a clan boundary, but a member reading
-// which of their clanmates are "worth a look" is precisely what the link's own
-// comment says this page is not for.
-//
-// A hidden link is not an access control. /roster and /admin/audit both filter
-// by role in the page; this now does the same.
+// It is still per clan, and still only the viewer's clans. RLS on
+// member_snapshots is auth_clan_ids(), so a member of clan A cannot read clan
+// B's donations here any more than anywhere else. Showing the whole family to
+// everyone would need a 038-style security-definer function, not a looser
+// filter in this file.
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -41,7 +39,7 @@ import {
 } from "@/components/ui/table";
 import { currentUserId } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
-import { isLeadership } from "@/lib/visibility";
+import { canSeeMemberStats } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import {
   latestSnapshots,
@@ -49,7 +47,20 @@ import {
   recentSnapshots,
 } from "@/repositories/members";
 import { clanSummaries, participation, type ClanInput } from "@/services/cross-clan";
-import { Activity, Eye, Users } from "lucide-react";
+import {
+  SEGMENT_WINDOW_DAYS,
+  donationReadings,
+  donationSegments,
+} from "@/repositories/season-donations";
+import {
+  seasonDonations,
+  seasonResets,
+  seasonsFrom,
+  type Season,
+  type SeasonDonationReport,
+} from "@/services/season-donations";
+import { formatDisplay } from "@/lib/display-time";
+import { Activity, Eye, HandHeart, Users } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Disclosure, EmptyState, FactRow, Panel, SectionHeader } from "@/components/kit";
 import { TownHall } from "@/components/game/town-hall";
@@ -61,47 +72,50 @@ function ratioLabel(ratio: number | null): string {
   return ratio === null ? "—" : ratio.toFixed(2);
 }
 
-export default async function CrossClanReportPage() {
+const DAY = 86_400_000;
+
+export default async function CrossClanReportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ season?: string }>;
+}) {
+  const query = await searchParams;
   const supabase = await createClient();
   const userId = await currentUserId(supabase);
   if (!userId) redirect("/login");
 
-  const all = await visibleClans(supabase, userId);
-
-  // T10.8a — the report covers only the clans this member LEADS, not every clan
-  // they are in. Filtering rather than refusing outright is the right shape: a
-  // co-leader of one clan and an ordinary member of another should see the first
-  // and not the second, and an all-or-nothing check would give them both or
-  // neither.
-  const clans = all.filter((c) => isLeadership(c.role));
+  // Every clan this account is a member of, whatever its role there. Stated as a
+  // predicate rather than left unfiltered, so the decision is visible here.
+  const clans = (await visibleClans(supabase, userId)).filter((c) =>
+    canSeeMemberStats(c.role),
+  );
 
   if (clans.length === 0) {
     return (
       <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
         <PageHeader title="Participation" />
         <Panel>
+          {/* T9.10 — being in no clan yet is not a permission problem, and saying
+              "not permitted" to someone waiting to be added is both wrong and
+              discouraging. */}
           <EmptyState
             icon={Activity}
-            title={all.length === 0 ? "You are not in a clan yet" : "For leaders and co-leaders"}
-            body={
-              all.length === 0
-                ? // T9.10 — being in no clan yet is not a permission problem, and
-                  // saying "not permitted" to someone waiting to be added is both
-                  // wrong and discouraging.
-                  "There is nothing to report on until a leader adds you to a clan."
-                : "This report lists every member with the reasons they were flagged, which is not a view of your own clan you are meant to have."
-            }
+            title="You are not in a clan yet"
+            body="There is nothing to report on until a leader adds you to a clan."
           />
         </Panel>
       </main>
     );
   }
 
+  const clanIds = clans.map((c) => c.id);
+  const now = Date.now();
+
   // One set of reads per clan, issued together. Three clans is six queries; in
   // sequence that is six round trips to a free-tier database in another region,
-  // which is most of a second of nothing happening.
-  const inputs: ClanInput[] = await Promise.all(
-    clans.map(async (clan): Promise<ClanInput> => {
+  // which is most of a second of nothing happening. The season stays ride along.
+  const [inputs, segments] = await Promise.all([
+    Promise.all(clans.map(async (clan): Promise<ClanInput> => {
       const members = await membersForClan(supabase, clan.id);
       const [latest, recent] = await Promise.all([
         latestSnapshots(supabase, clan.id, members.length),
@@ -115,8 +129,24 @@ export default async function CrossClanReportPage() {
         latest,
         history: recent.byPlayer,
       };
-    }),
+    })),
+    donationSegments(supabase, clanIds, new Date(now - SEGMENT_WINDOW_DAYS * DAY)),
+  ]);
+
+  // 052 — the season is picked from resets found in the data, never a calendar.
+  // An unknown ?season= falls back to the running one rather than an error.
+  const seasons = seasonsFrom(seasonResets(segments));
+  const season = seasons.find((s) => s.start !== null && s.start === query.season) ?? seasons[0]!;
+  // The readings a season needs: its own, a few days before (a stay straddling
+  // its start), and ten after (last month's missed tail is found through the
+  // next stay's first reading).
+  const readings = await donationReadings(
+    supabase,
+    clanIds,
+    new Date(season.start ? Date.parse(season.start) - 3 * DAY : now - SEGMENT_WINDOW_DAYS * DAY),
+    new Date(season.end ? Date.parse(season.end) + 10 * DAY : now + DAY),
   );
+  const donations = seasonDonations(segments, readings, season);
 
   const rows = participation(inputs);
   const summaries = clanSummaries(rows);
@@ -128,7 +158,7 @@ export default async function CrossClanReportPage() {
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <PageHeader
         title="Participation"
-        description={`Every member of ${clans.length === 1 ? "your clan" : `all ${clans.length} clans you help run`}, in one view — the ones worth a look first.`}
+        description={`Every member of ${clans.length === 1 ? "your clan" : `all ${clans.length} of your clans`}, in one view — the ones worth a look first.`}
       />
 
       {rows.length === 0 ? (
@@ -190,9 +220,154 @@ export default async function CrossClanReportPage() {
               <MemberTable list={others} />
             </Disclosure>
           )}
+
+          <SeasonDonations
+            report={donations}
+            seasons={seasons}
+            season={season}
+            members={rows}
+            clanNames={new Map(clans.map((c) => [c.id, c.name]))}
+          />
         </>
       )}
     </main>
+  );
+}
+
+function seasonLabel(season: Season): string {
+  if (season.start === null) return "So far";
+  if (season.end === null) return `Current season (since ${formatDisplay(season.start, "date")})`;
+  return `${formatDisplay(season.start, "date")} – ${formatDisplay(season.end, "date")}`;
+}
+
+/**
+ * 052 — each member's season, per clan, with what the lifetime achievements add.
+ *
+ * Current members only, like the rest of the page. "Other clans" is everything
+ * the achievements saw that no clan counter HERE accounts for — a clan outside
+ * the family, a family clan this viewer is not in, or the hour before leaving —
+ * and it is shown apart because a ranking weighs it differently.
+ */
+function SeasonDonations({
+  report,
+  seasons,
+  season,
+  members,
+  clanNames,
+}: {
+  report: SeasonDonationReport;
+  seasons: Season[];
+  season: Season;
+  members: ReturnType<typeof participation>;
+  clanNames: Map<string, string>;
+}) {
+  const byId = new Map(members.map((m) => [m.playerId, m]));
+  const list = report.rows.filter((r) => byId.has(r.playerId));
+  const { check } = report;
+
+  return (
+    <Disclosure title="Season donations" icon={HandHeart} count={list.length} defaultOpen>
+      <div className="space-y-4">
+        {seasons.length > 1 && (
+          <nav aria-label="Season" className="flex flex-wrap gap-2">
+            {seasons.map((s, i) => {
+              const active = s === season;
+              return (
+                <Link
+                  key={s.start ?? "all"}
+                  // The running season is the page's default, so it has no parameter.
+                  href={i === 0 ? "/report" : `/report?season=${encodeURIComponent(s.start ?? "")}`}
+                  aria-current={active ? "page" : undefined}
+                  className={
+                    active
+                      ? "bg-primary text-primary-foreground rounded-control px-3 py-1 text-sm"
+                      : "hover:bg-accent rounded-control border px-3 py-1 text-sm"
+                  }
+                >
+                  {seasonLabel(s)}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
+        {seasons.length === 1 && (
+          <p className="text-muted-foreground text-sm">{seasonLabel(season)}</p>
+        )}
+
+        {list.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No donation readings for this season yet.</p>
+        ) : (
+          <div className="-mx-5 overflow-x-auto px-5">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Member</TableHead>
+                  <TableHead>In each clan</TableHead>
+                  <TableHead className="text-right">Other clans</TableHead>
+                  <TableHead className="text-right">Total given</TableHead>
+                  <TableHead className="text-right">Received</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {list.map((row) => {
+                  const member = byId.get(row.playerId)!;
+                  return (
+                    <TableRow key={row.playerId}>
+                      <TableCell>
+                        <Link
+                          href={`/${encodeURIComponent(member.clanTag)}/player/${encodeURIComponent(member.tag)}`}
+                          className="font-medium hover:underline"
+                        >
+                          {member.name}
+                        </Link>
+                        <span className="text-muted-foreground block font-mono text-xs">
+                          {member.tag}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <ul className="space-y-0.5 text-sm">
+                          {row.byClan.map((s) => (
+                            <li key={s.clanId} className="flex items-center gap-2">
+                              <span
+                                aria-hidden
+                                className="size-2 shrink-0 rounded-full"
+                                style={{ background: clanAccent(s.clanId).color }}
+                              />
+                              <span className="text-muted-foreground">{clanNames.get(s.clanId)}</span>
+                              <span className="tabular-nums">{s.given.toLocaleString("en-GB")}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">
+                        {/* "—", not 0: no usable lifetime reading is not the
+                            same as having given nothing elsewhere. */}
+                        {row.other === null ? "—" : row.other.toLocaleString("en-GB")}
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {row.total.toLocaleString("en-GB")}
+                      </TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">
+                        {row.received.toLocaleString("en-GB")}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        <p className="text-muted-foreground text-xs">
+          Each clan&apos;s figure survives a move between clans. &ldquo;Other clans&rdquo; is what the
+          lifetime donation achievements saw beyond that: a clan outside the family, one of ours you
+          are not in, or the last hour before leaving.{" "}
+          {check.checked === 0
+            ? "Lifetime counters are still being collected — the first check needs two daily readings in the same clan."
+            : `Counter check: ${check.consistent} of ${check.checked} stays matched exactly (${check.formula}).`}
+        </p>
+      </div>
+    </Disclosure>
   );
 }
 

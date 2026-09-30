@@ -92,6 +92,10 @@ export const OK_MESSAGES: Record<string, string> = {
   "role-updated": "Role saved. It takes effect on their next page load.",
   // T10.8d — set by dispatchWorkflow when GitHub accepts the run.
   dispatched: "Sync started. It takes a minute or two to show up.",
+
+  // Storage (053). One month is thinned per press, so "more" is the common case.
+  "data-thinned": "Old data thinned. Everything older than the months you keep is done.",
+  "data-thinned-more": "One month of old data thinned. Press it again to continue with the next month.",
 };
 
 /**
@@ -161,6 +165,10 @@ export const ERROR_MESSAGES: Record<string, string> = {
   // rather than which one said no.
   "role-refused":
     "That role was not saved. You can only change roles in a clan you lead, never your own, and only the platform owner can make or unmake a leader.",
+
+  // Storage (053).
+  "thin-unconfirmed": "Tick the box to confirm. Thinned readings cannot be brought back.",
+  "thin-refused": "The database refused that. Only the platform owner can thin old data, and never below three months.",
 };
 
 /**

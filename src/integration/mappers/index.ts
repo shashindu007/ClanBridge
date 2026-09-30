@@ -14,6 +14,7 @@ import type {
   Clan,
   ClanRole,
   CwlGroup,
+  DonationCounters,
   MemberSnapshot,
   Player,
   PlayerDetail,
@@ -158,6 +159,25 @@ function mapUnit(api: Pick<ApiUnit, "name" | "level" | "maxLevel" | "village">):
  * troop and what this Town Hall allows are game data, and a mapper that decided
  * them would be the one place nobody looks after a game update.
  */
+/**
+ * 052 — the three lifetime donation achievements, and the clan counters from
+ * the same response. Matched by name, like "Games Champion" above; a player
+ * without one gets undefined, not 0 (see DonationCounters).
+ */
+export function mapDonationCounters(api: ApiPlayer): DonationCounters {
+  const achievement = (name: string) => api.achievements.find((a) => a.name === name)?.value;
+
+  return {
+    tag: normaliseTag(api.tag),
+    clanTag: api.clan ? normaliseTag(api.clan.tag) : undefined,
+    troopsDonated: achievement("Friend in Need"),
+    spellsDonated: achievement("Sharing is caring"),
+    siegesDonated: achievement("Siege Sharer"),
+    clanDonations: api.donations,
+    clanDonationsReceived: api.donationsReceived,
+  };
+}
+
 export function mapPlayerProgress(api: ApiPlayer): PlayerProgress {
   return {
     tag: normaliseTag(api.tag),

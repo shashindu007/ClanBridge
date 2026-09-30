@@ -27,6 +27,16 @@ import { isLeader } from "@/lib/visibility";
 import { InvalidTagError, normaliseTag } from "@/lib/tags";
 import { isUniqueViolation, safeMessage } from "@/lib/errors";
 import { failedRuns, recentRuns, type SyncRunRecord } from "@/repositories/sync-log";
+import {
+  FREE_TIER_BYTES,
+  KEEP_MONTH_CHOICES,
+  retentionState,
+  storageUsage,
+  thinOldData,
+  type RetentionState,
+  type TableSize,
+} from "@/repositories/data-retention";
+import { formatDisplay } from "@/lib/display-time";
 import { ago, freshness } from "@/services/freshness";
 import { groupFailures } from "@/services/sync-failures";
 import { clanAccent } from "@/lib/clan-accent";
@@ -45,6 +55,7 @@ import {
   Castle,
   CheckCircle2,
   CircleAlert,
+  Database,
   History,
   Plus,
   RefreshCw,
@@ -188,6 +199,155 @@ async function triggerSync(formData: FormData) {
   redirect(outcome.ok ? "/admin?ok=dispatched" : `/admin?error=${encodeURIComponent(outcome.detail)}`);
 }
 
+/**
+ * 053 — thin the oldest month of readings older than the months kept.
+ *
+ * Platform admin only, restated here because a Server Action is independently
+ * addressable; thin_old_data() checks again, and that check is the one that
+ * counts. One month per press — see the migration for why.
+ */
+async function thinOldDataAction(formData: FormData) {
+  "use server";
+
+  const supabase = await createClient();
+  const userId = await currentUserId(supabase);
+  if (!userId) redirect("/login");
+  if (!(await isPlatformAdmin(supabase, userId))) redirect("/admin?error=forbidden");
+
+  if (formData.get("confirm") !== "yes") redirect("/admin?error=thin-unconfirmed#storage");
+
+  const months = Number(formData.get("months"));
+  if (!(KEEP_MONTH_CHOICES as readonly number[]).includes(months)) {
+    redirect("/admin?error=bad-request#storage");
+  }
+
+  const result = await thinOldData(supabase, months);
+  if (!result.ok) {
+    safeMessage("thin-old-data", result.error, "");
+    redirect("/admin?error=thin-refused#storage");
+  }
+
+  revalidatePath("/admin");
+  redirect(result.more ? "/admin?ok=data-thinned-more#storage" : "/admin?ok=data-thinned#storage");
+}
+
+const MB = 1024 * 1024;
+
+function megabytes(bytes: number): string {
+  return bytes >= 10 * MB ? `${Math.round(bytes / MB)} MB` : `${(bytes / MB).toFixed(1)} MB`;
+}
+
+/**
+ * 053 — what is taking the space, and the one lever for it.
+ *
+ * Shown only to the platform admin: the figures are the whole database's, and
+ * the action deletes across every clan.
+ */
+function StoragePanel({ usage, state }: { usage: TableSize[]; state: RetentionState | null }) {
+  const database = usage.find((t) => t.name === "(database)");
+  const tables = usage.filter((t) => t.name !== "(database)").slice(0, 5);
+  const share = database ? Math.min(100, (database.bytes / FREE_TIER_BYTES) * 100) : 0;
+
+  return (
+    <Panel id="storage" aria-labelledby="storage-title" className="space-y-4">
+      <div className="space-y-1">
+        <SectionHeader id="storage-title" title="Storage" icon={Database} />
+        <p className="text-muted-foreground text-sm">
+          The free database holds 500 MB. Hourly member readings and daily base progress are
+          most of it, and old ones can be thinned.
+        </p>
+      </div>
+
+      {!database ? (
+        <p className="text-muted-foreground text-sm">
+          Storage figures are not available yet. Apply migration 053 to turn them on.
+        </p>
+      ) : (
+        <>
+          <div className="space-y-1.5">
+            <p className="text-sm">
+              <span className="font-semibold">{megabytes(database.bytes)}</span>
+              <span className="text-muted-foreground"> of 500 MB used ({Math.round(share)}%)</span>
+            </p>
+            <div className="bg-muted h-2 overflow-hidden rounded-full" aria-hidden>
+              <div
+                className={share > 80 ? "bg-destructive h-full" : "bg-primary h-full"}
+                style={{ width: `${share}%` }}
+              />
+            </div>
+          </div>
+
+          <ul className="divide-y text-sm">
+            {tables.map((t) => (
+              <li key={t.name} className="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
+                <span className="min-w-0 flex-1 truncate font-mono text-xs">{t.name}</span>
+                <span className="text-muted-foreground text-xs">
+                  {t.rows !== null ? `~${t.rows.toLocaleString("en-GB")} rows` : ""}
+                </span>
+                <span className="w-16 text-right tabular-nums">{megabytes(t.bytes)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      <form action={thinOldDataAction} className="space-y-3 border-t pt-4">
+        <div className="space-y-1">
+          <h3 className="font-medium">Thin out old data</h3>
+          <p className="text-muted-foreground text-sm">
+            For readings older than the months you keep, this removes the hourly detail and keeps
+            one reading per member per day, plus the first and last reading of every stay in a
+            clan. Every season&apos;s donation totals stay exactly the same. Base progress keeps
+            one reading a week. Recent months are not touched. It cannot be undone.
+          </p>
+          <p className="text-muted-foreground text-sm">
+            {state?.thinnedUntil
+              ? `Readings before ${formatDisplay(state.thinnedUntil, "date")} are already thinned.`
+              : "Nothing has been thinned yet."}
+            {state?.lastRunAt && state.lastRemoved
+              ? ` Last run ${formatDisplay(state.lastRunAt, "date")}: removed ${state.lastRemoved.snapshots.toLocaleString("en-GB")} member readings and ${state.lastRemoved.progress.toLocaleString("en-GB")} progress readings.`
+              : ""}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Label htmlFor="months">Keep full detail for</Label>
+          <select
+            id="months"
+            name="months"
+            defaultValue={String(state?.keepMonths ?? 4)}
+            className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 rounded-control border px-2 text-sm outline-none focus-visible:ring-[3px]"
+          >
+            {KEEP_MONTH_CHOICES.map((m) => (
+              <option key={m} value={m}>
+                {m} months
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-start gap-3">
+          <input id="confirm" name="confirm" type="checkbox" value="yes" required className="mt-1 size-4" />
+          <Label htmlFor="confirm" className="font-normal">
+            I understand the removed readings cannot be brought back.
+          </Label>
+        </div>
+
+        <SubmitButton variant="destructive" pendingLabel="Thinning">
+          Thin one month
+        </SubmitButton>
+
+        <p className="text-muted-foreground text-xs">
+          Each press handles one month, so a long history takes a few presses. The database file
+          does not shrink straight away: Postgres reuses the freed space for new readings, so it
+          stops growing. To shrink it now, run <code>vacuum full member_snapshots;</code> in the
+          Supabase SQL editor.
+        </p>
+      </form>
+    </Panel>
+  );
+}
+
 /** Job types as a person would name them. The code stays visible beside it for debugging. */
 const JOB_LABELS: Record<string, { label: string; schedule: string }> = {
   clans: { label: "Clan members", schedule: "Every hour" },
@@ -329,6 +489,11 @@ export default async function AdminPage({
   // The sync writes the clan TAG into its messages; a person knows the name.
   const named = (error: string) =>
     error.replace(/#[0-9A-Z]{4,}/g, (tag) => (tagNames.has(tag) ? `${tagNames.get(tag)} (${tag})` : tag));
+
+  // 053 — platform admin only; the functions return nothing to anyone else.
+  const [usage, retention] = admin
+    ? await Promise.all([storageUsage(supabase), retentionState(supabase)])
+    : [[], null];
 
   const allHistory = history === "all";
   const HISTORY_FIRST = 10;
@@ -552,6 +717,8 @@ export default async function AdminPage({
           )}
         </Panel>
       </div>
+
+      {admin && <StoragePanel usage={usage} state={retention} />}
 
       {/* T9.2 — the history. R9 says every job writes to sync_log; this makes it visible. */}
       <Panel id="sync-history" aria-labelledby="history-title" className="space-y-4">

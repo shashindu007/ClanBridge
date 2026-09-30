@@ -169,6 +169,29 @@ export interface ProgressUnit {
 }
 
 /** Everything the player endpoint says about how far along a village is. */
+/**
+ * 052 — the lifetime donation achievements and the clan counters, read from ONE
+ * /players response so they describe the same instant.
+ *
+ * Each field is undefined when the API omitted it, never 0: a zero would be a
+ * real reading of nothing donated and would corrupt every difference taken
+ * against it.
+ */
+export interface DonationCounters {
+  tag: string;
+  /** The clan the API says the player is in right now, if any. */
+  clanTag?: string;
+  /** "Friend in Need" — troop capacity donated, lifetime. */
+  troopsDonated?: number;
+  /** "Sharing is caring" — spell capacity donated, lifetime. */
+  spellsDonated?: number;
+  /** "Siege Sharer" — siege machines donated, lifetime. */
+  siegesDonated?: number;
+  /** The clan counter: since the last reset or the last clan join. */
+  clanDonations?: number;
+  clanDonationsReceived?: number;
+}
+
 export interface PlayerProgress {
   tag: string;
   thLevel?: number;

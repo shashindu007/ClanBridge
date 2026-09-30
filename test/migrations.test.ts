@@ -231,6 +231,12 @@ async function seedFixtures(h: Harness) {
     insert into player_progress (player_id, clan_id, th_level, units) values
       ('${PLAYER_A}', '${CLAN_A}', 15, '[]'),
       ('${PLAYER_B}', '${CLAN_B}', 14, '[]');
+
+    -- 052. Same shape again: one per clan.
+    insert into donation_counters (player_id, clan_id, troops_donated, spells_donated,
+                                   sieges_donated, clan_donations, clan_donations_received) values
+      ('${PLAYER_A}', '${CLAN_A}', 145000, 3700, 600, 1200, 900),
+      ('${PLAYER_B}', '${CLAN_B}', 90000, 2100, 300, 400, 1500);
   `);
 }
 
@@ -505,6 +511,7 @@ describe("T3.7 — a member of clan A cannot read clan B", () => {
     "sync_log",
     "member_snapshots",
     "player_progress",
+    "donation_counters",
   ])("reads exactly one row from %s — its own", async (table) => {
     await h.asUser(USER_A);
     expect(await count(h, table)).toBe(1);
@@ -1003,9 +1010,20 @@ describe("service_role privileges (fixed by 014)", () => {
   });
 });
 
+/**
+ * Migrations allowed to contain a DELETE, each a decision made on purpose.
+ *
+ * 053 — thin_old_data(): the platform owner chose to thin old readings to stay
+ * inside the free tier. It removes redundant readings BETWEEN kept ones, never a
+ * fact that exists nowhere else, and only when the platform admin presses the
+ * button. test/data-retention.test.ts pins exactly which rows survive.
+ */
+const DELETE_EXCEPTIONS: readonly string[] = ["053_data_retention.sql"];
+
 describe("the migration files themselves", () => {
   it("contains no DELETE statements (R4)", () => {
     for (const file of PHASE1_MIGRATIONS) {
+      if (DELETE_EXCEPTIONS.includes(file)) continue;
       expect(readMigration(file), file).not.toMatch(/^\s*delete\s+from/im);
     }
   });

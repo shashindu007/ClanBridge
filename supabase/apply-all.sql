@@ -7,7 +7,7 @@
 -- BEGIN/COMMIT means a failure anywhere rolls the entire thing back, so you
 -- cannot end up with a half-applied schema.
 --
--- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql
+-- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql
 --
 -- Two numbers are absent, retired rather than reused so that apply order
 -- stays equal to numeric order: 009 (cwl_signups, superseded by Phase 4B)
@@ -9506,6 +9506,421 @@ $$;
 
 revoke execute on function latest_player_progress(uuid[]) from public;
 grant execute on function latest_player_progress(uuid[]) to authenticated, service_role;
+
+-- ========================================================================
+-- 052_donation_counters.sql
+-- ========================================================================
+
+-- 052 — Season donations that survive a clan move.
+--
+-- THE PROBLEM. member_snapshots.donations is the clan counter Supercell keeps,
+-- and Supercell zeroes it twice: at the monthly reset, and whenever the player
+-- leaves a clan. A member who moves from clan X to clan Y mid-season therefore
+-- shows only what they gave in Y, and what they gave in X is gone from the game.
+--
+-- TWO SOURCES, USED TOGETHER (services/season-donations.ts does the arithmetic):
+--
+--   A. member_snapshots, which already holds every hourly reading WITH the clan
+--      it was taken in. Split each player's readings wherever the clan changes
+--      or the counter drops, and each piece's last reading is what they gave in
+--      that clan: xa, ya, ... donation_segments() below does the splitting.
+--
+--   B. The lifetime achievement counters — "Friend in Need" (troop capacity),
+--      "Sharing is caring" (spell capacity), "Siege Sharer" (siege machines).
+--      They never reset, not at the month and not on a clan move, and they count
+--      donations made in ANY clan. donation_counters stores them.
+--
+-- WHY THE CLAN COUNTERS ARE STORED BESIDE THE ACHIEVEMENTS. One /players/{tag}
+-- response carries both, read at the same instant. While a player stays in one
+-- clan, (achievement - clan counter) is constant: it is the achievement value at
+-- the moment that clan's counter was zero. That constant is what lets B tell the
+-- donations missed between two hourly readings (still ours) apart from those
+-- made in a clan outside the platform — and if it is NOT constant, the two
+-- counters do not measure the same thing and B is not used. Storing them apart
+-- would lose the instant that makes the comparison valid.
+--
+-- The three achievements are stored separately rather than summed, because
+-- they count in different units (capacity, capacity, machines) and which sum
+-- matches the clan counter is checked against real data, not assumed.
+--
+-- SIZE. One row per village per UTC day, ~100 villages: about 36,000 rows and a
+-- few MB a year against the 500 MB tier. Written by the daily players sync from
+-- the response it already fetches, so it costs no API calls and no Action
+-- minutes. donation_segments() adds no storage at all.
+--
+-- A GAME FACT (R11), append-only (R5), the same privileges 036 gives
+-- player_progress. clan_id is the clan the API reported at capture, null when
+-- that is no platform clan; the clan policy then hides the row from everyone,
+-- which is right — it is not about any clan a member belongs to.
+
+create table donation_counters (
+  id                       uuid primary key default gen_random_uuid(),
+  player_id                uuid not null references players (id) on delete restrict,
+  clan_id                  uuid references clans (id) on delete restrict,
+  captured_at              timestamptz not null default now(),
+
+  troops_donated           integer,   -- "Friend in Need", lifetime troop capacity
+  spells_donated           integer,   -- "Sharing is caring", lifetime spell capacity
+  sieges_donated           integer,   -- "Siege Sharer", lifetime siege machines
+  clan_donations           integer,   -- the clan counter, same response
+  clan_donations_received  integer,
+
+  created_at               timestamptz not null default now(),
+  deleted_at               timestamptz,
+
+  -- `at time zone 'UTC'` for the reason 007 records: it is what makes the
+  -- generated column immutable.
+  captured_day             timestamp generated always as
+                             (date_trunc('day', captured_at at time zone 'UTC')) stored,
+
+  unique (player_id, captured_day)
+);
+
+create index donation_counters_clan_idx
+  on donation_counters (clan_id, captured_at desc)
+  where deleted_at is null;
+
+alter table donation_counters enable row level security;
+
+create policy "read own clan donation counters" on donation_counters
+  for select to authenticated
+  using (clan_id in (select auth_clan_ids()));
+
+grant select on donation_counters to anon, authenticated;
+grant select, insert on donation_counters to service_role;
+revoke update, delete on donation_counters from service_role;
+
+comment on table donation_counters is
+  '052 - one daily reading per village of its lifetime donation achievements and '
+  'its clan donation counters, taken from the same /players response. A GAME FACT '
+  '(R11): written only by scripts/sync/players.ts, append-only (R5).';
+
+
+-- ---------------------------------------------------------------------------
+-- Each player's readings, cut into one piece per stay in a clan.
+--
+-- A new piece starts where the clan changes ('clan') or either counter falls
+-- ('drop' — the monthly reset, or leaving and rejoining the same clan; the
+-- service tells those apart, because a reset drops half the family in the same
+-- hour and a rejoin drops one player). The first reading in the window is
+-- 'first': the piece may have begun earlier.
+--
+-- `given` and `received` are the piece's LAST reading, which is its total,
+-- because the counter is cumulative within a stay — services/members.ts has the
+-- long version of why the last value is right and summing deltas is wrong.
+--
+-- Done here rather than in TypeScript because a season is ~60,000 hourly rows
+-- across the family and PostgREST returns 1,000 at a time; this returns a few
+-- hundred. Readings with no donation value are skipped rather than read as
+-- zero, so a sync gap is not mistaken for a reset.
+--
+-- SECURITY INVOKER: no new access. The caller's RLS on member_snapshots decides
+-- which rows exist, and p_clan_ids is the explicit filter R3 asks for on top.
+-- ---------------------------------------------------------------------------
+create or replace function donation_segments(p_clan_ids uuid[], p_since timestamptz)
+returns table (
+  player_id     uuid,
+  clan_id       uuid,
+  started_at    timestamptz,
+  ended_at      timestamptz,
+  start_reason  text,
+  given         integer,
+  received      integer
+)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with points as (
+    select s.player_id, s.clan_id, s.captured_at, s.donations, s.donations_received,
+           lag(s.clan_id) over w            as prev_clan,
+           lag(s.donations) over w          as prev_given,
+           lag(s.donations_received) over w as prev_received
+    from public.member_snapshots s
+    where s.clan_id = any (p_clan_ids)
+      and s.captured_at >= p_since
+      and s.deleted_at is null
+      and s.donations is not null
+      and s.donations_received is not null
+    window w as (partition by s.player_id order by s.captured_at)
+  ),
+  marked as (
+    select p.*,
+           case
+             when p.prev_clan is null then 'first'
+             when p.prev_clan <> p.clan_id then 'clan'
+             when p.donations < p.prev_given
+               or p.donations_received < p.prev_received then 'drop'
+           end as reason
+    from points p
+  ),
+  numbered as (
+    -- count() skips nulls, so this is a running piece number per player.
+    select m.*, count(m.reason) over (partition by m.player_id order by m.captured_at) as piece
+    from marked m
+  )
+  select n.player_id,
+         n.clan_id,
+         min(n.captured_at),
+         max(n.captured_at),
+         (array_agg(n.reason order by n.captured_at))[1],
+         (array_agg(n.donations order by n.captured_at desc))[1],
+         (array_agg(n.donations_received order by n.captured_at desc))[1]
+  from numbered n
+  group by n.player_id, n.clan_id, n.piece
+  order by n.player_id, min(n.captured_at);
+$$;
+
+revoke execute on function donation_segments(uuid[], timestamptz) from public;
+grant execute on function donation_segments(uuid[], timestamptz) to authenticated, service_role;
+
+-- ========================================================================
+-- 053_data_retention.sql
+-- ========================================================================
+
+-- 053 — Thinning old readings, so the free tier's 500 MB lasts.
+--
+-- WHY. member_snapshots takes ~2,000 rows a day (every member, every hour) and
+-- player_progress one fat JSONB row per village per day. Left alone they are
+-- most of the database within a year or two, and the free tier is 500 MB.
+--
+-- WHY THIN AND NOT DELETE. Hourly detail matters while it is recent — last
+-- activity, the running season, the Participation page's 75-day window. Older
+-- than a few months, nothing reads it hour by hour. What IS still read is:
+--
+--   * each stay's LAST reading, which is that stay's donation total (a season's
+--     figures, the profile's six months of seasons, season donations);
+--   * each stay's FIRST reading, which is when the player arrived (clan
+--     movement on the profile);
+--   * roughly one reading a day, for "last seen" on an old profile.
+--
+-- So old snapshots keep exactly those — the last of each day, and the first and
+-- last of every stay (a stay ends at a clan change or a counter drop, the same
+-- cut 052's donation_segments() makes). Everything between goes: about 95% of
+-- the rows, with every season total unchanged. player_progress keeps one
+-- reading a week; nothing reads old progress day by day. sync_log keeps the
+-- newest run of each job, so freshness never falls back to "never run".
+-- donation_counters is left alone: one row a day is already small, and old
+-- seasons need it.
+--
+-- WHO. Platform admin only, and enforced here rather than by the page: it
+-- deletes across every clan and cannot be undone. Never below three months —
+-- the Participation page reads 75 days of hourly stays and would silently lose
+-- its season boundaries.
+--
+-- R4 AND R5 SAY NOTHING IS DELETED, AND THIS IS THE DELIBERATE EXCEPTION. The
+-- rows removed are redundant readings between two that are kept, not facts
+-- that exist nowhere else. It runs as the owner, which is how it reaches past
+-- the REVOKE DELETE 036 put on the sync role; that REVOKE still stops the sync
+-- jobs, which is what it was for. Every run is written to audit_log.
+--
+-- ONE MONTH PER CALL. A session request is cut off after a few seconds, and a
+-- first run over a year of history would be killed halfway. So each call thins
+-- the oldest 31 days not yet thinned, records how far it got, and reports
+-- whether there is more. The page offers "run again" until there is not.
+--
+-- THE FILE DOES NOT SHRINK STRAIGHT AWAY. Postgres keeps the freed space and
+-- reuses it for new rows, so the database stops growing rather than getting
+-- smaller. VACUUM FULL shrinks it, but it cannot run inside a function; it is a
+-- one-line job for the Supabase SQL editor, and the admin page says so.
+
+create table data_retention (
+  -- A single row. The check makes a second one impossible.
+  id             boolean primary key default true check (id),
+  -- Everything captured before this has been thinned.
+  thinned_until  timestamptz,
+  keep_months    smallint,
+  last_run_at    timestamptz,
+  last_removed   jsonb,
+  updated_by     uuid references users (id) on delete restrict
+);
+
+insert into data_retention (id) values (true);
+
+alter table data_retention enable row level security;
+
+create policy "platform admin reads data retention" on data_retention
+  for select to authenticated
+  using ((select auth_is_platform_admin()));
+
+-- anon as well, like every table: the policy returns it nothing, and a missing
+-- grant would turn "no rows" into a permission error.
+grant select on data_retention to anon, authenticated, service_role;
+
+comment on table data_retention is
+  '053 - how far back old readings have been thinned, and what the last run '
+  'removed. One row. Written only by thin_old_data().';
+
+
+-- ---------------------------------------------------------------------------
+-- What is taking the space. Platform admin only; anyone else gets no rows.
+-- ---------------------------------------------------------------------------
+create or replace function storage_usage()
+returns table (name text, bytes bigint, row_estimate bigint)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.auth_is_platform_admin() then
+    return;
+  end if;
+
+  return query
+    select '(database)'::text, pg_database_size(current_database()), null::bigint
+    union all
+    (select c.relname::text,
+            pg_total_relation_size(c.oid),
+            -- -1 until the table has been analysed once.
+            greatest(c.reltuples, 0)::bigint
+     from pg_class c
+     join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relkind = 'r'
+     order by 2 desc);
+end;
+$$;
+
+revoke execute on function storage_usage() from public;
+grant execute on function storage_usage() to authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- Thin the oldest month not yet thinned. See the header for what is kept.
+-- ---------------------------------------------------------------------------
+create or replace function thin_old_data(p_keep_months integer)
+returns table (
+  snapshots_removed  integer,
+  progress_removed   integer,
+  sync_runs_removed  integer,
+  window_start       timestamptz,
+  window_end         timestamptz,
+  more               boolean
+)
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_cutoff timestamptz;
+  v_from   timestamptz;
+  v_to     timestamptz;
+  v_snap   integer := 0;
+  v_prog   integer := 0;
+  v_sync   integer := 0;
+begin
+  if not public.auth_is_platform_admin() then
+    raise exception 'thin_old_data: platform admin only' using errcode = '42501';
+  end if;
+  if p_keep_months is null or p_keep_months < 3 or p_keep_months > 24 then
+    raise exception 'thin_old_data: keep between 3 and 24 months' using errcode = '22023';
+  end if;
+
+  v_cutoff := date_trunc('day', now() - make_interval(months => p_keep_months));
+
+  -- FOR UPDATE: two admins pressing the button at once take turns rather than
+  -- thinning the same month twice from the same starting point.
+  select r.thinned_until into v_from from public.data_retention r where r.id for update;
+
+  if v_from is null then
+    v_from := least(
+      (select min(s.captured_at) from public.member_snapshots s),
+      (select min(p.captured_at) from public.player_progress p)
+    );
+  end if;
+  v_from := date_trunc('day', coalesce(v_from, v_cutoff));
+
+  if v_from >= v_cutoff then
+    return query select 0, 0, 0, v_from, v_from, false;
+    return;
+  end if;
+
+  v_to := least(v_from + interval '31 days', v_cutoff);
+
+  -- Snapshots. Read a day either side of the window so the first and last
+  -- reading inside it can see their neighbours; delete only inside it. Any
+  -- comparison with a null is unknown, and unknown keeps the row.
+  with readings as (
+    select s.id, s.clan_id, s.captured_at, s.donations, s.donations_received,
+           lag(s.clan_id)             over w as prev_clan,
+           lead(s.clan_id)            over w as next_clan,
+           lag(s.donations)           over w as prev_given,
+           lead(s.donations)          over w as next_given,
+           lag(s.donations_received)  over w as prev_received,
+           lead(s.donations_received) over w as next_received,
+           row_number() over (
+             partition by s.player_id, date_trunc('day', s.captured_at at time zone 'UTC')
+             order by s.captured_at desc
+           ) as nth_of_day
+    from public.member_snapshots s
+    where s.captured_at >= v_from - interval '1 day'
+      and s.captured_at <  v_to + interval '1 day'
+      and s.deleted_at is null
+    window w as (partition by s.player_id order by s.captured_at)
+  ),
+  redundant as (
+    select r.id
+    from readings r
+    where r.captured_at >= v_from
+      and r.captured_at <  v_to
+      and r.nth_of_day > 1                                  -- not the day's last
+      and r.prev_clan = r.clan_id                           -- not a stay's first
+      and r.next_clan = r.clan_id                           -- not a stay's last
+      and r.donations >= r.prev_given                       -- not the first after a drop
+      and r.donations_received >= r.prev_received
+      and r.next_given >= r.donations                       -- not the last before a drop
+      and r.next_received >= r.donations_received
+  )
+  delete from public.member_snapshots m using redundant d where m.id = d.id;
+  get diagnostics v_snap = row_count;
+
+  -- Progress: the last reading of each week.
+  with ranked as (
+    select p.id,
+           row_number() over (
+             partition by p.player_id, date_trunc('week', p.captured_at at time zone 'UTC')
+             order by p.captured_at desc
+           ) as nth_of_week
+    from public.player_progress p
+    where p.captured_at >= v_from and p.captured_at < v_to
+  )
+  delete from public.player_progress p using ranked r where p.id = r.id and r.nth_of_week > 1;
+  get diagnostics v_prog = row_count;
+
+  -- Sync history: old runs go, except each job's newest, which is what the
+  -- freshness check and "last sync" read.
+  delete from public.sync_log l
+  where l.started_at < v_to
+    and l.id not in (
+      select distinct on (k.job_type, k.clan_id) k.id
+      from public.sync_log k
+      order by k.job_type, k.clan_id, k.started_at desc
+    );
+  get diagnostics v_sync = row_count;
+
+  update public.data_retention r
+  set thinned_until = v_to,
+      keep_months   = p_keep_months,
+      last_run_at   = now(),
+      last_removed  = jsonb_build_object(
+                        'snapshots', v_snap, 'progress', v_prog, 'syncRuns', v_sync,
+                        'from', v_from, 'to', v_to),
+      updated_by    = auth.uid()
+  where r.id;
+
+  insert into public.audit_log (user_id, action, entity, after)
+  values (auth.uid(), 'delete', 'data_retention', jsonb_build_object(
+    'keepMonths', p_keep_months, 'from', v_from, 'to', v_to,
+    'snapshots', v_snap, 'progress', v_prog, 'syncRuns', v_sync));
+
+  return query select v_snap, v_prog, v_sync, v_from, v_to, v_to < v_cutoff;
+end;
+$$;
+
+revoke execute on function thin_old_data(integer) from public;
+grant execute on function thin_old_data(integer) to authenticated;
 
 commit;
 

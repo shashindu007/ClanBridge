@@ -23,6 +23,7 @@ import {
   mapClan,
   mapClanMembers,
   mapCwlGroup,
+  mapDonationCounters,
   mapPlayer,
   mapPlayerProgress,
   mapRaidSeasons,
@@ -480,6 +481,33 @@ describe("mapPlayer", () => {
 
   it("exposes no achievements array above the boundary (R7)", () => {
     expect(player).not.toHaveProperty("achievements");
+  });
+});
+
+describe("mapDonationCounters (052)", () => {
+  const api = playerSchema.parse(fixture("player.json"));
+
+  it("reads the three donation achievements and the clan counters together", () => {
+    // Values from the real capture: see "completionInfo" in fixtures/player.json.
+    expect(mapDonationCounters(api)).toEqual({
+      tag: "#Q9LPUUYR",
+      clanTag: "#LP8PYCP9",
+      troopsDonated: 145220,
+      spellsDonated: 3715,
+      siegesDonated: 607,
+      clanDonations: 0,
+      clanDonationsReceived: 0,
+    });
+  });
+
+  it("leaves a missing achievement undefined rather than zero", () => {
+    const bare = mapDonationCounters(
+      playerSchema.parse({ tag: "#2PP0JCCL", name: "x", achievements: [] }),
+    );
+    expect(bare.troopsDonated).toBeUndefined();
+    expect(bare.spellsDonated).toBeUndefined();
+    expect(bare.siegesDonated).toBeUndefined();
+    expect(bare.clanTag).toBeUndefined();
   });
 });
 

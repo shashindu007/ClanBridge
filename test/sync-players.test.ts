@@ -56,8 +56,12 @@ async function count(h: Harness, table: string, where = "true"): Promise<number>
   return res.rows[0]!.n;
 }
 
-/** Answer `/players/{tag}` with the real fixture body, re-tagged, or 404. */
-function respondFor(known: string[], calls: string[] = []) {
+/**
+ * Answer `/players/{tag}` with the real fixture body, re-tagged, or 404.
+ * `clanOf` puts a tag in a given clan; otherwise the fixture's own clan, which
+ * is not a platform clan here.
+ */
+function respondFor(known: string[], calls: string[] = [], clanOf: Record<string, string> = {}) {
   process.env.USE_FIXTURES = "false";
   process.env.COC_API_TOKEN = "not-a-real-token";
   process.env.COC_THROTTLE_MS = "0";
@@ -74,8 +78,11 @@ function respondFor(known: string[], calls: string[] = []) {
         }),
       );
     }
+    const clan = clanOf[tag]
+      ? { ...(FIXTURE.clan as Record<string, unknown>), tag: clanOf[tag] }
+      : FIXTURE.clan;
     return Promise.resolve(
-      new Response(JSON.stringify({ ...FIXTURE, tag }), {
+      new Response(JSON.stringify({ ...FIXTURE, tag, clan, donations: 850, donationsReceived: 400 }), {
         status: 200,
         headers: { "content-type": "application/json" },
       }),
@@ -198,6 +205,43 @@ describe("T11B.5 — players sync", () => {
     // Two Baby Dragons, one per village, both stored.
     const babies = units.filter((u) => u.name === "Baby Dragon").map((u) => u.village);
     expect(babies.sort()).toEqual(["builder", "home"]);
+  });
+
+  // 052 — the donation achievements ride along on the same response.
+  it("stores the donation counters, filed under the clan the API reported", async () => {
+    respondFor(allKnown, [], { [TAGS[MEMBER]]: "#2PP0JCCL" });
+    expect(await run()).toBe("success");
+
+    const res = await h.db.query<Record<string, unknown>>(
+      `select player_id, clan_id, troops_donated, spells_donated, sieges_donated,
+              clan_donations, clan_donations_received
+       from donation_counters order by player_id`,
+    );
+    expect(res.rows).toHaveLength(3);
+
+    const member = res.rows.find((r) => r.player_id === MEMBER)!;
+    expect(member).toMatchObject({
+      clan_id: CLAN_A,
+      troops_donated: 145220,
+      spells_donated: 3715,
+      sieges_donated: 607,
+      clan_donations: 850,
+      clan_donations_received: 400,
+    });
+
+    // OWNED_MEMBER is filed under clan A in `players`, but the API says it is in
+    // a clan outside the platform. Its clan counters were counted THERE, so they
+    // must not be credited to clan A.
+    const owned = res.rows.find((r) => r.player_id === OWNED_MEMBER)!;
+    expect(owned.clan_id).toBeNull();
+  });
+
+  it("writes no second donation reading on the same day", async () => {
+    respondFor(allKnown);
+    await run();
+    respondFor(allKnown);
+    await run();
+    expect(await count(h, "donation_counters")).toBe(3);
   });
 
   it("skips cleanly when there is nobody to read (R10)", async () => {

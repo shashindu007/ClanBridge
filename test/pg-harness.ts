@@ -131,6 +131,11 @@ export const PHASE1_MIGRATIONS = [
   "050_war_targets_per_attack.sql",
   // latest_player_progress as a family-guarded definer, like 037.
   "051_latest_progress_family.sql",
+  // Lifetime donation achievements beside the clan counters, and the per-stay
+  // split of member_snapshots — season donations that survive a clan move.
+  "052_donation_counters.sql",
+  // Platform-admin thinning of old readings, and the storage figures beside it.
+  "053_data_retention.sql",
 ] as const;
 
 /**
@@ -323,6 +328,8 @@ export const PHASE1_TABLES = [
   "cwl_seasons",
   "cwl_war_members",
   "cwl_wars",
+  "data_retention",
+  "donation_counters",
   "feedback",
   "member_snapshots",
   "notification_preferences",

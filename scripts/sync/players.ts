@@ -36,15 +36,19 @@
 // run on the same UTC day writes nothing, and 036 withholds UPDATE from the sync
 // role so that is enforced rather than hoped for.
 //
-// R11 — writes player_progress only, a game fact.
+// R11 — writes player_progress and donation_counters, both game facts.
+//
+// 052 — donation_counters rides along on the same response: the lifetime
+// donation achievements and the clan counters, which is what lets a season's
+// donations survive a clan move (services/season-donations.ts). No extra call.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { playerEndpoint, request } from "@/integration/coc-client";
 import { playerSchema } from "@/integration/coc-schemas";
 import { CocNotFoundError } from "@/integration/errors";
-import { mapPlayerProgress } from "@/integration/mappers";
+import { mapDonationCounters, mapPlayerProgress } from "@/integration/mappers";
 import { lockedUnits, resolveUnit, type ResolvedUnit, type UnitSource } from "@/data/game";
-import type { PlayerProgress, ProgressUnit } from "@/types/domain";
+import type { DonationCounters, PlayerProgress, ProgressUnit } from "@/types/domain";
 import { activeClans, main, skip, type JobContext } from "./shared";
 
 /** One village to read, and the clan its reading is filed under. */
@@ -146,6 +150,31 @@ export function progressRow(target: ProgressTarget, progress: PlayerProgress) {
   };
 }
 
+/**
+ * 052 — the stored shape of one donation reading. Pure, like progressRow().
+ *
+ * Filed under the clan the API reported IN THIS RESPONSE, not the one the last
+ * clan sync filed the player under: the clan counters stored beside it belong to
+ * that clan, and pairing them with a clan they were not counted in would make
+ * every per-clan figure built on them wrong. Not a platform clan — or no clan —
+ * is null, which 052's policy shows to nobody.
+ */
+export function counterRow(
+  target: ProgressTarget,
+  counters: DonationCounters,
+  clanIdByTag: ReadonlyMap<string, string>,
+) {
+  return {
+    player_id: target.id,
+    clan_id: counters.clanTag ? (clanIdByTag.get(counters.clanTag) ?? null) : null,
+    troops_donated: counters.troopsDonated ?? null,
+    spells_donated: counters.spellsDonated ?? null,
+    sieges_donated: counters.siegesDonated ?? null,
+    clan_donations: counters.clanDonations ?? null,
+    clan_donations_received: counters.clanDonationsReceived ?? null,
+  };
+}
+
 export async function syncPlayers(ctx: JobContext): Promise<void> {
   const { supabase } = ctx;
 
@@ -154,13 +183,17 @@ export async function syncPlayers(ctx: JobContext): Promise<void> {
     skip("noPlayers", "no clan members or owned villages held — has sync:clans run?");
   }
 
+  const clanIdByTag = new Map((await activeClans(supabase)).map((c) => [c.tag, c.id]));
+
   const rows: Array<ReturnType<typeof progressRow>> = [];
+  const counters: Array<ReturnType<typeof counterRow>> = [];
   let missing = 0;
 
   for (const target of targets) {
     try {
       const api = await request(playerEndpoint(target.tag), playerSchema);
       rows.push(progressRow(target, mapPlayerProgress(api)));
+      counters.push(counterRow(target, mapDonationCounters(api), clanIdByTag));
     } catch (error) {
       // A village the API no longer knows — a banned or deleted account — must
       // not cost everybody else their reading. clan-games.ts does the same.
@@ -181,6 +214,18 @@ export async function syncPlayers(ctx: JobContext): Promise<void> {
         ignoreDuplicates: true,
       });
     if (error) throw new Error(`player_progress insert failed: ${error.message}`);
+  }
+
+  // After progress, so a failure here still leaves today's progress written —
+  // and still fails the run, so the gap in the donation readings is reported.
+  for (let i = 0; i < counters.length; i += BATCH) {
+    const { error } = await supabase
+      .from("donation_counters")
+      .upsert(counters.slice(i, i + BATCH), {
+        onConflict: "player_id,captured_day",
+        ignoreDuplicates: true,
+      });
+    if (error) throw new Error(`donation_counters insert failed: ${error.message}`);
   }
 
   ctx.recorded(rows.length);
