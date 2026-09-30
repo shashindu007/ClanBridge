@@ -28,10 +28,17 @@ import { safeNext } from "@/lib/safe-next";
 // that establishes a session and needs the identical guard — see the note in
 // that file on why there must be exactly one copy.
 
-// With no code and no stated reason, this is by far the likeliest cause, and it
-// tells the member what to do next.
+// Supabase's otp_expired covers more than age: it is also what a link gets once
+// a newer one was requested, or once anything — the member, or a mail app's
+// link scanner — has opened it.
 const EXPIRED_LINK =
-  "That sign-in link has expired or was already used. Each link works once — send yourself a new one.";
+  "Supabase rejected this link (expired, already opened once, or replaced by a newer link). Send yourself a new one and open only the newest email.";
+
+// Kept distinct from EXPIRED_LINK on purpose: when the #fragment carries a
+// reason, the login page replaces this with it, so seeing THIS text means the
+// link really arrived with nothing at all.
+const NO_CODE =
+  "That link arrived without a sign-in code. Send yourself a new one.";
 
 function errorRedirect(request: NextRequest, reason: string): NextResponse {
   const url = request.nextUrl.clone();
@@ -72,7 +79,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   } else if (linkError) {
     return errorRedirect(request, params.get("error_description") ?? EXPIRED_LINK);
   } else {
-    return errorRedirect(request, EXPIRED_LINK);
+    return errorRedirect(request, NO_CODE);
   }
 
   // getUser(), not getSession() — the session was just written from a token this

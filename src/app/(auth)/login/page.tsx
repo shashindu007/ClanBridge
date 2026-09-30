@@ -77,10 +77,11 @@ function LoginForm() {
     const hash = new URLSearchParams(window.location.hash.slice(1));
     const reason = hash.get("error_description");
     if (!reason) return;
+    const code = hash.get("error_code");
     setMessage(
-      hash.get("error_code") === "otp_expired"
-        ? "That sign-in link has expired or was already used. Each link works once — send yourself a new one."
-        : reason,
+      code === "otp_expired"
+        ? `Supabase: "${reason}". This also happens when the link was already opened once (by you or your email app's link scanner) or a newer link was sent after it. Send yourself a new one and open only the newest email.`
+        : `Supabase: "${reason}"${code ? ` (${code})` : ""}.`,
     );
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
   }, []);
