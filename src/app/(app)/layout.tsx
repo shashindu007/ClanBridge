@@ -133,6 +133,9 @@ export default async function AppLayout({
 
   const showAdminLink = admin || clans.some((c) => isLeader(c.role));
   const showLeadershipLinks = clans.some((c) => isLeadership(c.role));
+  // Participation is open to every member now, over the clans they are in. RLS
+  // still scopes it: a member reads only their own clans' donations.
+  const showParticipationLink = clans.length > 0;
 
   // Flattened for the rail, which is a Client Component and therefore receives
   // only serialisable values. The accent is resolved HERE rather than there so
@@ -211,12 +214,12 @@ export default async function AppLayout({
               left an ordinary member's controls sitting against the clan
               switcher instead of hard right. */}
           <div className="text-rail-ink-dim ml-auto flex shrink-0 items-center gap-1 text-[0.9375rem]">
-          {/* ── Leadership destinations ──────────────────────────────────
+          {/* ── Cross-clan destinations ──────────────────────────────────
               Cross-clan, so they live here rather than under a clan tag: a CWL
               season is picked across every clan a leader runs (T4B.7), and
-              /report lists every member of every clan with the reasons they
-              were flagged — a leader's view of the family, not a member's view
-              of their own clan (T9.1, objective O3).
+              /report lists every member of every clan the viewer is in, with
+              the reasons they were flagged (T9.1, objective O3). CWL lineups is
+              leadership only; Participation is open to every member.
 
               These two are DESTINATIONS, not settings, which is why they stay
               on the rail rather than going in the account menu with Admin and
@@ -226,22 +229,24 @@ export default async function AppLayout({
 
               Below `md` they collapse into the menu, which always holds the
               complete list — see account-menu.tsx. */}
-          {showLeadershipLinks && (
+          {showParticipationLink && (
             <div className="text-rail-ink-dim hidden shrink-0 items-center gap-1 md:flex">
               {/* "CWL lineups", the page's own title — it was "Rosters" here and
                   "CWL lineups" on Home, one page under two names. */}
-              <Link
-                href="/roster"
-                className="hover:text-rail-ink flex items-center gap-1.5 rounded-control px-2 py-1 transition-colors hover:bg-white/8"
-                title="Pick the CWL lineup across every clan you run"
-              >
-                <ClipboardList aria-hidden className="size-4" />
-                CWL lineups
-              </Link>
+              {showLeadershipLinks && (
+                <Link
+                  href="/roster"
+                  className="hover:text-rail-ink flex items-center gap-1.5 rounded-control px-2 py-1 transition-colors hover:bg-white/8"
+                  title="Pick the CWL lineup across every clan you run"
+                >
+                  <ClipboardList aria-hidden className="size-4" />
+                  CWL lineups
+                </Link>
+              )}
               <Link
                 href="/report"
                 className="hover:text-rail-ink flex items-center gap-1.5 rounded-control px-2 py-1 transition-colors hover:bg-white/8"
-                title="Who across all your clans has stopped turning up"
+                title="Donations and activity across all your clans"
               >
                 <Activity aria-hidden className="size-4" />
                 Participation
@@ -346,6 +351,7 @@ export default async function AppLayout({
               email={profile?.email ?? null}
               showAdmin={showAdminLink}
               showLeadership={showLeadershipLinks}
+              showParticipation={showParticipationLink}
               hasAvatar={Boolean(profile?.avatarPath)}
             />
           </div>

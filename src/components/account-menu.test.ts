@@ -27,6 +27,7 @@ const render = (props: Partial<Parameters<typeof AccountMenu>[0]> = {}) =>
       email: "someone@example.com",
       showAdmin: true,
       showLeadership: true,
+      showParticipation: true,
       ...props,
     }),
   );
@@ -80,6 +81,12 @@ describe("account menu", () => {
     const html = render({ showAdmin: false, showLeadership: false });
     expect(linkText(html, "/roster")).toBeNull();
     expect(linkText(html, "/admin")).toBeNull();
+  });
+
+  it("shows Participation to an ordinary member, not only to leaders", () => {
+    const html = render({ showAdmin: false, showLeadership: false });
+    expect(linkText(html, "/report")).toBe("Participation");
+    expect(linkText(render({ showParticipation: false }), "/report")).toBeNull();
   });
 
   it("floats above the page as a menu, not as one more panel", () => {

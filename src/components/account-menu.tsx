@@ -50,6 +50,8 @@ export interface AccountMenuProps {
   email: string | null;
   showAdmin: boolean;
   showLeadership: boolean;
+  /** Any member of at least one clan — Participation is not leadership only. */
+  showParticipation: boolean;
   /**
    * T11.10 — whether to render the picture at all.
    *
@@ -109,6 +111,7 @@ export function AccountMenu({
   email,
   showAdmin,
   showLeadership,
+  showParticipation,
   hasAvatar = false,
 }: AccountMenuProps) {
   const ref = useRef<HTMLDetailsElement>(null);
@@ -176,14 +179,14 @@ export function AccountMenu({
 
         <Group label="ClanBridge">
           <MenuLink href="/people" Icon={Users} label="People" />
-          {/* Leadership destinations. On the rail itself from `md` up, so these
+          {/* Cross-clan destinations. On the rail itself from `md` up, so these
               are the narrow-screen path to the same pages — here rather than
               hidden, so the menu is always the COMPLETE list. */}
           {showLeadership && (
-            <>
-              <MenuLink href="/roster" Icon={ClipboardList} label="CWL lineups" className="md:hidden" />
-              <MenuLink href="/report" Icon={Activity} label="Participation" className="md:hidden" />
-            </>
+            <MenuLink href="/roster" Icon={ClipboardList} label="CWL lineups" className="md:hidden" />
+          )}
+          {showParticipation && (
+            <MenuLink href="/report" Icon={Activity} label="Participation" className="md:hidden" />
           )}
           {showAdmin && <MenuLink href="/admin" Icon={ShieldCheck} label="Admin" />}
           <MenuLink href="/guide" Icon={BookOpen} label="Guide" />
