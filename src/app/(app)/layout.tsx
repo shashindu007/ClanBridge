@@ -22,7 +22,6 @@ import { Bell, ClipboardList, Search, Trophy } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { accountProfile, currentUserId, needsAccountSetup } from "@/lib/auth";
 import { platformPresence, touchLastSeen, unreadCount } from "@/repositories/notifications";
-import { clanAccent } from "@/lib/clan-accent";
 import { visibleClans } from "@/lib/clans";
 import { isLeader, isLeadership } from "@/lib/visibility";
 import { isGateExempt, isSetupExempt } from "@/lib/gate";
@@ -138,15 +137,12 @@ export default async function AppLayout({
   const showRatingLink = clans.length > 0;
 
   // Flattened for the rail, which is a Client Component and therefore receives
-  // only serialisable values. The accent is resolved HERE rather than there so
-  // the "a clan's hue is derived from its id, never looked up" rule stays in one
-  // place (R3, lib/clan-accent.ts) instead of being restated on the client.
+  // only serialisable values. No colour: the clan menu tells clans apart by name.
   const railClans: RailClan[] = clans.map((clan) => ({
     id: clan.id,
     tag: clan.tag,
     name: clan.name,
     role: clan.role,
-    color: clanAccent(clan.id).color,
   }));
 
   return (

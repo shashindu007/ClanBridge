@@ -569,6 +569,64 @@
       0 24px 48px -12px oklch(0 0 0 / 0.7);
   }
 
+  /* ── Bubble: a water-drop button ──────────────────────────────────────────
+     The cards' water-bubble rim (see "Every card in the signed-in app"), sized
+     down for a button or menu row: a faint aqua fill, an aqua ring, and a shine
+     along the top like light caught on water. Hover brightens the ring and
+     adds a glow; the current item ([aria-current]) is a fuller drop. */
+  .cb-bubble {
+    background: oklch(0.85 0.09 212 / 0.1);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.55),
+      inset 0 0 0 1px oklch(0.8 0.1 212 / 0.45);
+    transition:
+      background-color 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .cb-bubble:hover,
+  .cb-bubble:focus-visible {
+    background: oklch(0.85 0.1 212 / 0.2);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.7),
+      inset 0 0 0 1px oklch(0.78 0.13 210 / 0.8),
+      0 0 14px -4px oklch(0.72 0.14 215 / 0.6);
+  }
+
+  .cb-bubble[aria-current] {
+    background: oklch(0.8 0.12 212 / 0.28);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.8),
+      inset 0 0 0 1px oklch(0.78 0.13 210 / 0.9),
+      inset 0 0 12px oklch(0.85 0.1 210 / 0.35),
+      0 0 16px -4px oklch(0.72 0.14 215 / 0.55);
+  }
+
+  .dark .cb-bubble {
+    background: oklch(0.7 0.12 215 / 0.1);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.22),
+      inset 0 0 0 1px oklch(0.72 0.12 215 / 0.3);
+  }
+
+  .dark .cb-bubble:hover,
+  .dark .cb-bubble:focus-visible {
+    background: oklch(0.7 0.12 215 / 0.2);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.32),
+      inset 0 0 0 1px oklch(0.75 0.13 212 / 0.6),
+      0 0 16px -4px oklch(0.68 0.14 215 / 0.6);
+  }
+
+  .dark .cb-bubble[aria-current] {
+    background: oklch(0.68 0.13 215 / 0.28);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.4),
+      inset 0 0 0 1px oklch(0.75 0.13 212 / 0.75),
+      inset 0 0 14px oklch(0.7 0.13 215 / 0.3),
+      0 0 18px -4px oklch(0.68 0.14 215 / 0.55);
+  }
+
   /* ── Ribbon: a game-state flag ────────────────────────────────────────────
      A flat band with a notched tail, in the display face. --ribbon picks the
      tone; the component (components/game/ribbon.tsx) always writes a word.

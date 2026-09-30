@@ -46,8 +46,6 @@ export interface RailClan {
   tag: string;
   name: string;
   role: string;
-  /** From clanAccent(clan.id), resolved on the server so the hue rule stays in one place. */
-  color: string;
 }
 
 // The current tab is a lit plate on the night rail with a gold line under it;
@@ -123,11 +121,7 @@ export function ClanMenu({ clans }: { clans: RailClan[] }) {
         aria-label={here ? `Clan: ${here.name}. Switch clan` : "Switch clan"}
         title={here ? `${here.name} — you are ${here.role}` : "Your clans"}
       >
-        {here ? (
-          <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: here.color }} />
-        ) : (
-          <Castle aria-hidden className="size-4 shrink-0" />
-        )}
+        <Castle aria-hidden className="size-4 shrink-0" />
         <span data-clan-summary className="max-w-[8rem] truncate sm:max-w-[12rem]">
           {here ? here.name : "Clans"}
         </span>
@@ -140,7 +134,9 @@ export function ClanMenu({ clans }: { clans: RailClan[] }) {
         <p className="text-muted-foreground px-2 pt-1 pb-1.5 text-xs font-medium tracking-wide uppercase">
           Your clans
         </p>
-        <nav aria-label="Switch clan" className="flex flex-col gap-0.5">
+        {/* Water-drop rows (.cb-bubble in globals.css), matching the cards'
+            bubble rim. No colour dots: the name is what tells clans apart. */}
+        <nav aria-label="Switch clan" className="flex flex-col gap-1.5">
           {clans.map((clan) => {
             const active = clan.tag === current;
             return (
@@ -149,15 +145,10 @@ export function ClanMenu({ clans }: { clans: RailClan[] }) {
                 href={`/${encodeURIComponent(clan.tag)}`}
                 aria-current={active ? "page" : undefined}
                 data-clan={clan.name}
-                className={`flex items-center gap-2.5 rounded-control px-2.5 py-2 text-[0.9375rem] transition-colors hover:bg-accent hover:text-accent-foreground ${
-                  active ? "bg-muted font-semibold" : ""
+                className={`cb-bubble flex items-center gap-2.5 rounded-control px-3 py-2 text-[0.9375rem] ${
+                  active ? "font-semibold" : ""
                 }`}
               >
-                {/* This clan's own colour, derived from its id — see
-                    lib/clan-accent.ts on why there is no lookup table. It is
-                    never the only thing distinguishing them: the name is right
-                    beside it. */}
-                <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: clan.color }} />
                 <span className="min-w-0 flex-1 truncate">{clan.name}</span>
                 <span className="text-muted-foreground shrink-0 text-xs capitalize">{clan.role}</span>
                 <Check aria-hidden className={`size-4 shrink-0 ${active ? "" : "invisible"}`} />
@@ -165,10 +156,10 @@ export function ClanMenu({ clans }: { clans: RailClan[] }) {
             );
           })}
         </nav>
-        <div className="mt-1 border-t pt-1">
+        <div className="mt-2 border-t pt-2">
           <Link
             href="/dashboard"
-            className="text-muted-foreground flex items-center gap-2.5 rounded-control px-2.5 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+            className="cb-bubble text-muted-foreground flex items-center gap-2.5 rounded-control px-3 py-2 text-sm"
           >
             <House aria-hidden className="size-4 shrink-0" />
             All clans

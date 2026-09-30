@@ -43,9 +43,9 @@ vi.mock("next/link", () => ({
 const { ClanSectionTabs, ClanMenu } = await import("@/components/clan-nav-rail");
 
 const CLANS = [
-  { id: "a", tag: "#2PP0JCCL", name: "Dark Heaven", role: "leader", color: "var(--clan-1)" },
-  { id: "b", tag: "#2G8YQYRGJ", name: "DH CWL ONLY", role: "leader", color: "var(--clan-2)" },
-  { id: "c", tag: "#2Y9J20JCY", name: "Dark Hell", role: "leader", color: "var(--clan-3)" },
+  { id: "a", tag: "#2PP0JCCL", name: "Dark Heaven", role: "leader" },
+  { id: "b", tag: "#2G8YQYRGJ", name: "DH CWL ONLY", role: "leader" },
+  { id: "c", tag: "#2Y9J20JCY", name: "Dark Hell", role: "leader" },
 ];
 
 const render = (el: ReactElement) => renderToStaticMarkup(el);
