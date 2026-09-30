@@ -6,7 +6,7 @@
 // WHY A MENU RATHER THAN SIX MORE LINKS
 //
 // The rail carried twelve targets in a single row — brand, four clan pills,
-// Rosters, Participation, Admin, Notifications, Account, Help, a username and
+// Rosters, Player rating, Admin, Notifications, Account, Help, a username and
 // Sign out — every one of them the same size, the same weight and the same
 // colour, with no icon on any of them. Nothing in that row told a member which
 // items were related, which were destinations and which were settings, so the
@@ -30,7 +30,7 @@ import Link from "next/link";
 import { useRef } from "react";
 import { useDetailsMenu } from "@/components/use-details-menu";
 import {
-  Activity,
+  Trophy,
   BookOpen,
   ChevronDown,
   CircleUser,
@@ -50,8 +50,8 @@ export interface AccountMenuProps {
   email: string | null;
   showAdmin: boolean;
   showLeadership: boolean;
-  /** Any member of at least one clan — Participation is not leadership only. */
-  showParticipation: boolean;
+  /** Any member of at least one clan — Player rating is not leadership only. */
+  showRating: boolean;
   /**
    * T11.10 — whether to render the picture at all.
    *
@@ -111,7 +111,7 @@ export function AccountMenu({
   email,
   showAdmin,
   showLeadership,
-  showParticipation,
+  showRating,
   hasAvatar = false,
 }: AccountMenuProps) {
   const ref = useRef<HTMLDetailsElement>(null);
@@ -185,8 +185,8 @@ export function AccountMenu({
           {showLeadership && (
             <MenuLink href="/roster" Icon={ClipboardList} label="CWL lineups" className="md:hidden" />
           )}
-          {showParticipation && (
-            <MenuLink href="/report" Icon={Activity} label="Participation" className="md:hidden" />
+          {showRating && (
+            <MenuLink href="/rating" Icon={Trophy} label="Player rating" className="md:hidden" />
           )}
           {showAdmin && <MenuLink href="/admin" Icon={ShieldCheck} label="Admin" />}
           <MenuLink href="/guide" Icon={BookOpen} label="Guide" />

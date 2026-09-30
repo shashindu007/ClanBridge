@@ -51,6 +51,7 @@ describe("T3.8 — the approval gate", () => {
     "/%232PP0JCCL/notices",
     "/search",
     "/report",
+    "/rating",
     "/roster",
   ])("keeps %s behind the gate", (path) => {
     expect(isGateExempt(path)).toBe(false);

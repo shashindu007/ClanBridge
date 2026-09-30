@@ -27,7 +27,7 @@ const render = (props: Partial<Parameters<typeof AccountMenu>[0]> = {}) =>
       email: "someone@example.com",
       showAdmin: true,
       showLeadership: true,
-      showParticipation: true,
+      showRating: true,
       ...props,
     }),
   );
@@ -59,12 +59,13 @@ describe("account menu", () => {
     expect(linkText(html, "/account")).toBe(heading("account"));
     expect(linkText(html, "/settings/account")).toBe(heading("settings/account"));
     expect(linkText(html, "/guide")).toBe(heading("guide"));
+    expect(linkText(html, "/rating")).toBe(heading("rating"));
   });
 
   it("calls the leaders' pages what the rail calls them", () => {
     const html = render();
     expect(linkText(html, "/roster")).toBe("CWL lineups");
-    expect(linkText(html, "/report")).toBe("Participation");
+    expect(linkText(html, "/rating")).toBe("Player rating");
   });
 
   it("keeps Feedback and People reachable", () => {
@@ -83,10 +84,10 @@ describe("account menu", () => {
     expect(linkText(html, "/admin")).toBeNull();
   });
 
-  it("shows Participation to an ordinary member, not only to leaders", () => {
+  it("shows Player rating to an ordinary member, not only to leaders", () => {
     const html = render({ showAdmin: false, showLeadership: false });
-    expect(linkText(html, "/report")).toBe("Participation");
-    expect(linkText(render({ showParticipation: false }), "/report")).toBeNull();
+    expect(linkText(html, "/rating")).toBe("Player rating");
+    expect(linkText(render({ showRating: false }), "/rating")).toBeNull();
   });
 
   it("floats above the page as a menu, not as one more panel", () => {

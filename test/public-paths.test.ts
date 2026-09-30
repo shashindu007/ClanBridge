@@ -46,6 +46,7 @@ describe("PUBLIC_PATHS", () => {
     "/notifications",
     "/roster",
     "/report",
+    "/rating",
     "/admin",
     "/account/setup",
     "/settings/account",
