@@ -94,7 +94,7 @@ export default async function LineupExportPage({
         const list = (members[i] ?? [])
           .map((m) => {
             const d = details.get(m.playerId);
-            return { ...m, thLevel: d?.thLevel ?? m.thLevel, maxPct: d?.maxPct ?? null, heroPct: d?.heroPct ?? null };
+            return { ...m, thLevel: d?.thLevel ?? m.thLevel, maxPct: d?.maxPct ?? null, heroPct: d?.heroPct ?? null, offencePct: d?.offencePct ?? null };
           })
           .sort(byWarOrder);
         const id = `lineup-${clan.tag.replace("#", "")}`;
@@ -149,6 +149,7 @@ export default async function LineupExportPage({
                       <th className="px-2 py-1.5">TH</th>
                       <th className="px-2 py-1.5">Heroes</th>
                       <th className="px-2 py-1.5 text-right">Max</th>
+                      <th className="px-2 py-1.5 text-right">Offence</th>
                       <th className="px-2 py-1.5 text-right">Last CWL</th>
                     </tr>
                   </thead>
@@ -171,6 +172,9 @@ export default async function LineupExportPage({
                           </td>
                           <td className="px-2 py-1.5 text-right tabular-nums">
                             {d?.maxPct !== null && d?.maxPct !== undefined ? `${Math.round(d.maxPct)}%` : "—"}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">
+                            {m.offencePct !== null ? `${Math.round(m.offencePct)}%` : "—"}
                           </td>
                           <td className="px-2 py-1.5 text-right text-xs tabular-nums">
                             {last ? (

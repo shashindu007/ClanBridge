@@ -122,6 +122,7 @@ export interface LineupCardPlayer {
   heroes: HeroLevel[];
   maxPct: number | null;
   heroPct: number | null;
+  offencePct: number | null;
   history: CwlSeasonLine[];
 }
 
@@ -162,6 +163,10 @@ export function LineupCard({
         <span className="flex items-center gap-1.5 text-xs">
           <span className="text-muted-foreground">Heroes</span>
           <MaxPct pct={player.heroPct} label="of hero max" />
+        </span>
+        <span className="flex items-center gap-1.5 text-xs">
+          <span className="text-muted-foreground">Offence</span>
+          <MaxPct pct={player.offencePct} label="of troop, spell, pet and equipment max" />
         </span>
       </div>
       <div className="mt-auto flex items-end justify-between gap-2 border-t pt-2">
@@ -241,6 +246,7 @@ export function LineupSummary({ rows }: { rows: LineupSummaryRow[] }) {
       {overall.unknown > 0 && <td className="px-2 py-2 text-center tabular-nums">{b.unknown || "·"}</td>}
       <td className="px-2 py-2 text-right tabular-nums">{avg(b.avgTh, 1)}</td>
       <td className="px-2 py-2 text-right tabular-nums">{b.avgHeroPct === null ? "—" : `${avg(b.avgHeroPct)}%`}</td>
+      <td className="px-2 py-2 text-right tabular-nums">{b.avgOffencePct === null ? "—" : `${avg(b.avgOffencePct)}%`}</td>
       <td className="px-2 py-2 text-right tabular-nums">{b.avgMaxPct === null ? "—" : `${avg(b.avgMaxPct)}%`}</td>
     </>
   );
@@ -276,6 +282,7 @@ export function LineupSummary({ rows }: { rows: LineupSummaryRow[] }) {
               {overall.unknown > 0 && <th className="px-2 py-2 text-center font-medium">TH ?</th>}
               <th className="px-2 py-2 text-right font-medium">Avg TH</th>
               <th className="px-2 py-2 text-right font-medium">Heroes</th>
+              <th className="px-2 py-2 text-right font-medium">Offence</th>
               <th className="px-2 py-2 text-right font-medium">Max</th>
             </tr>
           </thead>

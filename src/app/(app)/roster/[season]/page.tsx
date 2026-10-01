@@ -383,6 +383,7 @@ export default async function RosterBuilderPage({
       heroes: detail?.heroes ?? [],
       maxPct: detail?.maxPct ?? null,
       heroPct: detail?.heroPct ?? null,
+      offencePct: detail?.offencePct ?? null,
       history: detail?.history ?? [],
     };
   }).sort(byWarOrder);
@@ -394,6 +395,7 @@ export default async function RosterBuilderPage({
       thLevel: detail?.thLevel ?? m.thLevel,
       maxPct: detail?.maxPct ?? null,
       heroPct: detail?.heroPct ?? null,
+      offencePct: detail?.offencePct ?? null,
     };
   };
   const summaryRows = editable.map((roster) => {
@@ -593,7 +595,7 @@ export default async function RosterBuilderPage({
                   </Link>
                 </p>
               ) : (
-                <table className="w-full min-w-[52rem] text-sm">
+                <table className="w-full min-w-[58rem] text-sm">
                   <thead className="bg-card text-muted-foreground sticky top-0 z-10 border-b text-left text-xs uppercase">
                     <tr>
                       <th className="w-10 py-2 pr-2 font-medium">
@@ -603,6 +605,7 @@ export default async function RosterBuilderPage({
                       <th className="py-2 pr-3 font-medium">TH</th>
                       <th className="py-2 pr-3 font-medium">Heroes</th>
                       <th className="py-2 pr-3 font-medium">Max</th>
+                      <th className="py-2 pr-3 font-medium">Offence</th>
                       <th className="py-2 pr-3 font-medium">Last CWLs (stars · attacks)</th>
                       <th className="py-2 font-medium">Availability</th>
                     </tr>
@@ -656,6 +659,9 @@ export default async function RosterBuilderPage({
                           </td>
                           <td className="py-2.5 pr-3">
                             <MaxPct pct={p.detail?.maxPct ?? null} />
+                          </td>
+                          <td className="py-2.5 pr-3">
+                            <MaxPct pct={p.detail?.offencePct ?? null} label="of troop, spell, pet and equipment max" />
                           </td>
                           <td className="py-2.5 pr-3">
                             <CwlHistoryChips seasons={p.detail?.history ?? []} ownClanName={p.clanName} />

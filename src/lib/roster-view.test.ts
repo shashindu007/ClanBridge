@@ -187,7 +187,7 @@ describe("byWarOrder", () => {
 describe("lineupBreakdown", () => {
   it("counts each Town Hall, highest first, with averages over the known ones", () => {
     const b = lineupBreakdown([
-      { name: "a", thLevel: 17, maxPct: 80, heroPct: 90 },
+      { name: "a", thLevel: 17, maxPct: 80, heroPct: 90, offencePct: 60 },
       { name: "b", thLevel: 18, maxPct: 100, heroPct: null },
       { name: "c", thLevel: 17 },
       { name: "d", thLevel: null },
@@ -201,6 +201,7 @@ describe("lineupBreakdown", () => {
     expect(b.avgTh).toBeCloseTo(52 / 3);
     expect(b.avgMaxPct).toBe(90);
     expect(b.avgHeroPct).toBe(90);
+    expect(b.avgOffencePct).toBe(60);
   });
 
   it("is empty for an empty lineup", () => {
@@ -211,6 +212,7 @@ describe("lineupBreakdown", () => {
       avgTh: null,
       avgMaxPct: null,
       avgHeroPct: null,
+      avgOffencePct: null,
     });
   });
 });

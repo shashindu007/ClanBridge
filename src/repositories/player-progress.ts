@@ -138,7 +138,23 @@ export interface VillageSnapshot {
   maxPct: number | null;
   /** Heroes alone, 0–100 — the number a CWL lineup is really decided on; null with no heroes. */
   heroPct: number | null;
+  /**
+   * Everything an attack brings besides the heroes — troops, sieges, spells,
+   * pets and hero equipment — 0–100; null with nothing to count. Defences
+   * would be the other half of a base, but the API never reports buildings.
+   */
+  offencePct: number | null;
 }
+
+const OFFENCE_GROUPS = new Set<string>([
+  "elixirTroop",
+  "darkTroop",
+  "siege",
+  "elixirSpell",
+  "darkSpell",
+  "pet",
+  "equipment",
+]);
 
 const HERO_ORDER: Array<[string, string]> = [
   ["Barbarian King", "BK"],
@@ -181,6 +197,7 @@ export async function latestProgressFor(
       // and 100% in green would read as a maxed village.
       maxPct: nullIfEmpty(overallProgress(reading.units, "home")),
       heroPct: nullIfEmpty(tally(heroUnits)),
+      offencePct: nullIfEmpty(tally(home.filter((u) => OFFENCE_GROUPS.has(u.group)))),
     });
   }
   return out;

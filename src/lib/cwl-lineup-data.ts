@@ -13,6 +13,8 @@ export interface PlayerDetail {
   heroes: HeroLevel[];
   maxPct: number | null;
   heroPct: number | null;
+  /** Troops, sieges, spells, pets and equipment against this Town Hall's caps. */
+  offencePct: number | null;
   /** Newest first, up to three. */
   history: CwlSeasonLine[];
   /** Average stars per attack over those seasons, for sorting. Null with no CWL. */
@@ -54,6 +56,7 @@ export async function playerDetails(
       heroes: snap?.heroes ?? [],
       maxPct: snap?.maxPct ?? null,
       heroPct: snap?.heroPct ?? null,
+      offencePct: snap?.offencePct ?? null,
       history: seasons,
       starsPerAttack: attacks ? seasons.reduce((t, s) => t + s.stars, 0) / attacks : null,
     });

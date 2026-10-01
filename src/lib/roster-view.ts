@@ -234,6 +234,7 @@ export interface LineupBase {
   thLevel: number | null;
   maxPct?: number | null;
   heroPct?: number | null;
+  offencePct?: number | null;
 }
 
 /**
@@ -260,6 +261,7 @@ export interface LineupBreakdown {
   avgTh: number | null;
   avgMaxPct: number | null;
   avgHeroPct: number | null;
+  avgOffencePct: number | null;
 }
 
 /** "TH18 ×3, TH17 ×5 …" and the averages, for a lineup or several at once. */
@@ -284,5 +286,6 @@ export function lineupBreakdown(players: readonly LineupBase[]): LineupBreakdown
     avgTh: average(players.map((p) => p.thLevel || null)),
     avgMaxPct: average(players.map((p) => p.maxPct)),
     avgHeroPct: average(players.map((p) => p.heroPct)),
+    avgOffencePct: average(players.map((p) => p.offencePct)),
   };
 }

@@ -135,6 +135,7 @@ export default async function PublishedRosterPage({
                       heroes: d?.heroes ?? [],
                       maxPct: d?.maxPct ?? null,
                       heroPct: d?.heroPct ?? null,
+                      offencePct: d?.offencePct ?? null,
                       history: d?.history ?? [],
                     }}
                   />
