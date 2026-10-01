@@ -528,8 +528,7 @@ export async function syncWar(ctx: JobContext): Promise<void> {
   for (const clan of clans) {
     // One clan's bad hour must not cost the others theirs: a 5xx or a timeout
     // used to throw out of this loop and every clan later in tag order lost
-    // its war for the run. Recorded and thrown at the end instead, exactly as
-    // a private war log already was.
+    // its war for the run. Recorded and thrown at the end instead.
     try {
       const clanTag = normaliseTag(clan.tag);
 
@@ -543,11 +542,25 @@ export async function syncWar(ctx: JobContext): Promise<void> {
           ctx.recorded(await closeStaleWars(supabase, clan, undefined));
           continue;
         }
-        // A private war log is a real misconfiguration (T0.1). Recorded and
-        // carried past so the other clans are still captured, then thrown at the
-        // end — losing two clans' wars to one clan's setting is the worse outcome.
+        // A private war log is a real misconfiguration (T0.1), but it is a
+        // SETTING IN THE GAME, not a fault in this job, and it is not this
+        // job's to report. It used to fail the whole run, and from 2026-09-04 a
+        // single clan's private log turned every war sync red for four weeks:
+        // 127 "Sync failed" notifications, a "failed" badge on every OTHER
+        // clan's war page (the run is not per clan), and a workflow so
+        // permanently red that a real failure would have been invisible in it.
+        //
+        // The clan's own home page already says so, from
+        // clans.is_war_log_public, which sync-clans keeps current — the place
+        // a member of that clan will actually look. Here it is a warning in the
+        // log and nothing more. Regular wars are recoverable from the war log
+        // once it is public again; CWL is not, which is why sync-cwl still
+        // treats the same condition as a failure.
         if (error instanceof CocPrivateLogError) {
-          problems.push(`${clan.tag}: war log is private (T0.1), war unreadable`);
+          console.warn(
+            `  WARNING  ${clan.tag}: war log is private (T0.1), war unreadable. ` +
+              "A leader can set it to Public in game: Clan Settings -> War Log.",
+          );
           continue;
         }
         throw error; // recorded against this clan by the catch below

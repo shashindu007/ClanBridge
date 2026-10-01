@@ -112,6 +112,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
     "This account is not the configured owner. Set OWNER_EMAIL to the address you sign in with.",
   "no-name": "Give the clan a name.",
   forbidden: "You do not have permission to do that.",
+  "notice-failed": "Could not save that announcement. Try again in a moment.",
   "unknown-job": "That is not a job that can be started by hand.",
   "unknown-action": "That is not something this page can do.",
   // Notification settings.

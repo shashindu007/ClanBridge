@@ -36,24 +36,34 @@ export interface AccountPlayer {
 }
 
 /**
- * Has this account left, in game, every clan it holds a role in?
+ * The clans this account holds a role in but has no village in any more.
  *
- * True when it has at least one role and at least one village, and no village
- * is currently in any of the clans those roles are for. That is the member who
- * walked out — or went to an enemy clan — and still reads the clan's war plans
- * until someone retires the role. Deliberately NOT acted on automatically: the
- * family moves players between its clans for CWL, and R11 keeps the sync away
- * from roles. A leader sees the flag and decides.
+ * PER CLAN, not "every clan at once". The first version flagged an account
+ * only when it had left EVERY clan it held a role in, so a member with roles in
+ * two of the family's clans who was kicked from one — or a co-leader demoted
+ * and removed from one — kept that clan's war plans and leadership with nothing
+ * anywhere saying so, because the other role still had a village behind it.
  *
- * An account with no villages is not flagged; there is nothing to compare, and
+ * Empty when the account has no villages: there is nothing to compare, and
  * "never verified" is a different conversation from "left".
+ *
+ * Deliberately NOT acted on automatically: the family moves players between its
+ * clans for CWL, and R11 keeps the sync away from roles. A leader sees the flag
+ * and decides.
  */
-export function leftClanInGame(account: Pick<AdminAccount, "memberships" | "players">): boolean {
-  if (!account.memberships.length || !account.players.length) return false;
-  const roleClans = new Set(account.memberships.map((m) => m.clanId));
-  return !account.players.some(
-    (p) => !p.leftAt && p.clanId != null && roleClans.has(p.clanId),
+export function clansLeftInGame(
+  account: Pick<AdminAccount, "memberships" | "players">,
+): AccountMembership[] {
+  if (!account.players.length) return [];
+  const present = new Set(
+    account.players.filter((p) => !p.leftAt && p.clanId != null).map((p) => p.clanId),
   );
+  return account.memberships.filter((m) => !present.has(m.clanId));
+}
+
+/** Has this account left, in game, any clan it still holds a role in? */
+export function leftClanInGame(account: Pick<AdminAccount, "memberships" | "players">): boolean {
+  return clansLeftInGame(account).length > 0;
 }
 
 export interface AdminAccount {

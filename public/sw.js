@@ -69,7 +69,11 @@ self.addEventListener("notificationclick", (event) => {
         includeUncontrolled: true,
       });
 
-      const url = new URL(target, self.location.origin);
+      // Same origin or nowhere. The payload's url is meant to be a path on this
+      // site, and a browser reads '/\evil.example' as '//evil.example' — so a
+      // bad value must open the home page rather than somebody else's.
+      let url = new URL(target, self.location.origin);
+      if (url.origin !== self.location.origin) url = new URL("/", self.location.origin);
 
       // Focus a window already on that page, else reuse any window, and only
       // open a new one as a last resort. A member who taps three notifications

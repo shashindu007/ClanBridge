@@ -20,6 +20,13 @@
 // shell is still around this page, so the clan switcher and the account menu are
 // already there; this only has to explain and offer the retry.
 //
+// RESET ALONE DOES NOTHING HERE (QA, 2026-10). reset() re-renders the segment
+// on the client from the payload it already has; for an error thrown while the
+// SERVER rendered the page — every error this file exists for — that payload is
+// the failure itself, so "Try again" re-showed the same error and looked broken.
+// router.refresh() asks the server for a fresh render, and reset() inside the
+// same transition swaps it in once it arrives.
+//
 // Must be a Client Component — Next requires it, because error boundaries are a
 // React runtime feature and reset() is a callback.
 //
@@ -30,8 +37,9 @@
 // which is the same trade lib/errors.ts's safeMessage() already makes everywhere
 // a database error reaches a member.
 
-import { useEffect } from "react";
+import { useEffect, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { RotateCw, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -42,6 +50,16 @@ export default function AppError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const router = useRouter();
+  const [retrying, startRetry] = useTransition();
+
+  function tryAgain() {
+    startRetry(() => {
+      router.refresh();
+      reset();
+    });
+  }
+
   useEffect(() => {
     // The server has already logged this; this is the browser half, so a
     // member who reports "it broke" can be asked what the console said.
@@ -74,8 +92,8 @@ export default function AppError({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button onClick={reset} size="sm">
-            <RotateCw aria-hidden />
+          <Button onClick={tryAgain} size="sm" disabled={retrying}>
+            <RotateCw aria-hidden className={retrying ? "animate-spin" : undefined} />
             Try again
           </Button>
           <Button asChild size="sm" variant="outline">

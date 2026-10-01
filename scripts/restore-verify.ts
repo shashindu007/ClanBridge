@@ -1,6 +1,6 @@
 // T9.4 — restore a backup into a scratch database and check what arrived.
 //
-//   npm run restore:verify -- --dump backups/clanbridge-2026....dump \
+//   npm run restore:verify -- --dump backups/clanbridge-2026....dump.gpg \
 //                             --into "postgresql://postgres:...@...:5432/postgres"
 //
 // backup.yml has produced a weekly dump since T2.8. That proves a file is
@@ -20,8 +20,10 @@
 // Restoring a week-old dump over the live database would destroy exactly the
 // data this task exists to protect.
 
-import { existsSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
 import { Client } from "pg";
 import { PHASE1_TABLES } from "../test/pg-harness";
 
@@ -98,6 +100,55 @@ function targetUrl(): string | undefined {
 function fail(message: string): never {
   console.error(`\n${message}\n`);
   process.exit(1);
+}
+
+/**
+ * The weekly dump is gpg-encrypted (backup.yml — the repository is public, and
+ * an unencrypted artifact would publish every member's account data). Decrypt
+ * it into a private temporary directory that is removed however this script
+ * exits, including through fail()'s process.exit().
+ *
+ * The passphrase is read from BACKUP_PASSPHRASE and handed to gpg on stdin,
+ * never as an argument, so it does not appear in the process list.
+ */
+function decryptIfNeeded(dump: string): string {
+  if (!dump.endsWith(".gpg")) return dump;
+
+  const passphrase = process.env.BACKUP_PASSPHRASE;
+  if (!passphrase) {
+    fail(
+      "This dump is encrypted (.gpg). Set BACKUP_PASSPHRASE in .env.local to the\n" +
+        "passphrase stored in the repository's BACKUP_PASSPHRASE secret, then re-run.",
+    );
+  }
+
+  const dir = mkdtempSync(join(tmpdir(), "clanbridge-restore-"));
+  process.on("exit", () => rmSync(dir, { recursive: true, force: true }));
+  const out = join(dir, basename(dump, ".gpg"));
+
+  const gpg = spawnSync(
+    "gpg",
+    [
+      "--batch",
+      "--yes",
+      "--pinentry-mode",
+      "loopback",
+      "--passphrase-fd",
+      "0",
+      "--output",
+      out,
+      "--decrypt",
+      dump,
+    ],
+    { input: passphrase, encoding: "utf8" },
+  );
+  if (gpg.error) {
+    fail("gpg is not on PATH. Install GnuPG (gnupg.org) to decrypt the backup.");
+  }
+  if (gpg.status !== 0) {
+    fail(`gpg could not decrypt ${dump} — wrong passphrase?\n\n${gpg.stderr ?? ""}`.trim());
+  }
+  return out;
 }
 
 /** Host and database only — never the password, which would end up in a log. */
@@ -183,7 +234,8 @@ async function main(): Promise<void> {
     );
   }
 
-  const size = statSync(dump).size;
+  const restorable = decryptIfNeeded(dump);
+  const size = statSync(restorable).size;
   console.log("\nRestore verification (T9.4)\n");
   console.log(`  dump    ${dump}  (${(size / 1024 / 1024).toFixed(1)} MB)`);
   console.log(`  into    ${describeTarget(into)}`);
@@ -215,7 +267,7 @@ async function main(): Promise<void> {
   console.log("  restoring ...");
   const restore = spawnSync(
     "pg_restore",
-    ["--no-owner", "--no-privileges", "--dbname", into, dump],
+    ["--no-owner", "--no-privileges", "--dbname", into, restorable],
     { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
 

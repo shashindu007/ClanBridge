@@ -113,8 +113,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     console.error(`Could not create profile for ${user.id}: ${profileError.message}`);
   }
 
-  const url = request.nextUrl.clone();
-  url.pathname = next;
-  url.search = "";
-  return NextResponse.redirect(url);
+  // Resolved as a URL, not assigned to `pathname`. safeNext() returns a path
+  // that may carry a query (`/roster/2026-10?clan=…`), and assigning that to
+  // pathname percent-encoded the `?` into the path itself — a 404 instead of
+  // the page the link was for. safeNext() has already refused anything that
+  // could resolve off-site, so the origin here cannot change.
+  return NextResponse.redirect(new URL(next, request.nextUrl.origin));
 }

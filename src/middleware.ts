@@ -37,7 +37,16 @@ export const config = {
   // the forwarded user-id header that lib/auth.ts trusts precisely BECAUSE the
   // middleware always rewrites it. Skipping must mean "a file", never
   // "anything that looks a bit like one".
+  //
+  // NAMED FILES, NOT EXTENSIONS (QA, 2026-10). Even "a static extension at the
+  // END of the path" was still a guess about what is a file. `[clanTag]` and
+  // `player/[tag]` are dynamic segments that END a path, so `/%23TAG.png` and
+  // `/%23C/player/%23X.js` rendered real pages — Server Actions included — with
+  // no middleware: no login redirect, no write limit, and a client-supplied
+  // x-user-id that lib/auth.ts believes. The exclusions below are the files
+  // public/ actually serves plus the two a browser asks for unprompted; every
+  // other path runs the middleware, which is the safe default.
   matcher: [
-    "/((?!_next/static|_next/image|icons/|manifest.json|sw.js|.*\\.(?:ico|png|jpe?g|gif|svg|webp|avif|txt|xml|webmanifest|js|mjs|css|map|woff2?|ttf)$).*)",
+    "/((?!_next/static|_next/image|icons/|game/|scenes/|favicon\\.ico$|manifest\\.json$|sw\\.js$|robots\\.txt$|apple-touch-icon[^/]*\\.png$).*)",
   ],
 };

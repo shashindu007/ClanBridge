@@ -164,10 +164,15 @@ async function throwForStatus(response: Response, endpoint: string): Promise<nev
   switch (response.status) {
     case 403: {
       const war = WAR_ENDPOINT.exec(endpoint);
-      if (war) {
-        // Both cases are 403 with reason "accessDenied". The endpoint is what
-        // separates them, and the difference matters: one is an in-game setting
-        // on one clan, the other is your API key.
+      // A key refused for its IP says so: reason "accessDenied.invalidIp". On a
+      // war endpoint that used to be reported as a private war log for EVERY
+      // clan at once, which sends a leader into the game to change a setting
+      // that was never the problem. Checked first, whatever the endpoint.
+      const keyRefused = /invalidIp/i.test(body);
+      if (war && !keyRefused) {
+        // Otherwise both cases are a bare "accessDenied", and the endpoint is
+        // what separates them: one is an in-game setting on one clan, the other
+        // is your API key.
         throw new CocPrivateLogError(
           "War log is private. Clan Settings -> War Log -> Public (T0.1).",
           endpoint,

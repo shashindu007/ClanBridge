@@ -95,7 +95,11 @@ describe("the middleware matcher", () => {
     "/manifest.json",
     "/sw.js",
     "/icons/icon-192.png",
+    "/game/heroes/hero-archer-queen.webp",
+    "/scenes/crystal-cave.webp",
+    "/apple-touch-icon-precomposed.png",
     "/_next/static/chunk.js",
+    "/_next/image",
   ])("does not run on %s", (path) => {
     expect(runsOn(path)).toBe(false);
   });
@@ -109,6 +113,18 @@ describe("the middleware matcher", () => {
       expect(runsOn(path)).toBe(true);
     },
   );
+
+  // An extension at the END was the second guess, and it was wrong too:
+  // [clanTag] and player/[tag] end a path, so these are real pages.
+  it.each([
+    "/%232G8YQYRGJ.png",
+    "/%232G8YQYRGJ/player/%23ABC.js",
+    "/%232G8YQYRGJ/polls/x.css",
+    "/roster/2026-10.txt",
+    "/sw.js/x",
+  ])("runs on a page whose last segment merely ends like a file: %s", (path) => {
+    expect(runsOn(path)).toBe(true);
+  });
 
   it.each([
     "/",

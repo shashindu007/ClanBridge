@@ -4,12 +4,28 @@
 # was lost in month three, and deleted CWL history cannot be re-fetched from any
 # source on earth.
 #
-# Secret required:
-#   SUPABASE_DB_URL   the direct Postgres connection string
-#                     (Supabase dashboard -> Project Settings -> Database)
+# Secrets required:
+#   SUPABASE_DB_URL     the SESSION POOLER connection string
+#                       (Supabase dashboard -> Connect -> Session pooler,
+#                       host *.pooler.supabase.com, port 5432). NOT the direct
+#                       db.<ref>.supabase.co address: that one is IPv6-only and
+#                       GitHub's runners have no IPv6, so pg_dump cannot reach it.
+#                       Every run before this note failed at the dump step.
+#   BACKUP_PASSPHRASE   encrypts the dump. Keep a copy somewhere safe — without it
+#                       a backup cannot be restored by anyone, including you.
+#
+# THE DUMP IS ENCRYPTED BEFORE IT IS UPLOADED, AND MUST STAY THAT WAY.
+#
+# This repository is public, and a public repository's workflow artifacts can be
+# downloaded by anyone signed in to GitHub. pg_dump reads every schema the
+# postgres role can see — including Supabase's `auth` schema, with every
+# member's email address, password hash and live session. An unencrypted
+# artifact here would publish all of it. So the passphrase check runs FIRST,
+# before anything is dumped, and only the .gpg file is ever uploaded.
 #
 # T9.4 — restore one of these into a scratch Supabase project and confirm it
-# works. An untested backup is not a backup.
+# works. An untested backup is not a backup. `npm run restore:verify` decrypts a
+# .gpg dump itself when BACKUP_PASSPHRASE is set.
 
 name: backup
 
@@ -24,11 +40,22 @@ concurrency:
 
 jobs:
   dump:
-    runs-on: ubuntu-latest
+    # Pinned rather than ubuntu-latest: the pgdg apt line below is keyed on the
+    # release codename, and a new Ubuntu can arrive before pgdg publishes for it.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Refuse to run without an encryption passphrase
+        run: |
+          if [ -z "${BACKUP_PASSPHRASE}" ]; then
+            echo "::error::BACKUP_PASSPHRASE is not set. Refusing to dump: this repository is public and an unencrypted backup would publish every member's account data."
+            exit 1
+          fi
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+
+      - uses: actions/checkout@v5
 
       - name: Install a matching pg_dump
         # The runner ships an older client than Supabase runs. A version mismatch
@@ -40,23 +67,32 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y postgresql-client-17
 
-      - name: Dump the database
+      - name: Dump and encrypt the database
         run: |
           set -euo pipefail
           mkdir -p backups
           STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+          PLAIN="backups/clanbridge-${STAMP}.dump"
           pg_dump --no-owner --no-privileges --format=custom \
-            --file="backups/clanbridge-${STAMP}.dump" \
+            --file="${PLAIN}" \
             "$SUPABASE_DB_URL"
+          # Passphrase on a file descriptor, never on the command line, where it
+          # would be visible in the process list.
+          printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback \
+            --passphrase-fd 0 --symmetric --cipher-algo AES256 \
+            --output "${PLAIN}.gpg" "${PLAIN}"
+          shred -u "${PLAIN}"
           ls -lh backups/
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: clanbridge-backup
-          path: backups/
+          # Only the encrypted file. Never widen this to the whole directory.
+          path: backups/*.gpg
           # Artifacts are capped at 90 days on the free tier. Once there is
           # history worth keeping, download one periodically or push to a second
           # private repository — an artifact that expires is not an archive.

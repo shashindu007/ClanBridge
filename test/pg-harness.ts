@@ -140,6 +140,9 @@ export const PHASE1_MIGRATIONS = [
   "054_half_hour_snapshots.sql",
   // Last activity per member over weeks of readings, not a capped window.
   "055_last_activity.sql",
+  // QA: notification recipients scoped to the clan, no backslash URLs, and
+  // push endpoint hand-over between accounts.
+  "056_notification_and_push_hardening.sql",
 ] as const;
 
 /**

@@ -202,11 +202,14 @@ export async function retireExpired(
 ): Promise<void> {
   if (endpoints.length === 0) return;
 
-  const { error } = await supabase
-    .from("push_subscriptions")
-    .update({ deleted_at: new Date().toISOString() })
-    .in("endpoint", [...endpoints])
-    .is("deleted_at", null);
+  // Through retire_push_endpoints() (056), not a plain UPDATE. Under RLS the
+  // update could only reach the CALLER's own rows, so from a leader's session —
+  // every notice and poll reminder — another member's dead endpoint was never
+  // retired and was retried on every send for ever. The function scopes the
+  // write to endpoints the caller could legitimately have sent to.
+  const { error } = await supabase.rpc("retire_push_endpoints", {
+    p_endpoints: [...endpoints],
+  });
 
   if (error) {
     console.error(`push: could not retire expired subscriptions — ${error.message}`);

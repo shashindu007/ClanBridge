@@ -6,7 +6,7 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createHarness, type Harness } from "./pg-harness";
-import { leftClanInGame } from "@/repositories/accounts";
+import { clansLeftInGame, leftClanInGame } from "@/repositories/accounts";
 
 const CLAN_A = "aaaaaaaa-0000-4000-8000-0000000000aa";
 const CLAN_B = "bbbbbbbb-0000-4000-8000-0000000000bb";
@@ -341,5 +341,22 @@ describe("leftClanInGame — the flag on /admin/members", () => {
   it("does not flag an account with no villages or no roles", () => {
     expect(leftClanInGame({ memberships: [role("a")], players: [] })).toBe(false);
     expect(leftClanInGame({ memberships: [], players: [village("a")] })).toBe(false);
+  });
+
+  // The gap the first version had: a role in two clans, kicked from one. The
+  // other role still had a village behind it, so nothing was flagged.
+  it("flags the one clan a member left while still in another", () => {
+    const account = {
+      memberships: [role("a"), role("b")],
+      players: [village("b"), village("a", "2026-09-01")],
+    };
+    expect(leftClanInGame(account)).toBe(true);
+    expect(clansLeftInGame(account).map((m) => m.clanId)).toEqual(["a"]);
+  });
+
+  it("names nothing for a member present in every clan they hold a role in", () => {
+    expect(
+      clansLeftInGame({ memberships: [role("a"), role("b")], players: [village("a"), village("b")] }),
+    ).toEqual([]);
   });
 });

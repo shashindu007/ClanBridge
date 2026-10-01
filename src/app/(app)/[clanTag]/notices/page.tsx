@@ -26,6 +26,7 @@ import { Label } from "@/components/ui/label";
 import { requireClanByTag } from "@/lib/clans";
 import { isLeadership } from "@/lib/visibility";
 import { notifyClan } from "@/lib/push";
+import { safeMessage } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
 import { announcementsForClan } from "@/repositories/clans";
 import { DISPLAY_ZONE } from "@/lib/display-time";
@@ -34,6 +35,23 @@ import { PageHeader } from "@/components/page-header";
 import { Disclosure, EmptyState, Panel } from "@/components/kit";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * What a failed post, edit or remove tells the leader.
+ *
+ * 021's functions raise sentences written FOR the author — "title is too long
+ * (200 characters maximum)" — and those are passed through, because they say
+ * exactly what to fix. Anything else (a constraint name, a connection error, a
+ * policy) is logged and replaced: it used to go into the URL and onto the
+ * screen verbatim.
+ */
+const AUTHOR_FACING =
+  /^(not signed in|only a leader or co-leader may |an announcement needs |title is too long|body is too long|announcement is too long)/;
+
+function noticeError(context: string, error: { message: string }): string {
+  if (AUTHOR_FACING.test(error.message)) return error.message;
+  return safeMessage(context, error, "notice-failed");
+}
 
 function when(iso: string): string {
   return new Date(iso).toLocaleString("en-GB", {
@@ -78,7 +96,7 @@ export default async function NoticesPage({
     });
 
     if (error) {
-      redirect(`${base}?error=${encodeURIComponent(error.message)}`);
+      redirect(`${base}?error=${encodeURIComponent(noticeError("post-notice", error))}`);
     }
 
     // T5.6 — the notice is posted; now tell people it exists.
@@ -120,7 +138,7 @@ export default async function NoticesPage({
     });
 
     if (error) {
-      redirect(`${base}?error=${encodeURIComponent(error.message)}`);
+      redirect(`${base}?error=${encodeURIComponent(noticeError("remove-notice", error))}`);
     }
 
     revalidatePath(base);
@@ -142,7 +160,7 @@ export default async function NoticesPage({
     });
 
     if (error) {
-      redirect(`${base}?error=${encodeURIComponent(error.message)}`);
+      redirect(`${base}?error=${encodeURIComponent(noticeError("edit-notice", error))}`);
     }
 
     revalidatePath(base);

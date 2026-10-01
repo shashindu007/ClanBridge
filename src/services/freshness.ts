@@ -27,9 +27,11 @@ export const STALE_AFTER_MS: Record<string, number> = {
   // day it means something — the same argument the R10 note above makes.
   war: 2 * 60 * 60 * 1000,
   // Friday to Monday only, at 08:41 (sync-raids.yml). The longest gap is Monday
-  // to Friday, 96 hours; 100 allows GitHub's delay, and still flags a missed
-  // Friday run by lunchtime.
-  raids: 100 * 60 * 60 * 1000,
+  // to Friday, 96 hours. 104, not 100: GitHub has been observed starting
+  // scheduled runs hours late (sync-clans ran ~5 times a day against a
+  // 48-a-day schedule), so a 4-hour margin fired a false alarm on any slow
+  // Friday. Eight hours still flags a missed Friday run the same afternoon.
+  raids: 104 * 60 * 60 * 1000,
   // Two boundary days a month (sync-raids.yml), so no single window fits: 36
   // hours cried wolf for three weeks of every month, and this 25 days — the
   // longest gap between runs — would sleep through a missed START, which is a

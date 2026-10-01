@@ -39,6 +39,15 @@ on:
     # start cost a few skipped runs. services/freshness.ts knows this window, so
     # the watchdog does not call the rest of the month "stale".
     - cron: "23 */2 1-14 * *"
+    # A daily catch-up for the rest of the month (QA, 2026-10). The league group
+    # stays readable after the last war day until the next season's sign-up, so
+    # a fault that ate the final days of the window — a bad deploy, an expired
+    # key, a GitHub outage — can still be recovered here rather than lost. It
+    # also matters more than it looks: GitHub was observed running the 30-minute
+    # sync-clans schedule about five times a day, so "twelve chances a day" is an
+    # assumption, not a guarantee. Outside league week this run simply skips
+    # (R10), and freshness.ts still judges staleness on days 1-14 only.
+    - cron: "23 6 15-28 * *"
   workflow_dispatch: # not optional — you will need manual runs during CWL week
 
 # A slow run must never overlap the next tick. Overlap is survivable (every write
@@ -49,7 +58,7 @@ concurrency:
 
 jobs:
   sync:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Generous on purpose. The first run of a CWL week fetches the group plus up
     # to 28 war tags per clan, throttled to one call every 200 ms, across three
     # clans. Later runs are far cheaper because settled wars are skipped — but
@@ -57,9 +66,9 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
           # Two-hourly on days 1-14 is ~168 runs a month. The repository is

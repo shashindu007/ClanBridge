@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { currentUserId } from "@/lib/auth";
+import { safeNext } from "@/lib/safe-next";
 import { feedFor, markAllRead, markRead } from "@/repositories/notifications";
 import { LocalTime } from "@/components/local-time";
 import { SubmitButton } from "@/components/submit-button";
@@ -185,7 +186,13 @@ export default async function NotificationsPage() {
                       a url, and for a direct message it is this page — a "Go
                       to" button that reloads the page you are on is a button
                       that looks broken. */}
-                  {item.url !== "/notifications" && item.url !== "/" && (
+                  {/* safeNext() is the redirect guard /login uses: a path on
+                      this site, never '//host' or '/\host', which a browser
+                      reads as another site. 056 stops such a row being written;
+                      this stops one being followed if it ever is. */}
+                  {item.url !== "/notifications" &&
+                    item.url !== "/" &&
+                    safeNext(item.url) === item.url && (
                     <Button asChild size="sm" variant="outline">
                       <Link href={item.url}>Go to it</Link>
                     </Button>

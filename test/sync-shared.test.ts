@@ -9,6 +9,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createHarness, type Harness } from "./pg-harness";
+
+// The alert itself (push + feed) is tested in push.test.ts. Here only WHETHER it
+// is raised matters, so the module is replaced by a counter.
+const { alertSyncFailure } = vi.hoisted(() => ({ alertSyncFailure: vi.fn() }));
+vi.mock("../scripts/sync/alerts", () => ({ alertSyncFailure }));
 import {
   activeClans,
   assertNotFixtureSync,
@@ -83,25 +88,50 @@ function pgliteClient(h: Harness): SupabaseClient {
 
     select(columns: string) {
       const filters: string[] = [];
+      let orderBy = "";
+      let limit = "";
+      const quote = (value: unknown) =>
+        typeof value === "string" ? `'${value}'` : String(value);
+      const run = async () => {
+        const where = filters.length ? `where ${filters.join(" and ")}` : "";
+        try {
+          const res = await h.db.query<Record<string, unknown>>(
+            `select ${columns} from ${table} ${where} ${orderBy} ${limit}`,
+          );
+          return { data: res.rows, error: null };
+        } catch (error) {
+          return { data: null, error: { message: String(error) } };
+        }
+      };
+      // Thenable, like supabase-js: awaiting the builder runs the query, so
+      // order() and limit() can sit anywhere in the chain.
       const builder = {
         is(column: string, _value: null) {
           filters.push(`${column} is null`);
           return builder;
         },
         eq(column: string, value: unknown) {
-          filters.push(`${column} = ${typeof value === "string" ? `'${value}'` : value}`);
+          filters.push(`${column} = ${quote(value)}`);
           return builder;
         },
-        async order(column: string) {
-          const where = filters.length ? `where ${filters.join(" and ")}` : "";
-          try {
-            const res = await h.db.query<Record<string, unknown>>(
-              `select ${columns} from ${table} ${where} order by ${column}`,
-            );
-            return { data: res.rows, error: null };
-          } catch (error) {
-            return { data: null, error: { message: String(error) } };
-          }
+        neq(column: string, value: unknown) {
+          filters.push(`${column} <> ${quote(value)}`);
+          return builder;
+        },
+        not(column: string, _op: "is", _value: null) {
+          filters.push(`${column} is not null`);
+          return builder;
+        },
+        order(column: string, options?: { ascending?: boolean }) {
+          orderBy = `order by ${column} ${options?.ascending === false ? "desc" : "asc"}`;
+          return builder;
+        },
+        limit(n: number) {
+          limit = `limit ${n}`;
+          return builder;
+        },
+        then<T>(resolve: (value: Awaited<ReturnType<typeof run>>) => T, reject?: (e: unknown) => T) {
+          return run().then(resolve, reject);
         },
       };
       return builder;
@@ -193,6 +223,41 @@ describe("T2.5 — runSyncJob and sync_log (R9)", () => {
     const rows = await syncLogRows(h);
     expect(rows).toHaveLength(3);
     expect(rows.map((r) => r.status)).not.toContain("running");
+  });
+
+  // Production collected 127 identical "Sync failed" notifications from one job
+  // failing every run. The first failure is the news; repeating it is noise.
+  describe("failure alerts are raised when a job STARTS failing", () => {
+    const failing = async () => {
+      throw new Error("still broken");
+    };
+
+    beforeEach(() => alertSyncFailure.mockClear());
+
+    it("alerts on the first failure", async () => {
+      await runSyncJob("war", failing, { client });
+      expect(alertSyncFailure).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not alert again while the job keeps failing", async () => {
+      await runSyncJob("war", failing, { client });
+      await runSyncJob("war", failing, { client });
+      await runSyncJob("war", failing, { client });
+      expect(alertSyncFailure).toHaveBeenCalledTimes(1);
+    });
+
+    it("alerts again after the job has recovered in between", async () => {
+      await runSyncJob("war", failing, { client });
+      await runSyncJob("war", async () => {}, { client });
+      await runSyncJob("war", failing, { client });
+      expect(alertSyncFailure).toHaveBeenCalledTimes(2);
+    });
+
+    it("judges each job type on its own history", async () => {
+      await runSyncJob("war", failing, { client });
+      await runSyncJob("cwl", failing, { client });
+      expect(alertSyncFailure).toHaveBeenCalledTimes(2);
+    });
   });
 
   // R10 — notInWar and a missing CWL group are ordinary for most of the month.

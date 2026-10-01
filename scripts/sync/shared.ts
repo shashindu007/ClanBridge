@@ -166,6 +166,39 @@ export async function finishSyncLog(
  *   0  success, and also skipped — a skip is not a failure (R10)
  *   1  failed
  */
+/**
+ * Did the run before this one, of the same job, also fail?
+ *
+ * Scoped to the same clan_id (null for the all-clans runs every workflow
+ * makes). A read failure answers "no", so the worst case is the old behaviour —
+ * an extra alert — never a missing one.
+ */
+export async function previousRunFailed(
+  supabase: SupabaseClient,
+  jobType: JobType,
+  currentId: string,
+  clanId: string | null,
+): Promise<boolean> {
+  try {
+    let query = supabase
+      .from("sync_log")
+      .select("status")
+      .eq("job_type", jobType)
+      .neq("id", currentId)
+      .not("finished_at", "is", null)
+      .order("started_at", { ascending: false })
+      .limit(1);
+    query = clanId ? query.eq("clan_id", clanId) : query.is("clan_id", null);
+
+    const { data, error } = await query;
+    if (error || !data?.length) return false;
+    return (data[0] as { status: string }).status === "failed";
+  } catch {
+    // Never let the de-duplication itself throw out of a failure path.
+    return false;
+  }
+}
+
 export async function runSyncJob(
   jobType: JobType,
   job: (ctx: JobContext) => Promise<void>,
@@ -219,6 +252,17 @@ export async function runSyncJob(
     //
     // alertSyncFailure never throws: an alerting failure must not replace the
     // sync failure, which is the news.
+    //
+    // ONLY WHEN A JOB STARTS FAILING. A job that fails every run would
+    // otherwise raise a notification every run: production collected 127 of
+    // them for one clan's private war log, and a feed that says the same thing
+    // a hundred times is one nobody reads on the day it says something new.
+    // The first failure is the news; the page badges and the watchdog cover
+    // "still failing".
+    if (await previousRunFailed(supabase, jobType, id, options.clanId ?? null)) {
+      console.log(`[${jobType}] still failing since the last run — not alerting again`);
+      return "failed";
+    }
     const { alertSyncFailure } = await import("./alerts");
     await alertSyncFailure(supabase, jobType, options.clanId ?? null, message);
 

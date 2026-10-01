@@ -81,16 +81,16 @@ concurrency:
 
 jobs:
   sync:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Raids are one call per clan. Clan Games is one call per MEMBER, throttled
     # to one every 200 ms — roughly 50 members x 3 clans x 0.2s ≈ 30 seconds of
     # throttle alone, before retries. Ten minutes is ample and still bounded.
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: npm

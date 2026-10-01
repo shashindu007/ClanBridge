@@ -114,6 +114,24 @@ describe("error mapping", () => {
     expect((error as Error).message).toMatch(/IP/);
   });
 
+  // A key refused for its IP must never read as a private war log: on a war
+  // endpoint that would blame every clan's in-game setting at once.
+  it("maps an invalidIp 403 on a war endpoint to an auth error", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        { reason: "accessDenied.invalidIp", message: "Invalid authorization: API key does not allow access from IP 1.2.3.4" },
+        403,
+      ),
+    );
+
+    const error = await request(currentWarEndpoint("#2PP0JCCL"), anySchema).catch(
+      (e) => e,
+    );
+
+    expect(error).toBeInstanceOf(CocAuthError);
+    expect(error).not.toBeInstanceOf(CocPrivateLogError);
+  });
+
   it("maps 404 and mentions the encoding trap", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ reason: "notFound" }, 404));
     const error = await request(clanEndpoint("#2PP0JCCL"), anySchema).catch((e) => e);

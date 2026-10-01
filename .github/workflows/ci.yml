@@ -26,13 +26,13 @@ concurrency:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: npm
@@ -44,6 +44,22 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      # The production build catches what typecheck and lint cannot: a Server
+      # Action exported from the wrong kind of module, a client hook in a server
+      # component, a page that fails to prerender. Without it those were first
+      # found by Vercel, on deploy, after the commit was already on main.
+      #
+      # Placeholder Supabase values, NOT secrets: the build never contacts
+      # Supabase (every data page is force-dynamic), but the clients refuse to
+      # be constructed without a URL and a key, by design (lib/supabase/server.ts).
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
+          NEXT_TELEMETRY_DISABLED: "1"
 
       # Last, because it is by far the slowest step (~2 minutes, most of it
       # PGlite booting Postgres once per migration test). A type error should

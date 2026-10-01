@@ -561,21 +561,27 @@ describe("T6.1 — the clan war sync", () => {
         expect(await count(h, "wars", "result is null")).toBe(1);
       });
 
-      // T0.1, and it is a real misconfiguration rather than a normal state — but
-      // one clan's setting must not cost the other clans their war, so it is
-      // collected and thrown at the end.
-      it("reports a private war log as a failure that names the setting", async () => {
+      // T0.1 — a misconfiguration in the GAME, not a fault in this job. It used
+      // to fail the run, and one clan's private log kept the war sync red for
+      // four weeks in production, raising an alert every run and marking every
+      // other clan's war page "failed". The clan's home page reports it from
+      // clans.is_war_log_public; here it is a warning, never a failure.
+      it("treats a private war log as a warning, not a failed run", async () => {
         respondWith({ reason: "accessDenied" }, 403);
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
         const result = await runSyncJob("war", syncWar, { client });
-        expect(result).toBe("failed");
+        // No clan could be read, so nothing is at war as far as this run knows.
+        expect(result).toBe("skipped");
+        expect(warn.mock.calls.flat().join(" ")).toMatch(/war log is private/i);
 
-        const log = await h.db.query<{ error: string }>(
-          `select error from sync_log where job_type = 'war'
+        const log = await h.db.query<{ status: string; error: string | null }>(
+          `select status, error from sync_log where job_type = 'war'
             order by started_at desc limit 1`,
         );
-        expect(log.rows[0]!.error).toMatch(/war log is private/i);
-        expect(log.rows[0]!.error).toMatch(/T0\.1/);
+        expect(log.rows[0]!.status).toBe("skipped");
+        expect(log.rows[0]!.error).toBeNull();
+        warn.mockRestore();
       });
 
       /** Answer by path — for runs that call more than one endpoint. */

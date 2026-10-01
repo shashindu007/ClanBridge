@@ -29,7 +29,7 @@ import {
   sendPush,
   type PushTarget,
 } from "@/lib/push";
-import { staleJobs } from "../scripts/sync/alerts";
+import { alertStaleJobs, staleJobs } from "../scripts/sync/alerts";
 
 const PAYLOAD = { title: "t", body: "b", url: "/" };
 
@@ -194,9 +194,19 @@ describe("T5.6 — notifyUsers", () => {
 
 describe("T5.6 — retireExpired", () => {
   it("does not issue a statement for an empty list", async () => {
-    const from = vi.fn();
-    await retireExpired({ from } as never, []);
-    expect(from).not.toHaveBeenCalled();
+    const rpc = vi.fn();
+    await retireExpired({ rpc } as never, []);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  // Through the 056 definer function: a plain UPDATE under a leader's RLS could
+  // retire only the leader's own rows.
+  it("retires through retire_push_endpoints", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: 1, error: null });
+    await retireExpired({ rpc } as never, ["https://push.example/1"]);
+    expect(rpc).toHaveBeenCalledWith("retire_push_endpoints", {
+      p_endpoints: ["https://push.example/1"],
+    });
   });
 });
 
@@ -257,3 +267,78 @@ describe("T5.8 — staleJobs", () => {
     expect(health.map((h) => h.jobType)).toEqual(["clans"]);
   });
 });
+
+describe("T5.8 — alertStaleJobs reads each job's last healthy run", () => {
+  const now = new Date("2026-08-05T12:00:00Z");
+  const ago = (hours: number) => new Date(now.getTime() - hours * 3_600_000).toISOString();
+
+  /**
+   * sync_log as rows, behind just enough of the query builder for
+   * lastHealthyRuns(): eq / in / not / order / limit, then awaited.
+   */
+  function fakeLog(rows: Array<{ job_type: string; status: string; finished_at: string }>) {
+    const queries: string[] = [];
+    const from = () => ({
+      select: () => {
+        let jobType = "";
+        let statuses: string[] = [];
+        const builder = {
+          eq(_c: string, v: string) {
+            jobType = v;
+            return builder;
+          },
+          in(_c: string, v: string[]) {
+            statuses = v;
+            return builder;
+          },
+          not: () => builder,
+          is: () => builder,
+          order: () => builder,
+          limit: () => builder,
+          then<T>(resolve: (r: { data: unknown[]; error: null }) => T) {
+            queries.push(jobType);
+            const data = rows
+              .filter((r) => r.job_type === jobType && statuses.includes(r.status))
+              .sort((a, b) => b.finished_at.localeCompare(a.finished_at))
+              .slice(0, 1)
+              .map((r) => ({ finished_at: r.finished_at }));
+            return Promise.resolve({ data, error: null }).then(resolve);
+          },
+        };
+        return builder;
+      },
+    });
+    return { client: { from } as never, queries };
+  }
+
+  // The war sync skips whenever no clan is at war. Counting only successes
+  // called that "stopped" every time the clans were between wars.
+  it("treats a recent skip as healthy", async () => {
+    const { client } = fakeLog([
+      { job_type: "war", status: "success", finished_at: ago(30) },
+      { job_type: "war", status: "skipped", finished_at: ago(1) },
+    ]);
+    const health = await alertStaleJobs(client, ["war"], now);
+    expect(health[0]!.stale).toBe(false);
+  });
+
+  it("still flags a job whose recent runs all failed", async () => {
+    const { client } = fakeLog([
+      { job_type: "war", status: "success", finished_at: ago(30) },
+      { job_type: "war", status: "failed", finished_at: ago(1) },
+    ]);
+    // Nobody to alert in this fake (no admins), so the alert is a no-op and
+    // the verdict comes back.
+    const health = await alertStaleJobs(client, ["war"], now);
+    expect(health[0]!.stale).toBe(true);
+  });
+
+  // A frequent job used to fill a shared 500-row window and push a rarer one
+  // out of it, which then read as "never succeeded" and was never alerted on.
+  it("asks about every watched job separately", async () => {
+    const { client, queries } = fakeLog([]);
+    await alertStaleJobs(client, ["clans", "raids", "players"], now);
+    expect(queries.sort()).toEqual(["clans", "players", "raids"]);
+  });
+});
+

@@ -208,6 +208,55 @@ function describeAge(ageMs: number): string {
 }
 
 /**
+ * The most recent HEALTHY run of each job type: a success, or a skip.
+ *
+ * A skip is healthy. It is the job running and finding nothing to do — the war
+ * sync on a day no clan is at war, the CWL sync outside league week (R10). Only
+ * counting successes made the watchdog report "war sync has stopped" every
+ * time the clans were between wars, which is the alert that teaches people to
+ * ignore the alerts.
+ *
+ * Not the most recent run of any status: a job failing every two hours writes
+ * rows constantly while its data gets older, and "ran" would call that healthy.
+ *
+ * ONE QUERY PER JOB TYPE, each limited to a single row. This used to be one read
+ * of the latest 500 successes across every job, which a frequent job can fill
+ * by itself — and a rarer job pushed out of that window read as "never
+ * succeeded", which staleJobs() deliberately never alerts on. The watchdog went
+ * silent for exactly the job it should have been shouting about.
+ *
+ * Returns null when sync_log cannot be read at all.
+ */
+async function lastHealthyRuns(
+  supabase: SupabaseClient,
+  expected: readonly string[],
+): Promise<Map<string, string> | null> {
+  const results = await Promise.all(
+    expected.map((jobType) =>
+      supabase
+        .from("sync_log")
+        .select("finished_at")
+        .eq("job_type", jobType)
+        .in("status", ["success", "skipped"])
+        .not("finished_at", "is", null)
+        .order("finished_at", { ascending: false })
+        .limit(1),
+    ),
+  );
+
+  const latest = new Map<string, string>();
+  for (const [i, { data, error }] of results.entries()) {
+    if (error) {
+      console.error(`health: could not read sync_log — ${error.message}`);
+      return null;
+    }
+    const row = (data as Array<{ finished_at: string }> | null)?.[0];
+    if (row) latest.set(expected[i]!, row.finished_at);
+  }
+  return latest;
+}
+
+/**
  * Check every scheduled job and alert on the ones that have gone quiet.
  *
  * Returns the health of all of them so the caller can log it, not only the bad
@@ -219,26 +268,8 @@ export async function alertStaleJobs(
   expected: readonly string[],
   now: Date = new Date(),
 ): Promise<JobHealth[]> {
-  // The most recent SUCCESS per job type. Not the most recent run: a job failing
-  // every two hours is producing rows constantly while its data gets older, and
-  // keying on "ran" would call that healthy.
-  const { data, error } = await supabase
-    .from("sync_log")
-    .select("job_type, finished_at")
-    .eq("status", "success")
-    .not("finished_at", "is", null)
-    .order("finished_at", { ascending: false })
-    .limit(500);
-
-  if (error) {
-    console.error(`health: could not read sync_log — ${error.message}`);
-    return [];
-  }
-
-  const latest = new Map<string, string>();
-  for (const row of (data ?? []) as Array<{ job_type: string; finished_at: string }>) {
-    if (!latest.has(row.job_type)) latest.set(row.job_type, row.finished_at);
-  }
+  const latest = await lastHealthyRuns(supabase, expected);
+  if (latest === null) return [];
 
   const health = staleJobs(
     [...latest].map(([jobType, finishedAt]) => ({ jobType, finishedAt })),

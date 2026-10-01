@@ -44,9 +44,23 @@ What is worth knowing before you touch anything:
 - **The application has run against real data since 2026-08-09**, and the
   fixtures in `fixtures/` are real captures rather than the synthetic shapes they
   started as (T2.1).
-- **Two clans exist, not three** — `DH CWL ONLY` and `DH v2`, and the second is a
-  test clan. Adding the rest is deferred by choice; they go in at `/admin`.
-  Anywhere the docs say "three clans", read it as intent rather than state.
+- **Four clans are active** (as of 2026-10): `Dark Heaven™`, `Dark Hell`,
+  `DH CWL ONLY` and `DH v2` — the last is a test clan. Clans are added at
+  `/admin`. Anywhere the docs say "three clans", read it as intent rather than
+  state; the database is the list, and `select tag, name from clans where
+  deleted_at is null` is the only answer that cannot go stale.
+- **Backups are encrypted, because this repository is public.** A public
+  repository's workflow artifacts can be downloaded by anyone signed in to
+  GitHub, and the dump contains every member's account data. `backup.yml`
+  refuses to run without the `BACKUP_PASSPHRASE` secret and uploads only the
+  `.gpg` file. `SUPABASE_DB_URL` in GitHub must be the **session pooler** string
+  (`*.pooler.supabase.com:5432`): the direct `db.<ref>.supabase.co` address is
+  IPv6-only and GitHub's runners cannot reach it. To restore, put the same
+  passphrase in `.env.local` as `BACKUP_PASSPHRASE`; `npm run restore:verify`
+  decrypts a `.gpg` dump itself (GnuPG must be installed).
+- **A private war log is a warning, not a failed sync.** The war sync logs it
+  and the clan's home page says so; the CWL sync still fails on it, because
+  during league week it means a season is being lost.
 - **Applying migrations is `npm run migrations:apply`, then `npm run types:db`.**
   Do not read a migration number off this file to decide what is outstanding —
   compare `supabase/migrations/` against the database, because that is the only

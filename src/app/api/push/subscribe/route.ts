@@ -100,28 +100,32 @@ export async function POST(request: Request): Promise<Response> {
   const { subscription, replaces } = parsed.data;
   const supabase = await createClient();
 
-  // UPSERT on endpoint, which 004 made unique.
+  // Through claim_push_subscription() (056), which upserts on the endpoint 004
+  // made unique.
   //
   // Re-subscribing on an endpoint already held is the normal case, not an error:
   // the browser hands back the same endpoint every time until it rotates one, so
   // a member opening the app twice on one device arrives here twice. This also
   // revives a row previously retired by a 410, by clearing deleted_at.
-  const { error } = await supabase.from("push_subscriptions").upsert(
-    {
-      user_id: userId,
-      endpoint: subscription.endpoint,
-      p256dh: subscription.keys.p256dh,
-      auth: subscription.keys.auth,
-      deleted_at: null,
-    },
-    { onConflict: "endpoint" },
-  );
+  //
+  // NOT A PLAIN UPSERT ANY MORE. A browser has one endpoint, so a second account
+  // signing in on the same device arrives with an endpoint the FIRST account's
+  // row already holds. RLS refused to hand that row over, this route answered
+  // 500, and the device went on receiving the first account's notifications.
+  // The function gives the endpoint to whoever is signed in now. The user id is
+  // auth.uid() inside it, so this handler cannot claim for anybody else.
+  const { data: claimed, error } = await supabase.rpc("claim_push_subscription", {
+    p_endpoint: subscription.endpoint,
+    p_p256dh: subscription.keys.p256dh,
+    p_auth: subscription.keys.auth,
+  });
 
-  if (error) {
-    // The policy refusing this is the interesting case: it would mean user_id
-    // did not match the session, which this handler cannot cause. Logged without
-    // the endpoint — an endpoint is a capability URL and does not go in a log.
-    console.error(`push/subscribe: insert failed — ${error.message}`);
+  if (error || claimed !== true) {
+    // Logged without the endpoint — an endpoint is a capability URL and does
+    // not go in a log.
+    console.error(
+      `push/subscribe: claim failed — ${error?.message ?? "refused by claim_push_subscription"}`,
+    );
     return json({ error: "Could not save that subscription." }, 500, headers);
   }
 
