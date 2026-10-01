@@ -74,29 +74,38 @@ function shortSeason(season: string): string {
   return `${month} ’${match[1]!.slice(2)}`;
 }
 
-/** The last few CWLs: "Sep ’26 21★ 7/7", a missed attack in red. */
+/**
+ * The last few CWLs: "Sep ’26 21★ 7/7", a missed attack in red. The clan is
+ * named when it differs from `ownClanName`, or on every line with `showClan`
+ * (the lineup cards, where there is no "own" clan to compare with).
+ */
 export function CwlHistoryChips({
   seasons,
   ownClanName,
+  showClan = false,
 }: {
   seasons: CwlSeasonLine[];
   ownClanName?: string;
+  showClan?: boolean;
 }) {
   if (seasons.length === 0) return <span className="text-muted-foreground text-xs">No CWL yet</span>;
   return (
-    <ul className="space-y-0.5">
+    <ul className="min-w-0 space-y-0.5">
       {seasons.map((s) => {
         const missed = s.warsRostered - s.attacksUsed;
+        const namedClan = showClan || (ownClanName !== undefined && s.clanName !== ownClanName);
         return (
-          <li key={`${s.season}-${s.clanName}`} className="text-xs leading-tight tabular-nums">
+          <li
+            key={`${s.season}-${s.clanName}`}
+            className={cn("text-xs leading-tight tabular-nums", showClan && "truncate")}
+            title={showClan ? `${shortSeason(s.season)} in ${s.clanName}: ${s.stars}★, ${s.attacksUsed} of ${s.warsRostered} attacks` : undefined}
+          >
             <span className="text-muted-foreground">{shortSeason(s.season)}</span>{" "}
             <span className="font-semibold">{s.stars}★</span>{" "}
             <span className={missed > 0 ? "text-destructive font-semibold" : "text-muted-foreground"}>
               {s.attacksUsed}/{s.warsRostered}
             </span>
-            {ownClanName && s.clanName !== ownClanName && (
-              <span className="text-muted-foreground"> · {s.clanName}</span>
-            )}
+            {namedClan && <span className="text-muted-foreground"> · {s.clanName}</span>}
           </li>
         );
       })}
@@ -156,7 +165,7 @@ export function LineupCard({
         </span>
       </div>
       <div className="mt-auto flex items-end justify-between gap-2 border-t pt-2">
-        <CwlHistoryChips seasons={player.history.slice(0, 2)} />
+        <CwlHistoryChips seasons={player.history.slice(0, 2)} showClan />
       {remove && (
         <ActionForm
           action={remove.action}
