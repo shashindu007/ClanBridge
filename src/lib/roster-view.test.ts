@@ -4,6 +4,8 @@ import {
   availabilityCounts,
   availabilityOf,
   builderSearch,
+  byWarOrder,
+  lineupBreakdown,
   lineupDeadline,
   filterPool,
   parseBuilderQuery,
@@ -160,5 +162,55 @@ describe("lineupFocusSeason", () => {
 
   it("rolls the year", () => {
     expect(nextSeason("2026-12")).toBe("2027-01");
+  });
+});
+
+describe("byWarOrder", () => {
+  it("puts the highest Town Hall first, then the stronger heroes", () => {
+    const lineup = [
+      { name: "Low", thLevel: 16, heroPct: 99 },
+      { name: "Unknown", thLevel: null },
+      { name: "Weak 18", thLevel: 18, heroPct: 70 },
+      { name: "Strong 18", thLevel: 18, heroPct: 95 },
+      { name: "Mid", thLevel: 17 },
+    ];
+    expect([...lineup].sort(byWarOrder).map((p) => p.name)).toEqual([
+      "Strong 18",
+      "Weak 18",
+      "Mid",
+      "Low",
+      "Unknown",
+    ]);
+  });
+});
+
+describe("lineupBreakdown", () => {
+  it("counts each Town Hall, highest first, with averages over the known ones", () => {
+    const b = lineupBreakdown([
+      { name: "a", thLevel: 17, maxPct: 80, heroPct: 90 },
+      { name: "b", thLevel: 18, maxPct: 100, heroPct: null },
+      { name: "c", thLevel: 17 },
+      { name: "d", thLevel: null },
+    ]);
+    expect(b.total).toBe(4);
+    expect(b.levels).toEqual([
+      { level: 18, count: 1 },
+      { level: 17, count: 2 },
+    ]);
+    expect(b.unknown).toBe(1);
+    expect(b.avgTh).toBeCloseTo(52 / 3);
+    expect(b.avgMaxPct).toBe(90);
+    expect(b.avgHeroPct).toBe(90);
+  });
+
+  it("is empty for an empty lineup", () => {
+    expect(lineupBreakdown([])).toEqual({
+      total: 0,
+      levels: [],
+      unknown: 0,
+      avgTh: null,
+      avgMaxPct: null,
+      avgHeroPct: null,
+    });
   });
 });

@@ -7,11 +7,13 @@
 // Server components. The only interactive part is each card's Remove form,
 // which posts to the page's own server action.
 
+import Link from "next/link";
 import { ActionForm, type ResultAction } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { TownHall } from "@/components/game/town-hall";
 import type { HeroLevel } from "@/repositories/player-progress";
 import { cn } from "@/lib/utils";
+import { lineupBreakdown, type LineupBase, type LineupBreakdown } from "@/lib/roster-view";
 
 export interface CwlSeasonLine {
   season: string;
@@ -173,5 +175,131 @@ export function LineupCard({
       )}
       </div>
     </li>
+  );
+}
+
+/** "[TH18] ×3  [TH17] ×5" — a lineup's Town Halls, highest first. */
+export function ThBreakdown({ breakdown }: { breakdown: LineupBreakdown }) {
+  if (breakdown.total === 0) return <span className="text-muted-foreground text-xs">Nobody picked yet</span>;
+  return (
+    <span className="flex flex-wrap items-center gap-2" aria-label="Town Halls in this lineup">
+      {breakdown.levels.map(({ level, count }) => (
+        <span key={level} className="bg-muted/60 inline-flex items-center gap-1 rounded-chip border py-0.5 pr-2 pl-1">
+          <TownHall level={level} />
+          <span className="text-sm font-semibold tabular-nums">×{count}</span>
+        </span>
+      ))}
+      {breakdown.unknown > 0 && (
+        <span className="text-muted-foreground text-xs tabular-nums">{breakdown.unknown} TH not known</span>
+      )}
+    </span>
+  );
+}
+
+export interface LineupSummaryRow {
+  key: string;
+  name: string;
+  slots: number;
+  players: LineupBase[];
+  href?: string;
+  active?: boolean;
+}
+
+const avg = (value: number | null, digits = 0) => (value === null ? "—" : value.toFixed(digits));
+
+/**
+ * Every lineup side by side: how many of each Town Hall each clan has picked,
+ * and the same for all of them together — the whole season on one table.
+ */
+export function LineupSummary({ rows }: { rows: LineupSummaryRow[] }) {
+  const perRow = rows.map((row) => ({ row, breakdown: lineupBreakdown(row.players) }));
+  const overall = lineupBreakdown(rows.flatMap((r) => r.players));
+  const slots = rows.reduce((t, r) => t + r.slots, 0);
+  const levels = overall.levels.map((l) => l.level);
+  const countAt = (b: LineupBreakdown, level: number) => b.levels.find((l) => l.level === level)?.count ?? 0;
+  const many = rows.length > 1;
+
+  const cells = (b: LineupBreakdown) => (
+    <>
+      {levels.map((level) => {
+        const n = countAt(b, level);
+        return (
+          <td key={level} className={cn("px-2 py-2 text-center tabular-nums", n === 0 && "text-muted-foreground/50")}>
+            {n || "·"}
+          </td>
+        );
+      })}
+      {overall.unknown > 0 && <td className="px-2 py-2 text-center tabular-nums">{b.unknown || "·"}</td>}
+      <td className="px-2 py-2 text-right tabular-nums">{avg(b.avgTh, 1)}</td>
+      <td className="px-2 py-2 text-right tabular-nums">{b.avgHeroPct === null ? "—" : `${avg(b.avgHeroPct)}%`}</td>
+      <td className="px-2 py-2 text-right tabular-nums">{b.avgMaxPct === null ? "—" : `${avg(b.avgMaxPct)}%`}</td>
+    </>
+  );
+
+  return (
+    <section aria-label="Lineup summary" className="cb-panel space-y-3 rounded-panel border p-5">
+      <div className="space-y-1">
+        <h2 className="text-lg font-semibold">Lineup summary</h2>
+        <p className="text-muted-foreground text-xs">
+          Town Halls picked {many ? "in each clan's lineup and across all of them" : "in this lineup"}, highest
+          first. Lineups are listed in war order — strongest base at #1.
+        </p>
+      </div>
+      {overall.total > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+          <span className="font-medium tabular-nums">
+            {many ? "All lineups" : "Total"} · {overall.total} of {slots}
+          </span>
+          <ThBreakdown breakdown={overall} />
+        </div>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[32rem] text-sm">
+          <thead className="text-muted-foreground border-b text-xs uppercase">
+            <tr>
+              <th className="py-2 pr-3 text-left font-medium">Clan</th>
+              <th className="px-2 py-2 text-right font-medium">Picked</th>
+              {levels.map((level) => (
+                <th key={level} className="px-2 py-2 text-center font-medium">
+                  TH{level}
+                </th>
+              ))}
+              {overall.unknown > 0 && <th className="px-2 py-2 text-center font-medium">TH ?</th>}
+              <th className="px-2 py-2 text-right font-medium">Avg TH</th>
+              <th className="px-2 py-2 text-right font-medium">Heroes</th>
+              <th className="px-2 py-2 text-right font-medium">Max</th>
+            </tr>
+          </thead>
+          <tbody>
+            {perRow.map(({ row, breakdown }) => (
+              <tr key={row.key} className={cn("border-b", row.active && "bg-primary/10")}>
+                <td className="py-2 pr-3 font-medium">
+                  {row.href && !row.active ? (
+                    <Link href={row.href} className="underline-offset-2 hover:underline">
+                      {row.name}
+                    </Link>
+                  ) : (
+                    row.name
+                  )}
+                </td>
+                <td className="px-2 py-2 text-right tabular-nums">
+                  {breakdown.total}/{row.slots}
+                </td>
+                {cells(breakdown)}
+              </tr>
+            ))}
+            {many && (
+              <tr className="font-semibold">
+                <td className="py-2 pr-3">All lineups</td>
+                <td className="px-2 py-2 text-right tabular-nums">
+                  {overall.total}/{slots}
+                </td>
+                {cells(overall)}
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

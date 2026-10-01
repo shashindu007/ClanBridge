@@ -228,3 +228,61 @@ export function publishedSummary(published: number, total: number): string {
   if (published === total) return total === 1 ? "Published" : `All ${total} published`;
   return `${published} of ${total} published`;
 }
+
+export interface LineupBase {
+  name: string;
+  thLevel: number | null;
+  maxPct?: number | null;
+  heroPct?: number | null;
+}
+
+/**
+ * War order: the strongest base first. Highest Town Hall, then the most
+ * maxed heroes, then the most maxed base overall, then by name so the order
+ * is stable. A Town Hall not known yet sinks to the bottom.
+ */
+export function byWarOrder(a: LineupBase, b: LineupBase): number {
+  return (
+    (b.thLevel ?? 0) - (a.thLevel ?? 0) ||
+    (b.heroPct ?? -1) - (a.heroPct ?? -1) ||
+    (b.maxPct ?? -1) - (a.maxPct ?? -1) ||
+    a.name.localeCompare(b.name)
+  );
+}
+
+export interface LineupBreakdown {
+  total: number;
+  /** One entry per Town Hall level present, highest first. */
+  levels: { level: number; count: number }[];
+  /** Players whose Town Hall is not known yet. */
+  unknown: number;
+  /** Average Town Hall over the known ones, or null with none known. */
+  avgTh: number | null;
+  avgMaxPct: number | null;
+  avgHeroPct: number | null;
+}
+
+/** "TH18 ×3, TH17 ×5 …" and the averages, for a lineup or several at once. */
+export function lineupBreakdown(players: readonly LineupBase[]): LineupBreakdown {
+  const byLevel = new Map<number, number>();
+  let unknown = 0;
+  for (const p of players) {
+    if (p.thLevel) byLevel.set(p.thLevel, (byLevel.get(p.thLevel) ?? 0) + 1);
+    else unknown += 1;
+  }
+  const levels = [...byLevel]
+    .map(([level, count]) => ({ level, count }))
+    .sort((a, b) => b.level - a.level);
+  const average = (values: (number | null | undefined)[]): number | null => {
+    const known = values.filter((v): v is number => typeof v === "number");
+    return known.length ? known.reduce((t, v) => t + v, 0) / known.length : null;
+  };
+  return {
+    total: players.length,
+    levels,
+    unknown,
+    avgTh: average(players.map((p) => p.thLevel || null)),
+    avgMaxPct: average(players.map((p) => p.maxPct)),
+    avgHeroPct: average(players.map((p) => p.heroPct)),
+  };
+}

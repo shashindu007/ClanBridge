@@ -71,7 +71,14 @@ import {
   Step,
   TownHall,
 } from "@/components/lineup-parts";
-import { CwlHistoryChips, HeroLevels, LineupCard, MaxPct } from "@/components/cwl-lineup";
+import {
+  CwlHistoryChips,
+  HeroLevels,
+  LineupCard,
+  LineupSummary,
+  MaxPct,
+  ThBreakdown,
+} from "@/components/cwl-lineup";
 import { PickerDialog } from "@/components/picker-dialog";
 import { PickSelectionBar } from "@/components/pick-selection-bar";
 import { Countdown } from "@/components/countdown";
@@ -84,7 +91,9 @@ import {
   DEFAULT_QUERY,
   availabilityCounts,
   builderSearch,
+  byWarOrder,
   filterPool,
+  lineupBreakdown,
   lineupDeadline,
   parseBuilderQuery,
   seasonLabel,
@@ -240,6 +249,7 @@ export default async function RosterBuilderPage({
   // ── Not leadership: the published lineups, read-only ─────────────────────
   if (editable.length === 0) {
     const visible = rosters.filter((r) => r.status === "published").sort(byClanName);
+    const warOrder = (rosterId: string) => [...(rosterMembers.get(rosterId) ?? [])].sort(byWarOrder);
     return (
       <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
         <RosterHeader title={title} />
@@ -254,6 +264,15 @@ export default async function RosterBuilderPage({
         {visible.length === 0 ? (
           <p className="text-muted-foreground text-sm">No lineup has been published for this season yet.</p>
         ) : (
+          <>
+          <LineupSummary
+            rows={visible.map((roster) => ({
+              key: roster.id,
+              name: clanById.get(roster.clanId)?.name ?? "Clan",
+              slots: roster.slotCount,
+              players: rosterMembers.get(roster.id) ?? [],
+            }))}
+          />
           <div className="grid gap-4 md:grid-cols-2">
             {visible.map((roster) => (
               <LineupPanel
@@ -261,10 +280,11 @@ export default async function RosterBuilderPage({
                 title={clanById.get(roster.clanId)?.name ?? "Clan"}
                 status={roster.status}
                 slots={roster.slotCount}
-                members={rosterMembers.get(roster.id) ?? []}
+                members={warOrder(roster.id)}
               />
             ))}
           </div>
+          </>
         )}
       </main>
     );
@@ -289,13 +309,14 @@ export default async function RosterBuilderPage({
   const optionLabel = pollData?.labels ?? new Map<string, string>();
 
   // Wave 3 — ONE read for the whole pool's heroes, progress and CWL history
-  // (T11C.4: history from every clan in the family). Picked players are
-  // included even if they have since left the clans in the pool.
+  // (T11C.4: history from every clan in the family). Every lineup's players are
+  // included, even if they have since left the clans in the pool — the summary
+  // needs them all, not just the lineup on screen.
   const details = await playerDetails(
     supabase,
     [
       ...perClan.flatMap(({ members }) => members.map((m) => m.playerId)),
-      ...selectedMembers.map((m) => m.playerId),
+      ...memberLists.flat().map((m) => m.playerId),
     ],
     { before: season },
   );
@@ -349,6 +370,7 @@ export default async function RosterBuilderPage({
   // The lineup as cards. The pool knows each player's clan; a picked player who
   // has since left the clans in the pool falls back to what the roster knows.
   const poolById = new Map(pool.map((p) => [p.playerId, p]));
+  // In war order: the strongest base is #1, whatever order they were picked in.
   const cards = selectedMembers.map((m) => {
     const inPool = poolById.get(m.playerId);
     const detail = details.get(m.playerId);
@@ -362,6 +384,27 @@ export default async function RosterBuilderPage({
       maxPct: detail?.maxPct ?? null,
       heroPct: detail?.heroPct ?? null,
       history: detail?.history ?? [],
+    };
+  }).sort(byWarOrder);
+  // Every lineup as Town Halls and averages, for the summary table.
+  const asBase = (m: RosterMember) => {
+    const detail = details.get(m.playerId);
+    return {
+      name: m.name,
+      thLevel: detail?.thLevel ?? m.thLevel,
+      maxPct: detail?.maxPct ?? null,
+      heroPct: detail?.heroPct ?? null,
+    };
+  };
+  const summaryRows = editable.map((roster) => {
+    const clan = clanById.get(roster.clanId)!;
+    return {
+      key: roster.id,
+      name: clan.name,
+      slots: roster.slotCount,
+      players: (rosterMembers.get(roster.id) ?? []).map(asBase),
+      href: `${base}${builderSearch(current, { clan: clan.tag, pick: false })}`,
+      active: roster.id === selected.id,
     };
   });
   const deadline = lineupDeadline(season);
@@ -645,6 +688,13 @@ export default async function RosterBuilderPage({
 
         <SlotMeter filled={selectedMembers.length} slots={selected.slotCount} />
 
+        {cards.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+            <span className="text-muted-foreground">Town Halls</span>
+            <ThBreakdown breakdown={lineupBreakdown(cards)} />
+          </div>
+        )}
+
         {cards.length === 0 ? (
           <p className="text-muted-foreground rounded-panel border border-dashed p-6 text-center text-sm">
             Nobody picked yet. Press <span className="text-foreground font-medium">Add players</span>{" "}
@@ -663,6 +713,8 @@ export default async function RosterBuilderPage({
           </ol>
         )}
       </section>
+
+      <LineupSummary rows={summaryRows} />
 
       {editable.length > 1 && (
         <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">

@@ -14,14 +14,14 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { ClanBadge } from "@/components/game/clan-badge";
 import { TownHall } from "@/components/game/town-hall";
-import { HeroLevels } from "@/components/cwl-lineup";
+import { HeroLevels, ThBreakdown } from "@/components/cwl-lineup";
 import { DownloadImageButton } from "@/components/download-image-button";
 import { PrintButton } from "@/components/print-button";
 import { currentUserId } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
 import { playerDetails } from "@/lib/cwl-lineup-data";
 import { formatDisplay } from "@/lib/display-time";
-import { lineupDeadline, seasonLabel } from "@/lib/roster-view";
+import { byWarOrder, lineupBreakdown, lineupDeadline, seasonLabel } from "@/lib/roster-view";
 import { isLeadership } from "@/lib/visibility";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server";
@@ -90,7 +90,13 @@ export default async function LineupExportPage({
       </p>
 
       {rosters.map(({ roster, clan }, i) => {
-        const list = members[i] ?? [];
+        // War order, as on the builder: the strongest base is #1.
+        const list = (members[i] ?? [])
+          .map((m) => {
+            const d = details.get(m.playerId);
+            return { ...m, thLevel: d?.thLevel ?? m.thLevel, maxPct: d?.maxPct ?? null, heroPct: d?.heroPct ?? null };
+          })
+          .sort(byWarOrder);
         const id = `lineup-${clan.tag.replace("#", "")}`;
         const published = roster.status === "published";
         return (
@@ -130,6 +136,8 @@ export default async function LineupExportPage({
                 </span>
               </header>
 
+              {list.length > 0 && <ThBreakdown breakdown={lineupBreakdown(list)} />}
+
               {list.length === 0 ? (
                 <p className="text-muted-foreground text-sm">Nobody picked yet.</p>
               ) : (
@@ -156,7 +164,7 @@ export default async function LineupExportPage({
                             <span className="text-muted-foreground font-mono text-[0.6875rem]">{m.tag}</span>
                           </td>
                           <td className="px-2 py-1.5">
-                            <TownHall level={d?.thLevel ?? m.thLevel} />
+                            <TownHall level={m.thLevel} />
                           </td>
                           <td className="px-2 py-1.5">
                             <HeroLevels heroes={d?.heroes ?? []} compact />
