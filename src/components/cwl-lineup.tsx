@@ -64,7 +64,7 @@ export function MaxPct({ pct, label = "of max" }: { pct: number | null; label?: 
 }
 
 /** "2026-09" -> "Sep ’26". */
-export function shortSeason(season: string): string {
+function shortSeason(season: string): string {
   const match = /^(\d{4})-(\d{2})$/.exec(season);
   if (!match) return season;
   const month = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1)).toLocaleDateString("en-GB", {
