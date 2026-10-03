@@ -54,6 +54,34 @@ export async function retentionState(supabase: SupabaseClient): Promise<Retentio
   };
 }
 
+/** 058 — other clans' CWL scouting in finished seasons: what would go, or what went. */
+export interface ScoutingPurge {
+  seasons: number;
+  villages: number;
+  lineups: number;
+  rosters: number;
+}
+
+/**
+ * Count (`dryRun`) or clear the scouting of every finished CWL season. Null
+ * when the database refused — not the platform admin, or 058 not applied.
+ */
+export async function purgeCwlScouting(
+  supabase: SupabaseClient,
+  dryRun: boolean,
+): Promise<ScoutingPurge | null> {
+  const { data, error } = await supabase.rpc("purge_cwl_scouting", { p_dry_run: dryRun });
+  if (error) return null;
+  const row = (data as Array<Record<string, unknown>> | null)?.[0];
+  if (!row) return null;
+  return {
+    seasons: Number(row.seasons_cleared),
+    villages: Number(row.villages_removed),
+    lineups: Number(row.lineups_removed),
+    rosters: Number(row.rosters_removed),
+  };
+}
+
 /** Thin the oldest month not yet thinned. `more` when older months remain. */
 export async function thinOldData(
   supabase: SupabaseClient,

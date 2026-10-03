@@ -549,8 +549,12 @@ export function groupMemberRows(seasonId: string, rosters: readonly CwlGroupRost
 
 /**
  * Refreshed every run while the season is on — a Town Hall upgraded mid-week is
- * the current fact, not a rewrite of history. Once the group has ended, only
- * missing rows are added.
+ * the current fact, not a rewrite of history.
+ *
+ * Not written at all once the group has ended: a finished week's rosters are
+ * of no further use, and 058 lets the admin clear them. The daily catch-up runs
+ * of days 15–28 still read the ended group, and would otherwise put back every
+ * roster the admin just cleared.
  */
 async function upsertGroupMembers(
   supabase: SupabaseClient,
@@ -558,9 +562,10 @@ async function upsertGroupMembers(
   rosters: readonly CwlGroupRoster[],
   groupState: string | undefined,
 ): Promise<void> {
+  if (groupState === "ended") return;
   const rows = groupMemberRows(seasonId, rosters);
   if (!rows.length) return;
-  await upsertInBatches(supabase, "cwl_group_members", rows, "season_id,tag", groupState === "ended");
+  await upsertInBatches(supabase, "cwl_group_members", rows, "season_id,tag", false);
 }
 
 /**

@@ -96,6 +96,9 @@ export const OK_MESSAGES: Record<string, string> = {
   // Storage (053). One month is thinned per press, so "more" is the common case.
   "data-thinned": "Old data thinned. Everything older than the months you keep is done.",
   "data-thinned-more": "One month of old data thinned. Press it again to continue with the next month.",
+  // 058 — other clans' CWL scouting from finished seasons.
+  "scouting-cleared": "Other clans' scouting from finished CWL seasons cleared. Your own CWL history is untouched.",
+  "scouting-nothing": "Nothing to clear — no finished CWL season has scouting left.",
 };
 
 /**
@@ -170,6 +173,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
   // Storage (053).
   "thin-unconfirmed": "Tick the box to confirm. Thinned readings cannot be brought back.",
   "thin-refused": "The database refused that. Only the platform owner can thin old data, and never below three months.",
+  "scouting-unconfirmed": "Tick the box to confirm. Cleared scouting cannot be brought back.",
+  "scouting-refused": "The database refused that. Only the platform owner can clear CWL scouting, and migration 058 must be applied.",
 };
 
 /**

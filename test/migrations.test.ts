@@ -1043,8 +1043,14 @@ describe("service_role privileges (fixed by 014)", () => {
  * inside the free tier. It removes redundant readings BETWEEN kept ones, never a
  * fact that exists nowhere else, and only when the platform admin presses the
  * button. test/data-retention.test.ts pins exactly which rows survive.
+ *
+ * 058 — purge_cwl_scouting(): other clans' scouting (057) once their CWL week
+ * is over. Notes about other people's villages, not our history — our wars,
+ * standings and medals are in tables it never touches — and only when the
+ * platform admin presses the button. test/purge-cwl-scouting.test.ts pins that
+ * a season still being played is never cleared.
  */
-const DELETE_EXCEPTIONS: readonly string[] = ["053_data_retention.sql"];
+const DELETE_EXCEPTIONS: readonly string[] = ["053_data_retention.sql", "058_purge_cwl_scouting.sql"];
 
 describe("the migration files themselves", () => {
   it("contains no DELETE statements (R4)", () => {

@@ -146,6 +146,8 @@ export const PHASE1_MIGRATIONS = [
   // Scouting the CWL group: registered rosters, fielded lineups with their
   // attacks, and a per-season summary of each enemy village. Follows 048.
   "057_cwl_scouting.sql",
+  // Platform-admin clearing of 057's scouting once a season is over.
+  "058_purge_cwl_scouting.sql",
 ] as const;
 
 /**

@@ -30,10 +30,12 @@ import { failedRuns, recentRuns, type SyncRunRecord } from "@/repositories/sync-
 import {
   FREE_TIER_BYTES,
   KEEP_MONTH_CHOICES,
+  purgeCwlScouting,
   retentionState,
   storageUsage,
   thinOldData,
   type RetentionState,
+  type ScoutingPurge,
   type TableSize,
 } from "@/repositories/data-retention";
 import { formatDisplay } from "@/lib/display-time";
@@ -231,6 +233,30 @@ async function thinOldDataAction(formData: FormData) {
   redirect(result.more ? "/admin?ok=data-thinned-more#storage" : "/admin?ok=data-thinned#storage");
 }
 
+/**
+ * 058 — clear other clans' CWL scouting from finished seasons.
+ *
+ * Platform admin only, restated because a Server Action is independently
+ * addressable; purge_cwl_scouting() checks again, and that check counts. A
+ * season still being played is never touched, whatever is posted here.
+ */
+async function purgeScoutingAction(formData: FormData) {
+  "use server";
+
+  const supabase = await createClient();
+  const userId = await currentUserId(supabase);
+  if (!userId) redirect("/login");
+  if (!(await isPlatformAdmin(supabase, userId))) redirect("/admin?error=forbidden");
+
+  if (formData.get("confirm") !== "yes") redirect("/admin?error=scouting-unconfirmed#storage");
+
+  const result = await purgeCwlScouting(supabase, false);
+  if (!result) redirect("/admin?error=scouting-refused#storage");
+
+  revalidatePath("/admin");
+  redirect(result.seasons > 0 ? "/admin?ok=scouting-cleared#storage" : "/admin?ok=scouting-nothing#storage");
+}
+
 const MB = 1024 * 1024;
 
 function megabytes(bytes: number): string {
@@ -243,7 +269,16 @@ function megabytes(bytes: number): string {
  * Shown only to the platform admin: the figures are the whole database's, and
  * the action deletes across every clan.
  */
-function StoragePanel({ usage, state }: { usage: TableSize[]; state: RetentionState | null }) {
+function StoragePanel({
+  usage,
+  state,
+  scouting,
+}: {
+  usage: TableSize[];
+  state: RetentionState | null;
+  /** What clearing finished seasons' scouting would remove; null before 058. */
+  scouting: ScoutingPurge | null;
+}) {
   const database = usage.find((t) => t.name === "(database)");
   const tables = usage.filter((t) => t.name !== "(database)").slice(0, 5);
   const share = database ? Math.min(100, (database.bytes / FREE_TIER_BYTES) * 100) : 0;
@@ -343,6 +378,57 @@ function StoragePanel({ usage, state }: { usage: TableSize[]; state: RetentionSt
           stops growing. To shrink it now, run <code>vacuum full member_snapshots;</code> in the
           Supabase SQL editor.
         </p>
+      </form>
+
+      <form action={purgeScoutingAction} className="space-y-3 border-t pt-4">
+        <div className="space-y-1">
+          <h3 className="font-medium">Clear other clans&apos; CWL scouting</h3>
+          <p className="text-muted-foreground text-sm">
+            Once a CWL week is over, the other clans&apos; rosters, lineups and village levels are not
+            needed again — next month is a new group. This removes them for finished seasons only.
+            Your own wars, attacks, standings and medals are kept, and a season still being played is
+            never touched. It cannot be undone.
+          </p>
+          <p className="text-sm">
+            {scouting === null ? (
+              <span className="text-muted-foreground">Apply migration 058 to turn this on.</span>
+            ) : scouting.seasons === 0 ? (
+              <span className="text-muted-foreground">Nothing to clear — no finished season has scouting left.</span>
+            ) : (
+              <>
+                <span className="font-semibold">
+                  {scouting.seasons} finished season{scouting.seasons === 1 ? "" : "s"}
+                </span>
+                <span className="text-muted-foreground">
+                  {" "}· {scouting.villages.toLocaleString("en-GB")} village readings,{" "}
+                  {scouting.lineups.toLocaleString("en-GB")} lineup rows,{" "}
+                  {scouting.rosters.toLocaleString("en-GB")} roster rows
+                </span>
+              </>
+            )}
+          </p>
+        </div>
+
+        {scouting !== null && scouting.seasons > 0 && (
+          <>
+            <div className="flex items-start gap-3">
+              <input
+                id="confirm-scouting"
+                name="confirm"
+                type="checkbox"
+                value="yes"
+                required
+                className="mt-1 size-4"
+              />
+              <Label htmlFor="confirm-scouting" className="font-normal">
+                I understand the cleared scouting cannot be brought back.
+              </Label>
+            </div>
+            <SubmitButton variant="destructive" pendingLabel="Clearing">
+              Clear finished seasons
+            </SubmitButton>
+          </>
+        )}
       </form>
     </Panel>
   );
@@ -493,9 +579,14 @@ export default async function AdminPage({
     error.replace(/#[0-9A-Z]{4,}/g, (tag) => (tagNames.has(tag) ? `${tagNames.get(tag)} (${tag})` : tag));
 
   // 053 — platform admin only; the functions return nothing to anyone else.
-  const [usage, retention] = admin
-    ? await Promise.all([storageUsage(supabase), retentionState(supabase)])
-    : [[], null];
+  const [usage, retention, scouting] = admin
+    ? await Promise.all([
+        storageUsage(supabase),
+        retentionState(supabase),
+        // 058 — a dry run: what clearing would remove, for the button's label.
+        purgeCwlScouting(supabase, true),
+      ])
+    : [[], null, null];
 
   const allHistory = history === "all";
   const HISTORY_FIRST = 10;
@@ -720,7 +811,7 @@ export default async function AdminPage({
         </Panel>
       </div>
 
-      {admin && <StoragePanel usage={usage} state={retention} />}
+      {admin && <StoragePanel usage={usage} state={retention} scouting={scouting} />}
 
       {/* T9.2 — the history. R9 says every job writes to sync_log; this makes it visible. */}
       <Panel id="sync-history" aria-labelledby="history-title" className="space-y-4">
