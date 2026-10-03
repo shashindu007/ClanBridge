@@ -48,8 +48,14 @@ import { activeClans, main, skip, type JobContext } from "./shared";
 /** A reading younger than this is not taken again. Under a day, so the daily drift of a 2-hourly schedule cannot skip a day. */
 export const FRESH_FOR_MS = 20 * 60 * 60 * 1000;
 
-/** API calls a single run may spend. */
-export const MAX_CALLS = 400;
+/**
+ * API calls a single run may spend. Enough for a whole first run: every clan
+ * of the family in CWL is a group of seven others, up to 50 registered each —
+ * 3 × 7 × 50 = 1,050, about four minutes at the client's throttle. 400 was the
+ * first guess, and the first live run found 587 villages due and left four
+ * clans entirely unread until the next run.
+ */
+export const MAX_CALLS = 1200;
 
 /** Rows per upsert. */
 const BATCH = 100;
@@ -72,8 +78,13 @@ interface SeasonRow {
  * Who to read this run, deduplicated by village.
  *
  * A village listed under two seasons — two of our clans drawn into one group —
- * is fetched once and filed under both. Ordered by priority, then clan, then
- * tag, so a run cut short by MAX_CALLS stops at the least useful village.
+ * is fetched once and filed under both.
+ *
+ * Ordered by priority, then TAKING TURNS between clans: every clan's first
+ * village, then every clan's second, and so on. Clan by clan, a run cut short
+ * by MAX_CALLS left the clans late in tag order with nothing at all — a "—" on
+ * the Standings table — while earlier clans were complete. Taking turns, a
+ * short run leaves every clan partly read instead.
  */
 export function planCalls(
   targets: readonly ScoutTarget[],
@@ -86,15 +97,23 @@ export function planCalls(
     else byTag.set(t.tag, [t]);
   }
   const rank = (list: ScoutTarget[]) => Math.min(...list.map((t) => t.priority));
-  return [...byTag]
-    .map(([tag, list]) => ({ tag, targets: list }))
+  const calls = [...byTag].map(([tag, list]) => ({ tag, targets: list, clan: list[0]!.clanTag }));
+
+  // Each village's turn within its own clan, by tag.
+  const turn = new Map<string, number>();
+  const byClan = new Map<string, string[]>();
+  for (const c of calls) byClan.set(c.clan, [...(byClan.get(c.clan) ?? []), c.tag]);
+  for (const tags of byClan.values()) tags.sort().forEach((tag, i) => turn.set(tag, i));
+
+  return calls
     .sort(
       (a, b) =>
         rank(a.targets) - rank(b.targets) ||
-        a.targets[0]!.clanTag.localeCompare(b.targets[0]!.clanTag) ||
-        a.tag.localeCompare(b.tag),
+        turn.get(a.tag)! - turn.get(b.tag)! ||
+        a.clan.localeCompare(b.clan),
     )
-    .slice(0, limit);
+    .slice(0, limit)
+    .map(({ tag, targets: list }) => ({ tag, targets: list }));
 }
 
 /** The stored shape of one reading. Pure — the test exercises it directly. */

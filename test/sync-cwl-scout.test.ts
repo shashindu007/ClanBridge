@@ -93,6 +93,15 @@ describe("057 — CWL scouting", () => {
       expect(plan.map((c) => c.tag)).toEqual(["#C", "#A", "#B"]);
     });
 
+    // The first live run: clans late in tag order got nothing at all.
+    it("takes turns between clans, so a short run leaves no clan unread", () => {
+      const plan = planCalls(
+        [t("#A1", "#A", 2), t("#A2", "#A", 2), t("#A3", "#A", 2), t("#B1", "#B", 2), t("#C1", "#C", 2)],
+        3,
+      );
+      expect(plan.map((c) => c.tag)).toEqual(["#A1", "#B1", "#C1"]);
+    });
+
     it("reads a village listed under two seasons once, filed under both", () => {
       const plan = planCalls([t("#A", "#X", 2, "s1"), t("#A", "#X", 1, "s2")]);
       expect(plan).toHaveLength(1);
