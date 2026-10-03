@@ -12,9 +12,12 @@ import { Countdown } from "@/components/countdown";
 import { LocalTime } from "@/components/local-time";
 import { ClanBadge } from "@/components/game/clan-badge";
 import { GameArt } from "@/components/game/game-art";
+import { TownHall } from "@/components/game/town-hall";
 import { Button } from "@/components/ui/button";
 import type { CwlWar } from "@/repositories/cwl";
 import type { Standing } from "@/services/cwl-standings";
+import type { StandingScout } from "@/services/cwl-scouting";
+import type { LineupBreakdown } from "@/lib/roster-view";
 import { artKeyForLeague } from "@/lib/game-art";
 import { DAY_TONE_CLASS, DAY_TONE_LABEL, dayTone, ordinal } from "@/lib/war-status";
 import { cn } from "@/lib/utils";
@@ -134,21 +137,57 @@ export function SeasonNav({
 
 const PODIUM = ["var(--gold)", "oklch(0.78 0.02 250)", "oklch(0.62 0.1 55)"];
 
+/**
+ * "TH18 ×5 · TH17 ×8 · +2" — the top of a roster's Town Halls in a table cell.
+ * The full mix is on the clan's own page; three levels say who the clan is.
+ */
+export function ThMix({ breakdown, limit = 3 }: { breakdown: LineupBreakdown; limit?: number }) {
+  if (breakdown.total === 0) return <span className="text-muted-foreground text-xs">—</span>;
+  const shown = breakdown.levels.slice(0, limit);
+  const rest = breakdown.levels.slice(limit).reduce((t, l) => t + l.count, 0);
+  return (
+    <span
+      className="flex flex-wrap items-center gap-1"
+      aria-label={breakdown.levels.map((l) => `${l.count} at Town Hall ${l.level}`).join(", ")}
+    >
+      {shown.map(({ level, count }) => (
+        <span key={level} className="bg-muted/60 inline-flex items-center gap-0.5 rounded-chip border py-0.5 pr-1.5 pl-0.5">
+          <TownHall level={level} />
+          <span className="text-xs font-semibold tabular-nums">×{count}</span>
+        </span>
+      ))}
+      {rest > 0 && <span className="text-muted-foreground text-xs tabular-nums">+{rest}</span>}
+    </span>
+  );
+}
+
 /** The group table: eight clans, this one highlighted and labelled. */
 export function StandingsTable({
   standings,
   compact = false,
+  scout,
+  hrefFor,
 }: {
   standings: Standing[];
   compact?: boolean;
+  /** Scouting per clan tag (057). Adds the Town Hall and heroes columns. */
+  scout?: ReadonlyMap<string, StandingScout>;
+  /** Where a clan's name links to — its scouting page. */
+  hrefFor?: (tag: string) => string;
 }) {
   return (
     <div className="-mx-5 overflow-x-auto px-5">
-      <table className="w-full min-w-[34rem] text-sm">
+      <table className={cn("w-full text-sm", scout ? "min-w-[44rem]" : "min-w-[34rem]")}>
         <thead className="text-muted-foreground border-b text-left text-xs uppercase">
           <tr>
             <th className="py-2 pr-3 font-medium">#</th>
             <th className="py-2 pr-3 font-medium">Clan</th>
+            {scout && <th className="py-2 pr-3 font-medium">Town Halls</th>}
+            {scout && (
+              <th className="py-2 pr-3 text-right font-medium" title="Average heroes against each village's Town Hall max">
+                Heroes
+              </th>
+            )}
             <th className="py-2 pr-3 text-right font-medium">W–L–D</th>
             <th className="py-2 pr-3 text-right font-medium">
               <span className="inline-flex items-center gap-1">
@@ -160,51 +199,76 @@ export function StandingsTable({
           </tr>
         </thead>
         <tbody>
-          {standings.map((s) => (
-            <tr
-              key={s.tag}
-              className={cn(
-                "border-b last:border-0",
-                s.isUs && "bg-primary/10 font-semibold",
-              )}
-            >
-              <td className="py-2.5 pr-3">
-                <span
-                  className="cb-title inline-flex size-7 items-center justify-center rounded-full text-sm tabular-nums"
-                  style={
-                    s.rank <= 3
-                      ? { background: PODIUM[s.rank - 1], color: "oklch(0.2 0.03 60)" }
-                      : undefined
-                  }
-                >
-                  {s.rank}
-                </span>
-              </td>
-              <td className="py-2.5 pr-3">
-                <span className="flex min-w-0 items-center gap-2">
-                  <ClanBadge src={s.badgeUrl} name={s.name} size="sm" tone={s.isUs ? "var(--primary)" : "var(--foe)"} />
-                  <span className="truncate">{s.name}</span>
-                  {s.isUs && (
-                    <span className="bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 text-[0.625rem] font-bold uppercase">
-                      You
+          {standings.map((s) => {
+            const scouted = scout?.get(s.tag);
+            const href = hrefFor?.(s.tag);
+            return (
+              <tr
+                key={s.tag}
+                className={cn(
+                  "border-b last:border-0",
+                  s.isUs && "bg-primary/10 font-semibold",
+                )}
+              >
+                <td className="py-2.5 pr-3">
+                  <span
+                    className="cb-title inline-flex size-7 items-center justify-center rounded-full text-sm tabular-nums"
+                    style={
+                      s.rank <= 3
+                        ? { background: PODIUM[s.rank - 1], color: "oklch(0.2 0.03 60)" }
+                        : undefined
+                    }
+                  >
+                    {s.rank}
+                  </span>
+                </td>
+                <td className="py-2.5 pr-3">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <ClanBadge src={s.badgeUrl} name={s.name} size="sm" tone={s.isUs ? "var(--primary)" : "var(--foe)"} />
+                    {href ? (
+                      <Link href={href} className="truncate underline-offset-2 hover:underline">
+                        {s.name}
+                      </Link>
+                    ) : (
+                      <span className="truncate">{s.name}</span>
+                    )}
+                    {s.isUs && (
+                      <span className="bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 text-[0.625rem] font-bold uppercase">
+                        You
+                      </span>
+                    )}
+                  </span>
+                </td>
+                {scout && (
+                  <td className="py-2.5 pr-3 font-normal">
+                    {scouted ? <ThMix breakdown={scouted.roster} /> : <span className="text-muted-foreground text-xs">—</span>}
+                  </td>
+                )}
+                {scout && (
+                  <td className="py-2.5 pr-3 text-right tabular-nums">
+                    {scouted?.avgHeroPct != null ? `${Math.round(scouted.avgHeroPct)}%` : "—"}
+                    {scouted && scouted.weakPoints > 0 && (
+                      <span className="text-muted-foreground block text-[0.6875rem] font-normal">
+                        {scouted.weakPoints} weak point{scouted.weakPoints === 1 ? "" : "s"}
+                      </span>
+                    )}
+                  </td>
+                )}
+                <td className="py-2.5 pr-3 text-right tabular-nums">
+                  {s.wins}–{s.losses}–{s.ties}
+                </td>
+                <td className="py-2.5 pr-3 text-right tabular-nums">
+                  {s.stars}
+                  {!compact && s.wins > 0 && (
+                    <span className="text-muted-foreground block text-[0.6875rem] font-normal">
+                      {s.attackStars} + {s.wins * 10} bonus
                     </span>
                   )}
-                </span>
-              </td>
-              <td className="py-2.5 pr-3 text-right tabular-nums">
-                {s.wins}–{s.losses}–{s.ties}
-              </td>
-              <td className="py-2.5 pr-3 text-right tabular-nums">
-                {s.stars}
-                {!compact && s.wins > 0 && (
-                  <span className="text-muted-foreground block text-[0.6875rem] font-normal">
-                    {s.attackStars} + {s.wins * 10} bonus
-                  </span>
-                )}
-              </td>
-              <td className="py-2.5 text-right tabular-nums">{s.destruction.toFixed(0)}%</td>
-            </tr>
-          ))}
+                </td>
+                <td className="py-2.5 text-right tabular-nums">{s.destruction.toFixed(0)}%</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

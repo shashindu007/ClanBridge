@@ -208,7 +208,17 @@ export const cwlGroupSchema = z.looseObject({
         name: z.string().optional(),
         clanLevel: z.number().optional(),
         badgeUrls,
-        members: z.array(z.looseObject({ tag, name: z.string().optional() })).default([]),
+        // townHallLevel: capital H here, unlike the war endpoints' townhallLevel.
+        // The registered roster's Town Halls are what 057's scouting reads.
+        members: z
+          .array(
+            z.looseObject({
+              tag,
+              name: z.string().optional(),
+              townHallLevel: z.number().optional(),
+            }),
+          )
+          .default([]),
       }),
     )
     .default([]),

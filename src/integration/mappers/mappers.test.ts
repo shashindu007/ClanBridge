@@ -338,6 +338,19 @@ describe("mapCwlGroup", () => {
     expect(group.warTags).not.toContain("#0");
   });
 
+  // 057 — the registered rosters and their Town Halls, which the sync used to
+  // parse and then drop.
+  it("keeps every clan's roster with its Town Hall levels", () => {
+    expect(group.rosters.map((r) => r.clanTag)).toEqual(group.clanTags);
+    const first = api.clans[0]!.members[0]!;
+    expect(group.rosters[0]!.members[0]).toEqual({
+      tag: normaliseTag(first.tag),
+      name: first.name,
+      thLevel: first.townHallLevel,
+    });
+    expect(group.rosters.every((r) => r.members.every((m) => typeof m.thLevel === "number"))).toBe(true);
+  });
+
   // ───────────────────────────────────────────────────────────────────────────
   // THE BUG T2.1 CAUGHT. Worth stating in full, because the whole reason this
   // project captures real fixtures is to find exactly this class of defect.

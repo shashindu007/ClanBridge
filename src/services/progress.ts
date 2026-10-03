@@ -116,6 +116,85 @@ export function overallProgress(units: StoredUnit[], village: Village): Tally {
   return tally(units.filter((u) => u.village === village));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// A LINEUP'S VIEW OF ONE VILLAGE
+//
+// The handful of numbers a CWL lineup is decided on, from one reading's units.
+// Shared by our own lineups (repositories/player-progress.ts) and the scouting
+// of other clans' villages (scripts/sync/cwl-scout.ts), so "heroes 82%" means
+// the same thing on both sides of a war.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface HeroLevel {
+  /** "BK", "AQ", "MP", "GW", "RC", "DD" — short, so they all fit on a table row. */
+  short: string;
+  name: string;
+  level: number;
+  cap: number;
+}
+
+export interface VillageScore {
+  heroes: HeroLevel[];
+  /** Overall progress towards this Town Hall's caps, 0–100; null with nothing to count. */
+  maxPct: number | null;
+  /** Heroes alone, 0–100 — the number a CWL lineup is really decided on; null with no heroes. */
+  heroPct: number | null;
+  /**
+   * Everything an attack brings besides the heroes — troops, sieges, spells,
+   * pets and hero equipment — 0–100; null with nothing to count. Defences
+   * would be the other half of a base, but the API never reports buildings.
+   */
+  offencePct: number | null;
+  /** Hero pets alone; null below the Town Hall that unlocks them. */
+  petPct: number | null;
+  /** Hero equipment alone; null with none unlocked. */
+  equipmentPct: number | null;
+}
+
+const OFFENCE_GROUPS = new Set<string>([
+  "elixirTroop",
+  "darkTroop",
+  "siege",
+  "elixirSpell",
+  "darkSpell",
+  "pet",
+  "equipment",
+]);
+
+export const HERO_ORDER: ReadonlyArray<readonly [string, string]> = [
+  ["Barbarian King", "BK"],
+  ["Archer Queen", "AQ"],
+  ["Minion Prince", "MP"],
+  ["Grand Warden", "GW"],
+  ["Royal Champion", "RC"],
+  ["Dragon Duke", "DD"],
+];
+
+// Null, not tally()'s 100, when there is nothing to count: an empty or
+// malformed reading, or a Town Hall below the first hero, is "unknown", and
+// 100% in green would read as a maxed village.
+function nullIfEmpty(t: Tally): number | null {
+  return t.total > 0 ? t.pct : null;
+}
+
+/** Score one home village. Pure. */
+export function villageSnapshot(units: StoredUnit[]): VillageScore {
+  const home = units.filter((u) => u.village === "home");
+  const heroUnits = home.filter((u) => u.group === "hero");
+  const heroes = HERO_ORDER.flatMap(([name, short]) => {
+    const unit = heroUnits.find((u) => u.name === name);
+    return unit && unit.cap > 0 ? [{ short, name, level: unit.level, cap: unit.cap }] : [];
+  });
+  return {
+    heroes,
+    maxPct: nullIfEmpty(overallProgress(units, "home")),
+    heroPct: nullIfEmpty(tally(heroUnits)),
+    offencePct: nullIfEmpty(tally(home.filter((u) => OFFENCE_GROUPS.has(u.group)))),
+    petPct: nullIfEmpty(tally(home.filter((u) => u.group === "pet"))),
+    equipmentPct: nullIfEmpty(tally(home.filter((u) => u.group === "equipment"))),
+  };
+}
+
 export interface BehindUnit {
   name: string;
   level: number;

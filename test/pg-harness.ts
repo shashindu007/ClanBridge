@@ -143,6 +143,9 @@ export const PHASE1_MIGRATIONS = [
   // QA: notification recipients scoped to the clan, no backslash URLs, and
   // push endpoint hand-over between accounts.
   "056_notification_and_push_hardening.sql",
+  // Scouting the CWL group: registered rosters, fielded lineups with their
+  // attacks, and a per-season summary of each enemy village. Follows 048.
+  "057_cwl_scouting.sql",
 ] as const;
 
 /**
@@ -329,9 +332,12 @@ export const PHASE1_TABLES = [
   "cwl_attacks",
   "cwl_bonuses",
   "cwl_group_clans",
+  "cwl_group_members",
+  "cwl_group_war_members",
   "cwl_group_wars",
   "cwl_roster_members",
   "cwl_rosters",
+  "cwl_scout_players",
   "cwl_seasons",
   "cwl_war_members",
   "cwl_wars",

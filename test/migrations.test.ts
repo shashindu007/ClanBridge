@@ -93,6 +93,19 @@ async function seedFixtures(h: Harness) {
       ('11111111-0000-4000-8000-000000000001', '#8G9QRVJL', 1, 'warEnded', '#2PP', '#2QQ'),
       ('22222222-0000-4000-8000-000000000001', '#9CUVPYQ2', 1, 'warEnded', '#2QQ', '#2PP');
 
+    -- 057. Scouting: the group's rosters, fielded lineups, and enemy summaries.
+    insert into cwl_group_members (season_id, clan_tag, tag, name, th_level) values
+      ('11111111-0000-4000-8000-000000000001', '#2PP', '#P0001', 'Rival A1', 17),
+      ('22222222-0000-4000-8000-000000000001', '#2QQ', '#Q0001', 'Rival B1', 16);
+
+    insert into cwl_group_war_members (season_id, war_tag, clan_tag, tag, th_level, map_position, attack_stars) values
+      ('11111111-0000-4000-8000-000000000001', '#8G9QRVJL', '#2PP', '#P0001', 17, 1, 3),
+      ('22222222-0000-4000-8000-000000000001', '#9CUVPYQ2', '#2QQ', '#Q0001', 16, 1, 2);
+
+    insert into cwl_scout_players (season_id, clan_tag, tag, th_level, hero_pct) values
+      ('11111111-0000-4000-8000-000000000001', '#2PP', '#P0001', 17, 91.5),
+      ('22222222-0000-4000-8000-000000000001', '#2QQ', '#Q0001', 16, 72.0);
+
     insert into cwl_bonuses (season_id, player_id, awarded_by, note) values
       ('11111111-0000-4000-8000-000000000001', '${PLAYER_A}', '${USER_A}', 'top stars'),
       ('22222222-0000-4000-8000-000000000001', '${PLAYER_B}', '${USER_B}', 'top stars');

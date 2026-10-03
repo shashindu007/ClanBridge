@@ -13,8 +13,10 @@
 // cannot ever be recovered.
 //
 // R11/R12 — this job writes cwl_seasons, cwl_wars, cwl_war_members,
-// cwl_attacks, and (048) cwl_group_clans and cwl_group_wars — the rest of the
-// group, from which standings and medals are derived. It must NOT touch cwl_rosters or cwl_roster_members: those are the
+// cwl_attacks, (048) cwl_group_clans and cwl_group_wars — the rest of the
+// group, from which standings and medals are derived — and (057)
+// cwl_group_members and cwl_group_war_members, the group's rosters and fielded
+// lineups for scouting. It must NOT touch cwl_rosters or cwl_roster_members: those are the
 // leader's selection, and the API roster is a separate fact. Writing the API
 // roster into the leader's table destroys the plan-vs-reality comparison
 // (T4B.11) permanently.
@@ -42,7 +44,7 @@ import { cwlGroupSchema, warSchema, type ApiCwlGroup } from "@/integration/coc-s
 import { CocNotFoundError, CocPrivateLogError } from "@/integration/errors";
 import { mapCwlGroup, mapWar } from "@/integration/mappers";
 import { normaliseTag } from "@/lib/tags";
-import type { War, WarMember, WarResult, WarSide } from "@/types/domain";
+import type { CwlGroupRoster, War, WarMember, WarResult, WarSide } from "@/types/domain";
 import { activeClans, main, skip, type JobContext } from "./shared";
 import { remindUnusedAttacks } from "./cwl-reminders";
 
@@ -504,6 +506,134 @@ async function upsertGroupClans(
   if (error) throw new Error(`cwl_group_clans upsert failed: ${error.message}`);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SCOUTING (057)
+//
+// Who each clan registered, who it actually fielded each day, and the one
+// attack each of them made. All of it rides on responses fetched above for
+// standings, so it costs no call of its own — and all of it is gone when the
+// season ends. Like the rest of the group, a failure here warns and never
+// costs our own wars.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Rows per upsert, well under PostgREST's body limit. */
+const MEMBER_BATCH = 200;
+
+async function upsertInBatches(
+  supabase: SupabaseClient,
+  table: string,
+  rows: Record<string, unknown>[],
+  onConflict: string,
+  ignoreDuplicates: boolean,
+): Promise<void> {
+  for (let i = 0; i < rows.length; i += MEMBER_BATCH) {
+    const { error } = await supabase
+      .from(table)
+      .upsert(rows.slice(i, i + MEMBER_BATCH), { onConflict, ignoreDuplicates });
+    if (error) throw new Error(`${table} upsert failed: ${error.message}`);
+  }
+}
+
+/** The registered rosters. Pure — exported for the test. */
+export function groupMemberRows(seasonId: string, rosters: readonly CwlGroupRoster[]) {
+  return rosters.flatMap((roster) =>
+    roster.members.map((m) => ({
+      season_id: seasonId,
+      clan_tag: roster.clanTag,
+      tag: m.tag,
+      name: m.name ?? null,
+      th_level: m.thLevel ?? null,
+    })),
+  );
+}
+
+/**
+ * Refreshed every run while the season is on — a Town Hall upgraded mid-week is
+ * the current fact, not a rewrite of history. Once the group has ended, only
+ * missing rows are added.
+ */
+async function upsertGroupMembers(
+  supabase: SupabaseClient,
+  seasonId: string,
+  rosters: readonly CwlGroupRoster[],
+  groupState: string | undefined,
+): Promise<void> {
+  const rows = groupMemberRows(seasonId, rosters);
+  if (!rows.length) return;
+  await upsertInBatches(supabase, "cwl_group_members", rows, "season_id,tag", groupState === "ended");
+}
+
+/**
+ * Both lineups of one group war, with each member's attack inline (CWL gives
+ * one). Pure — exported for the test. A side without a tag is skipped, as
+ * upsertGroupWar skips the whole war.
+ */
+export function groupWarMemberRows(seasonId: string, warTag: string, war: War) {
+  return [war.clan, war.opponent].flatMap((side) => {
+    if (!side?.tag) return [];
+    const clanTag = side.tag;
+    return side.members.map((m) => {
+      const attack = m.attacks[0];
+      return {
+        season_id: seasonId,
+        war_tag: warTag,
+        clan_tag: clanTag,
+        tag: m.tag,
+        name: m.name ?? null,
+        th_level: m.thLevel ?? null,
+        map_position: m.mapPosition ?? null,
+        attack_stars: attack?.stars ?? null,
+        attack_destruction: attack?.destruction ?? null,
+        attack_defender_tag: attack?.defenderTag ?? null,
+      };
+    });
+  });
+}
+
+/**
+ * Write one war's lineups and flag the war as captured.
+ *
+ * `settled` — the war was already stored as ended, so this is the one-off
+ * backfill of a war recorded before 057: missing rows are added and nothing
+ * existing is touched (R5). A live war's rows are refreshed as attacks land.
+ */
+async function upsertGroupWarMembers(
+  supabase: SupabaseClient,
+  seasonId: string,
+  warTag: string,
+  war: War,
+  settled: boolean,
+): Promise<void> {
+  const rows = groupWarMemberRows(seasonId, warTag, war);
+  if (!rows.length) return;
+  await upsertInBatches(supabase, "cwl_group_war_members", rows, "season_id,war_tag,tag", settled);
+
+  const { error } = await supabase
+    .from("cwl_group_wars")
+    .update({ members_captured_at: new Date().toISOString() })
+    .eq("season_id", seasonId)
+    .eq("war_tag", warTag);
+  if (error) throw new Error(`cwl_group_wars lineup flag failed for ${warTag}: ${error.message}`);
+}
+
+/**
+ * Group wars whose lineups are already recorded, or null when 057 is not
+ * applied — in which case lineups are simply not captured this run.
+ */
+async function groupWarsWithMembers(
+  supabase: SupabaseClient,
+  seasonId: string,
+): Promise<Set<string> | null> {
+  const { data, error } = await supabase
+    .from("cwl_group_wars")
+    .select("war_tag")
+    .eq("season_id", seasonId)
+    .not("members_captured_at", "is", null)
+    .is("deleted_at", null);
+  if (error) return null;
+  return new Set(((data ?? []) as Array<{ war_tag: string }>).map((r) => r.war_tag));
+}
+
 /** Group wars already recorded this season: war tag -> state. */
 async function storedGroupWars(
   supabase: SupabaseClient,
@@ -564,18 +694,26 @@ async function upsertGroupWar(
 /**
  * Group war tags still worth a call: every real tag not yet stored as ended
  * and not already fetched this run. Exported so the call budget is tested.
+ *
+ * `withMembers` (057) — wars whose lineups are recorded. An ended war missing
+ * from it is asked for once more, so a season already under way when 057 went
+ * live still gets its lineups: about 28 calls, once. Null when lineups are not
+ * being captured, which leaves the budget exactly as it was.
  */
 export function groupTagsToFetch(
   group: ApiCwlGroup,
   stored: ReadonlyMap<string, string | null>,
   fetchedThisRun: ReadonlySet<string>,
+  withMembers: ReadonlySet<string> | null = null,
 ): string[] {
   const tags: string[] = [];
   for (const round of group.rounds) {
     for (const raw of round.warTags) {
       if (!raw || raw === "#0") continue;
       const tag = normaliseTag(raw);
-      if (fetchedThisRun.has(tag) || stored.get(tag) === "warEnded") continue;
+      if (fetchedThisRun.has(tag)) continue;
+      const settled = stored.get(tag) === "warEnded";
+      if (settled && (!withMembers || withMembers.has(tag))) continue;
       tags.push(tag);
     }
   }
@@ -633,6 +771,17 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
         groupOk = false;
         groupWarn("group clans not captured", error);
       });
+      // 057 — scouting rides on the group. Null when it cannot be written, which
+      // leaves standings, and our wars, exactly as before.
+      let withMembers = groupOk ? await groupWarsWithMembers(supabase, seasonId) : null;
+      if (withMembers) {
+        await upsertGroupMembers(supabase, seasonId, mapped.rosters, group.state).catch(
+          (error: unknown) => {
+            withMembers = null;
+            groupWarn("group rosters not captured", error);
+          },
+        );
+      }
       const groupStored = groupOk
         ? await storedGroupWars(supabase, seasonId).catch((error: unknown) => {
             groupOk = false;
@@ -642,6 +791,19 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
         : new Map<string, string | null>();
       // Every war fetched this run, ours or not, by the tag the group listed.
       const fetched = new Set<string>();
+      const captureLineup = async (tag: string, war: War) => {
+        if (!withMembers) return;
+        const settled = groupStored.get(tag) === "warEnded";
+        if (settled && withMembers.has(tag)) return;
+        try {
+          // Not counted in records_written, which stays "our roster and
+          // attacks" — the number the CWL health checks are read against.
+          await upsertGroupWarMembers(supabase, seasonId, tag, war, settled);
+          withMembers.add(tag);
+        } catch (error) {
+          groupWarn(`group war ${tag} lineups not captured`, error);
+        }
+      };
       const settled = new Set(
         [...stored].filter(([, war]) => war.state === "warEnded").map(([tag]) => tag),
       );
@@ -658,6 +820,7 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
               (error: unknown) => groupWarn(`group war ${requestedTag} not captured`, error),
             );
           }
+          if (groupOk) await captureLineup(requestedTag, war);
           const sides = chooseSides(war, clanTag);
           if (!sides) continue; // another clan's war in the same round — try the next
 
@@ -701,10 +864,15 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
 
       // The rest of the group, after ours are safely written.
       let groupWars = 0;
-      for (const tag of groupOk ? groupTagsToFetch(group, groupStored, fetched) : []) {
+      for (const tag of groupOk ? groupTagsToFetch(group, groupStored, fetched, withMembers) : []) {
         try {
           const war = mapWar(await request(cwlWarEndpoint(tag), warSchema));
-          if (await upsertGroupWar(supabase, seasonId, tag, war, days.get(tag))) groupWars += 1;
+          // A war stored as ended is here only for its lineups (the backfill):
+          // its scores are settled and are not written again (R5).
+          if (groupStored.get(tag) !== "warEnded") {
+            if (await upsertGroupWar(supabase, seasonId, tag, war, days.get(tag))) groupWars += 1;
+          }
+          await captureLineup(tag, war);
         } catch (error) {
           console.warn(
             `  ${clan.tag}: group war ${tag} not captured this run — ` +
@@ -739,6 +907,8 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
   await remindUnusedAttacks(supabase, clans);
 }
 
-if (process.argv[1]?.includes("cwl")) {
+// The file name exactly, as players.ts does: cwl-scout.ts also contains "cwl",
+// and a substring match would start a CWL sync from inside the scouting job.
+if (/[\\/]cwl\.ts$/.test(process.argv[1] ?? "")) {
   void main("cwl", syncCwl);
 }

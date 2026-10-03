@@ -24,7 +24,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { overallProgress, tally, type StoredUnit } from "@/services/progress";
+import { villageSnapshot, type StoredUnit, type VillageScore } from "@/services/progress";
 
 export type ProgressScope = { clanId: string } | "owner";
 
@@ -122,51 +122,11 @@ export async function baseProgress(
 // and nobody else's. A village with no reading is simply absent from the map.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface HeroLevel {
-  /** "BK", "AQ", "MP", "GW", "RC", "DD" — short, so they all fit on a table row. */
-  short: string;
-  name: string;
-  level: number;
-  cap: number;
-}
+export type { HeroLevel } from "@/services/progress";
 
-export interface VillageSnapshot {
+export interface VillageSnapshot extends VillageScore {
   thLevel: number | null;
   capturedAt: string;
-  heroes: HeroLevel[];
-  /** Overall progress towards this Town Hall's caps, 0–100 (services/progress); null with nothing to count. */
-  maxPct: number | null;
-  /** Heroes alone, 0–100 — the number a CWL lineup is really decided on; null with no heroes. */
-  heroPct: number | null;
-  /**
-   * Everything an attack brings besides the heroes — troops, sieges, spells,
-   * pets and hero equipment — 0–100; null with nothing to count. Defences
-   * would be the other half of a base, but the API never reports buildings.
-   */
-  offencePct: number | null;
-}
-
-const OFFENCE_GROUPS = new Set<string>([
-  "elixirTroop",
-  "darkTroop",
-  "siege",
-  "elixirSpell",
-  "darkSpell",
-  "pet",
-  "equipment",
-]);
-
-const HERO_ORDER: Array<[string, string]> = [
-  ["Barbarian King", "BK"],
-  ["Archer Queen", "AQ"],
-  ["Minion Prince", "MP"],
-  ["Grand Warden", "GW"],
-  ["Royal Champion", "RC"],
-  ["Dragon Duke", "DD"],
-];
-
-function nullIfEmpty(t: { total: number; pct: number }): number | null {
-  return t.total > 0 ? t.pct : null;
 }
 
 export async function latestProgressFor(
@@ -182,22 +142,10 @@ export async function latestProgressFor(
 
   for (const row of data as Array<Record<string, unknown>>) {
     const reading = toReading(row);
-    const home = reading.units.filter((u) => u.village === "home");
-    const heroUnits = home.filter((u) => u.group === "hero");
-    const heroes = HERO_ORDER.flatMap(([name, short]) => {
-      const unit = heroUnits.find((u) => u.name === name);
-      return unit && unit.cap > 0 ? [{ short, name, level: unit.level, cap: unit.cap }] : [];
-    });
     out.set(row.player_id as string, {
       thLevel: reading.thLevel,
       capturedAt: reading.capturedAt,
-      heroes,
-      // Null, not tally()'s 100, when there is nothing to count: an empty or
-      // malformed reading, or a Town Hall below the first hero, is "unknown",
-      // and 100% in green would read as a maxed village.
-      maxPct: nullIfEmpty(overallProgress(reading.units, "home")),
-      heroPct: nullIfEmpty(tally(heroUnits)),
-      offencePct: nullIfEmpty(tally(home.filter((u) => OFFENCE_GROUPS.has(u.group)))),
+      ...villageSnapshot(reading.units),
     });
   }
   return out;

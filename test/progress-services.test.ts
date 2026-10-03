@@ -10,11 +10,13 @@ import { describe, expect, it } from "vitest";
 import { playerSchema } from "@/integration/coc-schemas";
 import { mapPlayerProgress } from "@/integration/mappers";
 import {
+  HERO_ORDER,
   behindPreviousHall,
   groupProgress,
   overallProgress,
   tally,
   upgradesBetween,
+  villageSnapshot,
   type StoredUnit,
 } from "@/services/progress";
 import { progressRow } from "../scripts/sync/players";
@@ -127,6 +129,42 @@ describe("the real TH17 account", () => {
     // Equipment the account never acquired is not "locked".
     expect(units.some((u) => u.group === "equipment" && u.level === 0)).toBe(false);
     expect(units.some((u) => u.group === "superTroop" && u.level === 0)).toBe(false);
+  });
+});
+
+describe("villageSnapshot", () => {
+  it("scores the real account's heroes in fixed order, with their Town Hall caps", () => {
+    const score = villageSnapshot(real.units);
+    expect(score.heroes.map((h) => h.short)).toEqual(
+      HERO_ORDER.map(([, short]) => short).filter((s) => score.heroes.some((h) => h.short === s)),
+    );
+    expect(score.heroes.every((h) => h.cap > 0 && h.level >= 0)).toBe(true);
+    expect(score.heroPct).toBe(tally(real.units.filter((u) => u.village === "home" && u.group === "hero")).pct);
+    expect(score.maxPct).toBe(overallProgress(real.units, "home").pct);
+  });
+
+  it("splits pets and equipment out of offence", () => {
+    const units = [
+      unit({ name: "L.A.S.S.I", group: "pet", level: 5, cap: 10 }),
+      unit({ name: "Giant Gauntlet", group: "equipment", level: 27, cap: 27 }),
+      unit({ name: "Barbarian", group: "elixirTroop", level: 10, cap: 10 }),
+    ];
+    const score = villageSnapshot(units);
+    expect(score.petPct).toBe(50);
+    expect(score.equipmentPct).toBe(100);
+    expect(score.offencePct).toBe(tally(units).pct);
+  });
+
+  // An empty reading is "unknown", never a green 100%.
+  it("is null, not 100, with nothing to count", () => {
+    expect(villageSnapshot([])).toEqual({
+      heroes: [],
+      maxPct: null,
+      heroPct: null,
+      offencePct: null,
+      petPct: null,
+      equipmentPct: null,
+    });
   });
 });
 

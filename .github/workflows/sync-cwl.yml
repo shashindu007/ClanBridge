@@ -89,3 +89,18 @@ jobs:
           # nothing real — the exact failure this workflow exists to prevent,
           # dressed up as a green tick.
           USE_FIXTURES: "false"
+
+      # 057 — the enemy villages' heroes, pets and equipment against their Town
+      # Hall's caps. After the capture and regardless of how it went: scouting
+      # reads what the capture wrote, and has its own sync_log type so it can
+      # never fail or alert on the CWL capture. Each village is read at most once
+      # every 20 hours, so most of these runs find nothing to do and skip.
+      - name: Scout the CWL group
+        if: always()
+        run: npm run sync:cwl-scout
+        env:
+          COC_API_TOKEN: ${{ secrets.COC_API_TOKEN }}
+          COC_API_BASE: ${{ secrets.COC_API_BASE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          USE_FIXTURES: "false"

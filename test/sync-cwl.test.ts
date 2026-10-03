@@ -82,7 +82,11 @@ const MISSED_COUNT = ROSTER_SIZE - ATTACK_COUNT;
 
 const CWL_GROUP = JSON.parse(
   readFileSync(join(process.cwd(), "fixtures", "cwlgroup.json"), "utf8"),
-) as { season: string; rounds: Array<{ warTags: string[] }> };
+) as {
+  season: string;
+  clans: Array<{ tag: string; members: Array<{ tag: string; townHallLevel?: number }> }>;
+  rounds: Array<{ warTags: string[] }>;
+};
 
 /** The season key AFTER normalisation — the live API sends a full date. */
 const SEASON = CWL_GROUP.season.slice(0, 7);
@@ -569,6 +573,91 @@ describe("T4.1 — the CWL sync", () => {
         await runSyncJob("cwl", syncCwl, { client });
         const second = await h.db.query<{ league: string | null }>(`select league from cwl_seasons`);
         expect(second.rows[0]!.league).toBe("Master League III");
+      });
+    });
+
+    describe("057 — scouting: the group's rosters and fielded lineups", () => {
+      const GROUP_TAGS = new Set(
+        CWL_GROUP.rounds.flatMap((r) => r.warTags).filter((t) => t && t !== "#0"),
+      );
+      const REGISTERED = CWL_GROUP.clans.reduce((n, c) => n + c.members.length, 0);
+      /** In fixture mode every group war is the same cwlwar.json — see WAR_COUNT. */
+      const LINEUP = OURS.members.length + THEIRS.members.length;
+
+      it("records every clan's registered roster with Town Halls", async () => {
+        await runSyncJob("cwl", syncCwl, { client });
+        expect(await count(h, "cwl_group_members")).toBe(REGISTERED);
+        expect(await count(h, "cwl_group_members", "th_level is null")).toBe(0);
+      });
+
+      it("records both lineups of every group war, with each attack inline", async () => {
+        await runSyncJob("cwl", syncCwl, { client });
+        expect(await count(h, "cwl_group_war_members")).toBe(GROUP_TAGS.size * LINEUP);
+        expect(await count(h, "cwl_group_wars", "members_captured_at is null")).toBe(0);
+
+        const attacked = OURS.members.filter((m) => m.attacks?.length).length;
+        const someWar = [...GROUP_TAGS][0]!;
+        expect(
+          await count(
+            h,
+            "cwl_group_war_members",
+            `war_tag = '${someWar}' and clan_tag = '${OUR_TAG}' and attack_stars is not null`,
+          ),
+        ).toBe(attacked);
+      });
+
+      it("backfills lineups once for a war that ended before 057", async () => {
+        await runSyncJob("cwl", syncCwl, { client });
+        const war = [...GROUP_TAGS][0]!;
+        // As a war stored before 057 looks: ended, scores kept, no lineups.
+        await h.db.exec(`
+          delete from cwl_group_war_members where war_tag = '${war}';
+          update cwl_group_wars set members_captured_at = null, clan_stars = 99 where war_tag = '${war}';
+        `);
+
+        await runSyncJob("cwl", syncCwl, { client });
+        expect(await count(h, "cwl_group_war_members", `war_tag = '${war}'`)).toBe(LINEUP);
+        expect(await count(h, "cwl_group_wars", "members_captured_at is null")).toBe(0);
+        // The settled scores were not written again (R5) — the marker survives.
+        expect(await count(h, "cwl_group_wars", `war_tag = '${war}' and clan_stars = 99`)).toBe(1);
+
+        // …and a third run asks for nothing.
+        const stored = await h.db.query<{ war_tag: string; state: string }>(
+          `select war_tag, state from cwl_group_wars`,
+        );
+        const map = new Map(stored.rows.map((r) => [r.war_tag, r.state]));
+        expect(
+          groupTagsToFetch(CWL_GROUP as unknown as ApiCwlGroup, map, new Set(), new Set(GROUP_TAGS)),
+        ).toEqual([]);
+      });
+
+      it("asks again for an ended war only while its lineups are missing", () => {
+        const group = {
+          season: "2026-10-01",
+          clans: [],
+          rounds: [{ warTags: ["#PPP", "#QQQ"] }],
+        } as unknown as ApiCwlGroup;
+        const ended = new Map([
+          ["#PPP", "warEnded"],
+          ["#QQQ", "warEnded"],
+        ]);
+        expect(groupTagsToFetch(group, ended, new Set(), new Set(["#PPP"]))).toEqual(["#QQQ"]);
+        // Without 057 the budget is exactly what it was.
+        expect(groupTagsToFetch(group, ended, new Set(), null)).toEqual([]);
+      });
+
+      it("still captures standings when the scouting tables are missing", async () => {
+        await h.db.exec(`alter table cwl_group_war_members rename to cwl_group_war_members_hidden`);
+        await h.db.exec(`alter table cwl_group_members rename to cwl_group_members_hidden`);
+        try {
+          const result = await runSyncJob("cwl", syncCwl, { client });
+          expect(result).toBe("success");
+          expect(await count(h, "cwl_group_wars")).toBe(GROUP_TAGS.size);
+          expect(await count(h, "cwl_wars")).toBe(WAR_COUNT);
+        } finally {
+          await h.db.exec(`alter table cwl_group_war_members_hidden rename to cwl_group_war_members`);
+          await h.db.exec(`alter table cwl_group_members_hidden rename to cwl_group_members`);
+        }
       });
     });
 

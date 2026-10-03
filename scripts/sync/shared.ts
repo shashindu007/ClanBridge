@@ -14,6 +14,7 @@
 //   MAY WRITE (game facts, from Supercell):
 //     clans, players, clan_roles, member_snapshots
 //     cwl_seasons, cwl_wars, cwl_attacks, cwl_group_clans, cwl_group_wars
+//     cwl_group_members, cwl_group_war_members, cwl_scout_players
 //     wars, war_attacks
 //     raid_seasons, raid_participants, clan_games, clan_games_scores
 //     sync_log
@@ -36,7 +37,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export type JobType = "clans" | "cwl" | "war" | "raids" | "clan-games" | "players" | "backup";
+export type JobType =
+  | "clans"
+  | "cwl"
+  | "cwl-scout"
+  | "war"
+  | "raids"
+  | "clan-games"
+  | "players"
+  | "backup";
 
 /**
  * Thrown by a job to record an ordinary non-event.

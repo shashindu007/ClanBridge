@@ -306,6 +306,14 @@ export function mapCwlGroup(api: ApiCwlGroup): CwlGroup {
       .flatMap((r) => r.warTags)
       .filter((t) => t && t !== "#0")
       .map((t) => normaliseTag(t)),
+    rosters: api.clans.map((c) => ({
+      clanTag: normaliseTag(c.tag),
+      members: c.members.map((m) => ({
+        tag: normaliseTag(m.tag),
+        name: m.name,
+        thLevel: m.townHallLevel,
+      })),
+    })),
   };
 }
 

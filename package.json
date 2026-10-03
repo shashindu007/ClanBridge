@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "sync:clans": "tsx --env-file-if-exists=.env.local scripts/sync/clans.ts",
     "sync:cwl": "tsx --env-file-if-exists=.env.local scripts/sync/cwl.ts",
+    "sync:cwl-scout": "tsx --env-file-if-exists=.env.local scripts/sync/cwl-scout.ts",
     "sync:war": "tsx --env-file-if-exists=.env.local scripts/sync/war.ts",
     "sync:raids": "tsx --env-file-if-exists=.env.local scripts/sync/raids.ts",
     "sync:clan-games": "tsx --env-file-if-exists=.env.local scripts/sync/clan-games.ts",

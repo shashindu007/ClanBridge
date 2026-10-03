@@ -352,6 +352,7 @@ function StoragePanel({ usage, state }: { usage: TableSize[]; state: RetentionSt
 const JOB_LABELS: Record<string, { label: string; schedule: string }> = {
   clans: { label: "Clan members", schedule: "Every hour" },
   cwl: { label: "Clan War League", schedule: "Every 2 hours" },
+  "cwl-scout": { label: "CWL scouting", schedule: "With CWL, each village daily" },
   war: { label: "Wars", schedule: "Every hour, with clan members" },
   raids: { label: "Raids and Clan Games", schedule: "Daily" },
   "clan-games": { label: "Clan Games", schedule: "Daily, with raids" },
@@ -371,6 +372,7 @@ const SKIP_REASONS: Record<string, string> = {
   notClanGames: "Clan Games not running",
   nothingToSnapshot: "Nothing to record",
   noPlayers: "No players to read yet",
+  scoutFresh: "Every enemy read in the last 20 hours",
 };
 
 function jobLabel(jobType: string): string {

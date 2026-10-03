@@ -117,12 +117,12 @@ export async function progressTargets(supabase: SupabaseClient): Promise<Progres
 }
 
 /**
- * The stored shape of one reading. Pure — the test exercises it directly.
- *
- * Each unit is resolved against the hall it belongs to: the Town Hall for home
- * units, the Builder Hall for builder units.
+ * Every unit of one reading with the hall cap of the day attached, plus what
+ * the hall allows but the API omitted because it is not unlocked yet (level 0).
+ * Pure. Shared with cwl-scout.ts, so an enemy village is scored by exactly the
+ * same rules as our own.
  */
-export function progressRow(target: ProgressTarget, progress: PlayerProgress) {
+export function resolveProgressUnits(progress: PlayerProgress): ResolvedUnit[] {
   const resolve = (source: UnitSource) => (unit: ProgressUnit): ResolvedUnit =>
     resolveUnit(unit, source, unit.village === "home" ? progress.thLevel : progress.bhLevel);
 
@@ -133,12 +133,17 @@ export function progressRow(target: ProgressTarget, progress: PlayerProgress) {
     ...progress.spells.map(resolve("spells")),
   ];
 
-  // What this hall allows but the API omitted because it is not unlocked yet.
-  // Stored as level 0 at capture, with the cap of the day, like everything else.
-  const units = [
-    ...present,
-    ...lockedUnits(present, progress.thLevel, progress.bhLevel),
-  ];
+  return [...present, ...lockedUnits(present, progress.thLevel, progress.bhLevel)];
+}
+
+/**
+ * The stored shape of one reading. Pure — the test exercises it directly.
+ *
+ * Each unit is resolved against the hall it belongs to: the Town Hall for home
+ * units, the Builder Hall for builder units.
+ */
+export function progressRow(target: ProgressTarget, progress: PlayerProgress) {
+  const units = resolveProgressUnits(progress);
 
   return {
     player_id: target.id,

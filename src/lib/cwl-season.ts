@@ -24,6 +24,7 @@ import {
   type CwlSeason,
   type CwlWar,
   type GroupClan,
+  type GroupWar,
 } from "@/repositories/cwl";
 import { seasonSpan, seasonTotals, type SeasonSpan, type SeasonTotals } from "@/services/cwl";
 import { groupStandings, ourStanding, type Standing } from "@/services/cwl-standings";
@@ -37,6 +38,8 @@ export interface SeasonView {
   span: SeasonSpan | null;
   running: boolean;
   groupClans: GroupClan[];
+  /** Every war in the group, ours included (048) — what scouting reads days and states from. */
+  groupWars: GroupWar[];
   standings: Standing[];
   us: Standing | null;
   /** The league the season was played in, when known, spelled as the medal table spells it. */
@@ -128,6 +131,7 @@ export async function loadSeasonView(
     span,
     running,
     groupClans: group.clans,
+    groupWars: group.wars,
     standings,
     us,
     league,

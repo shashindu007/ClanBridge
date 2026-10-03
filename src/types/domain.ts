@@ -113,6 +113,13 @@ export interface CwlGroup {
   clanTags: string[];
   /** Placeholder `#0` rounds are already filtered out — fetching one is a guaranteed 404. */
   warTags: string[];
+  /** Every clan's registered roster — who MAY play this week, not who does (057). */
+  rosters: CwlGroupRoster[];
+}
+
+export interface CwlGroupRoster {
+  clanTag: string;
+  members: Array<{ tag: string; name?: string; thLevel?: number }>;
 }
 
 export interface RaidSeason {

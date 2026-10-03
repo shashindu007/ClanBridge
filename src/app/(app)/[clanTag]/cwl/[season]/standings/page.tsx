@@ -3,6 +3,9 @@
 // Derived from cwl_group_wars (048) by services/cwl-standings.ts, never stored.
 // Seasons that ran before 048 have no group data — the API deleted it when they
 // ended — and the page says exactly that rather than showing a one-row table.
+//
+// 057 adds scouting: each clan's registered Town Halls and average heroes, and
+// a link to the clan's own page — players, weak points and the next lineup.
 
 import { notFound } from "next/navigation";
 import { Info, ListOrdered } from "lucide-react";
@@ -12,6 +15,7 @@ import { StandingsTable } from "@/components/cwl-parts";
 import { CwlSeasonHeader } from "@/components/cwl-season-header";
 import { requireClanByTag } from "@/lib/clans";
 import { canPrintCwlReport, loadSeasonView } from "@/lib/cwl-season";
+import { loadScouting, scoutsByClan, standingScouts } from "@/lib/cwl-scouting-view";
 import { isLeader } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import { seasonByName } from "@/repositories/cwl";
@@ -31,13 +35,18 @@ export default async function CwlStandingsPage({
   const season = await seasonByName(supabase, clan.id, decodeURIComponent(seasonName));
   if (!season) notFound();
 
-  const [view, run, canPrint] = await Promise.all([
+  const [view, run, canPrint, scouting] = await Promise.all([
     loadSeasonView(supabase, clan, season),
     latestRun(supabase, "cwl", clan.id),
     canPrintCwlReport(supabase, clan.role),
+    loadScouting(supabase, season.id, clan.tag),
   ]);
   const clanBase = `/${encodeURIComponent(clan.tag)}`;
+  const seasonBase = `${clanBase}/cwl/${encodeURIComponent(season.season)}`;
   const captured = view.us !== null;
+  const scout = standingScouts(
+    scoutsByClan(view.standings.map((s) => s.tag), scouting, view.groupWars),
+  );
 
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
@@ -61,7 +70,11 @@ export default async function CwlStandingsPage({
         </Panel>
       ) : (
         <Panel className="space-y-4">
-          <StandingsTable standings={view.standings} />
+          <StandingsTable
+            standings={view.standings}
+            scout={scout ?? undefined}
+            hrefFor={scout ? (tag) => `${seasonBase}/clans/${encodeURIComponent(tag)}` : undefined}
+          />
           <p className="text-muted-foreground flex items-start gap-2 text-xs">
             <Info aria-hidden className="mt-0.5 size-3.5 shrink-0" />
             <span>
@@ -69,6 +82,16 @@ export default async function CwlStandingsPage({
               tie. {view.running ? "A day still being fought counts its stars as they stand, and its win bonus once it ends." : ""}
             </span>
           </p>
+          {scout && (
+            <p className="text-muted-foreground flex items-start gap-2 text-xs">
+              <Info aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                Town Halls are each clan&apos;s registered roster. Heroes is the average against each
+                village&apos;s own Town Hall max — enemy villages are read once a day during the
+                week. Open a clan for its players, weak points and lineup.
+              </span>
+            </p>
+          )}
         </Panel>
       )}
     </main>

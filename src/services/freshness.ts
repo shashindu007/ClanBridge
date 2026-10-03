@@ -17,6 +17,9 @@ export const STALE_AFTER_MS: Record<string, number> = {
   // tick plus GitHub's habit of delaying scheduled runs by up to twenty minutes.
   // isStale() applies it only inside that window.
   cwl: 3 * 60 * 60 * 1000,
+  // 057 — a step of the same workflow, so the same window. Its skips ("every
+  // village read in the last 20 hours") are fresh, as any R10 skip is.
+  "cwl-scout": 3 * 60 * 60 * 1000,
   // Every 30 minutes since 054; two hours is four missed runs, not one.
   clans: 2 * 60 * 60 * 1000,
   // Every 30 minutes, as a step of sync-clans.yml — NOT every 15 minutes as first planned
@@ -81,7 +84,7 @@ function clanGamesRunMissed(finishedAt: Date, now: Date): boolean {
 export function isStale(jobType: string, finishedAt: Date, now: Date): boolean {
   const limit = STALE_AFTER_MS[jobType] ?? DEFAULT_STALE_AFTER_MS;
   const late = now.getTime() - finishedAt.getTime() > limit;
-  if (jobType === "cwl") return late && inCwlWindow(now);
+  if (jobType === "cwl" || jobType === "cwl-scout") return late && inCwlWindow(now);
   if (late) return true;
   return jobType === "clan-games" && clanGamesRunMissed(finishedAt, now);
 }
