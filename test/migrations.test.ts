@@ -1050,7 +1050,12 @@ describe("service_role privileges (fixed by 014)", () => {
  * platform admin presses the button. test/purge-cwl-scouting.test.ts pins that
  * a season still being played is never cleared.
  */
-const DELETE_EXCEPTIONS: readonly string[] = ["053_data_retention.sql", "058_purge_cwl_scouting.sql"];
+const DELETE_EXCEPTIONS: readonly string[] = [
+  "053_data_retention.sql",
+  "058_purge_cwl_scouting.sql",
+  // 059 — the same function, narrowed to rows of clans that are not ours.
+  "059_purge_other_clans_only.sql",
+];
 
 describe("the migration files themselves", () => {
   it("contains no DELETE statements (R4)", () => {

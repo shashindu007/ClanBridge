@@ -32,13 +32,16 @@ import {
   KEEP_MONTH_CHOICES,
   purgeCwlScouting,
   retentionState,
+  scoutingPurgePreview,
   storageUsage,
   thinOldData,
   type RetentionState,
   type ScoutingPurge,
+  type ScoutingPurgeSeason,
   type TableSize,
 } from "@/repositories/data-retention";
 import { formatDisplay } from "@/lib/display-time";
+import { seasonLabel } from "@/lib/roster-view";
 import { ago, freshness } from "@/services/freshness";
 import { groupFailures } from "@/services/sync-failures";
 import { clanAccent } from "@/lib/clan-accent";
@@ -61,6 +64,8 @@ import {
   History,
   Plus,
   RefreshCw,
+  ShieldCheck,
+  Trash2,
   TriangleAlert,
   Wrench,
 } from "lucide-react";
@@ -273,11 +278,14 @@ function StoragePanel({
   usage,
   state,
   scouting,
+  preview,
 }: {
   usage: TableSize[];
   state: RetentionState | null;
   /** What clearing finished seasons' scouting would remove; null before 058. */
   scouting: ScoutingPurge | null;
+  /** The same, season by season, with the other clans named (059). */
+  preview: ScoutingPurgeSeason[];
 }) {
   const database = usage.find((t) => t.name === "(database)");
   const tables = usage.filter((t) => t.name !== "(database)").slice(0, 5);
@@ -380,37 +388,79 @@ function StoragePanel({
         </p>
       </form>
 
-      <form action={purgeScoutingAction} className="space-y-3 border-t pt-4">
+      <form action={purgeScoutingAction} className="space-y-4 border-t pt-4">
         <div className="space-y-1">
-          <h3 className="font-medium">Clear other clans&apos; CWL scouting</h3>
+          <h3 className="font-medium">Delete other clans&apos; CWL data after the week</h3>
           <p className="text-muted-foreground text-sm">
-            Once a CWL week is over, the other clans&apos; rosters, lineups and village levels are not
-            needed again — next month is a new group. This removes them for finished seasons only.
-            Your own wars, attacks, standings and medals are kept, and a season still being played is
-            never touched. It cannot be undone.
-          </p>
-          <p className="text-sm">
-            {scouting === null ? (
-              <span className="text-muted-foreground">Apply migration 058 to turn this on.</span>
-            ) : scouting.seasons === 0 ? (
-              <span className="text-muted-foreground">Nothing to clear — no finished season has scouting left.</span>
-            ) : (
-              <>
-                <span className="font-semibold">
-                  {scouting.seasons} finished season{scouting.seasons === 1 ? "" : "s"}
-                </span>
-                <span className="text-muted-foreground">
-                  {" "}· {scouting.villages.toLocaleString("en-GB")} village readings,{" "}
-                  {scouting.lineups.toLocaleString("en-GB")} lineup rows,{" "}
-                  {scouting.rosters.toLocaleString("en-GB")} roster rows
-                </span>
-              </>
-            )}
+            During CWL the app records the other clans in your group to help you prepare. Once the
+            week is over that is not needed again — next month is a new group. Your own clans&apos;
+            data is never part of this.
           </p>
         </div>
 
-        {scouting !== null && scouting.seasons > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-control border border-destructive/50 p-3">
+            <p className="flex items-center gap-1.5 text-sm font-semibold">
+              <Trash2 aria-hidden className="text-destructive size-4" />
+              Will be deleted
+            </p>
+            <p className="text-muted-foreground mt-1 text-xs">Only the OTHER clans, only in finished seasons:</p>
+            <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-sm">
+              <li>their registered players and Town Halls</li>
+              <li>their daily lineups and attacks</li>
+              <li>their village levels (heroes, pets, equipment)</li>
+            </ul>
+          </div>
+          <div className="rounded-control border border-success/50 p-3">
+            <p className="flex items-center gap-1.5 text-sm font-semibold">
+              <ShieldCheck aria-hidden className="text-success-ink size-4" />
+              Always kept
+            </p>
+            <p className="text-muted-foreground mt-1 text-xs">Never deleted by this button:</p>
+            <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-sm">
+              <li>all of your clans&apos; CWL data — wars, lineups, attacks, missed attacks, rosters</li>
+              <li>standings and medals of every season</li>
+              <li>everything in a CWL week still being played</li>
+            </ul>
+          </div>
+        </div>
+
+        {scouting === null ? (
+          <p className="text-muted-foreground text-sm">Apply migrations 058 and 059 to turn this on.</p>
+        ) : preview.length === 0 ? (
+          <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
+            <CheckCircle2 aria-hidden className="size-4" />
+            Nothing to delete — no finished CWL week has other clans&apos; data left.
+          </p>
+        ) : (
           <>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">What this press deletes:</p>
+              <ul className="divide-y rounded-control border text-sm">
+                {preview.map((p) => (
+                  <li key={`${p.clanName}-${p.season}`} className="space-y-1 p-3">
+                    <p>
+                      <span className="font-semibold">{p.clanName}</span>
+                      <span className="text-muted-foreground"> · CWL {seasonLabel(p.season)} — </span>
+                      the {p.otherClans.length || "other"} other clan{p.otherClans.length === 1 ? "" : "s"} in its group
+                    </p>
+                    {p.otherClans.length > 0 && (
+                      <p className="text-muted-foreground text-xs">{p.otherClans.join(", ")}</p>
+                    )}
+                    <p className="text-muted-foreground text-xs tabular-nums">
+                      {p.rosters.toLocaleString("en-GB")} registered players ·{" "}
+                      {p.lineups.toLocaleString("en-GB")} lineup entries ·{" "}
+                      {p.villages.toLocaleString("en-GB")} village readings
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-muted-foreground text-xs">
+                The clans named in bold are yours — they are listed only to say which CWL week it was,
+                and nothing of theirs is deleted.
+              </p>
+            </div>
+
             <div className="flex items-start gap-3">
               <input
                 id="confirm-scouting"
@@ -421,11 +471,13 @@ function StoragePanel({
                 className="mt-1 size-4"
               />
               <Label htmlFor="confirm-scouting" className="font-normal">
-                I understand the cleared scouting cannot be brought back.
+                I understand this deletes only the other clans&apos; data listed above, and it cannot
+                be brought back. Our clans&apos; CWL data stays.
               </Label>
             </div>
-            <SubmitButton variant="destructive" pendingLabel="Clearing">
-              Clear finished seasons
+            <SubmitButton variant="destructive" pendingLabel="Deleting">
+              <Trash2 aria-hidden />
+              Delete other clans&apos; data
             </SubmitButton>
           </>
         )}
@@ -579,14 +631,15 @@ export default async function AdminPage({
     error.replace(/#[0-9A-Z]{4,}/g, (tag) => (tagNames.has(tag) ? `${tagNames.get(tag)} (${tag})` : tag));
 
   // 053 — platform admin only; the functions return nothing to anyone else.
-  const [usage, retention, scouting] = admin
+  const [usage, retention, scouting, scoutingPreview] = admin
     ? await Promise.all([
         storageUsage(supabase),
         retentionState(supabase),
-        // 058 — a dry run: what clearing would remove, for the button's label.
+        // 058 — a dry run: what clearing would remove. 059 — the same, named.
         purgeCwlScouting(supabase, true),
+        scoutingPurgePreview(supabase),
       ])
-    : [[], null, null];
+    : [[], null, null, []];
 
   const allHistory = history === "all";
   const HISTORY_FIRST = 10;
@@ -811,7 +864,7 @@ export default async function AdminPage({
         </Panel>
       </div>
 
-      {admin && <StoragePanel usage={usage} state={retention} scouting={scouting} />}
+      {admin && <StoragePanel usage={usage} state={retention} scouting={scouting} preview={scoutingPreview} />}
 
       {/* T9.2 — the history. R9 says every job writes to sync_log; this makes it visible. */}
       <Panel id="sync-history" aria-labelledby="history-title" className="space-y-4">

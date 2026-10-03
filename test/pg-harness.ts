@@ -148,6 +148,8 @@ export const PHASE1_MIGRATIONS = [
   "057_cwl_scouting.sql",
   // Platform-admin clearing of 057's scouting once a season is over.
   "058_purge_cwl_scouting.sql",
+  // Clearing touches other clans' rows only, and a preview names them.
+  "059_purge_other_clans_only.sql",
 ] as const;
 
 /**

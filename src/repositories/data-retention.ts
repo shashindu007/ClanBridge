@@ -82,6 +82,30 @@ export async function purgeCwlScouting(
   };
 }
 
+/** One finished season a press would clear: our clan, the month, and the others by name. */
+export interface ScoutingPurgeSeason {
+  clanName: string;
+  season: string;
+  otherClans: string[];
+  villages: number;
+  lineups: number;
+  rosters: number;
+}
+
+/** 059 — the preview, season by season. Empty for a non-admin or before 059. */
+export async function scoutingPurgePreview(supabase: SupabaseClient): Promise<ScoutingPurgeSeason[]> {
+  const { data, error } = await supabase.rpc("cwl_scouting_purge_preview");
+  if (error || !data) return [];
+  return (data as Array<Record<string, unknown>>).map((r) => ({
+    clanName: r.clan_name as string,
+    season: r.season as string,
+    otherClans: Array.isArray(r.other_clans) ? (r.other_clans as string[]) : [],
+    villages: Number(r.villages),
+    lineups: Number(r.lineups),
+    rosters: Number(r.rosters),
+  }));
+}
+
 /** Thin the oldest month not yet thinned. `more` when older months remain. */
 export async function thinOldData(
   supabase: SupabaseClient,

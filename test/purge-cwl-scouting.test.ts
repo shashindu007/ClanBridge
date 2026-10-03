@@ -7,6 +7,8 @@
 //   2. touching our own history: standings and medals (cwl_group_clans/wars)
 //   3. letting someone who is not the platform admin run it
 //   4. a dry run that deletes
+//   5. (059) deleting OUR clan's rows — a group's lineups and roster hold both
+//      sides, and the button promises to touch the other clans only
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type Harness } from "./pg-harness";
@@ -32,14 +34,22 @@ interface Purge {
   rosters_removed: number;
 }
 
-/** One enemy village, roster row and lineup row in a season. */
+/**
+ * One enemy village, roster row and lineup row in a season — and, beside them,
+ * our own clan's roster and lineup rows in the same group, which must survive.
+ */
 function scouting(season: string, n: string): string {
   return `
-    insert into cwl_group_members (season_id, clan_tag, tag, th_level) values ('${season}', '#2QQ', '#P${n}', 17);
-    insert into cwl_group_war_members (season_id, war_tag, clan_tag, tag, attack_stars)
-      values ('${season}', '#W${n}', '#2QQ', '#P${n}', 2);
+    insert into cwl_group_members (season_id, clan_tag, tag, th_level) values
+      ('${season}', '#2QQ', '#P${n}', 17),
+      ('${season}', '#2PP0JCCL', '#U${n}', 17);
+    insert into cwl_group_war_members (season_id, war_tag, clan_tag, tag, attack_stars) values
+      ('${season}', '#W${n}', '#2QQ', '#P${n}', 2),
+      ('${season}', '#W${n}', '#2PP0JCCL', '#U${n}', 3);
     insert into cwl_scout_players (season_id, clan_tag, tag, hero_pct) values ('${season}', '#2QQ', '#P${n}', 80);
-    insert into cwl_group_clans (season_id, clan_tag, name) values ('${season}', '#2QQ', 'Rival');
+    insert into cwl_group_clans (season_id, clan_tag, name) values
+      ('${season}', '#2QQ', 'Rival'),
+      ('${season}', '#2PP0JCCL', 'Clan A');
   `;
 }
 
@@ -96,6 +106,31 @@ describe("058 — purge_cwl_scouting", () => {
     await expect(purge(true)).rejects.toThrow(/platform admin only/);
   });
 
+  it("names each finished season's other clans in the preview, and nobody else's", async () => {
+    await h.asUser(MEMBER);
+    const none = await h.db.query(`select * from cwl_scouting_purge_preview()`);
+    expect(none.rows).toEqual([]);
+
+    await h.asUser(ADMIN);
+    const res = await h.db.query<{
+      clan_name: string;
+      season: string;
+      other_clans: string[];
+      villages: number;
+      lineups: number;
+      rosters: number;
+    }>(`select * from cwl_scouting_purge_preview()`);
+    expect(res.rows.map((r) => r.season)).toEqual([
+      (await h.db.query<{ m: string }>(`select ${THIS_MONTH} as m`)).rows[0]!.m,
+      "2025-09",
+    ]);
+    for (const row of res.rows) {
+      expect(row.clan_name).toBe("Clan A");
+      expect(row.other_clans).toEqual(["Rival"]);
+      expect([row.villages, row.lineups, row.rosters]).toEqual([1, 1, 1]);
+    }
+  });
+
   it("counts on a dry run and removes nothing (risk 4)", async () => {
     await h.asUser(ADMIN);
     expect(await purge(true)).toEqual({
@@ -116,11 +151,15 @@ describe("058 — purge_cwl_scouting", () => {
       rosters_removed: 2,
     });
 
+    expect(await count(h, "cwl_scout_players")).toBe(1);
     for (const table of ["cwl_scout_players", "cwl_group_war_members", "cwl_group_members"]) {
-      expect(await count(h, table), table).toBe(1);
-      expect(await count(h, table, `season_id = '${LIVE}'`), table).toBe(1);
+      expect(await count(h, table, `clan_tag = '#2QQ'`), table).toBe(1);
+      expect(await count(h, table, `clan_tag = '#2QQ' and season_id = '${LIVE}'`), table).toBe(1);
     }
-    expect(await count(h, "cwl_group_clans")).toBe(3);
+    // Risk 5 — every row of our clan survives, finished seasons included.
+    expect(await count(h, "cwl_group_war_members", `clan_tag = '#2PP0JCCL'`)).toBe(3);
+    expect(await count(h, "cwl_group_members", `clan_tag = '#2PP0JCCL'`)).toBe(3);
+    expect(await count(h, "cwl_group_clans")).toBe(6);
     expect(await count(h, "cwl_group_wars")).toBe(2);
     expect(await count(h, "audit_log", `entity = 'cwl_scouting'`)).toBe(1);
   });
