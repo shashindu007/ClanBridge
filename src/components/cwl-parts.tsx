@@ -177,7 +177,7 @@ export function StandingsTable({
 }) {
   return (
     <div className="-mx-5 overflow-x-auto px-5">
-      <table className={cn("w-full text-sm", scout ? "min-w-[44rem]" : "min-w-[34rem]")}>
+      <table className={cn("w-full text-sm", scout ? "min-w-[50rem]" : "min-w-[34rem]")}>
         <thead className="text-muted-foreground border-b text-left text-xs uppercase">
           <tr>
             <th className="py-2 pr-3 font-medium">#</th>
@@ -186,6 +186,14 @@ export function StandingsTable({
             {scout && (
               <th className="py-2 pr-3 text-right font-medium" title="Average heroes against each village's Town Hall max">
                 Heroes
+              </th>
+            )}
+            {scout && (
+              <th
+                className="py-2 pr-3 text-right font-medium"
+                title="How their bases hold up: average destruction each attack against them took, and how many were 3-starred"
+              >
+                Defence
               </th>
             )}
             <th className="py-2 pr-3 text-right font-medium">W–L–D</th>
@@ -251,6 +259,20 @@ export function StandingsTable({
                       <span className="text-muted-foreground block text-[0.6875rem] font-normal">
                         {scouted.weakPoints} weak point{scouted.weakPoints === 1 ? "" : "s"}
                       </span>
+                    )}
+                  </td>
+                )}
+                {scout && (
+                  <td className="py-2.5 pr-3 text-right tabular-nums">
+                    {scouted?.avgDestructionAgainst != null ? (
+                      <>
+                        {Math.round(scouted.avgDestructionAgainst)}%
+                        <span className="text-muted-foreground block text-[0.6875rem] font-normal">
+                          {scouted.tripledAgainst} of {scouted.defences} hits 3★
+                        </span>
+                      </>
+                    ) : (
+                      <span title="Not attacked yet">—</span>
                     )}
                   </td>
                 )}

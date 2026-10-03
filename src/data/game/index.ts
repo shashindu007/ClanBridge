@@ -71,6 +71,16 @@ export function buildingByExportId(id: number): GameBuilding | undefined {
   return buildingsByExportId.get(id);
 }
 
+/**
+ * The Town Hall weapon's max level at a Town Hall, or null when that hall has
+ * no weapon (most do not) or the data does not reach it.
+ */
+export function townHallWeaponCap(thLevel: number | null | undefined): number | null {
+  const townHall = BUILDINGS.find((b) => b.village === "home" && b.name === "Town Hall");
+  const cap = townHall?.weaponCaps ? capAt(townHall.weaponCaps, thLevel ?? undefined) : undefined;
+  return cap && cap > 0 ? cap : null;
+}
+
 /** The cap at a hall level, or undefined when the data does not reach that level. */
 export function capAt(caps: number[], hall: number | undefined): number | undefined {
   if (!hall || hall < 1) return undefined;

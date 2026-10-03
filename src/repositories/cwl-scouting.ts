@@ -79,6 +79,9 @@ export async function ourVillages(
         equipmentPct: snap.equipmentPct,
         offencePct: snap.offencePct,
         maxPct: snap.maxPct,
+        // latest_player_progress (051) does not return it; our own villages'
+        // weapons are on their Base details page.
+        thWeaponLevel: null,
         warStars: null,
         capturedAt: snap.capturedAt,
       },
@@ -101,12 +104,9 @@ export async function scoutingForSeason(
       "id, war_tag, clan_tag, tag, name, th_level, map_position, attack_stars, attack_destruction, attack_defender_tag",
       seasonId,
     ),
-    allRows(
-      supabase,
-      "cwl_scout_players",
-      "id, clan_tag, tag, name, th_level, heroes, hero_pct, pet_pct, equipment_pct, offence_pct, max_pct, war_stars, captured_at",
-      seasonId,
-    ),
+    // Every column: th_weapon_level arrives with 060, and naming it before
+    // that is applied would make the whole read fail and show no villages.
+    allRows(supabase, "cwl_scout_players", "*", seasonId),
   ]);
 
   return {
@@ -137,6 +137,7 @@ export async function scoutingForSeason(
         tag: r.tag as string,
         name: str(r.name),
         thLevel: num(r.th_level),
+        thWeaponLevel: num(r.th_weapon_level),
         // jsonb arrives parsed. Guarded, so one malformed row is "no heroes"
         // rather than a crashed page.
         heroes: Array.isArray(r.heroes) ? (r.heroes as HeroLevel[]) : [],

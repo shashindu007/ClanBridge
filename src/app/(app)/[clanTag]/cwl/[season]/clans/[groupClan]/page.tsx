@@ -135,9 +135,13 @@ export default async function CwlGroupClanPage({
               tone={scout.missed > 0 ? "var(--destructive)" : undefined}
             />
             <StatTile
-              label="3-starred against"
-              value={scout.tripledAgainst}
-              sub={scout.defences ? `of ${scout.defences} hits taken` : "no hits taken yet"}
+              label="Defence"
+              value={pct(scout.avgDestructionAgainst)}
+              sub={
+                scout.defences
+                  ? `${scout.avgStarsAgainst?.toFixed(1)}★ per hit · ${scout.tripledAgainst} of ${scout.defences} 3★`
+                  : "not attacked yet"
+              }
             />
           </section>
 
@@ -218,7 +222,9 @@ export default async function CwlGroupClanPage({
             <p className="text-muted-foreground flex items-start gap-2 text-xs">
               <Shield aria-hidden className="mt-0.5 size-3.5 shrink-0" />
               <span>
-                Strongest base first. Percentages are against each village&apos;s own Town Hall max.{" "}
+                Strongest base first. Percentages are against each village&apos;s own Town Hall max.
+                Defence is the destruction each attack on the base took — the game reports no
+                building levels, so how a base holds up in war is the measure there is.{" "}
                 {scout.capturedAt ? (
                   <>
                     Villages last read <LocalTime iso={scout.capturedAt} />
@@ -259,7 +265,10 @@ function PlayersTable({ players, days }: { players: ScoutedPlayer[]; days: numbe
                 D{d}
               </th>
             ))}
-            <th className="py-2 text-right font-medium" title="Times 3-starred / times attacked">
+            <th
+              className="py-2 text-right font-medium"
+              title="How the base held up: average destruction and stars each attack took, and how many were 3-starred"
+            >
               Defence
             </th>
           </tr>
@@ -276,6 +285,17 @@ function PlayersTable({ players, days }: { players: ScoutedPlayer[]; days: numbe
                       {p.name}
                     </span>
                     <span className="text-muted-foreground font-mono text-xs">{p.tag}</span>
+                    {p.thWeaponCap !== null && p.thWeaponLevel !== null && (
+                      <span
+                        className={cn(
+                          "ml-1.5 rounded-chip border px-1 text-[0.625rem] font-semibold tabular-nums",
+                          p.thWeaponLevel >= p.thWeaponCap && "border-gold/60 bg-gold/15",
+                        )}
+                        title={`Town Hall weapon level ${p.thWeaponLevel} of ${p.thWeaponCap}`}
+                      >
+                        Weapon {p.thWeaponLevel}/{p.thWeaponCap}
+                      </span>
+                    )}
                   </span>
                 </span>
               </td>
@@ -309,12 +329,25 @@ function PlayersTable({ players, days }: { players: ScoutedPlayer[]; days: numbe
                 </td>
               ))}
               <td className="py-2 text-right tabular-nums">
-                {p.defences ? (
-                  <span className={cn(p.tripled >= TRIPLED_FLAG && "text-destructive font-semibold")}>
-                    {p.tripled}/{p.defences}
+                {p.defences && p.avgDestructionAgainst !== null ? (
+                  <span className="inline-flex flex-col items-end">
+                    <span className="flex items-center gap-2">
+                      <DefenceBar pct={p.avgDestructionAgainst} />
+                      <span className="text-xs font-semibold">{Math.round(p.avgDestructionAgainst)}%</span>
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[0.6875rem]",
+                        p.tripled >= TRIPLED_FLAG ? "text-destructive font-semibold" : "text-muted-foreground",
+                      )}
+                    >
+                      {p.avgStarsAgainst?.toFixed(1)}★ · 3★ {p.tripled}/{p.defences}
+                    </span>
                   </span>
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-muted-foreground text-xs" title="Not attacked yet in a started day">
+                    —
+                  </span>
                 )}
               </td>
             </tr>
@@ -322,6 +355,19 @@ function PlayersTable({ players, days }: { players: ScoutedPlayer[]; days: numbe
         </tbody>
       </table>
     </div>
+  );
+}
+
+/**
+ * Destruction a base TOOK per attack. Reversed from the max-% gauges: here a
+ * low number is the strong base, so it is green and a 100% is red.
+ */
+function DefenceBar({ pct }: { pct: number }) {
+  const tone = pct >= 90 ? "var(--destructive)" : pct >= 60 ? "var(--warning)" : "var(--success)";
+  return (
+    <span className="cb-gauge h-1.5 w-12" style={{ "--gauge": tone } as React.CSSProperties} aria-hidden>
+      <span style={{ width: `${Math.min(100, pct)}%` }} />
+    </span>
   );
 }
 

@@ -88,6 +88,7 @@ const SEASON: ScoutSeason = {
       tag: "#F2",
       name: "F2",
       thLevel: 17,
+      thWeaponLevel: 3,
       heroes: [{ short: "BK", name: "Barbarian King", level: 70, cap: 100 }],
       heroPct: 70,
       petPct: 50,
@@ -102,6 +103,7 @@ const SEASON: ScoutSeason = {
       tag: "#F1",
       name: "F1",
       thLevel: 18,
+      thWeaponLevel: null,
       heroes: [],
       heroPct: 98,
       petPct: 100,
@@ -140,7 +142,23 @@ describe("clanScout", () => {
   it("derives defence from the other side's attacks", () => {
     expect(scout.defences).toBe(4);
     expect(scout.tripledAgainst).toBe(3);
-    expect(player("#F3")).toMatchObject({ defences: 2, tripled: 2 });
+    expect(scout.avgDestructionAgainst).toBe(95);
+    expect(scout.avgStarsAgainst).toBe(2.8);
+    expect(scout).toMatchObject({ basesHit: 3, basesTripled: 2 });
+    expect(player("#F3")).toMatchObject({
+      defences: 2,
+      tripled: 2,
+      avgDestructionAgainst: 100,
+      avgStarsAgainst: 3,
+    });
+    expect(player("#F2")).toMatchObject({ defences: 1, avgDestructionAgainst: 80, avgStarsAgainst: 2 });
+    // Not attacked yet: unknown, not a perfect defence.
+    expect(player("#F4")).toMatchObject({ defences: 0, avgDestructionAgainst: null, avgStarsAgainst: null });
+  });
+
+  it("carries the Town Hall weapon only where the hall has one", () => {
+    expect(player("#F2")).toMatchObject({ thWeaponLevel: 3, thWeaponCap: 5 });
+    expect(player("#F1")).toMatchObject({ thWeaponLevel: null, thWeaponCap: null });
   });
 
   it("averages village progress over the villages read", () => {

@@ -18,6 +18,7 @@
 // These are about another clan's players, and the rule holds all the same —
 // every flag below names the number it is based on.
 
+import { townHallWeaponCap } from "@/data/game";
 import type { GroupWar } from "@/repositories/cwl";
 import { byWarOrder, lineupBreakdown, type LineupBreakdown } from "@/lib/roster-view";
 import type { HeroLevel } from "@/services/progress";
@@ -46,6 +47,8 @@ export interface ScoutVillage {
   tag: string;
   name: string | null;
   thLevel: number | null;
+  /** The one building the API reports; null where the hall has none or before 060. */
+  thWeaponLevel: number | null;
   heroes: HeroLevel[];
   heroPct: number | null;
   petPct: number | null;
@@ -86,6 +89,9 @@ export interface ScoutedPlayer {
   tag: string;
   name: string;
   thLevel: number | null;
+  /** Town Hall weapon level and this hall's cap; both null where the hall has no weapon. */
+  thWeaponLevel: number | null;
+  thWeaponCap: number | null;
   heroes: HeroLevel[];
   heroPct: number | null;
   petPct: number | null;
@@ -104,9 +110,15 @@ export interface ScoutedPlayer {
   threeStars: number;
   avgStars: number | null;
   avgDestruction: number | null;
-  /** Times their base was attacked, and 3-starred. */
+  /**
+   * Their base in defence: times attacked, times 3-starred, and the average
+   * destruction and stars each attack took — the API reports no building
+   * levels, so how a base holds up in war is the measure of it there is.
+   */
   defences: number;
   tripled: number;
+  avgDestructionAgainst: number | null;
+  avgStarsAgainst: number | null;
   /** Stars per started day, by day number — null where they were not fielded. */
   byDay: Array<{ day: number; stars: number | null; fielded: boolean }>;
   flags: WeakPoint[];
@@ -133,6 +145,12 @@ export interface ClanScout {
   avgDestruction: number | null;
   defences: number;
   tripledAgainst: number;
+  /** Average destruction and stars per attack against this clan's bases; null before the first. */
+  avgDestructionAgainst: number | null;
+  avgStarsAgainst: number | null;
+  /** Bases attacked at least once, and 3-starred at least once. */
+  basesHit: number;
+  basesTripled: number;
   /** Registered players, strongest base first. */
   players: ScoutedPlayer[];
   /** Players with at least one flag, most flags first. */
@@ -247,6 +265,8 @@ export function clanScout(clanTag: string, season: ScoutSeason, wars: readonly G
       tag,
       name: village?.name ?? base.name ?? tag,
       thLevel,
+      thWeaponLevel: village?.thWeaponLevel ?? null,
+      thWeaponCap: townHallWeaponCap(thLevel),
       heroes: village?.heroes ?? [],
       heroPct: village?.heroPct ?? null,
       petPct: village?.petPct ?? null,
@@ -264,6 +284,10 @@ export function clanScout(clanTag: string, season: ScoutSeason, wars: readonly G
       avgDestruction: average(made.map((m) => m.attackDestruction)),
       defences: hitsOnMe.length,
       tripled: hitsOnMe.filter((m) => m.attackStars === 3).length,
+      avgDestructionAgainst: average(hitsOnMe.map((m) => m.attackDestruction)),
+      avgStarsAgainst: hitsOnMe.length
+        ? round1(hitsOnMe.reduce((t, m) => t + (m.attackStars ?? 0), 0) / hitsOnMe.length)
+        : null,
       byDay: startedDays.map((day) => {
         const row = rows.find((m) => warByTag.get(m.warTag)?.dayNumber === day);
         return { day, stars: row?.attackStars ?? null, fielded: !!row };
@@ -298,6 +322,12 @@ export function clanScout(clanTag: string, season: ScoutSeason, wars: readonly G
     avgDestruction: average(made.map((m) => m.attackDestruction)),
     defences: against.length,
     tripledAgainst: against.filter((m) => m.attackStars === 3).length,
+    avgDestructionAgainst: average(against.map((m) => m.attackDestruction)),
+    avgStarsAgainst: against.length
+      ? round1(against.reduce((t, m) => t + (m.attackStars ?? 0), 0) / against.length)
+      : null,
+    basesHit: players.filter((p) => p.defences > 0).length,
+    basesTripled: players.filter((p) => p.tripled > 0).length,
     players,
     weakPoints: players
       .filter((p) => p.flags.length)
@@ -313,6 +343,10 @@ export interface StandingScout {
   avgHeroPct: number | null;
   /** Players with at least one weak point. */
   weakPoints: number;
+  /** Attacks taken, their average destruction, and how many took three stars. */
+  defences: number;
+  avgDestructionAgainst: number | null;
+  tripledAgainst: number;
 }
 
 /** One base of a lineup, by map position. */

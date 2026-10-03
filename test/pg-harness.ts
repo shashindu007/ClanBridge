@@ -150,6 +150,8 @@ export const PHASE1_MIGRATIONS = [
   "058_purge_cwl_scouting.sql",
   // Clearing touches other clans' rows only, and a preview names them.
   "059_purge_other_clans_only.sql",
+  // The Town Hall weapon level of each scouted village.
+  "060_scout_th_weapon.sql",
 ] as const;
 
 /**

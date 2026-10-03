@@ -130,6 +130,7 @@ export function scoutRow(
     tag: target.tag,
     name: detail.name ?? null,
     th_level: progress.thLevel ?? null,
+    th_weapon_level: progress.thWeaponLevel ?? null,
     heroes: score.heroes,
     hero_pct: score.heroPct,
     pet_pct: score.petPct,
@@ -266,10 +267,21 @@ export async function syncCwlScout(ctx: JobContext, now: Date = new Date()): Pro
 
   // Readings already taken are written before any failure is reported: they
   // cost calls, and the next run only retries what is still missing.
-  for (let i = 0; i < rows.length; i += BATCH) {
-    const { error } = await supabase
-      .from("cwl_scout_players")
-      .upsert(rows.slice(i, i + BATCH), { onConflict: "season_id,tag", ignoreDuplicates: false });
+  //
+  // 060 adds th_weapon_level. Deployed before it is applied, the readings are
+  // still written without it rather than the whole run failing.
+  let write: Array<Record<string, unknown>> = rows;
+  for (let i = 0; i < write.length; i += BATCH) {
+    const upsert = () =>
+      supabase
+        .from("cwl_scout_players")
+        .upsert(write.slice(i, i + BATCH), { onConflict: "season_id,tag", ignoreDuplicates: false });
+    let { error } = await upsert();
+    if (error && /th_weapon_level/.test(error.message)) {
+      console.warn("  th_weapon_level not stored — apply migration 060");
+      write = rows.map(({ th_weapon_level: _weapon, ...rest }) => rest);
+      ({ error } = await upsert());
+    }
     if (error) throw new Error(`cwl_scout_players upsert failed: ${error.message}`);
   }
   ctx.recorded(rows.length);

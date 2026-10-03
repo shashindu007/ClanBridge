@@ -42,7 +42,14 @@ export function standingScouts(scouts: ReadonlyMap<string, ClanScout>): Map<stri
   return new Map(
     rows.map(([tag, s]) => [
       tag,
-      { roster: s.roster, avgHeroPct: s.avgHeroPct, weakPoints: s.weakPoints.length },
+      {
+        roster: s.roster,
+        avgHeroPct: s.avgHeroPct,
+        weakPoints: s.weakPoints.length,
+        defences: s.defences,
+        avgDestructionAgainst: s.avgDestructionAgainst,
+        tripledAgainst: s.tripledAgainst,
+      },
     ]),
   );
 }

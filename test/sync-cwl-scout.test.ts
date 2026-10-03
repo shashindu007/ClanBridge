@@ -196,6 +196,27 @@ describe("057 — CWL scouting", () => {
       expect(await count(h, "cwl_scout_players")).toBe(3);
     });
 
+    it("stores the Town Hall weapon level the API reports (060)", async () => {
+      respondFor([X1, X2, Y1]);
+      await run(client);
+      const res = await h.db.query<{ th_weapon_level: number | null }>(
+        `select th_weapon_level from cwl_scout_players where tag = '${Y1}'`,
+      );
+      expect(res.rows[0]!.th_weapon_level).toBe(FIXTURE.townHallWeaponLevel ?? null);
+    });
+
+    // Pushed before 060 is applied: the readings must still be written.
+    it("still writes the readings when 060 is not applied yet", async () => {
+      await h.db.exec(`alter table cwl_scout_players drop column th_weapon_level`);
+      try {
+        respondFor([X1, X2, Y1]);
+        expect(await run(client)).toBe("success");
+        expect(await count(h, "cwl_scout_players")).toBe(3);
+      } finally {
+        await h.db.exec(`alter table cwl_scout_players add column th_weapon_level smallint`);
+      }
+    });
+
     it("skips a village the API no longer knows and reads the rest", async () => {
       await h.db.exec(
         `insert into cwl_group_members (season_id, clan_tag, tag) values ('${SEASON_ID}', '${ENEMY_X}', '${GONE}')`,
