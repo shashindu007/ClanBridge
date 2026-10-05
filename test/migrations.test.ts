@@ -1055,6 +1055,8 @@ const DELETE_EXCEPTIONS: readonly string[] = [
   "058_purge_cwl_scouting.sql",
   // 059 — the same function, narrowed to rows of clans that are not ours.
   "059_purge_other_clans_only.sql",
+  // 061 — narrowed again: the enemy lineups of our own wars are kept.
+  "061_purge_keeps_our_wars.sql",
 ];
 
 describe("the migration files themselves", () => {

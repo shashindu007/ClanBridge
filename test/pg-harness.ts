@@ -152,6 +152,9 @@ export const PHASE1_MIGRATIONS = [
   "059_purge_other_clans_only.sql",
   // The Town Hall weapon level of each scouted village.
   "060_scout_th_weapon.sql",
+  // Clearing scouting keeps the enemy lineups of OUR wars: the day pages'
+  // defence and the CWL rating are read from them.
+  "061_purge_keeps_our_wars.sql",
 ] as const;
 
 /**

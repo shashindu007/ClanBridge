@@ -4,7 +4,8 @@
 // same season calculation as Season donations (../data.ts), so the two pages
 // cannot disagree. The full rating formula — war, CWL, Clan Games and raids
 // weighed together — arrives phase by phase; each has its own button below and
-// a placeholder page until then.
+// a placeholder page until then. CWL is built (./cwl) and has its own ranking;
+// it is not weighed into this one yet.
 //
 // Open to every member, over their own clans. See data.ts for R3.
 
@@ -72,7 +73,7 @@ export default async function PlayerRatingPage() {
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <PageHeader
         title="Player rating"
-        description="Every member of your clans, ranked. For now the ranking is donations this season; war, CWL, Clan Games and raids join it phase by phase."
+        description="Every member of your clans, ranked. For now this ranking is donations this season; CWL has its own rating, and war, Clan Games and raids join phase by phase."
       />
       <RatingNav />
 

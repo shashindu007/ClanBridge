@@ -1,6 +1,6 @@
-// War, CWL, Clan Games and Raids rating — placeholders until each part of the
-// rating formula is built, phase by phase. Season donations has its own route
-// (../donations), which takes precedence over this one.
+// War, Clan Games and Raids rating — placeholders until each part of the
+// rating formula is built, phase by phase. Season donations and CWL rating have
+// their own routes (../donations, ../cwl), which take precedence over this one.
 
 import { notFound } from "next/navigation";
 import { Hourglass } from "lucide-react";

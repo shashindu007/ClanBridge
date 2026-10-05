@@ -87,7 +87,7 @@ export function DayStrip({
   );
 }
 
-export type SeasonTab = "days" | "standings" | "medals" | "report";
+export type SeasonTab = "days" | "standings" | "rating" | "medals" | "report";
 
 /** The season's own tab row, and the leadership-only PDF button beside it. */
 export function SeasonNav({
@@ -102,6 +102,7 @@ export function SeasonNav({
   const tabs: Array<{ key: SeasonTab; label: string; href: string }> = [
     { key: "days", label: "Days", href: base },
     { key: "standings", label: "Standings", href: `${base}/standings` },
+    { key: "rating", label: "Rating", href: `${base}/rating` },
     { key: "medals", label: "Medals", href: `${base}/medals` },
     { key: "report", label: "Report", href: `${base}/report` },
   ];

@@ -26,7 +26,10 @@ import {
   type GroupClan,
   type GroupWar,
 } from "@/repositories/cwl";
+import { lineupsForWars } from "@/repositories/cwl-scouting";
 import { seasonSpan, seasonTotals, type SeasonSpan, type SeasonTotals } from "@/services/cwl";
+import { dayBoard, type DayBoard } from "@/services/cwl-day";
+import { seasonRating, type SeasonRating } from "@/services/cwl-rating";
 import { groupStandings, ourStanding, type Standing } from "@/services/cwl-standings";
 import { medalPlan, type MedalPlan } from "@/services/cwl-medals";
 import { contributionReport, type ContributionRow, type SeasonWarData } from "@/services/rosters";
@@ -141,6 +144,51 @@ export async function loadSeasonView(
     starsSoFar,
     medals,
   };
+}
+
+/**
+ * One board per war day of the season, in the order of `view.wars`: each of our
+ * bases with its owner's attack and the enemy's attacks on it.
+ *
+ * The enemy half comes from the group lineups (057), read once for all of our
+ * wars. `view` must have been loaded `withPlayers` — the rosters and attacks
+ * are its warData.
+ */
+export async function loadSeasonBoards(
+  supabase: SupabaseClient,
+  clan: { tag: string },
+  view: SeasonView,
+): Promise<DayBoard[]> {
+  const lineups = await lineupsForWars(
+    supabase,
+    view.season.id,
+    view.wars.map((w) => w.warTag),
+  );
+  return view.wars.map((war, index) =>
+    dayBoard({
+      roster: view.warData[index]?.apiRoster ?? [],
+      attacks: view.warData[index]?.attacks ?? [],
+      lineup: lineups.filter((m) => m.warTag === war.warTag),
+      ourTag: clan.tag,
+      teamSize: war.teamSize,
+      groupWar: view.groupWars.find((w) => w.warTag === war.warTag),
+    }),
+  );
+}
+
+/**
+ * The season's player rating (services/cwl-rating.ts) from its boards. A day
+ * the sync never saw finish counts once the season itself is over.
+ */
+export function ratingFor(view: SeasonView, boards: readonly DayBoard[]): SeasonRating {
+  return seasonRating(
+    view.wars.map((war, index) => ({
+      dayNumber: war.dayNumber,
+      state: war.state,
+      board: boards[index]!,
+    })),
+    !view.running,
+  );
 }
 
 /**

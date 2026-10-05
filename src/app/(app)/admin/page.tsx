@@ -407,7 +407,7 @@ function StoragePanel({
             <p className="text-muted-foreground mt-1 text-xs">Only the OTHER clans, only in finished seasons:</p>
             <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-sm">
               <li>their registered players and Town Halls</li>
-              <li>their daily lineups and attacks</li>
+              <li>their daily lineups and attacks in the wars you were not part of</li>
               <li>their village levels (heroes, pets, equipment)</li>
             </ul>
           </div>
@@ -419,6 +419,7 @@ function StoragePanel({
             <p className="text-muted-foreground mt-1 text-xs">Never deleted by this button:</p>
             <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-sm">
               <li>all of your clans&apos; CWL data — wars, lineups, attacks, missed attacks, rosters</li>
+              <li>the enemy lineup of every war you fought — the defence record and the CWL rating use it</li>
               <li>standings and medals of every season</li>
               <li>everything in a CWL week still being played</li>
             </ul>
@@ -426,7 +427,7 @@ function StoragePanel({
         </div>
 
         {scouting === null ? (
-          <p className="text-muted-foreground text-sm">Apply migrations 058 and 059 to turn this on.</p>
+          <p className="text-muted-foreground text-sm">Apply migrations 058, 059 and 061 to turn this on.</p>
         ) : preview.length === 0 ? (
           <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
             <CheckCircle2 aria-hidden className="size-4" />

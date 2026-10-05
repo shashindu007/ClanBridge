@@ -9,6 +9,8 @@
 //   4. a dry run that deletes
 //   5. (059) deleting OUR clan's rows — a group's lineups and roster hold both
 //      sides, and the button promises to touch the other clans only
+//   6. (061) deleting the ENEMY's lineup of a war we fought — the day page's
+//      defence and the CWL rating are read from it, and it cannot be re-fetched
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type Harness } from "./pg-harness";
@@ -89,6 +91,14 @@ describe("058 — purge_cwl_scouting", () => {
       ${scouting(OLD, "1")}
       ${scouting(DONE, "2")}
       ${scouting(LIVE, "3")}
+
+      -- 061 — a war clan A fought in its finished season, both lineups recorded.
+      -- The wars above are other clans' (no cwl_wars row), as 21 of a group's 28 are.
+      insert into cwl_wars (season_id, war_tag, day_number, state) values
+        ('${DONE}', '#WOURS', 7, 'warEnded');
+      insert into cwl_group_war_members (season_id, war_tag, clan_tag, tag, attack_stars, attack_defender_tag) values
+        ('${DONE}', '#WOURS', '#2QQ', '#PFOE', 3, '#UOURS'),
+        ('${DONE}', '#WOURS', '#2PP0JCCL', '#UOURS', 2, '#PFOE');
     `);
   });
   afterAll(async () => {
@@ -152,12 +162,18 @@ describe("058 — purge_cwl_scouting", () => {
     });
 
     expect(await count(h, "cwl_scout_players")).toBe(1);
-    for (const table of ["cwl_scout_players", "cwl_group_war_members", "cwl_group_members"]) {
+    for (const table of ["cwl_scout_players", "cwl_group_members"]) {
       expect(await count(h, table, `clan_tag = '#2QQ'`), table).toBe(1);
       expect(await count(h, table, `clan_tag = '#2QQ' and season_id = '${LIVE}'`), table).toBe(1);
     }
+    // Risk 6 — of the rival's lineup rows, the live season's survives and so
+    // does the one from the war we fought; the other clans' wars are gone.
+    expect(await count(h, "cwl_group_war_members", `clan_tag = '#2QQ'`)).toBe(2);
+    expect(await count(h, "cwl_group_war_members", `clan_tag = '#2QQ' and season_id = '${LIVE}'`)).toBe(1);
+    expect(await count(h, "cwl_group_war_members", `tag = '#PFOE' and attack_defender_tag = '#UOURS'`)).toBe(1);
+    expect(await count(h, "cwl_group_war_members", `war_tag in ('#W1', '#W2') and clan_tag = '#2QQ'`)).toBe(0);
     // Risk 5 — every row of our clan survives, finished seasons included.
-    expect(await count(h, "cwl_group_war_members", `clan_tag = '#2PP0JCCL'`)).toBe(3);
+    expect(await count(h, "cwl_group_war_members", `clan_tag = '#2PP0JCCL'`)).toBe(4);
     expect(await count(h, "cwl_group_members", `clan_tag = '#2PP0JCCL'`)).toBe(3);
     expect(await count(h, "cwl_group_clans")).toBe(6);
     expect(await count(h, "cwl_group_wars")).toBe(2);
@@ -165,7 +181,10 @@ describe("058 — purge_cwl_scouting", () => {
   });
 
   it("has nothing left to clear the second time", async () => {
+    // 061 — the kept enemy lineup of our own war is not "something left to
+    // clear": the finished season must not be listed for ever on its account.
     await h.asUser(ADMIN);
+    expect((await h.db.query(`select * from cwl_scouting_purge_preview()`)).rows).toEqual([]);
     expect((await purge(false)).seasons_cleared).toBe(0);
     expect(await count(h, "audit_log", `entity = 'cwl_scouting'`)).toBe(1);
   });
