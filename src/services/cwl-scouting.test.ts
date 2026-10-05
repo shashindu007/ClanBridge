@@ -223,6 +223,17 @@ describe("nextLineup", () => {
     expect(next.ours.map((s) => s.tag)).toEqual(["#U1"]);
   });
 
+  it("numbers the bases 1 to N, not by the API's position", () => {
+    // In CWL the API's positions run past the team size with gaps.
+    const lineups = [slot("#D3", FOE, "#F4", 19, 17), slot("#D3", FOE, "#F1", 4, 18), slot("#D3", US, "#U1", 7, 18)];
+    const next = nextLineup(US, WARS, lineups)!;
+    expect(next.theirs.map((s) => [s.tag, s.position])).toEqual([
+      ["#F1", 1],
+      ["#F4", 2],
+    ]);
+    expect(next.ours.map((s) => s.position)).toEqual([1]);
+  });
+
   it("is null once the week is over", () => {
     expect(nextLineup(US, WARS.slice(0, 2), SEASON.lineups)).toBeNull();
   });

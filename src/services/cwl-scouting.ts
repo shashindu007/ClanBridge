@@ -21,6 +21,7 @@
 import { townHallWeaponCap } from "@/data/game";
 import type { GroupWar } from "@/repositories/cwl";
 import { byWarOrder, lineupBreakdown, type LineupBreakdown } from "@/lib/roster-view";
+import { baseNumbers } from "@/services/cwl";
 import type { HeroLevel } from "@/services/progress";
 
 export interface ScoutRosterMember {
@@ -349,8 +350,9 @@ export interface StandingScout {
   tripledAgainst: number;
 }
 
-/** One base of a lineup, by map position. */
+/** One base of a lineup, in map order. */
 export interface LineupSlot {
+  /** The base's number on the war map, 1 to N. */
   position: number | null;
   tag: string;
   name: string;
@@ -381,11 +383,20 @@ export function nextLineup(
     ours.find((w) => w.state === "preparation") ?? ours.find((w) => w.state === "inWar") ?? null;
   if (!war) return null;
   const enemyTag = war.clanTag === ourTag ? war.opponentTag : war.clanTag;
-  const side = (clanTag: string): LineupSlot[] =>
-    lineups
-      .filter((m) => m.warTag === war.warTag && m.clanTag === clanTag)
-      .map((m) => ({ position: m.mapPosition, tag: m.tag, name: m.name ?? m.tag, thLevel: m.thLevel }))
+  // Numbered as the war map numbers them, not by the API's mapPosition, which
+  // in CWL runs past the team size (see baseNumbers).
+  const side = (clanTag: string): LineupSlot[] => {
+    const members = lineups.filter((m) => m.warTag === war.warTag && m.clanTag === clanTag);
+    const bases = baseNumbers(members);
+    return members
+      .map((m) => ({
+        position: bases.get(m.tag) ?? null,
+        tag: m.tag,
+        name: m.name ?? m.tag,
+        thLevel: m.thLevel,
+      }))
       .sort((a, b) => (a.position ?? 99) - (b.position ?? 99));
+  };
   return {
     warTag: war.warTag,
     day: war.dayNumber,

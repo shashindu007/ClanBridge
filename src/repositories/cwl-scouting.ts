@@ -92,18 +92,56 @@ export async function ourVillages(
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 const str = (v: unknown) => (v === null || v === undefined ? null : String(v));
 
+const WAR_MEMBER_COLUMNS =
+  "id, war_tag, clan_tag, tag, name, th_level, map_position, attack_stars, attack_destruction, attack_defender_tag";
+
+function toWarMember(r: Record<string, unknown>): ScoutWarMember {
+  return {
+    warTag: r.war_tag as string,
+    clanTag: r.clan_tag as string,
+    tag: r.tag as string,
+    name: str(r.name),
+    thLevel: num(r.th_level),
+    mapPosition: num(r.map_position),
+    attackStars: num(r.attack_stars),
+    attackDestruction: num(r.attack_destruction),
+    attackDefenderTag: str(r.attack_defender_tag),
+  };
+}
+
+/**
+ * Both lineups of ONE war, for the day page: who each side fielded and the
+ * attack each of them made.
+ *
+ * Not scoutingForSeason(): that is every war in the group, 1,680 rows in a
+ * 30-a-side week, and the day page wants the sixty of one war. One page is
+ * always enough here — a war is at most 50 a side.
+ *
+ * [] before 057 is applied or for a war recorded before it, which the caller
+ * reads as "enemy lineup not known".
+ */
+export async function lineupForWar(
+  supabase: SupabaseClient,
+  seasonId: string,
+  warTag: string,
+): Promise<ScoutWarMember[]> {
+  const { data, error } = await supabase
+    .from("cwl_group_war_members")
+    .select(WAR_MEMBER_COLUMNS)
+    .eq("season_id", seasonId)
+    .eq("war_tag", warTag)
+    .is("deleted_at", null);
+  if (error || !data) return [];
+  return (data as unknown as Array<Record<string, unknown>>).map(toWarMember);
+}
+
 export async function scoutingForSeason(
   supabase: SupabaseClient,
   seasonId: string,
 ): Promise<ScoutSeason> {
   const [roster, lineups, villages] = await Promise.all([
     allRows(supabase, "cwl_group_members", "id, clan_tag, tag, name, th_level", seasonId),
-    allRows(
-      supabase,
-      "cwl_group_war_members",
-      "id, war_tag, clan_tag, tag, name, th_level, map_position, attack_stars, attack_destruction, attack_defender_tag",
-      seasonId,
-    ),
+    allRows(supabase, "cwl_group_war_members", WAR_MEMBER_COLUMNS, seasonId),
     // Every column: th_weapon_level arrives with 060, and naming it before
     // that is applied would make the whole read fail and show no villages.
     allRows(supabase, "cwl_scout_players", "*", seasonId),
@@ -118,19 +156,7 @@ export async function scoutingForSeason(
         thLevel: num(r.th_level),
       }),
     ),
-    lineups: lineups.map(
-      (r): ScoutWarMember => ({
-        warTag: r.war_tag as string,
-        clanTag: r.clan_tag as string,
-        tag: r.tag as string,
-        name: str(r.name),
-        thLevel: num(r.th_level),
-        mapPosition: num(r.map_position),
-        attackStars: num(r.attack_stars),
-        attackDestruction: num(r.attack_destruction),
-        attackDefenderTag: str(r.attack_defender_tag),
-      }),
-    ),
+    lineups: lineups.map(toWarMember),
     villages: villages.map(
       (r): ScoutVillage => ({
         clanTag: r.clan_tag as string,

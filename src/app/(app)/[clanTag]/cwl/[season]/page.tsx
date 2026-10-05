@@ -22,17 +22,25 @@
 //     a countdown that ticks.
 //   - Top performers of the season so far.
 //
+// ATTACK AND DEFENCE, BASE BY BASE (services/cwl-day.ts):
+//
+//   - Every one of our bases with the attack its owner made AND the attacks the
+//     enemy made on it. The page used to show our attacks only.
+//   - Base numbers are the war map's, 1 to N. The API's mapPosition is not that
+//     in CWL, which is how a 15-base war listed an attack on "#19".
+//   - Attacks used are counted for BOTH clans, on the live panel and after.
+//
 // R1 — PostgreSQL only. R3 — the season is resolved under an explicit clan
 // filter, so every war and attack below it is known to belong here.
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Trophy, UserX } from "lucide-react";
+import { Swords, Trophy, UserX } from "lucide-react";
 import { SyncBadge } from "@/components/sync-badge";
 import { LocalTime } from "@/components/local-time";
 import { TownHall } from "@/components/lineup-parts";
 import { Stars } from "@/components/stars";
-import { Disclosure, EmptyState, Panel, SectionHeader } from "@/components/kit";
+import { Disclosure, EmptyState, FactRow, Panel, SectionHeader } from "@/components/kit";
 import { LiveDayPanel } from "@/components/cwl-parts";
 import { CwlSeasonHeader } from "@/components/cwl-season-header";
 import { WarScoreboard } from "@/components/war-scoreboard";
@@ -53,10 +61,36 @@ import { DAY_TONE_CLASS, DAY_TONE_LABEL, dayTone } from "@/lib/war-status";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server";
 import { seasonByName } from "@/repositories/cwl";
+import { lineupForWar } from "@/repositories/cwl-scouting";
 import { latestRun } from "@/repositories/sync-log";
-import { warRecord } from "@/services/cwl";
+import { dayBoard, type BaseRef } from "@/services/cwl-day";
 
 export const dynamic = "force-dynamic";
+
+/** One attack's result: stars, a destruction gauge and the percentage. */
+function HitResult({ stars, destruction, tone }: { stars: number; destruction: number; tone: string }) {
+  return (
+    <span className="flex items-center gap-2">
+      <Stars stars={stars} />
+      <span className="cb-gauge h-1.5 w-14" style={{ "--gauge": tone } as React.CSSProperties}>
+        <span style={{ width: `${Math.min(100, destruction)}%` }} />
+      </span>
+      <span className="text-xs tabular-nums">{destruction.toFixed(0)}%</span>
+    </span>
+  );
+}
+
+/** An enemy base as the war map names it: "on #6 · TH18 · name". */
+function EnemyBase({ lead, base }: { lead: string; base: BaseRef }) {
+  return (
+    <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
+      {lead}
+      <span className="text-foreground font-semibold tabular-nums">#{base.base ?? "?"}</span>
+      {base.thLevel !== null && <TownHall level={base.thLevel} />}
+      {base.name && <span className="max-w-[10rem] truncate">{base.name}</span>}
+    </span>
+  );
+}
 
 export default async function CwlDayDetailPage({
   params,
@@ -97,15 +131,26 @@ export default async function CwlDayDetailPage({
   // are among them.
   const roster = selectedIndex >= 0 ? (view.warData[selectedIndex]?.apiRoster ?? []) : [];
   const attacks = selectedIndex >= 0 ? (view.warData[selectedIndex]?.attacks ?? []) : [];
-  const record = warRecord(roster, attacks);
+  // Both lineups of this one war (057): the enemy's bases, and their attacks on
+  // ours. Read after the day is chosen — which war it is is not known before.
+  const lineup = selected ? await lineupForWar(supabase, season.id, selected.warTag) : [];
+  const board = dayBoard({
+    roster,
+    attacks,
+    lineup,
+    ourTag: clan.tag,
+    teamSize: selected?.teamSize ?? null,
+    groupWar: selected ? view.groupWars.find((w) => w.warTag === selected.warTag) : null,
+  });
   // "Missed" means the day is OVER and no attack came. On a battle day still
   // running it only means "not yet", and on a preparation day nobody can have
   // attacked at all — counting either as a miss is how 15 of 15 got listed
   // as having failed a war that had not started.
   const dayState = selected?.state ?? null;
   const dayOver = dayState !== "preparation" && dayState !== "inWar";
-  const missed = record.filter((m) => m.missed);
+  const missed = board.bases.filter((b) => !b.attack);
   const selectedTone = selected ? dayTone(selected.result, selected.state) : "pending";
+  const opponentName = selected?.opponentName ?? selected?.opponentTag ?? "the opponent";
 
   const clanBase = `/${encodeURIComponent(clan.tag)}`;
   const base = `${clanBase}/cwl/${encodeURIComponent(season.season)}`;
@@ -178,12 +223,7 @@ export default async function CwlDayDetailPage({
           </nav>
 
           {selected && selected.state === "inWar" && (
-            <LiveDayPanel
-              war={selected}
-              clanName={clan.name}
-              attacksUsed={roster.length - missed.length}
-              rosterSize={roster.length}
-            />
+            <LiveDayPanel war={selected} clanName={clan.name} ours={board.ours} theirs={board.theirs} />
           )}
 
           {selected && selected.state !== "inWar" && (
@@ -234,12 +274,21 @@ export default async function CwlDayDetailPage({
                 accent={clanAccent(clan.id).color}
               />
               {selected.state !== "preparation" && (
-                <p className="text-muted-foreground text-sm">
-                  <span className="text-foreground font-semibold tabular-nums">
-                    {roster.length - missed.length} of {roster.length}
-                  </span>{" "}
-                  attacks used — one each in CWL.
-                </p>
+                <FactRow
+                  items={[
+                    {
+                      label: `attacks used by ${clan.name}`,
+                      value: `${board.ours.used ?? "—"} of ${board.ours.of ?? "?"}`,
+                      icon: Swords,
+                    },
+                    {
+                      label: `attacks used by ${opponentName}`,
+                      value: board.theirs.used === null ? "—" : `${board.theirs.used} of ${board.theirs.of ?? "?"}`,
+                      icon: Swords,
+                      title: board.theirs.used === null ? "Not recorded for this day" : undefined,
+                    },
+                  ]}
+                />
               )}
             </section>
           )}
@@ -273,7 +322,7 @@ export default async function CwlDayDetailPage({
                 <ul className="divide-y rounded-control border">
                   {missed.map((m) => (
                     <li key={m.playerId} className="flex items-center gap-3 px-3 py-2">
-                      <span className="text-muted-foreground w-8 text-xs tabular-nums">#{m.mapPosition ?? "?"}</span>
+                      <span className="text-muted-foreground w-8 text-xs tabular-nums">#{m.base ?? "?"}</span>
                       <Link
                         className="min-w-0 flex-1 truncate text-sm font-medium underline-offset-2 hover:underline"
                         href={`${clanBase}/player/${encodeURIComponent(m.tag)}`}
@@ -328,68 +377,101 @@ export default async function CwlDayDetailPage({
           </div>
 
           {roster.length > 0 && (
-            <Disclosure title="Every attack this day" count={roster.length} defaultOpen={selected?.state === "inWar"}>
-              <div className="-mx-5 overflow-x-auto px-5">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-16">Position</TableHead>
-                      <TableHead>Member</TableHead>
-                      <TableHead>Result</TableHead>
-                      <TableHead className="w-40">Destruction</TableHead>
-                      <TableHead className="text-right">Base attacked</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {record.map((m) => (
-                      <TableRow key={m.playerId}>
-                        <TableCell className="text-muted-foreground tabular-nums">#{m.mapPosition ?? "?"}</TableCell>
-                        <TableCell>
-                          <span className="flex items-center gap-2">
-                            <TownHall level={m.thLevel} />
-                            <Link
-                              className="font-medium underline-offset-2 hover:underline"
-                              href={`${clanBase}/player/${encodeURIComponent(m.tag)}`}
-                            >
-                              {m.name}
-                            </Link>
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {!m.missed ? (
-                            <Stars stars={m.stars} />
-                          ) : dayOver ? (
-                            <Badge variant="warning">Did not attack</Badge>
-                          ) : (
-                            <Badge variant="outline">Not yet</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {m.missed ? (
-                            <span className="text-muted-foreground">—</span>
-                          ) : (
-                            <span className="flex items-center gap-2">
-                              <span
-                                className="cb-gauge h-1.5 w-16"
-                                style={
-                                  {
-                                    "--gauge": m.stars === 3 ? "var(--success)" : "var(--warning)",
-                                  } as React.CSSProperties
-                                }
-                              >
-                                <span style={{ width: `${Math.min(100, m.destruction)}%` }} />
-                              </span>
-                              <span className="text-xs tabular-nums">{m.destruction.toFixed(0)}%</span>
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-right tabular-nums">
-                          {m.attacks[0]?.defenderPosition ? `#${m.attacks[0].defenderPosition}` : "—"}
-                        </TableCell>
+            <Disclosure
+              title="Attack and defence, base by base"
+              icon={Swords}
+              count={roster.length}
+              defaultOpen={dayState !== "preparation"}
+            >
+              <div className="space-y-4">
+                {dayState !== "preparation" && (
+                  <FactRow
+                    items={[
+                      { label: "of our attacks used", value: `${board.ours.used ?? "—"} of ${board.ours.of ?? "?"}` },
+                      ...(board.enemyKnown
+                        ? [
+                            {
+                              label: "of their attacks used",
+                              value: `${board.theirs.used ?? "—"} of ${board.theirs.of ?? "?"}`,
+                            },
+                            { label: "of our bases attacked", value: `${board.basesHit} of ${roster.length}` },
+                            { label: "of our bases 3-starred", value: `${board.basesTripled} of ${roster.length}` },
+                          ]
+                        : []),
+                    ]}
+                  />
+                )}
+                <div className="-mx-5 overflow-x-auto px-5">
+                  <Table className="min-w-[44rem]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-14">Base</TableHead>
+                        <TableHead>Member</TableHead>
+                        <TableHead>Attack — their base we hit</TableHead>
+                        <TableHead>Defence — enemy attacks on this base</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {board.bases.map((b) => (
+                        <TableRow key={b.playerId}>
+                          <TableCell className="cb-title align-top text-base tabular-nums">#{b.base ?? "?"}</TableCell>
+                          <TableCell className="align-top">
+                            <span className="flex items-center gap-2">
+                              <TownHall level={b.thLevel} />
+                              <Link
+                                className="font-medium underline-offset-2 hover:underline"
+                                href={`${clanBase}/player/${encodeURIComponent(b.tag)}`}
+                              >
+                                {b.name}
+                              </Link>
+                            </span>
+                          </TableCell>
+                          <TableCell className="align-top">
+                            {b.attack ? (
+                              <div className="space-y-1">
+                                <HitResult
+                                  stars={b.attack.stars}
+                                  destruction={b.attack.destruction}
+                                  tone={b.attack.stars === 3 ? "var(--success)" : "var(--warning)"}
+                                />
+                                {board.enemyKnown && b.attack.target && <EnemyBase lead="on" base={b.attack.target} />}
+                              </div>
+                            ) : dayState === "preparation" ? (
+                              <span className="text-muted-foreground">—</span>
+                            ) : dayOver ? (
+                              <Badge variant="warning">Did not attack</Badge>
+                            ) : (
+                              <Badge variant="outline">Not yet</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="align-top">
+                            {dayState === "preparation" || !board.enemyKnown ? (
+                              <span className="text-muted-foreground">—</span>
+                            ) : b.defences.length === 0 ? (
+                              <Badge variant={dayOver ? "success" : "outline"}>
+                                {dayOver ? "Not attacked" : "Not attacked yet"}
+                              </Badge>
+                            ) : (
+                              <div className="space-y-2">
+                                {b.defences.map((d) => (
+                                  <div key={d.by.tag} className="space-y-1">
+                                    <HitResult stars={d.stars} destruction={d.destruction} tone="var(--foe)" />
+                                    <EnemyBase lead="by" base={d.by} />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <p className="text-muted-foreground text-xs">
+                  {board.enemyKnown
+                    ? `Base numbers are the ones on the war map, 1 to ${roster.length}. A base attacked more than once lists its best hit first — that is the one that scores.`
+                    : "The enemy lineup was not recorded for this day, so their base numbers and their attacks on our bases cannot be shown."}
+                </p>
               </div>
             </Disclosure>
           )}

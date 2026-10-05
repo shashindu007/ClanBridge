@@ -7,7 +7,7 @@
 // standings row for this clan is marked "You" as well as highlighted.
 
 import Link from "next/link";
-import { Clock, Crown, FileDown, Medal, Star, Trophy } from "lucide-react";
+import { Clock, Crown, FileDown, Medal, Star, Swords, Trophy } from "lucide-react";
 import { Countdown } from "@/components/countdown";
 import { LocalTime } from "@/components/local-time";
 import { ClanBadge } from "@/components/game/clan-badge";
@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import type { CwlWar } from "@/repositories/cwl";
 import type { Standing } from "@/services/cwl-standings";
 import type { StandingScout } from "@/services/cwl-scouting";
+import type { SideAttacks } from "@/services/cwl-day";
 import type { LineupBreakdown } from "@/lib/roster-view";
 import { artKeyForLeague } from "@/lib/game-art";
 import { DAY_TONE_CLASS, DAY_TONE_LABEL, dayTone, ordinal } from "@/lib/war-status";
@@ -312,20 +313,48 @@ export function RankBadge({ rank, of, final }: { rank: number; of: number; final
 }
 
 /**
- * The day being fought now: "Stars 23 vs 19", when it ends and how long is left.
- * The biggest thing on the page during CWL week, because it is the only part of
- * it that changes by the minute.
+ * One side's attacks: used, out of how many, and how many are still to come.
+ * "Not recorded" rather than a zero when the count is not known — a zero reads
+ * as "nobody has attacked".
+ */
+function AttackTally({ label, side }: { label: string; side: SideAttacks }) {
+  const left = side.used !== null && side.of !== null ? Math.max(0, side.of - side.used) : null;
+  return (
+    <div className="bg-card/70 rounded-control p-3">
+      <dt className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
+        <Swords aria-hidden className="size-3.5 shrink-0" />
+        <span className="truncate">{label}</span>
+      </dt>
+      <dd>
+        <span className="cb-title text-2xl tabular-nums">
+          {side.used ?? "—"} <span className="text-muted-foreground text-base">/ {side.of ?? "?"}</span>
+        </span>
+        <span className="text-muted-foreground block text-xs">
+          {left === null ? "Not recorded" : left === 0 ? "All attacks used" : `${left} still to attack`}
+        </span>
+      </dd>
+    </div>
+  );
+}
+
+/**
+ * The day being fought now: "Stars 23 vs 19", when it ends, how long is left,
+ * and how many attacks EACH side has used. The biggest thing on the page during
+ * CWL week, because it is the only part of it that changes by the minute.
+ *
+ * Both sides' attacks, not ours alone: 16 stars to 8 means one thing when the
+ * enemy has used 4 of 15 and another when they have used 14.
  */
 export function LiveDayPanel({
   war,
   clanName,
-  attacksUsed,
-  rosterSize,
+  ours: ourAttacks,
+  theirs: theirAttacks,
 }: {
   war: CwlWar;
   clanName: string;
-  attacksUsed: number;
-  rosterSize: number;
+  ours: SideAttacks;
+  theirs: SideAttacks;
 }) {
   const ours = war.ourStars ?? 0;
   const theirs = war.theirStars ?? 0;
@@ -373,8 +402,8 @@ export function LiveDayPanel({
         </div>
       </div>
 
-      <dl className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="bg-card/70 rounded-control p-3">
+      <dl className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="bg-card/70 col-span-2 rounded-control p-3 sm:col-span-1">
           <dt className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
             <Clock aria-hidden className="size-3.5" />
             Time remaining
@@ -383,18 +412,14 @@ export function LiveDayPanel({
             <Countdown iso={war.endTime} />
           </dd>
         </div>
-        <div className="bg-card/70 rounded-control p-3">
+        <div className="bg-card/70 col-span-2 rounded-control p-3 sm:col-span-1">
           <dt className="text-muted-foreground text-xs font-medium">Ends at</dt>
           <dd className="text-lg font-semibold">
             <LocalTime iso={war.endTime} style="weekday" />
           </dd>
         </div>
-        <div className="bg-card/70 rounded-control p-3">
-          <dt className="text-muted-foreground text-xs font-medium">Attacks used</dt>
-          <dd className="cb-title text-2xl tabular-nums">
-            {attacksUsed} <span className="text-muted-foreground text-base">/ {rosterSize}</span>
-          </dd>
-        </div>
+        <AttackTally label="Our attacks" side={ourAttacks} />
+        <AttackTally label="Enemy attacks" side={theirAttacks} />
       </dl>
     </section>
   );

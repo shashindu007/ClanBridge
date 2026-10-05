@@ -65,6 +65,34 @@ export function warRecord(
   });
 }
 
+/**
+ * tag -> the base's number on the war map, 1 to N.
+ *
+ * THE API'S mapPosition IS NOT THAT NUMBER IN CWL. In a regular war it runs 1
+ * to N. In a league war it runs past the team size with gaps — fifteen fielded
+ * bases come back as 1, 2, 4, 5 … 18, 19, and as high as 45 — so the base the
+ * game calls 15 was shown as "#19" on a 15-base map. The ORDER is the map's;
+ * only the numbers are not. A base's number is therefore its rank within the
+ * lineup that was fielded.
+ *
+ * Derived on the way out, never written back: map_position and
+ * defender_position keep what the API said (R5), and one rule here covers
+ * every season already stored.
+ *
+ * A member with no position is left out rather than numbered by guess.
+ */
+export function baseNumbers(
+  lineup: ReadonlyArray<{ tag: string; mapPosition: number | null }>,
+): Map<string, number> {
+  const placed = lineup
+    .filter((m) => m.mapPosition !== null)
+    .sort(
+      (a, b) =>
+        (a.mapPosition as number) - (b.mapPosition as number) || a.tag.localeCompare(b.tag),
+    );
+  return new Map(placed.map((m, index) => [m.tag, index + 1]));
+}
+
 /** Just the people who did not attack — the list a leader actually chases (T4.5). */
 export function missedAttacks(
   roster: CwlRosterEntry[],
