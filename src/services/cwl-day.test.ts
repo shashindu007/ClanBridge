@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CwlAttack, CwlRosterEntry, GroupWar } from "@/repositories/cwl";
 import { baseNumbers } from "./cwl";
-import { dayBoard } from "./cwl-day";
+import { dayBoard, reachNote, topPerformers } from "./cwl-day";
 import type { ScoutWarMember } from "./cwl-scouting";
 
 const US = "#US";
@@ -152,5 +152,96 @@ describe("dayBoard", () => {
       });
       expect(asClan.theirs).toEqual({ used: 2, of: 3 });
     });
+  });
+});
+
+describe("topPerformers", () => {
+  // One day, four of ours, all on three stars and 100%: the tie the old list
+  // broke by name. Their bases sit at API positions 3, 8, 13 and 20.
+  const roster = [member(1), member(2), member(3), member(4)];
+  const foe = [slot(FOE, "#F1", 3), slot(FOE, "#F2", 8), slot(FOE, "#F3", 13), slot(FOE, "#F4", 20)];
+  const day = (attacks: CwlAttack[], lineup: ScoutWarMember[] = foe) =>
+    dayBoard({ roster, attacks, lineup, ourTag: US, teamSize: 4 });
+
+  it("breaks a tie on stars by who hit higher up the map, not by name", () => {
+    const top = topPerformers([
+      day([
+        attack(1, "#F4", 3, 100), // our #1 dropped to their #4
+        attack(2, "#F2", 3, 100), // mirror
+        attack(3, "#F1", 3, 100), // our #3 took their #1
+        attack(4, "#F3", 3, 100), // our #4 took their #3
+      ]),
+    ]);
+    expect(top.map((p) => [p.name, p.mapReach])).toEqual([
+      ["Us 3", 2],
+      ["Us 4", 1],
+      ["Us 2", 0],
+      ["Us 1", -3],
+    ]);
+  });
+
+  it("puts stars first, whatever was hit", () => {
+    const top = topPerformers([day([attack(1, "#F4", 3, 100), attack(4, "#F1", 2, 99)])]);
+    expect(top.map((p) => p.name)).toEqual(["Us 1", "Us 4"]);
+  });
+
+  it("ranks a higher Town Hall taken above a higher base taken", () => {
+    const mixed = [
+      { ...slot(FOE, "#F1", 1), thLevel: 18 },
+      { ...slot(FOE, "#F2", 2), thLevel: 18 },
+      { ...slot(FOE, "#F3", 3), thLevel: 19 },
+      { ...slot(FOE, "#F4", 4), thLevel: 18 },
+    ];
+    // Us 1 hits a Town Hall above their own, three places down the map;
+    // Us 4 hits three places up, at their own Town Hall.
+    const top = topPerformers([day([attack(1, "#F3", 3, 100), attack(4, "#F1", 3, 100)], mixed)]);
+    expect(top.map((p) => [p.name, p.thReach, p.mapReach])).toEqual([
+      ["Us 1", 1, -2],
+      ["Us 4", 0, 3],
+    ]);
+  });
+
+  it("adds a season up, and ranks the same stars from fewer attacks first", () => {
+    const top = topPerformers([
+      day([attack(1, "#F1", 3, 100), attack(2, "#F2", 2, 80), attack(3, "#F3", 3, 100)]),
+      day([attack(1, "#F1", 3, 90), attack(2, "#F2", 1, 60)]),
+    ]);
+    expect(top.map((p) => [p.name, p.stars, p.attacks])).toEqual([
+      ["Us 1", 6, 2],
+      ["Us 3", 3, 1],
+      ["Us 2", 3, 2],
+    ]);
+    expect(top[0]).toMatchObject({ threeStars: 2, averageDestruction: 95, mapReach: 0 });
+  });
+
+  it("leaves out anyone who has not attacked, and a day in preparation adds nothing", () => {
+    const top = topPerformers([day([attack(2, "#F2", 1, 40)]), day([])]);
+    expect(top.map((p) => p.name)).toEqual(["Us 2"]);
+  });
+
+  it("falls back to destruction when the enemy lineup was never recorded", () => {
+    const top = topPerformers([day([attack(1, "#F1", 2, 70), attack(2, "#F2", 2, 95)], [])]);
+    expect(top.map((p) => [p.name, p.mapReach, p.thReach])).toEqual([
+      ["Us 2", null, null],
+      ["Us 1", null, null],
+    ]);
+  });
+});
+
+describe("reachNote", () => {
+  it("says how far up or down one attack went", () => {
+    expect(reachNote({ attacks: 1, thReach: 0, mapReach: 6 })).toBe("hit 6 bases up");
+    expect(reachNote({ attacks: 1, thReach: 0, mapReach: -1 })).toBe("hit 1 base down");
+    expect(reachNote({ attacks: 1, thReach: 0, mapReach: 0 })).toBe("hit mirror");
+    expect(reachNote({ attacks: 1, thReach: 1, mapReach: -2 })).toBe("hit 1 TH up, 2 bases down");
+  });
+
+  it("calls an average an average", () => {
+    expect(reachNote({ attacks: 3, thReach: -0.5, mapReach: 2.33 })).toBe("avg 0.5 TH down, 2.3 bases up");
+    expect(reachNote({ attacks: 2, thReach: null, mapReach: 0 })).toBe("avg mirror");
+  });
+
+  it("says nothing when nothing about the targets is known", () => {
+    expect(reachNote({ attacks: 2, thReach: null, mapReach: null })).toBeNull();
   });
 });

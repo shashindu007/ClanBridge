@@ -29,6 +29,9 @@
 //   - Base numbers are the war map's, 1 to N. The API's mapPosition is not that
 //     in CWL, which is how a 15-base war listed an attack on "#19".
 //   - Attacks used are counted for BOTH clans, on the live panel and after.
+//   - Top performers are ranked by stars and then by how hard the hit was —
+//     not by stars and then by name, which is what a twelve-way tie at three
+//     stars used to come down to.
 //
 // R1 — PostgreSQL only. R3 — the season is resolved under an explicit clan
 // filter, so every war and attack below it is known to belong here.
@@ -61,9 +64,9 @@ import { DAY_TONE_CLASS, DAY_TONE_LABEL, dayTone } from "@/lib/war-status";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server";
 import { seasonByName } from "@/repositories/cwl";
-import { lineupForWar } from "@/repositories/cwl-scouting";
+import { lineupsForWars } from "@/repositories/cwl-scouting";
 import { latestRun } from "@/repositories/sync-log";
-import { dayBoard, type BaseRef } from "@/services/cwl-day";
+import { dayBoard, reachNote, topPerformers, type BaseRef } from "@/services/cwl-day";
 
 export const dynamic = "force-dynamic";
 
@@ -127,21 +130,29 @@ export default async function CwlDayDetailPage({
     null;
   const selectedIndex = selected ? wars.indexOf(selected) : -1;
 
-  // The loader already read every day's roster and attacks; the selected day's
-  // are among them.
+  // Both lineups of every one of our wars (057): the enemy's bases, and their
+  // attacks on ours. Every day and not only the selected one, because the top
+  // performers are ranked on what each attack of the season was aimed at.
+  const lineups = await lineupsForWars(
+    supabase,
+    season.id,
+    wars.map((w) => w.warTag),
+  );
+  // The loader already read every day's roster and attacks.
+  const boards = wars.map((war, index) =>
+    dayBoard({
+      roster: view.warData[index]?.apiRoster ?? [],
+      attacks: view.warData[index]?.attacks ?? [],
+      lineup: lineups.filter((m) => m.warTag === war.warTag),
+      ourTag: clan.tag,
+      teamSize: war.teamSize,
+      groupWar: view.groupWars.find((w) => w.warTag === war.warTag),
+    }),
+  );
   const roster = selectedIndex >= 0 ? (view.warData[selectedIndex]?.apiRoster ?? []) : [];
-  const attacks = selectedIndex >= 0 ? (view.warData[selectedIndex]?.attacks ?? []) : [];
-  // Both lineups of this one war (057): the enemy's bases, and their attacks on
-  // ours. Read after the day is chosen — which war it is is not known before.
-  const lineup = selected ? await lineupForWar(supabase, season.id, selected.warTag) : [];
-  const board = dayBoard({
-    roster,
-    attacks,
-    lineup,
-    ourTag: clan.tag,
-    teamSize: selected?.teamSize ?? null,
-    groupWar: selected ? view.groupWars.find((w) => w.warTag === selected.warTag) : null,
-  });
+  const board =
+    boards[selectedIndex] ??
+    dayBoard({ roster: [], attacks: [], lineup: [], ourTag: clan.tag, teamSize: null });
   // "Missed" means the day is OVER and no attack came. On a battle day still
   // running it only means "not yet", and on a preparation day nobody can have
   // attacked at all — counting either as a miss is how 15 of 15 got listed
@@ -154,7 +165,7 @@ export default async function CwlDayDetailPage({
 
   const clanBase = `/${encodeURIComponent(clan.tag)}`;
   const base = `${clanBase}/cwl/${encodeURIComponent(season.season)}`;
-  const top = view.starsSoFar.filter((c) => c.attacksUsed > 0).slice(0, 5);
+  const top = topPerformers(boards).slice(0, 5);
 
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
@@ -293,7 +304,7 @@ export default async function CwlDayDetailPage({
             </section>
           )}
 
-          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <section className="cb-panel space-y-4 rounded-panel border p-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="flex items-center gap-2 text-lg font-semibold">
@@ -336,14 +347,23 @@ export default async function CwlDayDetailPage({
               )}
             </section>
 
-            <section className="cb-panel space-y-3 rounded-panel border p-5" aria-labelledby="top-title">
-              <SectionHeader id="top-title" icon={Trophy} title="Top performers" />
+            <section className="cb-panel space-y-4 rounded-panel border p-5" aria-labelledby="top-title">
+              <div className="space-y-1">
+                <SectionHeader id="top-title" icon={Trophy} title="Top performers" />
+                <p className="text-muted-foreground text-xs">
+                  This season so far, by stars and then stars per attack. Still level, the harder hit ranks
+                  first: a higher Town Hall (TH) than their own, then a base higher on the war map, then
+                  destruction.
+                </p>
+              </div>
               {top.length === 0 ? (
                 <p className="text-muted-foreground text-sm">Nobody has attacked yet this season.</p>
               ) : (
-                <ol className="space-y-2">
-                  {top.map((c, index) => (
-                    <li key={c.playerId} className="flex items-center gap-3">
+                // The same list as "Did not attack" beside it: bordered rows,
+                // the name as the link, the Town Hall on the right.
+                <ol className="divide-y rounded-control border">
+                  {top.map((p, index) => (
+                    <li key={p.playerId} className="flex items-center gap-3 px-3 py-2">
                       <span
                         className={cn(
                           "cb-title inline-flex size-7 shrink-0 items-center justify-center rounded-full text-sm",
@@ -352,19 +372,28 @@ export default async function CwlDayDetailPage({
                       >
                         {index + 1}
                       </span>
-                      <Link
-                        href={`${clanBase}/player/${encodeURIComponent(c.tag)}`}
-                        className="min-w-0 flex-1 truncate text-sm font-medium hover:underline"
-                      >
-                        {c.name}
-                      </Link>
-                      <span className="text-sm tabular-nums">
-                        <span className="font-semibold">{c.stars}</span>
-                        <span className="text-trim"> ★</span>
-                        <span className="text-muted-foreground text-xs">
-                          {" "}
-                          · {c.attacksUsed}/{c.warsPlayed} · {c.averageDestruction.toFixed(0)}%
-                        </span>
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          href={`${clanBase}/player/${encodeURIComponent(p.tag)}`}
+                          className="block truncate text-sm font-medium underline-offset-2 hover:underline"
+                        >
+                          {p.name}
+                        </Link>
+                        <p className="text-muted-foreground text-xs">
+                          {[
+                            `${p.attacks} attack${p.attacks === 1 ? "" : "s"}`,
+                            `${p.averageDestruction.toFixed(0)}% ${p.attacks === 1 ? "destroyed" : "avg"}`,
+                            reachNote(p),
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                      <TownHall level={p.thLevel} />
+                      <span className="w-10 shrink-0 text-right text-sm tabular-nums">
+                        <span className="font-semibold">{p.stars}</span>
+                        <span aria-hidden className="text-trim-shade dark:text-trim"> ★</span>
+                        <span className="sr-only"> stars</span>
                       </span>
                     </li>
                   ))}

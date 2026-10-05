@@ -163,3 +163,152 @@ export function dayBoard(input: {
     basesTripled: bases.filter((b) => b.defences.some((d) => d.stars === 3)).length,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOP PERFORMERS
+//
+// The list was the season's stars and nothing else, and on the first days of a
+// week that is a twelve-way tie at three stars — which it then broke BY NAME.
+// So a top base that dropped to their #13 for an easy triple was listed above
+// our #14 who tripled their #8, because of how the two names sort.
+//
+// Stars still come first: they are what wins the war and pays the medals. What
+// changed is everything after them — a tie now goes to the harder hit.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface TopPerformer {
+  playerId: string;
+  tag: string;
+  name: string;
+  /** Their Town Hall on the latest day they attacked. */
+  thLevel: number | null;
+  attacks: number;
+  stars: number;
+  threeStars: number;
+  averageDestruction: number;
+  /**
+   * How far above their own Town Hall their targets stood, averaged over their
+   * attacks. Null when no target's Town Hall is known.
+   */
+  thReach: number | null;
+  /**
+   * How far UP the war map they hit, averaged: their own base number minus the
+   * target's, so our #14 on their #8 is +6 and our #4 on their #13 is -9. Null
+   * when the enemy lineup was never recorded.
+   */
+  mapReach: number | null;
+}
+
+/**
+ * Everyone who has attacked this season, best first.
+ *
+ *   1. stars
+ *   2. stars per attack — the same stars from fewer attacks
+ *   3. the harder hit: a higher Town Hall than their own, then a base higher on
+ *      the map than their own
+ *   4. destruction
+ *
+ * The name is last and only keeps the order stable. An attack whose target is
+ * not known counts as neither up nor down.
+ *
+ * `days` is one board per war day. A day still in preparation has no attacks
+ * and adds nothing; a live day counts as it stands.
+ */
+export function topPerformers(days: readonly DayBoard[]): TopPerformer[] {
+  const acc = new Map<
+    string,
+    {
+      tag: string;
+      name: string;
+      thLevel: number | null;
+      attacks: number;
+      stars: number;
+      threeStars: number;
+      destruction: number;
+      thGaps: number[];
+      mapGaps: number[];
+    }
+  >();
+
+  for (const day of days) {
+    for (const base of day.bases) {
+      const attack = base.attack;
+      if (!attack) continue;
+      const row = acc.get(base.playerId) ?? {
+        tag: base.tag,
+        name: base.name,
+        thLevel: base.thLevel,
+        attacks: 0,
+        stars: 0,
+        threeStars: 0,
+        destruction: 0,
+        thGaps: [],
+        mapGaps: [],
+      };
+      row.name = base.name;
+      row.thLevel = base.thLevel ?? row.thLevel;
+      row.attacks += 1;
+      row.stars += attack.stars;
+      if (attack.stars === 3) row.threeStars += 1;
+      row.destruction += attack.destruction;
+      const target = attack.target;
+      if (target && target.thLevel !== null && base.thLevel !== null) {
+        row.thGaps.push(target.thLevel - base.thLevel);
+      }
+      if (target && target.base !== null && base.base !== null) {
+        row.mapGaps.push(base.base - target.base);
+      }
+      acc.set(base.playerId, row);
+    }
+  }
+
+  const mean = (values: number[]) =>
+    values.length ? values.reduce((t, v) => t + v, 0) / values.length : null;
+
+  return [...acc.entries()]
+    .map(
+      ([playerId, r]): TopPerformer => ({
+        playerId,
+        tag: r.tag,
+        name: r.name,
+        thLevel: r.thLevel,
+        attacks: r.attacks,
+        stars: r.stars,
+        threeStars: r.threeStars,
+        averageDestruction: r.destruction / r.attacks,
+        thReach: mean(r.thGaps),
+        mapReach: mean(r.mapGaps),
+      }),
+    )
+    .sort(
+      (a, b) =>
+        b.stars - a.stars ||
+        a.attacks - b.attacks ||
+        (b.thReach ?? 0) - (a.thReach ?? 0) ||
+        (b.mapReach ?? 0) - (a.mapReach ?? 0) ||
+        b.averageDestruction - a.averageDestruction ||
+        a.name.localeCompare(b.name),
+    );
+}
+
+function amount(n: number): string {
+  const rounded = Math.round(Math.abs(n) * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+/**
+ * The harder-hit part of a row, in a few words: "hit 1 TH up, 6 bases up",
+ * "hit mirror", "avg 2.5 bases down". An average says so — "3 bases up" over
+ * four attacks is not one attack. Null when nothing about the targets is known.
+ */
+export function reachNote(p: Pick<TopPerformer, "attacks" | "thReach" | "mapReach">): string | null {
+  const parts: string[] = [];
+  if (p.thReach !== null && amount(p.thReach) !== "0") {
+    parts.push(`${amount(p.thReach)} TH ${p.thReach > 0 ? "up" : "down"}`);
+  }
+  if (p.mapReach !== null) {
+    const n = amount(p.mapReach);
+    parts.push(n === "0" ? "mirror" : `${n} base${n === "1" ? "" : "s"} ${p.mapReach > 0 ? "up" : "down"}`);
+  }
+  return parts.length ? `${p.attacks > 1 ? "avg" : "hit"} ${parts.join(", ")}` : null;
+}

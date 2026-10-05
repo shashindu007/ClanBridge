@@ -110,26 +110,28 @@ function toWarMember(r: Record<string, unknown>): ScoutWarMember {
 }
 
 /**
- * Both lineups of ONE war, for the day page: who each side fielded and the
- * attack each of them made.
+ * Both lineups of the wars named, for the day page: who each side fielded and
+ * the attack each of them made. The caller passes OUR wars — seven at most.
  *
  * Not scoutingForSeason(): that is every war in the group, 1,680 rows in a
- * 30-a-side week, and the day page wants the sixty of one war. One page is
- * always enough here — a war is at most 50 a side.
+ * 30-a-side week, where ours are a quarter of it. Seven wars of thirty a side
+ * are 420 rows, inside one page.
  *
- * [] before 057 is applied or for a war recorded before it, which the caller
- * reads as "enemy lineup not known".
+ * A war recorded before 057 simply has no rows here (and before 057 is applied
+ * the read fails and returns []), which the caller reads as "enemy lineup not
+ * known" for that day.
  */
-export async function lineupForWar(
+export async function lineupsForWars(
   supabase: SupabaseClient,
   seasonId: string,
-  warTag: string,
+  warTags: readonly string[],
 ): Promise<ScoutWarMember[]> {
+  if (!warTags.length) return [];
   const { data, error } = await supabase
     .from("cwl_group_war_members")
     .select(WAR_MEMBER_COLUMNS)
     .eq("season_id", seasonId)
-    .eq("war_tag", warTag)
+    .in("war_tag", [...warTags])
     .is("deleted_at", null);
   if (error || !data) return [];
   return (data as unknown as Array<Record<string, unknown>>).map(toWarMember);
