@@ -41,6 +41,8 @@ export interface ScoutWarMember {
   attackStars: number | null;
   attackDestruction: number | null;
   attackDefenderTag: string | null;
+  /** The API's order of the attack within its war (062). Null without one, or before 062. */
+  attackOrder: number | null;
 }
 
 export interface ScoutVillage {

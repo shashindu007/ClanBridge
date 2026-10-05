@@ -16,7 +16,8 @@
 // cwl_attacks, (048) cwl_group_clans and cwl_group_wars — the rest of the
 // group, from which standings and medals are derived — and (057)
 // cwl_group_members and cwl_group_war_members, the group's rosters and fielded
-// lineups for scouting. It must NOT touch cwl_rosters or cwl_roster_members: those are the
+// lineups for scouting — with (062) the order of each attack within its war.
+// It must NOT touch cwl_rosters or cwl_roster_members: those are the
 // leader's selection, and the API roster is a separate fact. Writing the API
 // roster into the leader's table destroys the plan-vs-reality comparison
 // (T4B.11) permanently.
@@ -590,6 +591,9 @@ export function groupWarMemberRows(seasonId: string, warTag: string, war: War) {
         attack_stars: attack?.stars ?? null,
         attack_destruction: attack?.destruction ?? null,
         attack_defender_tag: attack?.defenderTag ?? null,
+        // 062 — when in the war it came. The rating reads which of two attacks
+        // on one base was the first.
+        attack_order: attack?.order ?? null,
       };
     });
   });
@@ -637,6 +641,86 @@ async function groupWarsWithMembers(
     .is("deleted_at", null);
   if (error) return null;
   return new Set(((data ?? []) as Array<{ war_tag: string }>).map((r) => r.war_tag));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ATTACK ORDER FOR WARS ALREADY SETTLED (062)
+//
+// A live war's lineup rows are refreshed every run, so they pick the order up
+// by themselves. A war already stored as ended is never written again — which
+// is right for its stars, and leaves its order empty for ever. So for OUR ended
+// wars (seven at most, the only ones the rating reads) the war is asked for
+// once more and the empty order filled in.
+//
+// ONLY THE ORDER, AND ONLY WHERE IT IS EMPTY. The rows sent carry the key and
+// attack_order and nothing else, so a settled star count cannot be rewritten by
+// this even if the API answered differently today (R5). Like the league stamp
+// on the season: a missing fact added, not history changed.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Recorded attacks of the wars named that have no order yet, by war tag. */
+async function attacksMissingOrder(
+  supabase: SupabaseClient,
+  seasonId: string,
+  warTags: readonly string[],
+): Promise<Map<string, Array<{ tag: string; clanTag: string }>>> {
+  const missing = new Map<string, Array<{ tag: string; clanTag: string }>>();
+  if (!warTags.length) return missing;
+  const { data, error } = await supabase
+    .from("cwl_group_war_members")
+    .select("war_tag, clan_tag, tag")
+    .eq("season_id", seasonId)
+    .in("war_tag", [...warTags])
+    .not("attack_stars", "is", null)
+    .is("attack_order", null)
+    .is("deleted_at", null);
+  // Before 062 the column does not exist: nothing to fill, and not an error.
+  if (error) return missing;
+  for (const row of (data ?? []) as Array<{ war_tag: string; clan_tag: string; tag: string }>) {
+    const list = missing.get(row.war_tag) ?? [];
+    list.push({ tag: row.tag, clanTag: row.clan_tag });
+    missing.set(row.war_tag, list);
+  }
+  return missing;
+}
+
+/** attacker tag -> the API's order, for both sides of one war. Pure — exported for the test. */
+export function attackOrders(war: War): Map<string, number> {
+  const orders = new Map<string, number>();
+  for (const side of [war.clan, war.opponent]) {
+    for (const member of side?.members ?? []) {
+      const order = member.attacks[0]?.order;
+      if (order !== undefined) orders.set(member.tag, order);
+    }
+  }
+  return orders;
+}
+
+/**
+ * Fill the empty attack orders of our ended wars. Returns how many wars it had
+ * to ask the API for, which is the whole cost: at most seven, once.
+ */
+async function backfillAttackOrders(
+  supabase: SupabaseClient,
+  seasonId: string,
+  ourEndedTags: readonly string[],
+): Promise<number> {
+  const missing = await attacksMissingOrder(supabase, seasonId, ourEndedTags);
+  let asked = 0;
+  for (const [warTag, rows] of missing) {
+    const orders = attackOrders(mapWar(await request(cwlWarEndpoint(warTag), warSchema)));
+    asked += 1;
+    const fill = rows.flatMap((row) => {
+      const order = orders.get(row.tag);
+      return order === undefined
+        ? []
+        : [{ season_id: seasonId, war_tag: warTag, clan_tag: row.clanTag, tag: row.tag, attack_order: order }];
+    });
+    if (fill.length) {
+      await upsertInBatches(supabase, "cwl_group_war_members", fill, "season_id,war_tag,tag", false);
+    }
+  }
+  return asked;
 }
 
 /** Group wars already recorded this season: war tag -> state. */
@@ -865,6 +949,15 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
           // clans' business and not worth a call.
           break;
         }
+      }
+
+      // 062 — the order of attacks in our wars that were settled before it was
+      // recorded. While the week runs only: afterwards the API has nothing to
+      // ask. A failure warns and is tried again next run.
+      if (withMembers && group.state !== "ended") {
+        await backfillAttackOrders(supabase, seasonId, [...settled]).catch((error: unknown) =>
+          groupWarn("attack order not backfilled", error),
+        );
       }
 
       // The rest of the group, after ours are safely written.

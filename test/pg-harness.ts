@@ -155,6 +155,9 @@ export const PHASE1_MIGRATIONS = [
   // Clearing scouting keeps the enemy lineups of OUR wars: the day pages'
   // defence and the CWL rating are read from them.
   "061_purge_keeps_our_wars.sql",
+  // The order of each attack within its CWL war, for the rating's
+  // "new stars only" rule.
+  "062_cwl_attack_order.sql",
 ] as const;
 
 /**

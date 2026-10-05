@@ -106,6 +106,8 @@ function toWarMember(r: Record<string, unknown>): ScoutWarMember {
     attackStars: num(r.attack_stars),
     attackDestruction: num(r.attack_destruction),
     attackDefenderTag: str(r.attack_defender_tag),
+    // Absent from a read that does not ask for it, and before 062: null.
+    attackOrder: num(r.attack_order),
   };
 }
 
@@ -120,6 +122,10 @@ function toWarMember(r: Record<string, unknown>): ScoutWarMember {
  * A war recorded before 057 simply has no rows here (and before 057 is applied
  * the read fails and returns []), which the caller reads as "enemy lineup not
  * known" for that day.
+ *
+ * Every column, as for cwl_scout_players: attack_order arrives with 062, and
+ * naming it before that is applied would fail the whole read and blank every
+ * day's defence.
  */
 export async function lineupsForWars(
   supabase: SupabaseClient,
@@ -129,7 +135,7 @@ export async function lineupsForWars(
   if (!warTags.length) return [];
   const { data, error } = await supabase
     .from("cwl_group_war_members")
-    .select(WAR_MEMBER_COLUMNS)
+    .select("*")
     .eq("season_id", seasonId)
     .in("war_tag", [...warTags])
     .is("deleted_at", null);

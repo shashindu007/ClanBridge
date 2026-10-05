@@ -38,6 +38,15 @@ export interface DayAttack {
   destruction: number;
   /** The enemy base that was hit. Null only when the API named no defender. */
   target: BaseRef | null;
+  /**
+   * The best result clanmates had ALREADY taken from that base when this
+   * attack came — 0 for the first to hit it. Three stars on a base already at
+   * two gave the clan one star, not three.
+   *
+   * Null when the base was hit more than once and the order of those attacks
+   * was never recorded (062); the rating then treats it as a first hit.
+   */
+  alreadyTaken: number | null;
 }
 
 export interface DayDefence {
@@ -120,6 +129,37 @@ export function dayBoard(input: {
     hitsOn.set(m.attackDefenderTag, list);
   }
 
+  // What each of our attacks found already taken, from the order they came in
+  // (062). Grouped from cwl_attacks — the record of what was attacked — with
+  // the order read off our own lineup rows.
+  const orderOf = new Map(ourRows.map((m) => [m.tag, m.attackOrder]));
+  const tagOf = new Map(roster.map((m) => [m.playerId, m.tag]));
+  const onTarget = new Map<string, Array<{ tag: string; stars: number; order: number | null }>>();
+  for (const attack of attacks) {
+    const tag = tagOf.get(attack.playerId);
+    if (!tag || !attack.defenderTag) continue;
+    const list = onTarget.get(attack.defenderTag) ?? [];
+    list.push({ tag, stars: attack.stars, order: orderOf.get(tag) ?? null });
+    onTarget.set(attack.defenderTag, list);
+  }
+  const alreadyTaken = new Map<string, number | null>();
+  for (const hits of onTarget.values()) {
+    // The only attack on a base found nothing taken, whatever the order was.
+    if (hits.length === 1) {
+      alreadyTaken.set(hits[0]!.tag, 0);
+      continue;
+    }
+    if (hits.some((h) => h.order === null)) {
+      for (const h of hits) alreadyTaken.set(h.tag, null);
+      continue;
+    }
+    let best = 0;
+    for (const h of hits.sort((a, b) => (a.order as number) - (b.order as number))) {
+      alreadyTaken.set(h.tag, best);
+      best = Math.max(best, h.stars);
+    }
+  }
+
   const bases = warRecord(roster, attacks)
     .map((m): DayBase => {
       const attack = m.attacks[0];
@@ -134,6 +174,9 @@ export function dayBoard(input: {
               stars: attack.stars,
               destruction: attack.destruction,
               target: attack.defenderTag ? enemyRef(attack.defenderTag) : null,
+              // No defender named: nothing to have been taken from. Null stays
+              // null — "not known" is not the same as "nothing".
+              alreadyTaken: alreadyTaken.has(m.tag) ? (alreadyTaken.get(m.tag) as number | null) : 0,
             }
           : null,
         // A base hit twice scores its best hit, so that one leads.

@@ -132,6 +132,8 @@ export default async function CwlRatingPage({
     : [];
   const provisional = rating.days.some((d) => d.status === "provisional");
   const unrated = rating.days.filter((d) => d.status === "notRated").length;
+  // Days where a base was hit twice and nobody recorded which attack came first.
+  const unordered = rating.days.filter((d) => d.orderMissing).map((d) => d.dayNumber ?? "?");
 
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
@@ -182,6 +184,9 @@ export default async function CwlRatingPage({
                       </TableHead>
                     ))}
                     <TableHead className="text-right">Marks</TableHead>
+                    <TableHead className="text-right" title="Rating divided by the finished days they played">
+                      Per day
+                    </TableHead>
                     <TableHead className="text-right">Rating</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -218,6 +223,9 @@ export default async function CwlRatingPage({
                       <TableCell className="text-right">
                         <Marks value={p.marks} />
                       </TableCell>
+                      <TableCell className="text-muted-foreground text-right text-sm tabular-nums">
+                        {p.perDay === null ? "—" : oneDecimal(p.perDay)}
+                      </TableCell>
                       <TableCell className="cb-title text-right text-base tabular-nums">{oneDecimal(p.rating)}</TableCell>
                     </TableRow>
                   ))}
@@ -227,8 +235,12 @@ export default async function CwlRatingPage({
             <p className="text-muted-foreground text-xs">
               Under each day: the share of the clan&apos;s marks, then the marks themselves. &ldquo;clan +123&rdquo; is
               what everyone&apos;s marks came to that day. A dash is a day the player was not in the lineup.
+              &ldquo;Per day&rdquo; is the rating divided by the finished days played — the rating is a sum, so it is
+              the fair comparison between someone fielded seven days and someone fielded four.
               {unrated > 0 &&
                 ` ${unrated} day${unrated === 1 ? " is" : "s are"} not rated: the enemy lineup was not recorded.`}
+              {unordered.length > 0 &&
+                ` On day ${unordered.join(", ")} a base was hit more than once and the order of those attacks is not recorded yet, so each was rated as a first hit; the next sync fills it in while the week runs.`}
             </p>
           </section>
 
@@ -328,21 +340,47 @@ export default async function CwlRatingPage({
               rules={[
                 ["3 stars", CWL_MARKS.stars[3]],
                 ["2 stars", CWL_MARKS.stars[2]],
+                [`2 stars with ${CWL_MARKS.nearMiss.destruction}% destruction or more, extra`, CWL_MARKS.nearMiss.marks],
                 ["1 star", CWL_MARKS.stars[1]],
                 ["0 stars", CWL_MARKS.stars[0]],
                 ["Attack not used (once the day is over)", CWL_MARKS.missed],
                 ["Each Town Hall level above your own", CWL_MARKS.thUp],
+                ["The same Town Hall as your own", CWL_MARKS.sameTh],
+                ["Each Town Hall level below your own", CWL_MARKS.thBelow],
                 ["Each base above your own on the war map", CWL_MARKS.baseUp],
                 ["Your mirror base", CWL_MARKS.mirror],
-                ["A base below your own (once, however far below)", CWL_MARKS.baseBelow],
-                ["The same Town Hall as your own", CWL_MARKS.sameTh],
-                ["A lower Town Hall", 0],
+                ["Each base below your own", CWL_MARKS.baseBelow],
+                ["The day's heroic attack", CWL_MARKS.heroicAttack],
               ]}
             />
+            <h3 className="pt-2 font-semibold">Not finishing the job</h3>
             <p className="text-muted-foreground text-xs">
-              The marks for hitting up — a higher Town Hall or a higher base — are only given for{" "}
-              {CWL_MARKS.upNeedsStars} stars or more.
+              On top of the marks above, when you attack away from your mirror and fall short. A higher
+              base with 1 star or none loses nothing extra: it already gets no marks for hitting up.
             </p>
+            <RuleList
+              rules={[
+                ["A higher base, 2 stars (not 3)", CWL_MARKS.shortUp[2]],
+                ["A lower base, 2 stars (not 3)", CWL_MARKS.shortDown[2]],
+                ["A lower base, 1 star", CWL_MARKS.shortDown[1]],
+                ["A lower base, no star", CWL_MARKS.shortDown[0]],
+              ]}
+            />
+            <ul className="text-muted-foreground list-disc space-y-1 pl-5 text-xs">
+              <li>
+                The marks for hitting up — a higher Town Hall or a higher base — are only given for{" "}
+                {CWL_MARKS.upNeedsStars} stars or more.
+              </li>
+              <li>
+                The war map never gives or takes more than {CWL_MARKS.baseCap}, however many bases up or below.
+              </li>
+              <li>
+                <span className="text-foreground font-medium">New stars only.</span> On a base a clanmate
+                already hit, 2 or 3 stars lose a mark for each star already taken: 3 stars on a base
+                already at 2 is 5 − 2 = +3. An attack that adds no new star gets no star marks and nothing
+                for hitting up. 1 star and 0 stars score as always.
+              </li>
+            </ul>
           </div>
           <div className="space-y-2">
             <h3 className="font-semibold">Defence</h3>
@@ -354,16 +392,35 @@ export default async function CwlRatingPage({
                 ["3-starred", CWL_MARKS.defence[3]],
                 ["3-starred by an enemy base lower on the map than yours", CWL_MARKS.tripledFromBelow],
                 ["Not attacked", 0],
+                ["The day's heroic defence", CWL_MARKS.heroicDefence],
               ]}
             />
             <p className="text-muted-foreground text-xs">
               Only the enemy&apos;s best attack on a base counts — the one that scores in the war.
             </p>
+
+            <h3 className="pt-2 font-semibold">Heroic attack and defence</h3>
+            <p className="text-muted-foreground">
+              One of each per day. The game does not tell us which they were, so they are picked here.
+            </p>
+            <ul className="text-muted-foreground list-disc space-y-1 pl-5 text-xs">
+              <li>
+                <span className="text-foreground font-medium">Attack:</span> the most stars, then the furthest
+                above their own Town Hall, then the furthest up the map, then the most destruction. It needs
+                at least {CWL_MARKS.upNeedsStars} stars and a new star for the clan.
+              </li>
+              <li>
+                <span className="text-foreground font-medium">Defence:</span> the fewest stars given, then the
+                least destruction, then the strongest attacker. A 3-starred base cannot be heroic.
+              </li>
+            </ul>
+
             <h3 className="pt-2 font-semibold">From marks to rating</h3>
             <p className="text-muted-foreground">
               Day share = your marks ÷ the whole clan&apos;s marks that day. 4 marks when the other players have
               47 between them is 4 ÷ 51 = 7.8%. A minus day is a minus share. The rating is the shares of
-              every finished day added up.
+              every finished day added up; players level on it are ordered by marks, then by average
+              destruction.
             </p>
           </div>
         </div>

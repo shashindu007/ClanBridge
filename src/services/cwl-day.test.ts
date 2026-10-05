@@ -22,6 +22,7 @@ function slot(
   tag: string,
   mapPosition: number,
   hit?: [stars: number, destruction: number, defender: string],
+  order: number | null = null,
 ): ScoutWarMember {
   return {
     warTag: WAR,
@@ -33,6 +34,7 @@ function slot(
     attackStars: hit?.[0] ?? null,
     attackDestruction: hit?.[1] ?? null,
     attackDefenderTag: hit?.[2] ?? null,
+    attackOrder: order,
   };
 }
 
@@ -152,5 +154,39 @@ describe("dayBoard", () => {
       });
       expect(asClan.theirs).toEqual({ used: 2, of: 3 });
     });
+  });
+});
+
+describe("what an attack found already taken (062)", () => {
+  // Us 1 and Us 2 both hit their #1; Us 3 hits their #2 alone.
+  const roster = [member(1), member(2), member(3)];
+  const foe = [slot(FOE, "#F1", 1), slot(FOE, "#F2", 2)];
+  const attacks = [attack(1, "#F1", 2, 80), attack(2, "#F1", 3, 100), attack(3, "#F2", 1, 40)];
+  const ours = (orders: [number | null, number | null, number | null]) => [
+    slot(US, "#U1", 1, [2, 80, "#F1"], orders[0]),
+    slot(US, "#U2", 2, [3, 100, "#F1"], orders[1]),
+    slot(US, "#U3", 3, [1, 40, "#F2"], orders[2]),
+  ];
+  const taken = (orders: [number | null, number | null, number | null]) =>
+    dayBoard({ roster, attacks, lineup: [...ours(orders), ...foe], ourTag: US, teamSize: 3 }).bases.map(
+      (b) => b.attack?.alreadyTaken,
+    );
+
+  it("is the best result clanmates had taken before it, by the order of attacks", () => {
+    // Us 1 went first with two stars, so Us 2's three found two already taken.
+    expect(taken([4, 9, 1])).toEqual([0, 2, 0]);
+    // The other way round, Us 1's two stars came after the base was tripled.
+    expect(taken([9, 4, 1])).toEqual([3, 0, 0]);
+  });
+
+  it("is not known for a base hit twice when the order was never recorded", () => {
+    expect(taken([null, null, null])).toEqual([null, null, 0]);
+    // One of the two missing is enough: there is no telling who was first.
+    expect(taken([4, null, 1])).toEqual([null, null, 0]);
+  });
+
+  it("is nothing for the only attack on a base, even with no lineup at all", () => {
+    const board = dayBoard({ roster, attacks: [attack(3, "#F2", 1, 40)], lineup: [], ourTag: US, teamSize: 3 });
+    expect(board.bases[2]!.attack?.alreadyTaken).toBe(0);
   });
 });

@@ -7,7 +7,7 @@
 -- BEGIN/COMMIT means a failure anywhere rolls the entire thing back, so you
 -- cannot end up with a half-applied schema.
 --
--- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql, 054_half_hour_snapshots.sql, 055_last_activity.sql, 056_notification_and_push_hardening.sql, 057_cwl_scouting.sql, 058_purge_cwl_scouting.sql, 059_purge_other_clans_only.sql, 060_scout_th_weapon.sql, 061_purge_keeps_our_wars.sql
+-- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql, 054_half_hour_snapshots.sql, 055_last_activity.sql, 056_notification_and_push_hardening.sql, 057_cwl_scouting.sql, 058_purge_cwl_scouting.sql, 059_purge_other_clans_only.sql, 060_scout_th_weapon.sql, 061_purge_keeps_our_wars.sql, 062_cwl_attack_order.sql
 --
 -- Two numbers are absent, retired rather than reused so that apply order
 -- stays equal to numeric order: 009 (cwl_signups, superseded by Phase 4B)
@@ -10878,6 +10878,34 @@ $$;
 
 revoke execute on function cwl_scouting_purge_preview() from public;
 grant execute on function cwl_scouting_purge_preview() to authenticated;
+
+-- ========================================================================
+-- 062_cwl_attack_order.sql
+-- ========================================================================
+
+-- 062 — The order of attacks within a CWL war.
+--
+-- 057 keeps each lineup member's one attack inline: stars, destruction, and
+-- the base it hit. It did not keep WHEN in the war the attack came, and the API
+-- says so on every attack (`order`, 1 for the first attack of the war).
+--
+-- The CWL player rating needs it. A base two clanmates attacked gave the clan
+-- its best result once, not twice: three stars on a base already at two added
+-- ONE star. Without the order there is no telling which attack came first, so
+-- both were rated as if they had opened the base.
+--
+-- One nullable column, on the table that already holds both sides of every
+-- group war. Null means "did not attack", or "recorded before 062" — the sync
+-- fills a missing order in for this season's own wars while the API still has
+-- them, and never touches the stars beside it. A row left without one is rated
+-- as a first hit, exactly as it was before.
+--
+-- No backfill here: the value exists only in the API, not in this database.
+
+alter table cwl_group_war_members add column attack_order smallint;
+
+comment on column cwl_group_war_members.attack_order is
+  'The API''s order of this attack within the war (1 = first). Null without an attack, or before 062.';
 
 commit;
 

@@ -24,6 +24,7 @@ import { createHarness, type Harness } from "./pg-harness";
 import { createPgliteSupabase } from "./pglite-supabase";
 import { runSyncJob } from "../scripts/sync/shared";
 import {
+  attackOrders,
   chooseSides,
   dayNumbers,
   groupTagsToFetch,
@@ -65,7 +66,7 @@ interface ApiWarSideFixture {
   members: Array<{
     tag: string;
     mapPosition: number;
-    attacks?: Array<{ defenderTag: string; stars: number }>;
+    attacks?: Array<{ defenderTag: string; stars: number; order?: number }>;
   }>;
 }
 
@@ -658,6 +659,55 @@ describe("T4.1 — the CWL sync", () => {
           await h.db.exec(`alter table cwl_group_war_members_hidden rename to cwl_group_war_members`);
           await h.db.exec(`alter table cwl_group_members_hidden rename to cwl_group_members`);
         }
+      });
+    });
+
+    describe("062 — the order of each attack within its war", () => {
+      const ATTACKS = [...OURS.members, ...THEIRS.members].filter((m) => m.attacks?.length);
+
+      it("records the API's order beside every attack, and none without one", async () => {
+        await runSyncJob("cwl", syncCwl, { client });
+        expect(await count(h, "cwl_group_war_members", "attack_stars is not null and attack_order is null")).toBe(0);
+        expect(await count(h, "cwl_group_war_members", "attack_stars is null and attack_order is not null")).toBe(0);
+
+        const someone = ATTACKS[0]!;
+        const res = await h.db.query<{ attack_order: number }>(
+          `select attack_order from cwl_group_war_members where tag = '${someone.tag}' limit 1`,
+        );
+        expect(res.rows[0]!.attack_order).toBe(someone.attacks![0]!.order);
+      });
+
+      it("fills the order in for one of our wars settled before 062, and rewrites nothing else", async () => {
+        await runSyncJob("cwl", syncCwl, { client });
+        const war = (await h.db.query<{ war_tag: string }>(`select war_tag from cwl_wars order by war_tag limit 1`))
+          .rows[0]!.war_tag;
+        // As a war settled before 062 looks: attacks without an order. The
+        // destruction is a marker — a backfill that rewrote the row would reset it.
+        await h.db.exec(`
+          update cwl_group_war_members set attack_order = null, attack_destruction = 1.23
+          where war_tag = '${war}' and attack_stars is not null;
+        `);
+
+        await runSyncJob("cwl", syncCwl, { client });
+        expect(await count(h, "cwl_group_war_members", `war_tag = '${war}' and attack_stars is not null and attack_order is null`)).toBe(0);
+        expect(await count(h, "cwl_group_war_members", `war_tag = '${war}' and attack_destruction = 1.23`)).toBe(ATTACKS.length);
+        // No row was added on the way: the lineup is the size it was.
+        expect(await count(h, "cwl_group_war_members", `war_tag = '${war}'`)).toBe(
+          OURS.members.length + THEIRS.members.length,
+        );
+      });
+
+      it("reads the order of both sides, and skips a member who did not attack", () => {
+        const war = {
+          clan: { tag: "#A", members: [
+            { tag: "#A1", name: "a1", attacks: [{ attackerTag: "#A1", defenderTag: "#B1", stars: 3, destruction: 100, order: 4 }] },
+            { tag: "#A2", name: "a2", attacks: [] },
+          ] },
+          opponent: { tag: "#B", members: [
+            { tag: "#B1", name: "b1", attacks: [{ attackerTag: "#B1", defenderTag: "#A2", stars: 1, destruction: 40, order: 1 }] },
+          ] },
+        } as unknown as War;
+        expect([...attackOrders(war)]).toEqual([["#A1", 4], ["#B1", 1]]);
       });
     });
 

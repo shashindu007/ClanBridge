@@ -7,14 +7,32 @@
 // from the same constants, so the explanation cannot drift from the sums.
 //
 //   ATTACK   3★ +5 · 2★ +1 · 1★ −3 · 0★ −10 · no attack −10
-//            a higher Town Hall than their own   +3 a level   } only with
-//            a base higher on the map than theirs +1 a base   } 2 stars or more
-//            their mirror +1 · a base below their own −1 (flat)
-//            the same Town Hall +1 · a lower one nothing
+//            2★ with 90% or more +1
+//            Town Hall:  each level above their own +3 (2★ or more)
+//                        the same +1 · each level below −1
+//            War map:    each base above their own +1 (2★ or more)
+//                        their mirror +1 · each base below −1
+//                        — never more than 10 either way
+//            Falling short away from the mirror, on top of the stars:
+//                        hitting up    2★ −2 (under 2★ the up marks are
+//                                      already lost, and that is the cost)
+//                        hitting down  2★ −3 · 1★ −6 · 0★ −10
+//            the day's heroic attack +5
+//
+//   NEW STARS ONLY. A base a clanmate already hit gave the clan its best result
+//   once. So a 2★ or 3★ loses a mark for each star already taken (3★ on a base
+//   already at 2★ is 5 − 2 = +3), and one that adds no new star earns no star
+//   marks and nothing for hitting up. A 1★ or 0★ is what it always was.
 //
 //   DEFENCE  the enemy's BEST hit on the base, the one that scores in the war:
 //            held to 0★ +10 · 1★ +5 · 2★ +3 · 3★ 0
 //            3-starred by an enemy lower on the map −2 · not attacked 0
+//            the day's heroic defence +5
+//
+//   HEROIC   one attack and one defence per clan per day, as the game shows
+//            them. The API does not say which — an attack carries stars,
+//            destruction, order and duration and nothing else — so they are
+//            chosen here, by the comparisons in heroicAttack / heroicDefence.
 //
 //   DAY %    a player's marks ÷ everyone's marks that day. A minus day is a
 //            minus share; a day the whole clan ends at 0 or less counts 0.
@@ -38,21 +56,47 @@ export const CWL_MARKS = {
   stars: [-10, -3, 1, 5],
   /** In the lineup of a finished day, and did not attack. */
   missed: -10,
+  /** Two stars that came this close to three. */
+  nearMiss: { stars: 2, destruction: 90, marks: 1 },
+
   /** Per Town Hall level the target stood above the attacker's own. */
   thUp: 3,
+  sameTh: 1,
+  /** Per Town Hall level the target stood below the attacker's own. */
+  thBelow: -1,
+
   /** Per base the target stood above the attacker's own on the map. */
   baseUp: 1,
-  /** The up marks are given only for at least this many stars. */
-  upNeedsStars: 2,
   mirror: 1,
-  /** Flat, however far below. */
+  /** Per base the target stood below the attacker's own. */
   baseBelow: -1,
-  sameTh: 1,
+  /** The most the map can give or take, so a position never outweighs the stars. */
+  baseCap: 10,
+  /**
+   * Not finishing the job, by stars taken (0 to 3), on top of the stars' own
+   * marks. Reaching for a higher base and stopping at two stars costs a
+   * little — and nothing more below that, where the up marks are not given at
+   * all, which is the cost already. Dropping to a lower base and still not
+   * clearing it costs more, the worse the result.
+   */
+  shortUp: [0, 0, -2, 0],
+  shortDown: [-10, -6, -3, 0],
+
+  /** The up marks, and the heroic attack, are only for at least this many stars. */
+  upNeedsStars: 2,
+  heroicAttack: 5,
+
   /** By the stars the enemy's best hit took, 0 to 3. */
   defence: [10, 5, 3, 0],
   /** 3-starred by an enemy whose base is lower on the map than the defender's. */
   tripledFromBelow: -2,
+  heroicDefence: 5,
 } as const;
+
+/** "without 3 stars", "without 2 stars", "without a star" — what a short result lacked. */
+function lacking(stars: number): string {
+  return stars === 0 ? "without a star" : `without ${stars + 1} stars`;
+}
 
 /** One line of the sum, in words, so a row can show where its marks came from. */
 export interface MarkLine {
@@ -74,6 +118,10 @@ export interface PlayerDayRating {
   marks: number;
   /** Their share of the clan's marks that day, as a percentage. */
   share: number;
+  /** Their attack's destruction, for the season's tie-break. Null without an attack. */
+  destruction: number | null;
+  heroicAttack: boolean;
+  heroicDefence: boolean;
 }
 
 /**
@@ -90,6 +138,11 @@ export interface DayRating {
   total: number;
   /** In map order. Empty unless counted or provisional. */
   players: PlayerDayRating[];
+  /**
+   * A base was hit more than once and the order of those attacks was never
+   * recorded (062), so each was rated as a first hit.
+   */
+  orderMissing: boolean;
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -100,24 +153,56 @@ export function attackLines(base: DayBase, over: boolean): MarkLine[] {
   const attack = base.attack;
   if (!attack) return over ? [{ label: "Did not attack", marks: CWL_MARKS.missed }] : [];
 
-  const lines: MarkLine[] = [
-    { label: plural(attack.stars, "star"), marks: CWL_MARKS.stars[attack.stars] ?? 0 },
-  ];
-  const earnedUp = attack.stars >= CWL_MARKS.upNeedsStars;
+  const table = CWL_MARKS.stars[attack.stars] ?? 0;
+  const taken = attack.alreadyTaken ?? 0;
+  // New stars only — for a result worth having. A 1★ or 0★ is scored as it
+  // always was: failing a base someone already opened is no better.
+  const good = attack.stars >= CWL_MARKS.upNeedsStars;
+  const nothingNew = good && taken >= attack.stars;
+  const lines: MarkLine[] = [];
+
+  if (nothingNew) {
+    lines.push({ label: `${plural(attack.stars, "star")}, none new`, marks: 0 });
+  } else if (good && taken > 0) {
+    lines.push({
+      label: `${plural(attack.stars, "star")}, ${taken} already taken`,
+      marks: table - taken,
+    });
+  } else {
+    lines.push({ label: plural(attack.stars, "star"), marks: table });
+  }
+
+  const { nearMiss } = CWL_MARKS;
+  if (attack.stars === nearMiss.stars && attack.destruction >= nearMiss.destruction && !nothingNew) {
+    lines.push({ label: `${nearMiss.destruction}% or more`, marks: nearMiss.marks });
+  }
+
+  // Hitting up is paid for a result, and for a result the clan did not have.
+  const earnedUp = good && !nothingNew;
+  const unearned = nothingNew ? "no new star" : `under ${CWL_MARKS.upNeedsStars} stars`;
   const target = attack.target;
 
   if (target && target.base !== null && base.base !== null) {
     const up = base.base - target.base;
+    const capped = Math.min(Math.abs(up), CWL_MARKS.baseCap);
+    const limit = Math.abs(up) > CWL_MARKS.baseCap ? `, counted as ${CWL_MARKS.baseCap}` : "";
     if (up > 0) {
       lines.push(
         earnedUp
-          ? { label: `${plural(up, "base")} up`, marks: up * CWL_MARKS.baseUp }
-          : { label: `${plural(up, "base")} up, under ${CWL_MARKS.upNeedsStars} stars`, marks: 0 },
+          ? { label: `${plural(up, "base")} up${limit}`, marks: capped * CWL_MARKS.baseUp }
+          : { label: `${plural(up, "base")} up, ${unearned}`, marks: 0 },
       );
     } else if (up === 0) {
       lines.push({ label: "Mirror", marks: CWL_MARKS.mirror });
     } else {
-      lines.push({ label: "Base below", marks: CWL_MARKS.baseBelow });
+      lines.push({ label: `${plural(-up, "base")} below${limit}`, marks: capped * CWL_MARKS.baseBelow });
+    }
+
+    // Falling short away from the mirror, on the attack's own stars: what a
+    // clanmate took before does not make a 2★ any more of a 3★.
+    const short = (up > 0 ? CWL_MARKS.shortUp : CWL_MARKS.shortDown)[attack.stars] ?? 0;
+    if (up !== 0 && short !== 0) {
+      lines.push({ label: `Hitting ${up > 0 ? "up" : "down"} ${lacking(attack.stars)}`, marks: short });
     }
   }
 
@@ -127,10 +212,12 @@ export function attackLines(base: DayBase, over: boolean): MarkLine[] {
       lines.push(
         earnedUp
           ? { label: `${up} TH up`, marks: up * CWL_MARKS.thUp }
-          : { label: `${up} TH up, under ${CWL_MARKS.upNeedsStars} stars`, marks: 0 },
+          : { label: `${up} TH up, ${unearned}`, marks: 0 },
       );
     } else if (up === 0) {
       lines.push({ label: "Same TH", marks: CWL_MARKS.sameTh });
+    } else {
+      lines.push({ label: `${-up} TH below`, marks: -up * CWL_MARKS.thBelow });
     }
   }
   return lines;
@@ -160,6 +247,67 @@ export function defenceLines(base: DayBase): MarkLine[] {
 }
 
 /**
+ * The day's heroic attack: the most stars, then the furthest above their own
+ * Town Hall, then the furthest up the map, then the most destruction.
+ *
+ * It has to be a result — at least two stars — and one the clan did not
+ * already have. A day whose best attack was one star has no heroic attack.
+ */
+export function heroicAttack(bases: readonly DayBase[]): DayBase | null {
+  const thUp = (b: DayBase) =>
+    b.attack?.target?.thLevel != null && b.thLevel !== null ? b.attack.target.thLevel - b.thLevel : 0;
+  const mapUp = (b: DayBase) =>
+    b.attack?.target?.base != null && b.base !== null ? b.base - b.attack.target.base : 0;
+
+  const eligible = bases.filter((b) => {
+    const attack = b.attack;
+    return (
+      !!attack &&
+      attack.stars >= CWL_MARKS.upNeedsStars &&
+      (attack.alreadyTaken ?? 0) < attack.stars
+    );
+  });
+  return (
+    eligible.sort(
+      (a, b) =>
+        b.attack!.stars - a.attack!.stars ||
+        thUp(b) - thUp(a) ||
+        mapUp(b) - mapUp(a) ||
+        b.attack!.destruction - a.attack!.destruction ||
+        (a.base ?? 99) - (b.base ?? 99),
+    )[0] ?? null
+  );
+}
+
+/**
+ * The day's heroic defence: the fewest stars given, then the least destruction,
+ * then against the strongest attacker — the highest Town Hall over the
+ * defender's own, then the highest on the map.
+ *
+ * Judged on the enemy's best hit, like every defence. A 3-starred base cannot
+ * be heroic, and a base nobody attacked defended nothing.
+ */
+export function heroicDefence(bases: readonly DayBase[]): DayBase | null {
+  const best = (b: DayBase) => b.defences[0]!;
+  const thOver = (b: DayBase) => {
+    const by = best(b).by.thLevel;
+    return by !== null && b.thLevel !== null ? by - b.thLevel : 0;
+  };
+  return (
+    bases
+      .filter((b) => b.defences.length > 0 && best(b).stars < 3)
+      .sort(
+        (a, b) =>
+          best(a).stars - best(b).stars ||
+          best(a).destruction - best(b).destruction ||
+          thOver(b) - thOver(a) ||
+          (best(a).by.base ?? 99) - (best(b).by.base ?? 99) ||
+          (a.base ?? 99) - (b.base ?? 99),
+      )[0] ?? null
+  );
+}
+
+/**
  * One day's marks and shares.
  *
  * `state` is the war day's stored state; `final` is true once the season has
@@ -167,13 +315,20 @@ export function defenceLines(base: DayBase): MarkLine[] {
  * "running" for ever.
  */
 export function dayRating(board: DayBoard, state: string | null, final = false): DayRating {
-  if (state === "preparation") return { status: "notStarted", total: 0, players: [] };
-  if (!board.enemyKnown) return { status: "notRated", total: 0, players: [] };
+  if (state === "preparation") return { status: "notStarted", total: 0, players: [], orderMissing: false };
+  if (!board.enemyKnown) return { status: "notRated", total: 0, players: [], orderMissing: false };
 
   const over = state === "warEnded" || final;
+  const bestAttack = heroicAttack(board.bases);
+  const bestDefence = heroicDefence(board.bases);
+
   const rows = board.bases.map((base) => {
+    const isHeroicAttack = bestAttack?.playerId === base.playerId;
+    const isHeroicDefence = bestDefence?.playerId === base.playerId;
     const attack = attackLines(base, over);
     const defence = defenceLines(base);
+    if (isHeroicAttack) attack.push({ label: "Heroic attack", marks: CWL_MARKS.heroicAttack });
+    if (isHeroicDefence) defence.push({ label: "Heroic defence", marks: CWL_MARKS.heroicDefence });
     const attackMarks = sum(attack);
     const defenceMarks = sum(defence);
     return {
@@ -187,6 +342,9 @@ export function dayRating(board: DayBoard, state: string | null, final = false):
       attackMarks,
       defenceMarks,
       marks: attackMarks + defenceMarks,
+      destruction: base.attack?.destruction ?? null,
+      heroicAttack: isHeroicAttack,
+      heroicDefence: isHeroicDefence,
     };
   });
 
@@ -196,6 +354,7 @@ export function dayRating(board: DayBoard, state: string | null, final = false):
     total,
     // A clan total of 0 or less has no shares to hand out: the day counts 0.
     players: rows.map((r) => ({ ...r, share: total > 0 ? (r.marks / total) * 100 : 0 })),
+    orderMissing: board.bases.some((b) => b.attack?.alreadyTaken === null),
   };
 }
 
@@ -203,6 +362,7 @@ export interface RatedDay {
   dayNumber: number | null;
   status: DayRatingStatus;
   total: number;
+  orderMissing: boolean;
 }
 
 export interface PlayerSeasonRating {
@@ -217,13 +377,21 @@ export interface PlayerSeasonRating {
   /** The finished days' marks added up. */
   marks: number;
   daysCounted: number;
+  /**
+   * The rating per finished day they were fielded. The rating is a sum, so
+   * seven days always outweigh four; this is the two compared like for like.
+   * Null before their first finished day.
+   */
+  perDay: number | null;
+  /** Average destruction over their attacks on finished days. Null with none. */
+  averageDestruction: number | null;
   /** The running day, when there is one and they are in it. Not in `rating`. */
   provisional: PlayerDayRating | null;
 }
 
 export interface SeasonRating {
   days: RatedDay[];
-  /** Best first: rating, then marks, then the running day's share. */
+  /** Best first: rating, then marks, then average destruction. */
   players: PlayerSeasonRating[];
   /** At least one day is counted — otherwise every rating is still 0. */
   started: boolean;
@@ -234,20 +402,23 @@ export function seasonRating(
   final = false,
 ): SeasonRating {
   const rated = days.map((d) => dayRating(d.board, d.state, final));
-  const byPlayer = new Map<string, PlayerSeasonRating>();
+  const byPlayer = new Map<string, PlayerSeasonRating & { destroyed: number[] }>();
 
   rated.forEach((day, index) => {
     for (const p of day.players) {
-      const row: PlayerSeasonRating = byPlayer.get(p.playerId) ?? {
+      const row = byPlayer.get(p.playerId) ?? {
         playerId: p.playerId,
         tag: p.tag,
         name: p.name,
         thLevel: p.thLevel,
-        days: days.map(() => null),
+        days: days.map((): PlayerDayRating | null => null),
         rating: 0,
         marks: 0,
         daysCounted: 0,
+        perDay: null,
+        averageDestruction: null,
         provisional: null,
+        destroyed: [],
       };
       row.days[index] = p;
       row.name = p.name;
@@ -256,6 +427,7 @@ export function seasonRating(
         row.rating += p.share;
         row.marks += p.marks;
         row.daysCounted += 1;
+        if (p.destruction !== null) row.destroyed.push(p.destruction);
       } else if (day.status === "provisional") {
         row.provisional = p;
       }
@@ -263,16 +435,24 @@ export function seasonRating(
     }
   });
 
+  const players = [...byPlayer.values()].map(({ destroyed, ...row }): PlayerSeasonRating => ({
+    ...row,
+    perDay: row.daysCounted ? row.rating / row.daysCounted : null,
+    averageDestruction: destroyed.length ? destroyed.reduce((t, v) => t + v, 0) / destroyed.length : null,
+  }));
+
   return {
     days: rated.map((day, index) => ({
       dayNumber: days[index]!.dayNumber,
       status: day.status,
       total: day.total,
+      orderMissing: day.orderMissing,
     })),
-    players: [...byPlayer.values()].sort(
+    players: players.sort(
       (a, b) =>
         b.rating - a.rating ||
         b.marks - a.marks ||
+        (b.averageDestruction ?? -1) - (a.averageDestruction ?? -1) ||
         (b.provisional?.share ?? 0) - (a.provisional?.share ?? 0) ||
         a.name.localeCompare(b.name),
     ),

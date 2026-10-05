@@ -163,6 +163,7 @@ export default async function CwlRatingPage({
       (a, b) =>
         b.player.rating - a.player.rating ||
         b.player.marks - a.player.marks ||
+        (b.player.averageDestruction ?? -1) - (a.player.averageDestruction ?? -1) ||
         (b.player.provisional?.share ?? 0) - (a.player.provisional?.share ?? 0) ||
         a.player.name.localeCompare(b.player.name),
     );
@@ -234,6 +235,9 @@ export default async function CwlRatingPage({
                   <TableHead className="text-right">Days</TableHead>
                   <TableHead className="text-right">Marks</TableHead>
                   {running && <TableHead className="text-right">Today so far</TableHead>}
+                  <TableHead className="text-right" title="Rating divided by the finished days they played">
+                    Per day
+                  </TableHead>
                   <TableHead className="text-right">Rating</TableHead>
                 </TableRow>
               </TableHeader>
@@ -291,6 +295,9 @@ export default async function CwlRatingPage({
                           : "—"}
                       </TableCell>
                     )}
+                    <TableCell className="text-muted-foreground text-right text-sm tabular-nums">
+                      {player.perDay === null ? "—" : oneDecimal(player.perDay)}
+                    </TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">
                       {oneDecimal(player.rating)}
                     </TableCell>
@@ -302,8 +309,9 @@ export default async function CwlRatingPage({
         )}
 
         <p className="text-muted-foreground text-xs">
-          Marks are for attack and defence: stars, hitting a higher Town Hall or a higher base, and how
-          a base holds up. The rules, and every player&apos;s sum for each day, are on each clan&apos;s own
+          Marks are for attack and defence: stars, hitting a higher Town Hall or a higher base, the
+          day&apos;s heroic attack and defence, and how a base holds up. &ldquo;Per day&rdquo; is the rating divided
+          by the finished days played. The rules, and every player&apos;s sum for each day, are on each clan&apos;s own
           rating page — {only ? "the link above" : "follow a clan's name"}.
         </p>
       </Panel>

@@ -47,6 +47,7 @@ function slot(
     attackStars: attack?.[0] ?? null,
     attackDestruction: attack?.[1] ?? null,
     attackDefenderTag: attack?.[2] ?? null,
+    attackOrder: null,
   };
 }
 
