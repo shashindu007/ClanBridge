@@ -49,18 +49,20 @@ function base(
   };
 }
 
-function board(bases: DayBase[], enemyKnown = true): DayBoard {
+function board(bases: DayBase[], enemyKnown = true, enemyBases: number | null = null): DayBoard {
   return {
     bases,
     enemyKnown,
     ours: { used: bases.filter((b) => b.attack).length, of: bases.length },
-    theirs: { used: null, of: bases.length },
+    theirs: { used: null, of: enemyBases },
     basesHit: bases.filter((b) => b.defences.length).length,
     basesTripled: 0,
   };
 }
 
 const marks = (lines: Array<{ marks: number }>) => lines.reduce((t, l) => t + l.marks, 0);
+/** A base's defence lines once the day is over. */
+const defended = (b: DayBase) => defenceLines(b, true);
 
 describe("attack marks", () => {
   it("gives the clan's own example: our #14 (TH16) triples their #8 (TH17) = 14", () => {
@@ -98,13 +100,14 @@ describe("attack marks", () => {
   });
 
   it("takes a mark for every base below and every Town Hall level below", () => {
-    expect(attackLines(base(1, { attack: [3, 4, 16] }), true)).toEqual([
+    expect(attackLines(base(1, { attack: [3, 3, 16] }), true)).toEqual([
       { label: "3 stars", marks: 5 },
-      { label: "3 bases below", marks: -3 },
+      { label: "2 bases below", marks: -2 },
       { label: "1 TH below", marks: -1 },
     ]);
+    expect(attackLines(base(1, { attack: [3, 2, 17] }), true)[1]).toEqual({ label: "1 base below", marks: -1 });
     // …with or without a result. (One star hitting down also loses 6 — below.)
-    expect(marks(attackLines(base(1, { attack: [1, 4, 15] }), true))).toBe(-3 - 3 - 2 - 6);
+    expect(marks(attackLines(base(1, { attack: [1, 3, 15] }), true))).toBe(-3 - 2 - 2 - 6);
   });
 
   it("takes 2 for stopping at two stars on a higher base, and nothing more below that", () => {
@@ -122,15 +125,15 @@ describe("attack marks", () => {
   });
 
   it("takes more for not clearing a lower base: 3 without 3 stars, 6 without 2, 10 without any", () => {
-    // Our #1 on their #4 at the same Town Hall: 3 bases below and +1.
-    const of = (stars: number) => attackLines(base(1, { attack: [stars, 4, 17] }), true);
-    expect(marks(of(3))).toBe(5 - 3 + 1);
+    // Our #1 on their #3 at the same Town Hall: 2 bases below and +1.
+    const of = (stars: number) => attackLines(base(1, { attack: [stars, 3, 17] }), true);
+    expect(marks(of(3))).toBe(5 - 2 + 1);
     expect(of(2)).toContainEqual({ label: "Hitting down without 3 stars", marks: -3 });
-    expect(marks(of(2))).toBe(1 - 3 + 1 - 3);
+    expect(marks(of(2))).toBe(1 - 2 + 1 - 3);
     expect(of(1)).toContainEqual({ label: "Hitting down without 2 stars", marks: -6 });
-    expect(marks(of(1))).toBe(-3 - 3 + 1 - 6);
+    expect(marks(of(1))).toBe(-3 - 2 + 1 - 6);
     expect(of(0)).toContainEqual({ label: "Hitting down without a star", marks: -10 });
-    expect(marks(of(0))).toBe(-10 - 3 + 1 - 10);
+    expect(marks(of(0))).toBe(-10 - 2 + 1 - 10);
   });
 
   it("takes nothing extra on the mirror, whatever the result", () => {
@@ -140,12 +143,18 @@ describe("attack marks", () => {
     }
   });
 
-  it("never lets the map give or take more than 10", () => {
+  it("never lets the map give more than 10 for bases up, or take more than 2 for bases below", () => {
     expect(attackLines(base(1, { attack: [3, 15, 14] }), true)).toEqual([
       { label: "3 stars", marks: 5 },
-      { label: "14 bases below, counted as 10", marks: -10 },
+      { label: "14 bases below, counted as 2", marks: -2 },
       { label: "3 TH below", marks: -3 },
     ]);
+    // Exactly 2 below is not "counted as" anything; 3 is.
+    expect(attackLines(base(1, { attack: [3, 3, 17] }), true)[1]).toEqual({ label: "2 bases below", marks: -2 });
+    expect(attackLines(base(1, { attack: [3, 4, 17] }), true)[1]).toEqual({
+      label: "3 bases below, counted as 2",
+      marks: -2,
+    });
     expect(attackLines(base(15, { attack: [3, 1, 17] }), true)).toEqual([
       { label: "3 stars", marks: 5 },
       { label: "14 bases up, counted as 10", marks: 10 },
@@ -222,27 +231,28 @@ describe("new stars only", () => {
 
 describe("defence marks", () => {
   it("scores the enemy's best hit: 0★ +10, 1★ +5, 2★ +3, 3★ 0", () => {
-    const of = (stars: number) => marks(defenceLines(base(5, { hits: [[stars, 2]] })));
+    const of = (stars: number) => marks(defended(base(5, { hits: [[stars, 2]] })));
     expect([0, 1, 2, 3].map(of)).toEqual([10, 5, 3, 0]);
   });
 
   it("counts only the best hit on a base attacked twice", () => {
-    expect(defenceLines(base(5, { hits: [[2, 3], [0, 9]] }))).toEqual([{ label: "Held to 2 stars", marks: 3 }]);
+    expect(defended(base(5, { hits: [[2, 3], [0, 9]] }))).toEqual([{ label: "Held to 2 stars", marks: 3 }]);
   });
 
-  it("gives nothing for a base nobody attacked", () => {
-    expect(defenceLines(base(5))).toEqual([]);
+  it("gives 2 for a base nobody attacked — once the day is over, not while it runs", () => {
+    expect(defenceLines(base(5), true)).toEqual([{ label: "Not attacked", marks: 2 }]);
+    expect(defenceLines(base(5), false)).toEqual([]);
   });
 
   it("takes 2 when a lower base 3-stars it, and not when a higher or mirror base does", () => {
-    expect(defenceLines(base(5, { hits: [[3, 12]] }))).toEqual([
+    expect(defended(base(5, { hits: [[3, 12]] }))).toEqual([
       { label: "3-starred", marks: 0 },
       { label: "By their #12, a lower base", marks: -2 },
     ]);
-    expect(marks(defenceLines(base(5, { hits: [[3, 5]] })))).toBe(0);
-    expect(marks(defenceLines(base(5, { hits: [[3, 1]] })))).toBe(0);
+    expect(marks(defended(base(5, { hits: [[3, 5]] })))).toBe(0);
+    expect(marks(defended(base(5, { hits: [[3, 1]] })))).toBe(0);
     // Two stars from below is not a triple.
-    expect(marks(defenceLines(base(5, { hits: [[2, 12]] })))).toBe(3);
+    expect(marks(defended(base(5, { hits: [[2, 12]] })))).toBe(3);
   });
 });
 
@@ -291,21 +301,21 @@ describe("dayRating", () => {
   it("is each player's share of the clan's marks: 4 of (47 + 4)", () => {
     const day = dayRating(
       board([
-        base(1, { attack: [3, 3, 17] }), // 5 − 2 below + 1 same TH = 4
-        base(2, { attack: [3, 2, 17], hits: [[1, 2]] }), // 5 + 1 + 1, held to 1★ +5 = 12
-        base(3, { th: 16, attack: [3, 1, 17], hits: [[3, 3]] }), // 5 + 2 up + 3, heroic +5 = 15
-        base(4, { attack: [3, 5, 17], hits: [[0, 4]] }), // 5 − 1 + 1, held to 0★ +10, heroic +5 = 20
+        base(1, { attack: [3, 3, 17], hits: [[3, 1]] }), // 5 − 2 below + 1 same TH, 3-starred 0 = 4
+        base(2, { th: 16, attack: [3, 2, 17], hits: [[1, 2]] }), // 5 + 1 + 3 TH up, held to 1★ +5 = 14
+        base(3, { th: 15, attack: [3, 1, 17], hits: [[3, 3]] }), // 5 + 2 up + 6, heroic +3 = 16
+        base(4, { attack: [2, 4, 17], destruction: 90, hits: [[0, 4]] }), // 1 + 1 + 1 + 1, held to 0★ +10, heroic +3 = 17
       ]),
       "warEnded",
     );
-    expect(day.players.map((p) => p.marks)).toEqual([4, 12, 15, 20]);
+    expect(day.players.map((p) => p.marks)).toEqual([4, 14, 16, 17]);
     expect(day.total).toBe(51);
     expect(day.players[0]!.share).toBeCloseTo((4 / 51) * 100, 6);
     expect(day.players.reduce((t, p) => t + p.share, 0)).toBeCloseTo(100, 6);
     expect(day.status).toBe("counted");
   });
 
-  it("gives the heroic +5 to exactly one attack and one defence", () => {
+  it("gives the heroic +3 to exactly one attack and one defence", () => {
     const day = dayRating(
       board([
         base(1, { attack: [3, 1, 17], hits: [[0, 1]] }),
@@ -316,33 +326,34 @@ describe("dayRating", () => {
     );
     expect(day.players.filter((p) => p.heroicAttack).map((p) => p.name)).toEqual(["Us 1"]);
     expect(day.players.filter((p) => p.heroicDefence).map((p) => p.name)).toEqual(["Us 1"]);
-    expect(day.players[0]!.attack.at(-1)).toEqual({ label: "Heroic attack", marks: 5 });
-    expect(day.players[0]!.defence.at(-1)).toEqual({ label: "Heroic defence", marks: 5 });
-    expect(day.players.map((p) => p.marks)).toEqual([7 + 5 + 10 + 5, 7 + 10, 7 + 3]);
+    expect(day.players[0]!.attack.at(-1)).toEqual({ label: "Heroic attack", marks: 3 });
+    expect(day.players[0]!.defence.at(-1)).toEqual({ label: "Heroic defence", marks: 3 });
+    expect(day.players.map((p) => p.marks)).toEqual([7 + 3 + 10 + 3, 7 + 10, 7 + 3]);
   });
 
   it("makes a minus day a minus share", () => {
+    // No attack −10 and left alone +2; three stars on the mirror 7, heroic +3, left alone +2.
     const day = dayRating(board([base(1), base(2, { attack: [3, 2, 17] })]), "warEnded");
-    expect(day.players.map((p) => p.marks)).toEqual([-10, 12]);
-    expect(day.players[0]!.share).toBeCloseTo((-10 / 2) * 100, 6);
+    expect(day.players.map((p) => p.marks)).toEqual([-8, 12]);
+    expect(day.players[0]!.share).toBeCloseTo((-8 / 4) * 100, 6);
   });
 
   it("counts 0 for everyone when the clan's total is 0 or less", () => {
     const day = dayRating(board([base(1), base(2, { attack: [1, 2, 17] })]), "warEnded");
-    expect(day.total).toBe(-10 + -1);
+    expect(day.total).toBe(-10 + 2 + -1 + 2);
     expect(day.players.map((p) => p.share)).toEqual([0, 0]);
   });
 
-  it("is provisional while the day runs, with no penalty yet for an attack not used", () => {
+  it("is provisional while the day runs: nothing yet for an attack not used or a base left alone", () => {
     const day = dayRating(board([base(1), base(2, { attack: [3, 2, 17] })]), "inWar");
     expect(day.status).toBe("provisional");
-    expect(day.players.map((p) => p.marks)).toEqual([0, 12]);
+    expect(day.players.map((p) => p.marks)).toEqual([0, 10]);
   });
 
   it("counts a day the sync never saw finish once the season is over", () => {
     const day = dayRating(board([base(1)]), "inWar", true);
     expect(day.status).toBe("counted");
-    expect(day.players[0]!.marks).toBe(-10);
+    expect(day.players[0]!.marks).toBe(-10 + 2);
   });
 
   it("does not rate a preparation day, or a day whose enemy lineup was never recorded", () => {
@@ -364,16 +375,16 @@ describe("dayRating", () => {
 
 describe("seasonRating", () => {
   const day1 = board([
-    base(1, { attack: [3, 1, 17] }), // 7, heroic +5 = 12
-    base(2, { attack: [2, 2, 17] }), // 3
+    base(1, { attack: [3, 1, 17] }), // 7, heroic +3, left alone +2 = 12
+    base(2, { attack: [2, 2, 17] }), // 3, left alone +2 = 5
   ]);
   const day2 = board([
-    base(1, { attack: [2, 1, 17] }), // 3
+    base(1, { attack: [2, 1, 17] }), // 5
     base(3, { attack: [3, 3, 17] }), // 12 — only fielded on day 2
   ]);
   const live = board([
     base(1), // not attacked yet
-    base(2, { attack: [3, 2, 17] }), // 12
+    base(2, { attack: [3, 2, 17] }), // 7, heroic +3 = 10 — nothing for a base left alone yet
   ]);
 
   const season = seasonRating([
@@ -385,13 +396,13 @@ describe("seasonRating", () => {
 
   it("adds the finished days' shares up, and leaves the running day out", () => {
     const us1 = season.players.find((p) => p.name === "Us 1")!;
-    expect(us1.rating).toBeCloseTo(80 + 20, 6);
-    expect(us1.marks).toBe(15);
+    expect(us1.rating).toBeCloseTo(((12 + 5) / 17) * 100, 6);
+    expect(us1.marks).toBe(17);
     expect(us1.daysCounted).toBe(2);
     expect(us1.provisional?.marks).toBe(0);
 
     const us2 = season.players.find((p) => p.name === "Us 2")!;
-    expect(us2.rating).toBeCloseTo(20, 6);
+    expect(us2.rating).toBeCloseTo((5 / 17) * 100, 6);
     expect(us2.provisional?.share).toBeCloseTo(100, 6);
   });
 
@@ -401,7 +412,7 @@ describe("seasonRating", () => {
     expect(us1.averageDestruction).toBe(80);
 
     const us3 = season.players.find((p) => p.name === "Us 3")!;
-    expect(us3.perDay).toBeCloseTo(80, 6);
+    expect(us3.perDay).toBeCloseTo((12 / 17) * 100, 6);
   });
 
   it("ranks by the rating", () => {
@@ -443,6 +454,83 @@ describe("seasonRating", () => {
 describe("signed", () => {
   it("prints marks with their sign", () => {
     expect([5, -3, 0].map(signed)).toEqual(["+5", "−3", "0"]);
+  });
+
+  it("prints a decimal only where there is one, and never the drift of adding tenths", () => {
+    expect([12.2, -3.5, 8.0, 0.3, 0.1 + 0.2, 12.200000000000001].map(signed)).toEqual([
+      "+12.2",
+      "−3.5",
+      "+8",
+      "+0.3",
+      "+0.3",
+      "+12.2",
+    ]);
+  });
+});
+
+describe("the target's place on their map", () => {
+  // Every base at TH17, so only the map moves.
+  const of = (own: number, target: number, stars = 3, enemyBases: number | null = 15, taken: number | null = 0) =>
+    attackLines(base(own, { attack: [stars, target, 17], taken }), true, enemyBases);
+
+  it("gives 3 stars on their last base 1, and 0.3 more for each place higher", () => {
+    expect(of(15, 15)).toContainEqual({ label: "Their #15 of 15", marks: 1 });
+    expect(of(14, 14)).toContainEqual({ label: "Their #14 of 15", marks: 1.3 });
+    expect(of(8, 8)).toContainEqual({ label: "Their #8 of 15", marks: 3.1 });
+    expect(of(1, 1)).toContainEqual({ label: "Their #1 of 15", marks: 5.2 });
+  });
+
+  it("makes a mirror at the top worth more than a mirror at the bottom", () => {
+    expect(marks(of(1, 1))).toBeCloseTo(7 + 5.2, 6);
+    expect(marks(of(15, 15))).toBeCloseTo(7 + 1, 6);
+  });
+
+  it("adds to the marks for reaching up or dropping down, and replaces none", () => {
+    // Our #15 on their #1: 5 + 10 (14 up, counted as 10) + 1 same TH + 5.2.
+    expect(marks(of(15, 1))).toBeCloseTo(21.2, 6);
+    // Our #1 on their #15: 5 − 2 (14 below, counted as 2) + 1 same TH + 1.
+    expect(marks(of(1, 15))).toBeCloseTo(5, 6);
+  });
+
+  it("is only for 3 stars", () => {
+    for (const stars of [2, 1, 0]) {
+      expect(of(1, 1, stars).some((l) => l.label.startsWith("Their #"))).toBe(false);
+    }
+  });
+
+  it("is not given to a third star on a base a clanmate had already tripled", () => {
+    expect(of(1, 1, 3, 15, 3).some((l) => l.label.startsWith("Their #"))).toBe(false);
+    // …but is to one that took the base from two stars to three.
+    expect(of(1, 1, 3, 15, 2)).toContainEqual({ label: "Their #1 of 15", marks: 5.2 });
+  });
+
+  it("keeps 0.3 a base in a 30-base war, so their #1 is worth 9.7", () => {
+    expect(of(1, 1, 3, 30)).toContainEqual({ label: "Their #1 of 30", marks: 9.7 });
+    expect(of(30, 30, 3, 30)).toContainEqual({ label: "Their #30 of 30", marks: 1 });
+  });
+
+  it("is left out when the lineup size or the target is not known", () => {
+    expect(of(1, 1, 3, null).some((l) => l.label.startsWith("Their #"))).toBe(false);
+    const unknown = attackLines(base(1, { attack: [3, null, null] }), true, 15);
+    expect(unknown).toEqual([{ label: "3 stars", marks: 5 }]);
+  });
+
+  it("reaches the day's marks, to one decimal", () => {
+    const day = dayRating(
+      board(
+        [
+          base(1, { attack: [3, 1, 17] }), // 7 + 5.2, heroic +3, left alone +2 = 17.2
+          base(2, { attack: [3, 2, 17] }), // 7 + 4.9 + 2 = 13.9
+          base(15, { attack: [3, 15, 17] }), // 7 + 1 + 2 = 10
+        ],
+        true,
+        15,
+      ),
+      "warEnded",
+    );
+    expect(day.players.map((p) => p.marks)).toEqual([17.2, 13.9, 10]);
+    expect(day.total).toBe(41.1);
+    expect(day.players.reduce((t, p) => t + p.share, 0)).toBeCloseTo(100, 6);
   });
 });
 

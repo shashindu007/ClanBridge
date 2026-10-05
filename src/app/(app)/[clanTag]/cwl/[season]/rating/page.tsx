@@ -307,7 +307,7 @@ export default async function CwlRatingPage({
                           <Lines lines={row.attack} empty="Not attacked yet" />
                         </TableCell>
                         <TableCell className="align-top">
-                          <Lines lines={row.defence} empty="Not attacked" />
+                          <Lines lines={row.defence} empty="Not attacked yet" />
                         </TableCell>
                         <TableCell className="text-right align-top">
                           <Marks value={row.marks} className="font-semibold" />
@@ -350,6 +350,8 @@ export default async function CwlRatingPage({
                 ["Each base above your own on the war map", CWL_MARKS.baseUp],
                 ["Your mirror base", CWL_MARKS.mirror],
                 ["Each base below your own", CWL_MARKS.baseBelow],
+                ["3 stars on their last base", CWL_MARKS.targetRank.last],
+                ["…and for each place higher on their map", CWL_MARKS.targetRank.step],
                 ["The day's heroic attack", CWL_MARKS.heroicAttack],
               ]}
             />
@@ -372,7 +374,16 @@ export default async function CwlRatingPage({
                 {CWL_MARKS.upNeedsStars} stars or more.
               </li>
               <li>
-                The war map never gives or takes more than {CWL_MARKS.baseCap}, however many bases up or below.
+                The war map never gives more than {CWL_MARKS.baseUpCap} for bases up, and never takes more
+                than {CWL_MARKS.baseBelowCap} for bases below, however many.
+              </li>
+              <li>
+                <span className="text-foreground font-medium">Their map.</span> Three stars also score for
+                how high the base sits on the enemy&apos;s map, whoever attacks it: their last base{" "}
+                {signed(CWL_MARKS.targetRank.last)}, and {signed(CWL_MARKS.targetRank.step)} for each place
+                higher, so their #1 of 15 is{" "}
+                {signed(CWL_MARKS.targetRank.last + CWL_MARKS.targetRank.step * 14)}. A mirror at the top is
+                worth more than a mirror at the bottom.
               </li>
               <li>
                 <span className="text-foreground font-medium">New stars only.</span> On a base a clanmate
@@ -391,7 +402,7 @@ export default async function CwlRatingPage({
                 ["Held to 2 stars", CWL_MARKS.defence[2]],
                 ["3-starred", CWL_MARKS.defence[3]],
                 ["3-starred by an enemy base lower on the map than yours", CWL_MARKS.tripledFromBelow],
-                ["Not attacked", 0],
+                ["Not attacked (once the day is over)", CWL_MARKS.notAttacked],
                 ["The day's heroic defence", CWL_MARKS.heroicDefence],
               ]}
             />

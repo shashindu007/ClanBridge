@@ -12,12 +12,19 @@
 //                        the same +1 · each level below −1
 //            War map:    each base above their own +1 (2★ or more)
 //                        their mirror +1 · each base below −1
-//                        — never more than 10 either way
+//                        — never more than +10 for bases up, nor more
+//                          than −2 for bases below: a top base sent down
+//                          to clean up is doing a job, not dodging one
+//            Their map:  3★ on their last base +1, and +0.3 for each place
+//                        higher — their #1 of 15 is +5.2. Everything above
+//                        measures a target against the attacker; this is
+//                        the target itself, so a mirror at #1 is worth more
+//                        than a mirror at #15.
 //            Falling short away from the mirror, on top of the stars:
 //                        hitting up    2★ −2 (under 2★ the up marks are
 //                                      already lost, and that is the cost)
 //                        hitting down  2★ −3 · 1★ −6 · 0★ −10
-//            the day's heroic attack +5
+//            the day's heroic attack +3
 //
 //   NEW STARS ONLY. A base a clanmate already hit gave the clan its best result
 //   once. So a 2★ or 3★ loses a mark for each star already taken (3★ on a base
@@ -26,8 +33,10 @@
 //
 //   DEFENCE  the enemy's BEST hit on the base, the one that scores in the war:
 //            held to 0★ +10 · 1★ +5 · 2★ +3 · 3★ 0
-//            3-starred by an enemy lower on the map −2 · not attacked 0
-//            the day's heroic defence +5
+//            3-starred by an enemy lower on the map −2
+//            not attacked +2, once the day is over — a base the enemy chose
+//            to leave alone held as surely as one they failed on
+//            the day's heroic defence +3
 //
 //   HEROIC   one attack and one defence per clan per day, as the game shows
 //            them. The API does not say which — an attack carries stars,
@@ -70,8 +79,14 @@ export const CWL_MARKS = {
   mirror: 1,
   /** Per base the target stood below the attacker's own. */
   baseBelow: -1,
-  /** The most the map can give or take, so a position never outweighs the stars. */
-  baseCap: 10,
+  /** The most the map can give, so a position never outweighs the stars. */
+  baseUpCap: 10,
+  /**
+   * The most it can take. Lower than what it gives, on purpose: a top base is
+   * often SENT to a low one to secure the stars, and −10 for following the
+   * plan cost more than three stars earn.
+   */
+  baseBelowCap: 2,
   /**
    * Not finishing the job, by stars taken (0 to 3), on top of the stars' own
    * marks. Reaching for a higher base and stopping at two stars costs a
@@ -81,16 +96,27 @@ export const CWL_MARKS = {
    */
   shortUp: [0, 0, -2, 0],
   shortDown: [-10, -6, -3, 0],
+  /**
+   * How high the target sits on THEIR map, whoever attacked it: `last` for
+   * their bottom base and `step` more for each place above it. Only for a
+   * base cleared — three stars.
+   *
+   * The step is per base, not per share of the lineup, so a 30-base war's #1
+   * is worth more than a 15-base war's. The clan chose that.
+   */
+  targetRank: { last: 1, step: 0.3, needsStars: 3 },
 
   /** The up marks, and the heroic attack, are only for at least this many stars. */
   upNeedsStars: 2,
-  heroicAttack: 5,
+  heroicAttack: 3,
 
   /** By the stars the enemy's best hit took, 0 to 3. */
   defence: [10, 5, 3, 0],
   /** 3-starred by an enemy whose base is lower on the map than the defender's. */
   tripledFromBelow: -2,
-  heroicDefence: 5,
+  /** In the lineup of a finished day, and no enemy attacked the base. */
+  notAttacked: 2,
+  heroicDefence: 3,
 } as const;
 
 /** "without 3 stars", "without 2 stars", "without a star" — what a short result lacked. */
@@ -146,10 +172,20 @@ export interface DayRating {
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-const sum = (lines: MarkLine[]) => lines.reduce((t, l) => t + l.marks, 0);
+/**
+ * Marks to one decimal. The target-rank steps are tenths, and tenths added in
+ * binary drift — 12.2 arrives as 12.200000000000001 — so every sum is rounded
+ * back to the one decimal the rules are written in.
+ */
+const round1 = (n: number) => Math.round(n * 10) / 10;
+const sum = (lines: MarkLine[]) => round1(lines.reduce((t, l) => t + l.marks, 0));
 
-/** The lines for one player's attack. `over` — the day has ended, so no attack is a miss. */
-export function attackLines(base: DayBase, over: boolean): MarkLine[] {
+/**
+ * The lines for one player's attack. `over` — the day has ended, so no attack
+ * is a miss. `enemyBases` — how many bases the enemy fielded, for the target's
+ * rank; null when not known, and the rank line is then left out.
+ */
+export function attackLines(base: DayBase, over: boolean, enemyBases: number | null = null): MarkLine[] {
   const attack = base.attack;
   if (!attack) return over ? [{ label: "Did not attack", marks: CWL_MARKS.missed }] : [];
 
@@ -184,8 +220,9 @@ export function attackLines(base: DayBase, over: boolean): MarkLine[] {
 
   if (target && target.base !== null && base.base !== null) {
     const up = base.base - target.base;
-    const capped = Math.min(Math.abs(up), CWL_MARKS.baseCap);
-    const limit = Math.abs(up) > CWL_MARKS.baseCap ? `, counted as ${CWL_MARKS.baseCap}` : "";
+    const cap = up > 0 ? CWL_MARKS.baseUpCap : CWL_MARKS.baseBelowCap;
+    const capped = Math.min(Math.abs(up), cap);
+    const limit = Math.abs(up) > cap ? `, counted as ${cap}` : "";
     if (up > 0) {
       lines.push(
         earnedUp
@@ -206,6 +243,23 @@ export function attackLines(base: DayBase, over: boolean): MarkLine[] {
     }
   }
 
+  // How high the target sits on their map — for a base cleared, and cleared
+  // for the clan: a third star on a base already tripled is no harder a base.
+  const rank = CWL_MARKS.targetRank;
+  if (
+    target &&
+    target.base !== null &&
+    enemyBases !== null &&
+    attack.stars >= rank.needsStars &&
+    !nothingNew
+  ) {
+    const placesUp = Math.max(0, enemyBases - target.base);
+    lines.push({
+      label: `Their #${target.base} of ${enemyBases}`,
+      marks: round1(rank.last + rank.step * placesUp),
+    });
+  }
+
   if (target && target.thLevel !== null && base.thLevel !== null) {
     const up = target.thLevel - base.thLevel;
     if (up > 0) {
@@ -223,11 +277,16 @@ export function attackLines(base: DayBase, over: boolean): MarkLine[] {
   return lines;
 }
 
-/** The lines for one player's base in defence. Empty when nobody attacked it. */
-export function defenceLines(base: DayBase): MarkLine[] {
+/**
+ * The lines for one player's base in defence. `over` — the day has ended, so
+ * a base nobody attacked was left alone for good. While the day runs it is
+ * only "not attacked yet", and scores nothing, as an unused attack costs
+ * nothing yet.
+ */
+export function defenceLines(base: DayBase, over: boolean): MarkLine[] {
   // dayBoard() puts the hit that scores first.
   const best = base.defences[0];
-  if (!best) return [];
+  if (!best) return over ? [{ label: "Not attacked", marks: CWL_MARKS.notAttacked }] : [];
 
   const lines: MarkLine[] = [
     {
@@ -325,8 +384,8 @@ export function dayRating(board: DayBoard, state: string | null, final = false):
   const rows = board.bases.map((base) => {
     const isHeroicAttack = bestAttack?.playerId === base.playerId;
     const isHeroicDefence = bestDefence?.playerId === base.playerId;
-    const attack = attackLines(base, over);
-    const defence = defenceLines(base);
+    const attack = attackLines(base, over, board.theirs.of);
+    const defence = defenceLines(base, over);
     if (isHeroicAttack) attack.push({ label: "Heroic attack", marks: CWL_MARKS.heroicAttack });
     if (isHeroicDefence) defence.push({ label: "Heroic defence", marks: CWL_MARKS.heroicDefence });
     const attackMarks = sum(attack);
@@ -341,14 +400,14 @@ export function dayRating(board: DayBoard, state: string | null, final = false):
       defence,
       attackMarks,
       defenceMarks,
-      marks: attackMarks + defenceMarks,
+      marks: round1(attackMarks + defenceMarks),
       destruction: base.attack?.destruction ?? null,
       heroicAttack: isHeroicAttack,
       heroicDefence: isHeroicDefence,
     };
   });
 
-  const total = rows.reduce((t, r) => t + r.marks, 0);
+  const total = round1(rows.reduce((t, r) => t + r.marks, 0));
   return {
     status: over ? "counted" : "provisional",
     total,
@@ -437,6 +496,7 @@ export function seasonRating(
 
   const players = [...byPlayer.values()].map(({ destroyed, ...row }): PlayerSeasonRating => ({
     ...row,
+    marks: round1(row.marks),
     perDay: row.daysCounted ? row.rating / row.daysCounted : null,
     averageDestruction: destroyed.length ? destroyed.reduce((t, v) => t + v, 0) / destroyed.length : null,
   }));
@@ -460,10 +520,13 @@ export function seasonRating(
   };
 }
 
-/** "+5", "−3", "0" — marks as a row prints them. */
+/** "+5", "+12.2", "−3", "0" — marks as a row prints them: one decimal only where there is one. */
 export function signed(marks: number): string {
-  if (marks > 0) return `+${marks}`;
-  return marks < 0 ? `−${Math.abs(marks)}` : "0";
+  const value = round1(marks);
+  const size = Math.abs(value);
+  const text = Number.isInteger(size) ? String(size) : size.toFixed(1);
+  if (value > 0) return `+${text}`;
+  return value < 0 ? `−${text}` : "0";
 }
 
 /**
