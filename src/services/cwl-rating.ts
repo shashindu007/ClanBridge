@@ -24,7 +24,7 @@
 //                        hitting up    2★ −2 (under 2★ the up marks are
 //                                      already lost, and that is the cost)
 //                        hitting down  2★ −3 · 1★ −6 · 0★ −10
-//            the day's heroic attack +3
+//            the day's heroic attack +4
 //
 //   NEW STARS ONLY. A base a clanmate already hit gave the clan its best result
 //   once. So a 2★ or 3★ loses a mark for each star already taken (3★ on a base
@@ -36,7 +36,7 @@
 //            3-starred by an enemy lower on the map −2
 //            not attacked +2, once the day is over — a base the enemy chose
 //            to leave alone held as surely as one they failed on
-//            the day's heroic defence +3
+//            the day's heroic defence +5
 //
 //   HEROIC   one attack and one defence per clan per day, as the game shows
 //            them. The API does not say which — an attack carries stars,
@@ -108,7 +108,7 @@ export const CWL_MARKS = {
 
   /** The up marks, and the heroic attack, are only for at least this many stars. */
   upNeedsStars: 2,
-  heroicAttack: 3,
+  heroicAttack: 4,
 
   /** By the stars the enemy's best hit took, 0 to 3. */
   defence: [10, 5, 3, 0],
@@ -116,7 +116,7 @@ export const CWL_MARKS = {
   tripledFromBelow: -2,
   /** In the lineup of a finished day, and no enemy attacked the base. */
   notAttacked: 2,
-  heroicDefence: 3,
+  heroicDefence: 5,
 } as const;
 
 /** "without 3 stars", "without 2 stars", "without a star" — what a short result lacked. */

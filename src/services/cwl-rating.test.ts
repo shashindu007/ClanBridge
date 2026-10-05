@@ -302,20 +302,20 @@ describe("dayRating", () => {
     const day = dayRating(
       board([
         base(1, { attack: [3, 3, 17], hits: [[3, 1]] }), // 5 − 2 below + 1 same TH, 3-starred 0 = 4
-        base(2, { th: 16, attack: [3, 2, 17], hits: [[1, 2]] }), // 5 + 1 + 3 TH up, held to 1★ +5 = 14
-        base(3, { th: 15, attack: [3, 1, 17], hits: [[3, 3]] }), // 5 + 2 up + 6, heroic +3 = 16
-        base(4, { attack: [2, 4, 17], destruction: 90, hits: [[0, 4]] }), // 1 + 1 + 1 + 1, held to 0★ +10, heroic +3 = 17
+        base(2, { th: 16, attack: [3, 2, 17], hits: [[2, 2]] }), // 5 + 1 + 3 TH up, held to 2★ +3 = 12
+        base(3, { th: 15, attack: [3, 1, 17], hits: [[3, 3]] }), // 5 + 2 up + 6, heroic +4 = 17
+        base(4, { attack: [2, 4, 17], hits: [[0, 4]] }), // 1 + 1 + 1, held to 0★ +10, heroic +5 = 18
       ]),
       "warEnded",
     );
-    expect(day.players.map((p) => p.marks)).toEqual([4, 14, 16, 17]);
+    expect(day.players.map((p) => p.marks)).toEqual([4, 12, 17, 18]);
     expect(day.total).toBe(51);
     expect(day.players[0]!.share).toBeCloseTo((4 / 51) * 100, 6);
     expect(day.players.reduce((t, p) => t + p.share, 0)).toBeCloseTo(100, 6);
     expect(day.status).toBe("counted");
   });
 
-  it("gives the heroic +3 to exactly one attack and one defence", () => {
+  it("gives the heroic marks — 4 for the attack, 5 for the defence — to exactly one of each", () => {
     const day = dayRating(
       board([
         base(1, { attack: [3, 1, 17], hits: [[0, 1]] }),
@@ -326,16 +326,16 @@ describe("dayRating", () => {
     );
     expect(day.players.filter((p) => p.heroicAttack).map((p) => p.name)).toEqual(["Us 1"]);
     expect(day.players.filter((p) => p.heroicDefence).map((p) => p.name)).toEqual(["Us 1"]);
-    expect(day.players[0]!.attack.at(-1)).toEqual({ label: "Heroic attack", marks: 3 });
-    expect(day.players[0]!.defence.at(-1)).toEqual({ label: "Heroic defence", marks: 3 });
-    expect(day.players.map((p) => p.marks)).toEqual([7 + 3 + 10 + 3, 7 + 10, 7 + 3]);
+    expect(day.players[0]!.attack.at(-1)).toEqual({ label: "Heroic attack", marks: 4 });
+    expect(day.players[0]!.defence.at(-1)).toEqual({ label: "Heroic defence", marks: 5 });
+    expect(day.players.map((p) => p.marks)).toEqual([7 + 4 + 10 + 5, 7 + 10, 7 + 3]);
   });
 
   it("makes a minus day a minus share", () => {
-    // No attack −10 and left alone +2; three stars on the mirror 7, heroic +3, left alone +2.
+    // No attack −10 and left alone +2; three stars on the mirror 7, heroic +4, left alone +2.
     const day = dayRating(board([base(1), base(2, { attack: [3, 2, 17] })]), "warEnded");
-    expect(day.players.map((p) => p.marks)).toEqual([-8, 12]);
-    expect(day.players[0]!.share).toBeCloseTo((-8 / 4) * 100, 6);
+    expect(day.players.map((p) => p.marks)).toEqual([-8, 13]);
+    expect(day.players[0]!.share).toBeCloseTo((-8 / 5) * 100, 6);
   });
 
   it("counts 0 for everyone when the clan's total is 0 or less", () => {
@@ -347,7 +347,7 @@ describe("dayRating", () => {
   it("is provisional while the day runs: nothing yet for an attack not used or a base left alone", () => {
     const day = dayRating(board([base(1), base(2, { attack: [3, 2, 17] })]), "inWar");
     expect(day.status).toBe("provisional");
-    expect(day.players.map((p) => p.marks)).toEqual([0, 10]);
+    expect(day.players.map((p) => p.marks)).toEqual([0, 11]);
   });
 
   it("counts a day the sync never saw finish once the season is over", () => {
@@ -375,16 +375,16 @@ describe("dayRating", () => {
 
 describe("seasonRating", () => {
   const day1 = board([
-    base(1, { attack: [3, 1, 17] }), // 7, heroic +3, left alone +2 = 12
+    base(1, { attack: [3, 1, 17] }), // 7, heroic +4, left alone +2 = 13
     base(2, { attack: [2, 2, 17] }), // 3, left alone +2 = 5
   ]);
   const day2 = board([
     base(1, { attack: [2, 1, 17] }), // 5
-    base(3, { attack: [3, 3, 17] }), // 12 — only fielded on day 2
+    base(3, { attack: [3, 3, 17] }), // 13 — only fielded on day 2
   ]);
   const live = board([
     base(1), // not attacked yet
-    base(2, { attack: [3, 2, 17] }), // 7, heroic +3 = 10 — nothing for a base left alone yet
+    base(2, { attack: [3, 2, 17] }), // 7, heroic +4 = 11 — nothing for a base left alone yet
   ]);
 
   const season = seasonRating([
@@ -396,13 +396,13 @@ describe("seasonRating", () => {
 
   it("adds the finished days' shares up, and leaves the running day out", () => {
     const us1 = season.players.find((p) => p.name === "Us 1")!;
-    expect(us1.rating).toBeCloseTo(((12 + 5) / 17) * 100, 6);
-    expect(us1.marks).toBe(17);
+    expect(us1.rating).toBeCloseTo(((13 + 5) / 18) * 100, 6);
+    expect(us1.marks).toBe(18);
     expect(us1.daysCounted).toBe(2);
     expect(us1.provisional?.marks).toBe(0);
 
     const us2 = season.players.find((p) => p.name === "Us 2")!;
-    expect(us2.rating).toBeCloseTo((5 / 17) * 100, 6);
+    expect(us2.rating).toBeCloseTo((5 / 18) * 100, 6);
     expect(us2.provisional?.share).toBeCloseTo(100, 6);
   });
 
@@ -412,7 +412,7 @@ describe("seasonRating", () => {
     expect(us1.averageDestruction).toBe(80);
 
     const us3 = season.players.find((p) => p.name === "Us 3")!;
-    expect(us3.perDay).toBeCloseTo((12 / 17) * 100, 6);
+    expect(us3.perDay).toBeCloseTo((13 / 18) * 100, 6);
   });
 
   it("ranks by the rating", () => {
@@ -421,7 +421,7 @@ describe("seasonRating", () => {
 
   it("keeps a slot per day, empty where a player was not in the lineup", () => {
     const us3 = season.players.find((p) => p.name === "Us 3")!;
-    expect(us3.days.map((d) => d?.marks ?? null)).toEqual([null, 12, null, null]);
+    expect(us3.days.map((d) => d?.marks ?? null)).toEqual([null, 13, null, null]);
     expect(season.days.map((d) => d.status)).toEqual(["counted", "counted", "provisional", "notStarted"]);
     expect(season.started).toBe(true);
   });
@@ -519,7 +519,7 @@ describe("the target's place on their map", () => {
     const day = dayRating(
       board(
         [
-          base(1, { attack: [3, 1, 17] }), // 7 + 5.2, heroic +3, left alone +2 = 17.2
+          base(1, { attack: [3, 1, 17] }), // 7 + 5.2, heroic +4, left alone +2 = 18.2
           base(2, { attack: [3, 2, 17] }), // 7 + 4.9 + 2 = 13.9
           base(15, { attack: [3, 15, 17] }), // 7 + 1 + 2 = 10
         ],
@@ -528,8 +528,8 @@ describe("the target's place on their map", () => {
       ),
       "warEnded",
     );
-    expect(day.players.map((p) => p.marks)).toEqual([17.2, 13.9, 10]);
-    expect(day.total).toBe(41.1);
+    expect(day.players.map((p) => p.marks)).toEqual([18.2, 13.9, 10]);
+    expect(day.total).toBe(42.1);
     expect(day.players.reduce((t, p) => t + p.share, 0)).toBeCloseTo(100, 6);
   });
 });
