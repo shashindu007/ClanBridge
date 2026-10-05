@@ -6,6 +6,9 @@
 // side by side. A share is always of a player's OWN clan's marks for the day,
 // so the ranking compares how much of their clan's result each player carried.
 //
+// ALL CLANS, OR ONE. The buttons narrow the ranking to a single clan (?clan=),
+// renumbered from 1 — the same players and the same ratings, just that clan's.
+//
 // THE LATEST MONTH ONLY. The rating is about the CWL being played, or the one
 // just finished; an older month is on its own season page, where its days are.
 //
@@ -61,7 +64,42 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default async function CwlRatingPage() {
+/** One filter button: a clan (with its colour) or "All clans", and how many it holds. */
+function ClanButton({
+  href,
+  active,
+  label,
+  count,
+  dot,
+}: {
+  href: string;
+  active: boolean;
+  label: string;
+  count: number;
+  dot?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex items-center gap-2 rounded-control px-3 py-1.5 text-sm font-medium",
+        active ? "bg-primary text-primary-foreground" : "hover:bg-accent border",
+      )}
+    >
+      {dot && <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: dot }} />}
+      {label}
+      <span className={cn("text-xs font-normal tabular-nums", !active && "text-muted-foreground")}>{count}</span>
+    </Link>
+  );
+}
+
+export default async function CwlRatingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ clan?: string }>;
+}) {
+  const { clan: clanParam } = await searchParams;
   const supabase = await createClient();
   const userId = await currentUserId(supabase);
   if (!userId) redirect("/login");
@@ -110,9 +148,14 @@ export default async function CwlRatingPage() {
     }),
   );
 
-  const started = ratings.some((r) => r.rating.started);
-  const running = ratings.some((r) => r.rating.days.some((d) => d.status === "provisional"));
-  const rows = ratings
+  // One clan when asked for and it played this month; otherwise all of them.
+  // An unknown tag is "all", never an error.
+  const only = ratings.find((r) => r.clan.tag === clanParam) ?? null;
+  const shown = only ? [only] : ratings;
+
+  const started = shown.some((r) => r.rating.started);
+  const running = shown.some((r) => r.rating.days.some((d) => d.status === "provisional"));
+  const rows = shown
     .flatMap(({ clan, rating }) => rating.players.map((player) => ({ clan, player })))
     // Until a day has finished there is only the running day to go on.
     .filter(({ player }) => started || player.provisional)
@@ -123,6 +166,10 @@ export default async function CwlRatingPage() {
         (b.player.provisional?.share ?? 0) - (a.player.provisional?.share ?? 0) ||
         a.player.name.localeCompare(b.player.name),
     );
+  const allCount = ratings.reduce(
+    (t, r) => t + r.rating.players.filter((p) => r.rating.started || p.provisional).length,
+    0,
+  );
   const monthHref = (clanTag: string) =>
     `/${encodeURIComponent(clanTag)}/cwl/${encodeURIComponent(month)}/rating`;
 
@@ -138,19 +185,35 @@ export default async function CwlRatingPage() {
           />
           <p className="text-muted-foreground text-sm">
             {started
-              ? "Rating is each finished day's share of a player's own clan's marks, added up."
+              ? only
+                ? `Rating is each finished day's share of ${only.clan.name}'s marks, added up.`
+                : "Rating is each finished day's share of a player's own clan's marks, added up."
               : "No day has finished yet — this is the running day so far, and it will move."}
             {started && running && " The day still running is shown beside it and is not counted yet."}
           </p>
-          {/* Each clan's own table: the days, and the sum behind every mark. */}
-          <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-            {ratings.map(({ clan }) => (
-              <Link key={clan.id} href={monthHref(clan.tag)} className="flex items-center gap-1.5 hover:underline">
-                <span aria-hidden className="size-2 rounded-full" style={{ background: clanAccent(clan.id).color }} />
-                {clan.name}: day by day →
-              </Link>
+        </div>
+
+        {/* All clans in one ranking, or one clan's own. */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <nav aria-label="Clan" className="flex flex-wrap gap-2">
+            <ClanButton href="/rating/cwl" active={!only} label="All clans" count={allCount} />
+            {ratings.map(({ clan, rating }) => (
+              <ClanButton
+                key={clan.id}
+                href={`/rating/cwl?clan=${encodeURIComponent(clan.tag)}`}
+                active={only?.clan.id === clan.id}
+                label={clan.name}
+                count={rating.players.filter((p) => rating.started || p.provisional).length}
+                dot={clanAccent(clan.id).color}
+              />
             ))}
-          </p>
+          </nav>
+          {/* The clan's own table: the days, and the sum behind every mark. */}
+          {only && (
+            <Link href={monthHref(only.clan.tag)} className="text-primary text-sm font-medium hover:underline">
+              {only.clan.name}, day by day →
+            </Link>
+          )}
         </div>
 
         {rows.length === 0 ? (
@@ -166,7 +229,7 @@ export default async function CwlRatingPage() {
                 <TableRow>
                   <TableHead className="w-12 text-right">#</TableHead>
                   <TableHead>Member</TableHead>
-                  <TableHead>Clan</TableHead>
+                  {!only && <TableHead>Clan</TableHead>}
                   <TableHead className="text-right">TH</TableHead>
                   <TableHead className="text-right">Days</TableHead>
                   <TableHead className="text-right">Marks</TableHead>
@@ -197,16 +260,18 @@ export default async function CwlRatingPage() {
                         {player.name}
                       </Link>
                     </TableCell>
-                    <TableCell>
-                      <span className="flex items-center gap-2 text-sm">
-                        <span
-                          aria-hidden
-                          className="size-2 shrink-0 rounded-full"
-                          style={{ background: clanAccent(clan.id).color }}
-                        />
-                        <span className="text-muted-foreground">{clan.name}</span>
-                      </span>
-                    </TableCell>
+                    {!only && (
+                      <TableCell>
+                        <Link href={monthHref(clan.tag)} className="group flex items-center gap-2 text-sm">
+                          <span
+                            aria-hidden
+                            className="size-2 shrink-0 rounded-full"
+                            style={{ background: clanAccent(clan.id).color }}
+                          />
+                          <span className="text-muted-foreground group-hover:underline">{clan.name}</span>
+                        </Link>
+                      </TableCell>
+                    )}
                     <TableCell className="text-right">
                       <TownHall level={player.thLevel} />
                     </TableCell>
@@ -239,7 +304,7 @@ export default async function CwlRatingPage() {
         <p className="text-muted-foreground text-xs">
           Marks are for attack and defence: stars, hitting a higher Town Hall or a higher base, and how
           a base holds up. The rules, and every player&apos;s sum for each day, are on each clan&apos;s own
-          rating page above.
+          rating page — {only ? "the link above" : "follow a clan's name"}.
         </p>
       </Panel>
     </Shell>
