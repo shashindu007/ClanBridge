@@ -154,7 +154,7 @@ describe("the CWL rating, from database rows to marks", () => {
 
   it("rates the day: every line, every mark, every share", async () => {
     const { rating } = await load();
-    expect(rating.days).toEqual([{ dayNumber: 1, status: "counted", total: 32.9, orderMissing: false }]);
+    expect(rating.days).toEqual([{ dayNumber: 1, status: "counted", total: 33.9, orderMissing: false }]);
 
     const day = new Map(rating.players.map((p) => [p.name, p.days[0]!]));
     expect(day.get("One")).toMatchObject({
@@ -174,6 +174,7 @@ describe("the CWL rating, from database rows to marks", () => {
       attack: [
         { label: "3 stars, 2 already taken", marks: 3 },
         { label: "1 base up", marks: 1 },
+        { label: "Mirror or above", marks: 1 },
         { label: "Their #1 of 4", marks: 1.9 },
         { label: "Same TH", marks: 1 },
       ],
@@ -181,7 +182,7 @@ describe("the CWL rating, from database rows to marks", () => {
         { label: "3-starred", marks: 0 },
         { label: "By their #4, a lower base", marks: -2 },
       ],
-      marks: 4.9,
+      marks: 5.9,
     });
     expect(day.get("Three")).toMatchObject({
       attack: [
@@ -200,9 +201,9 @@ describe("the CWL rating, from database rows to marks", () => {
       marks: -10,
     });
 
-    // Out of the plus marks: 14 + 4.9 + 14.
-    expect(day.get("One")!.share).toBeCloseTo((14 / 32.9) * 100, 6);
-    expect(day.get("Four")!.share).toBeCloseTo((-10 / 32.9) * 100, 6);
+    // Out of the plus marks: 14 + 5.9 + 14.
+    expect(day.get("One")!.share).toBeCloseTo((14 / 33.9) * 100, 6);
+    expect(day.get("Four")!.share).toBeCloseTo((-10 / 33.9) * 100, 6);
     // One and Three are level on marks; One's two stars at 95% lose to Three's three at 100%.
     expect(rating.players.map((p) => p.name)).toEqual(["Three", "One", "Two", "Four"]);
   });

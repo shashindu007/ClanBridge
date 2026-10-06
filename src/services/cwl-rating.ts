@@ -11,7 +11,8 @@
 //            Town Hall:  each level above their own +3 (2★ or more)
 //                        the same +1 · each level below −1
 //            War map:    each base above their own +1 (2★ or more)
-//                        their mirror +1 · each base below −1
+//                        their mirror, or any base above it, +1
+//                        each base below −1
 //                        — never more than +10 for bases up, nor more
 //                          than −2 for bases below: a top base sent down
 //                          to clean up is doing a job, not dodging one
@@ -81,6 +82,12 @@ export const CWL_MARKS = {
 
   /** Per base the target stood above the attacker's own on the map. */
   baseUp: 1,
+  /**
+   * For not hitting down: their mirror, or any base above it. Whatever the
+   * result — it is for where the attack was aimed. It used to be the mirror
+   * alone, which left a player who reached nine bases up a mark short of one
+   * who stayed level.
+   */
   mirror: 1,
   /** Per base the target stood below the attacker's own. */
   baseBelow: -1,
@@ -244,6 +251,7 @@ export function attackLines(base: DayBase, over: boolean, enemyBases: number | n
           ? { label: `${plural(up, "base")} up${limit}`, marks: capped * CWL_MARKS.baseUp }
           : { label: `${plural(up, "base")} up, ${unearned}`, marks: 0 },
       );
+      lines.push({ label: "Mirror or above", marks: CWL_MARKS.mirror });
     } else if (up === 0) {
       lines.push({ label: "Mirror", marks: CWL_MARKS.mirror });
     } else {

@@ -349,7 +349,7 @@ export default async function CwlRatingPage({
                 ["The same Town Hall as your own", CWL_MARKS.sameTh],
                 ["Each Town Hall level below your own", CWL_MARKS.thBelow],
                 ["Each base above your own on the war map", CWL_MARKS.baseUp],
-                ["Your mirror base", CWL_MARKS.mirror],
+                ["Your mirror base, or any base above it", CWL_MARKS.mirror],
                 ["Each base below your own", CWL_MARKS.baseBelow],
                 ["3 stars on their last base", CWL_MARKS.targetRank.last],
                 ["…and for each place higher on their map", CWL_MARKS.targetRank.step],

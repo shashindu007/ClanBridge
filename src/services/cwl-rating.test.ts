@@ -65,14 +65,26 @@ const marks = (lines: Array<{ marks: number }>) => lines.reduce((t, l) => t + l.
 const defended = (b: DayBase) => defenceLines(b, true);
 
 describe("attack marks", () => {
-  it("gives the clan's own example: our #14 (TH16) triples their #8 (TH17) = 14", () => {
+  it("gives the clan's own example: our #14 (TH16) triples their #8 (TH17) = 15", () => {
     const lines = attackLines(base(14, { th: 16, attack: [3, 8, 17] }), true);
     expect(lines).toEqual([
       { label: "3 stars", marks: 5 },
       { label: "6 bases up", marks: 6 },
+      { label: "Mirror or above", marks: 1 },
       { label: "1 TH up", marks: 3 },
     ]);
-    expect(marks(lines)).toBe(14);
+    expect(marks(lines)).toBe(15);
+  });
+
+  it("gives the mirror mark to any base above the mirror too, whatever the stars", () => {
+    // Our #14 on their #5, #13, #14 and #15, with one star: no up marks, so only this moves.
+    const of = (target: number) => attackLines(base(14, { attack: [1, target, 17] }), true);
+    expect(of(5)).toContainEqual({ label: "Mirror or above", marks: 1 });
+    expect(of(13)).toContainEqual({ label: "Mirror or above", marks: 1 });
+    expect(of(14)).toContainEqual({ label: "Mirror", marks: 1 });
+    expect(of(15).some((l) => l.label.startsWith("Mirror"))).toBe(false);
+    // Never twice.
+    expect(of(5).filter((l) => l.label.startsWith("Mirror"))).toHaveLength(1);
   });
 
   it("scores the stars: 3 is +5, 2 is +1, 1 is −3 and 0 is −10", () => {
@@ -82,7 +94,7 @@ describe("attack marks", () => {
   });
 
   it("gives every Town Hall level up 3 marks and every base up 1", () => {
-    expect(marks(attackLines(base(10, { th: 15, attack: [3, 7, 17] }), true))).toBe(5 + 3 + 6);
+    expect(marks(attackLines(base(10, { th: 15, attack: [3, 7, 17] }), true))).toBe(5 + 3 + 1 + 6);
   });
 
   it("gives no up marks under 2 stars, and says why", () => {
@@ -90,6 +102,7 @@ describe("attack marks", () => {
     expect(lines).toEqual([
       { label: "1 star", marks: -3 },
       { label: "6 bases up, under 2 stars", marks: 0 },
+      { label: "Mirror or above", marks: 1 },
       { label: "1 TH up, under 2 stars", marks: 0 },
     ]);
   });
@@ -111,17 +124,18 @@ describe("attack marks", () => {
   });
 
   it("takes 2 for stopping at two stars on a higher base, and nothing more below that", () => {
-    // Our #10 on their #7 at the same Town Hall: 3 bases up (for 2★ or more) and +1.
+    // Our #10 on their #7 at the same Town Hall: 3 bases up (for 2★ or more),
+    // +1 for not hitting down and +1 for the Town Hall.
     const of = (stars: number) => attackLines(base(10, { attack: [stars, 7, 17] }), true);
-    expect(marks(of(3))).toBe(5 + 3 + 1);
+    expect(marks(of(3))).toBe(5 + 3 + 1 + 1);
     expect(of(2)).toContainEqual({ label: "Hitting up without 3 stars", marks: -2 });
-    expect(marks(of(2))).toBe(1 + 3 + 1 - 2);
+    expect(marks(of(2))).toBe(1 + 3 + 1 + 1 - 2);
     // Under two stars the up marks are not given: that is the whole cost.
     for (const stars of [1, 0]) {
       expect(of(stars).some((l) => l.label.startsWith("Hitting"))).toBe(false);
     }
-    expect(marks(of(1))).toBe(-3 + 1);
-    expect(marks(of(0))).toBe(-10 + 1);
+    expect(marks(of(1))).toBe(-3 + 1 + 1);
+    expect(marks(of(0))).toBe(-10 + 1 + 1);
   });
 
   it("takes more for not clearing a lower base: 3 without 3 stars, 6 without 2, 10 without any", () => {
@@ -158,6 +172,7 @@ describe("attack marks", () => {
     expect(attackLines(base(15, { attack: [3, 1, 17] }), true)).toEqual([
       { label: "3 stars", marks: 5 },
       { label: "14 bases up, counted as 10", marks: 10 },
+      { label: "Mirror or above", marks: 1 },
       { label: "Same TH", marks: 1 },
     ]);
     // Exactly 10 is not "counted as" anything.
@@ -201,14 +216,16 @@ describe("new stars only", () => {
   });
 
   it("still pays for hitting up when the attack added a star", () => {
-    // 3 stars on a base already at 2: 5 − 2, then 6 bases and a Town Hall up.
-    expect(marks(attackLines(base(14, { th: 16, attack: [3, 8, 17], taken: 2 }), true))).toBe(3 + 6 + 3);
+    // 3 stars on a base already at 2: 5 − 2, then 6 bases up, the mirror mark and a Town Hall up.
+    expect(marks(attackLines(base(14, { th: 16, attack: [3, 8, 17], taken: 2 }), true))).toBe(3 + 6 + 1 + 3);
   });
 
   it("gives an attack that added no new star no star marks and nothing for hitting up", () => {
     expect(attackLines(base(10, { th: 16, attack: [3, 4, 17], taken: 3 }), true)).toEqual([
       { label: "3 stars, none new", marks: 0 },
       { label: "6 bases up, no new star", marks: 0 },
+      // Where the attack was aimed is still where it was aimed.
+      { label: "Mirror or above", marks: 1 },
       { label: "1 TH up, no new star", marks: 0 },
     ]);
     // Not even the 90% mark: two stars on a base already at two.
@@ -303,7 +320,7 @@ describe("dayRating", () => {
       board([
         base(1, { attack: [3, 3, 17], hits: [[3, 1]] }), // 5 − 2 below + 1 same TH, 3-starred 0 = 4
         base(2, { th: 16, attack: [3, 2, 17], hits: [[2, 2]] }), // 5 + 1 + 3 TH up, held to 2★ +3 = 12
-        base(3, { th: 15, attack: [3, 1, 17], hits: [[3, 3]] }), // 5 + 2 up + 6, heroic +4 = 17
+        base(3, { th: 15, attack: [3, 2, 17], hits: [[3, 3]] }), // 5 + 1 up + 1 + 6, heroic +4 = 17
         base(4, { attack: [2, 4, 17], hits: [[0, 4]] }), // 1 + 1 + 1, held to 0★ +10, heroic +5 = 18
       ]),
       "warEnded",
@@ -527,8 +544,8 @@ describe("the target's place on their map", () => {
   });
 
   it("adds to the marks for reaching up or dropping down, and replaces none", () => {
-    // Our #15 on their #1: 5 + 10 (14 up, counted as 10) + 1 same TH + 5.2.
-    expect(marks(of(15, 1))).toBeCloseTo(21.2, 6);
+    // Our #15 on their #1: 5 + 10 (14 up, counted as 10) + 1 mirror or above + 1 same TH + 5.2.
+    expect(marks(of(15, 1))).toBeCloseTo(22.2, 6);
     // Our #1 on their #15: 5 − 2 (14 below, counted as 2) + 1 same TH + 1.
     expect(marks(of(1, 15))).toBeCloseTo(5, 6);
   });
