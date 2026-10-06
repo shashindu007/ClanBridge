@@ -12,6 +12,10 @@
 // unexpected. This data is deleted from Supercell's side when the season ends and
 // cannot ever be recovered.
 //
+// The one thing it takes back is a lineup place nobody played: a member swapped
+// out during preparation is soft-deleted (deleted_at) from the war he was
+// listed in, and restored if he returns. See "WHO LEFT A LINEUP" below.
+//
 // R11/R12 — this job writes cwl_seasons, cwl_wars, cwl_war_members,
 // cwl_attacks, (048) cwl_group_clans and cwl_group_wars — the rest of the
 // group, from which standings and medals are derived — and (057)
@@ -430,6 +434,119 @@ async function upsertRoster(
   return rows.length;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// WHO LEFT A LINEUP
+//
+// A lineup can be changed all through preparation day, and this job first
+// sees a war DURING preparation. Both tables it writes a lineup into only ever
+// gained rows — cwl_war_members is insert-once, cwl_group_war_members an upsert
+// — so a member swapped out stayed listed beside his replacement: sixteen rows
+// for a 15-base war. Every base below him was numbered one too low, and he
+// counted as a player who missed his attack. For one of OURS that is a missed
+// attack on the report, an attack "left" on the dashboard, and a push reminder
+// to a member who is not in the war.
+//
+// 019 says a roster is fixed once the war starts. It is; what it is not is
+// fixed when it is first written.
+//
+// So after a lineup is written, whoever is stored for that side and no longer
+// listed is soft-deleted, and whoever is back has it cleared. deleted_at, never
+// a DELETE: every reader already filters on it, and the row can be put back.
+//
+// THE GUARD is that the API lists exactly teamSize members for the side. That
+// is what a real lineup looks like; a short, long or repeated list is "the API
+// returned something unexpected", and R5 says to change nothing because of it.
+// It runs only for a war not yet settled — a finished war is never written
+// again, by this or anything else.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Who has left one side's lineup, and who is back. Pure — exported for the
+ * test.
+ *
+ * `stored` is every row recorded for that side, soft-deleted ones included;
+ * `current` is who the API lists now. Nothing changes unless `current` is
+ * exactly a team: see THE GUARD above.
+ */
+export function lineupChanges(
+  stored: ReadonlyArray<{ key: string; deleted: boolean }>,
+  current: readonly string[],
+  teamSize: number | undefined,
+): { left: string[]; back: string[] } {
+  const listed = new Set(current);
+  if (teamSize === undefined || current.length !== teamSize || listed.size !== teamSize) {
+    return { left: [], back: [] };
+  }
+  return {
+    left: stored.filter((r) => !r.deleted && !listed.has(r.key)).map((r) => r.key),
+    back: stored.filter((r) => r.deleted && listed.has(r.key)).map((r) => r.key),
+  };
+}
+
+/**
+ * Bring our roster for one war into line with the API's lineup. Returns how
+ * many left and how many came back.
+ *
+ * A member with an attack in this war is never taken off it, whatever the
+ * lineup says: he played, and the attack would be orphaned.
+ */
+async function reconcileRoster(
+  supabase: SupabaseClient,
+  warId: string,
+  members: WarMember[],
+  playerIds: Map<string, string>,
+  teamSize: number | undefined,
+): Promise<{ left: number; back: number }> {
+  const current = members.flatMap((m) => {
+    const id = playerIds.get(m.tag);
+    return id ? [id] : [];
+  });
+  // Someone could not be resolved: the list is not the lineup, so it decides nothing.
+  if (current.length !== members.length) return { left: 0, back: 0 };
+
+  const { data, error } = await supabase
+    .from("cwl_war_members")
+    .select("player_id, deleted_at")
+    .eq("war_id", warId);
+  if (error) throw new Error(`cwl_war_members read failed: ${error.message}`);
+  const stored = ((data ?? []) as Array<{ player_id: string; deleted_at: string | null }>).map((r) => ({
+    key: r.player_id,
+    deleted: r.deleted_at !== null,
+  }));
+
+  const changes = lineupChanges(stored, current, teamSize);
+  let left = changes.left;
+  if (left.length) {
+    const { data: attacked, error: attackError } = await supabase
+      .from("cwl_attacks")
+      .select("player_id")
+      .eq("war_id", warId)
+      .in("player_id", left)
+      .is("deleted_at", null);
+    if (attackError) throw new Error(`cwl_attacks read failed: ${attackError.message}`);
+    const played = new Set(((attacked ?? []) as Array<{ player_id: string }>).map((r) => r.player_id));
+    left = left.filter((id) => !played.has(id));
+  }
+
+  if (left.length) {
+    const { error: leftError } = await supabase
+      .from("cwl_war_members")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("war_id", warId)
+      .in("player_id", left);
+    if (leftError) throw new Error(`cwl_war_members could not be reconciled: ${leftError.message}`);
+  }
+  if (changes.back.length) {
+    const { error: backError } = await supabase
+      .from("cwl_war_members")
+      .update({ deleted_at: null })
+      .eq("war_id", warId)
+      .in("player_id", changes.back);
+    if (backError) throw new Error(`cwl_war_members could not be restored: ${backError.message}`);
+  }
+  return { left: left.length, back: changes.back.length };
+}
+
 /**
  * The attacks. This is the data the project exists to keep.
  *
@@ -594,9 +711,54 @@ export function groupWarMemberRows(seasonId: string, warTag: string, war: War) {
         // 062 — when in the war it came. The rating reads which of two attacks
         // on one base was the first.
         attack_order: attack?.order ?? null,
+        // Listed now, so in the lineup now: a member who was swapped out and
+        // is back has his soft delete cleared by the upsert itself.
+        deleted_at: null,
       };
     });
   });
+}
+
+/**
+ * Soft-delete whoever is stored for a side of one group war and no longer in
+ * its lineup (see WHO LEFT A LINEUP). The upsert before this has already
+ * restored anyone who is back. Returns how many left.
+ */
+async function reconcileGroupLineups(
+  supabase: SupabaseClient,
+  seasonId: string,
+  warTag: string,
+  war: War,
+): Promise<number> {
+  const { data, error } = await supabase
+    .from("cwl_group_war_members")
+    .select("clan_tag, tag")
+    .eq("season_id", seasonId)
+    .eq("war_tag", warTag)
+    .is("deleted_at", null);
+  if (error) throw new Error(`cwl_group_war_members read failed for ${warTag}: ${error.message}`);
+  const stored = (data ?? []) as Array<{ clan_tag: string; tag: string }>;
+
+  const left = [war.clan, war.opponent].flatMap((side) => {
+    if (!side?.tag) return [];
+    const clanTag = side.tag;
+    return lineupChanges(
+      stored.filter((r) => r.clan_tag === clanTag).map((r) => ({ key: r.tag, deleted: false })),
+      side.members.map((m) => m.tag),
+      war.teamSize,
+    ).left;
+  });
+  if (!left.length) return 0;
+
+  const { error: leftError } = await supabase
+    .from("cwl_group_war_members")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("season_id", seasonId)
+    .eq("war_tag", warTag)
+    .in("tag", left);
+  if (leftError) throw new Error(`cwl_group_war_members could not be reconciled for ${warTag}: ${leftError.message}`);
+  console.log(`  group war ${warTag}: ${left.length} left the lineup`);
+  return left.length;
 }
 
 /**
@@ -616,6 +778,8 @@ async function upsertGroupWarMembers(
   const rows = groupWarMemberRows(seasonId, warTag, war);
   if (!rows.length) return;
   await upsertInBatches(supabase, "cwl_group_war_members", rows, "season_id,war_tag,tag", settled);
+  // A settled war is only ever added to (R5); a live one is brought into line.
+  if (!settled) await reconcileGroupLineups(supabase, seasonId, warTag, war);
 
   const { error } = await supabase
     .from("cwl_group_wars")
@@ -944,6 +1108,16 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
           ctx.recorded(
             await upsertAttacks(supabase, warId, sides.ours.members, playerIds, defenderPositions),
           );
+          // After the attacks, so a member who played is seen to have played.
+          // Never allowed to cost the capture above: it warns and tries again
+          // next run.
+          await reconcileRoster(supabase, warId, sides.ours.members, playerIds, war.teamSize)
+            .then(({ left, back }) => {
+              if (left || back) {
+                console.log(`  ${clan.tag}: day ${days.get(requestedTag) ?? "?"} — ${left} left our lineup, ${back} back in it`);
+              }
+            })
+            .catch((error: unknown) => groupWarn("our roster not reconciled", error));
 
           // One war per round is ours. Found it — the rest of the round is other
           // clans' business and not worth a call.

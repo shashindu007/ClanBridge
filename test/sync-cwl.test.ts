@@ -28,6 +28,7 @@ import {
   chooseSides,
   dayNumbers,
   groupTagsToFetch,
+  lineupChanges,
   storedState,
   syncCwl,
   tagsToFetch,
@@ -708,6 +709,124 @@ describe("T4.1 — the CWL sync", () => {
           ] },
         } as unknown as War;
         expect([...attackOrders(war)]).toEqual([["#A1", 4], ["#B1", 1]]);
+      });
+    });
+
+    describe("a member swapped out during preparation", () => {
+      /** In fixture mode the first tag of a round is taken as ours — see WAR_COUNT. */
+      const FIRST_TAG = CWL_GROUP.rounds.flatMap((r) => r.warTags).find((t) => t && t !== "#0")!;
+      const LINEUP = OURS.members.length + THEIRS.members.length;
+
+      /** The season the job will find, made ahead of it so rows can be planted in it. */
+      async function seedSeason(): Promise<string> {
+        const res = await h.db.query<{ id: string }>(
+          `insert into cwl_seasons (clan_id, season) values ('${CLAN_A}', '${SEASON}') returning id`,
+        );
+        return res.rows[0]!.id;
+      }
+
+      it("soft-deletes a lineup row the API no longer lists, on either side, and no other", async () => {
+        const season = await seedSeason();
+        await h.db.exec(`
+          insert into cwl_group_war_members (season_id, war_tag, clan_tag, tag, name, map_position) values
+            ('${season}', '${FIRST_TAG}', '${THEIR_TAG}', '#GHOSTFOE', 'Swapped out', 99),
+            ('${season}', '${FIRST_TAG}', '${OUR_TAG}', '#GHOSTOURS', 'Swapped out', 98);
+        `);
+
+        await runSyncJob("cwl", syncCwl, { client });
+
+        expect(
+          await count(h, "cwl_group_war_members", `war_tag = '${FIRST_TAG}' and deleted_at is null`),
+        ).toBe(LINEUP);
+        expect(
+          await count(h, "cwl_group_war_members", `tag in ('#GHOSTFOE', '#GHOSTOURS') and deleted_at is not null`),
+        ).toBe(2);
+        // A row is hidden, never removed — and nobody else was touched.
+        expect(await count(h, "cwl_group_war_members", "deleted_at is not null")).toBe(2);
+      });
+
+      it("restores a member who is back in the lineup", async () => {
+        const season = await seedSeason();
+        const back = THEIRS.members[0]!.tag;
+        await h.db.exec(`
+          insert into cwl_group_war_members (season_id, war_tag, clan_tag, tag, deleted_at) values
+            ('${season}', '${FIRST_TAG}', '${THEIR_TAG}', '${back}', now());
+        `);
+
+        await runSyncJob("cwl", syncCwl, { client });
+
+        expect(
+          await count(h, "cwl_group_war_members", `war_tag = '${FIRST_TAG}' and tag = '${back}' and deleted_at is null`),
+        ).toBe(1);
+        expect(await count(h, "cwl_group_war_members", "deleted_at is not null")).toBe(0);
+      });
+
+      /** Our war of round 1 as it was first stored, in preparation. */
+      async function seedOurWar(): Promise<string> {
+        const season = await seedSeason();
+        const res = await h.db.query<{ id: string }>(
+          `insert into cwl_wars (season_id, war_tag, state) values ('${season}', '${FIRST_TAG}', 'preparation') returning id`,
+        );
+        return res.rows[0]!.id;
+      }
+      /** A tag in the game's own alphabet (players_tag_format) that is not in the captured war. */
+      async function seedPlayer(tag: string): Promise<string> {
+        const res = await h.db.query<{ id: string }>(
+          `insert into players (clan_id, tag, name) values ('${CLAN_A}', '${tag}', 'Player ${tag}') returning id`,
+        );
+        return res.rows[0]!.id;
+      }
+
+      it("takes him off our own roster, and puts back one who returned", async () => {
+        const war = await seedOurWar();
+        const ghost = await seedPlayer("#PY0LQGRJ");
+        const back = await seedPlayer(OURS.members[0]!.tag);
+        await h.db.exec(`
+          insert into cwl_war_members (war_id, player_id, map_position, deleted_at) values
+            ('${war}', '${ghost}', 40, null),
+            ('${war}', '${back}', 1, now());
+        `);
+
+        await runSyncJob("cwl", syncCwl, { client });
+
+        expect(await count(h, "cwl_war_members", `war_id = '${war}' and deleted_at is null`)).toBe(ROSTER_SIZE);
+        expect(await count(h, "cwl_war_members", `player_id = '${ghost}' and deleted_at is not null`)).toBe(1);
+        expect(await count(h, "cwl_war_members", `player_id = '${back}' and war_id = '${war}' and deleted_at is null`)).toBe(1);
+        // Hidden, not removed, and only in the war he was swapped out of.
+        expect(await count(h, "cwl_war_members", "deleted_at is not null")).toBe(1);
+        expect(await count(h, "cwl_war_members", `player_id = '${ghost}'`)).toBe(1);
+      });
+
+      it("never takes a member with an attack in the war off its roster", async () => {
+        const war = await seedOurWar();
+        const played = await seedPlayer("#PY0LQGRC");
+        await h.db.exec(`
+          insert into cwl_war_members (war_id, player_id, map_position) values ('${war}', '${played}', 40);
+          insert into cwl_attacks (war_id, player_id, attack_order, stars, destruction)
+          values ('${war}', '${played}', 1, 2, 71);
+        `);
+
+        await runSyncJob("cwl", syncCwl, { client });
+
+        expect(await count(h, "cwl_war_members", `player_id = '${played}' and deleted_at is null`)).toBe(1);
+      });
+
+      it("changes nothing unless the API lists exactly a team", () => {
+        const stored = [
+          { key: "#A", deleted: false },
+          { key: "#B", deleted: false },
+          { key: "#GONE", deleted: false },
+          { key: "#BACK", deleted: true },
+        ];
+        // A full team of three: one left, one is back.
+        expect(lineupChanges(stored, ["#A", "#B", "#BACK"], 3)).toEqual({ left: ["#GONE"], back: ["#BACK"] });
+        // Short, long, repeated, or of no known size: "something unexpected" (R5).
+        const nothing = { left: [], back: [] };
+        expect(lineupChanges(stored, ["#A", "#B"], 3)).toEqual(nothing);
+        expect(lineupChanges(stored, ["#A", "#B", "#BACK", "#X"], 3)).toEqual(nothing);
+        expect(lineupChanges(stored, ["#A", "#A", "#B"], 3)).toEqual(nothing);
+        expect(lineupChanges(stored, [], 3)).toEqual(nothing);
+        expect(lineupChanges(stored, ["#A", "#B", "#BACK"], undefined)).toEqual(nothing);
       });
     });
 
