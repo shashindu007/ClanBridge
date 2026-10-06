@@ -29,6 +29,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "supabase:check": "tsx --env-file=.env.local scripts/check-supabase.ts",
+    "cwl:audit": "tsx --env-file=.env.local scripts/audit-cwl-rating.ts",
     "migrations:bundle": "tsx scripts/build-migration-bundle.ts",
     "migrations:apply": "tsx --env-file=.env.local scripts/apply-migrations.ts",
     "restore:verify": "tsx --env-file=.env.local scripts/restore-verify.ts",
