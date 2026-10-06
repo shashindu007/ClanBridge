@@ -27,6 +27,7 @@ import {
   type GroupWar,
 } from "@/repositories/cwl";
 import { lineupsForWars } from "@/repositories/cwl-scouting";
+import { fieldedOnly, teamSizes } from "@/services/cwl-scouting";
 import { seasonSpan, seasonTotals, type SeasonSpan, type SeasonTotals } from "@/services/cwl";
 import { dayBoard, type DayBoard } from "@/services/cwl-day";
 import { seasonRating, type SeasonRating } from "@/services/cwl-rating";
@@ -159,10 +160,15 @@ export async function loadSeasonBoards(
   clan: { tag: string },
   view: SeasonView,
 ): Promise<DayBoard[]> {
-  const lineups = await lineupsForWars(
-    supabase,
-    view.season.id,
-    view.wars.map((w) => w.warTag),
+  // Without the members swapped out in preparation: a 15-base war is fifteen
+  // bases a side, whatever was listed the day before.
+  const lineups = fieldedOnly(
+    await lineupsForWars(
+      supabase,
+      view.season.id,
+      view.wars.map((w) => w.warTag),
+    ),
+    teamSizes(view.wars),
   );
   return view.wars.map((war, index) =>
     dayBoard({

@@ -92,8 +92,18 @@ export async function ourVillages(
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 const str = (v: unknown) => (v === null || v === undefined ? null : String(v));
 
+// created_at and updated_at are how a fielded member is told from one swapped
+// out in preparation (fieldedOnly). Both have been there since 057.
 const WAR_MEMBER_COLUMNS =
-  "id, war_tag, clan_tag, tag, name, th_level, map_position, attack_stars, attack_destruction, attack_defender_tag";
+  "id, war_tag, clan_tag, tag, name, th_level, map_position, attack_stars, attack_destruction, attack_defender_tag, " +
+  "created_at, updated_at";
+
+/** PostgREST sends an ISO string; the PGlite stand-in a Date. */
+function iso(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const date = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
 
 function toWarMember(r: Record<string, unknown>): ScoutWarMember {
   return {
@@ -108,6 +118,8 @@ function toWarMember(r: Record<string, unknown>): ScoutWarMember {
     attackDefenderTag: str(r.attack_defender_tag),
     // Absent from a read that does not ask for it, and before 062: null.
     attackOrder: num(r.attack_order),
+    // A row never updated was last written when it was created.
+    seenAt: iso(r.updated_at) ?? iso(r.created_at),
   };
 }
 

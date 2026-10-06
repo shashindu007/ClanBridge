@@ -133,7 +133,6 @@ export default async function CwlDayDetailPage({
   // One board per day (057): the enemy's bases, and their attacks on ours.
   // Every day and not only the selected one, because the rating is the season's.
   const boards = await loadSeasonBoards(supabase, clan, view);
-  const roster = selectedIndex >= 0 ? (view.warData[selectedIndex]?.apiRoster ?? []) : [];
   const board =
     boards[selectedIndex] ??
     dayBoard({ roster: [], attacks: [], lineup: [], ourTag: clan.tag, teamSize: null });
@@ -299,17 +298,17 @@ export default async function CwlDayDetailPage({
                   <UserX aria-hidden className="text-muted-foreground size-4.5" />
                   {dayOver ? "Did not attack" : "Yet to attack"}
                 </h2>
-                {roster.length > 0 && dayState !== "preparation" && (
+                {board.bases.length > 0 && dayState !== "preparation" && (
                   <Badge variant={missed.length === 0 ? "success" : dayOver ? "warning" : "info"}>
                     {missed.length === 0
                       ? "Everyone attacked"
                       : dayOver
-                        ? `${missed.length} of ${roster.length} missed`
-                        : `${missed.length} of ${roster.length} still to attack`}
+                        ? `${missed.length} of ${board.bases.length} missed`
+                        : `${missed.length} of ${board.bases.length} still to attack`}
                   </Badge>
                 )}
               </div>
-              {roster.length === 0 ? (
+              {board.bases.length === 0 ? (
                 <p className="text-muted-foreground text-sm">No roster was captured for this day.</p>
               ) : dayState === "preparation" ? (
                 <p className="text-muted-foreground text-sm">
@@ -406,11 +405,11 @@ export default async function CwlDayDetailPage({
             </section>
           </div>
 
-          {roster.length > 0 && (
+          {board.bases.length > 0 && (
             <Disclosure
               title="Attack and defence, base by base"
               icon={Swords}
-              count={roster.length}
+              count={board.bases.length}
               defaultOpen={dayState !== "preparation"}
             >
               <div className="space-y-4">
@@ -424,8 +423,8 @@ export default async function CwlDayDetailPage({
                               label: "of their attacks used",
                               value: `${board.theirs.used ?? "—"} of ${board.theirs.of ?? "?"}`,
                             },
-                            { label: "of our bases attacked", value: `${board.basesHit} of ${roster.length}` },
-                            { label: "of our bases 3-starred", value: `${board.basesTripled} of ${roster.length}` },
+                            { label: "of our bases attacked", value: `${board.basesHit} of ${board.bases.length}` },
+                            { label: "of our bases 3-starred", value: `${board.basesTripled} of ${board.bases.length}` },
                           ]
                         : []),
                     ]}
@@ -499,7 +498,7 @@ export default async function CwlDayDetailPage({
                 </div>
                 <p className="text-muted-foreground text-xs">
                   {board.enemyKnown
-                    ? `Base numbers are the ones on the war map, 1 to ${roster.length}. A base attacked more than once lists its best hit first — that is the one that scores.`
+                    ? `Base numbers are the ones on the war map, 1 to ${board.bases.length}. A base attacked more than once lists its best hit first — that is the one that scores.`
                     : "The enemy lineup was not recorded for this day, so their base numbers and their attacks on our bases cannot be shown."}
                 </p>
               </div>

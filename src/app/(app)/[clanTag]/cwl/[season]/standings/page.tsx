@@ -15,7 +15,7 @@ import { StandingsTable } from "@/components/cwl-parts";
 import { CwlSeasonHeader } from "@/components/cwl-season-header";
 import { requireClanByTag } from "@/lib/clans";
 import { canPrintCwlReport, loadSeasonView } from "@/lib/cwl-season";
-import { loadScouting, scoutsByClan, standingScouts } from "@/lib/cwl-scouting-view";
+import { fieldedScouting, loadScouting, scoutsByClan, standingScouts } from "@/lib/cwl-scouting-view";
 import { isLeader } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import { seasonByName } from "@/repositories/cwl";
@@ -45,7 +45,7 @@ export default async function CwlStandingsPage({
   const seasonBase = `${clanBase}/cwl/${encodeURIComponent(season.season)}`;
   const captured = view.us !== null;
   const scout = standingScouts(
-    scoutsByClan(view.standings.map((s) => s.tag), scouting, view.groupWars),
+    scoutsByClan(view.standings.map((s) => s.tag), fieldedScouting(scouting, view.groupWars), view.groupWars),
   );
 
   return (

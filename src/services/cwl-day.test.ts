@@ -35,6 +35,7 @@ function slot(
     attackDestruction: hit?.[1] ?? null,
     attackDefenderTag: hit?.[2] ?? null,
     attackOrder: order,
+    seenAt: null,
   };
 }
 
@@ -188,5 +189,34 @@ describe("what an attack found already taken (062)", () => {
   it("is nothing for the only attack on a base, even with no lineup at all", () => {
     const board = dayBoard({ roster, attacks: [attack(3, "#F2", 1, 40)], lineup: [], ourTag: US, teamSize: 3 });
     expect(board.bases[2]!.attack?.alreadyTaken).toBe(0);
+  });
+});
+
+describe("one of ours swapped out in preparation", () => {
+  // cwl_war_members is written once, so it still lists the member who was
+  // swapped out: four rows for a 3-base war. Our fielded lineup says who played.
+  const roster = [member(1), member(2), member(3), member(4)];
+  const lineup = [slot(US, "#U1", 1), slot(US, "#U3", 3), slot(US, "#U4", 4), slot(FOE, "#F1", 1)];
+
+  it("is not a base, and not a missed attack", () => {
+    const board = dayBoard({ roster, attacks: [attack(1, "#F1", 3, 100)], lineup, ourTag: US, teamSize: 3 });
+    expect(board.bases.map((b) => [b.tag, b.base])).toEqual([
+      ["#U1", 1],
+      ["#U3", 2],
+      ["#U4", 3],
+    ]);
+    expect(board.ours).toEqual({ used: 1, of: 3 });
+  });
+
+  it("is kept if he attacked — he was in the war, whatever the lineup says", () => {
+    const board = dayBoard({ roster, attacks: [attack(2, "#F1", 2, 70)], lineup, ourTag: US, teamSize: 3 });
+    expect(board.bases.map((b) => b.tag)).toContain("#U2");
+  });
+
+  it("leaves the roster alone when it is not over the team size, or our lineup was never recorded", () => {
+    const three = [member(1), member(2), member(3)];
+    const partial = [slot(US, "#U1", 1), slot(FOE, "#F1", 1)];
+    expect(dayBoard({ roster: three, attacks: [], lineup: partial, ourTag: US, teamSize: 3 }).bases).toHaveLength(3);
+    expect(dayBoard({ roster, attacks: [], lineup: [slot(FOE, "#F1", 1)], ourTag: US, teamSize: 3 }).bases).toHaveLength(4);
   });
 });

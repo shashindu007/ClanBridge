@@ -17,7 +17,7 @@ import { LocalTime } from "@/components/local-time";
 import { PageHeader } from "@/components/page-header";
 import { requireClanByTag } from "@/lib/clans";
 import { loadSeasonView } from "@/lib/cwl-season";
-import { loadScouting } from "@/lib/cwl-scouting-view";
+import { fieldedScouting, loadScouting } from "@/lib/cwl-scouting-view";
 import { seasonLabel } from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
 import { decodeTag, InvalidTagError } from "@/lib/tags";
@@ -66,13 +66,14 @@ export default async function CwlGroupClanPage({
     throw error;
   }
 
-  const [view, scouting] = await Promise.all([
+  const [view, recorded] = await Promise.all([
     loadSeasonView(supabase, clan, season),
     loadScouting(supabase, season.id, clan.tag),
   ]);
   const standing = view.standings.find((s) => s.tag === tag);
   if (!standing) notFound();
 
+  const scouting = fieldedScouting(recorded, view.groupWars);
   const scout = clanScout(tag, scouting, view.groupWars);
   const next = nextLineup(clan.tag, view.groupWars, scouting.lineups);
   const facing = next && next.enemyTag === tag ? next : null;

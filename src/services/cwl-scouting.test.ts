@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { GroupWar } from "@/repositories/cwl";
 import {
   clanScout,
+  fieldedOnly,
   nextLineup,
   weakPointsFor,
   type ScoutSeason,
@@ -48,6 +49,7 @@ function slot(
     attackDestruction: attack?.[1] ?? null,
     attackDefenderTag: attack?.[2] ?? null,
     attackOrder: null,
+    seenAt: null,
   };
 }
 
@@ -237,5 +239,89 @@ describe("nextLineup", () => {
 
   it("is null once the week is over", () => {
     expect(nextLineup(US, WARS.slice(0, 2), SEASON.lineups)).toBeNull();
+  });
+});
+
+describe("fieldedOnly — the lineup without the members swapped out in preparation", () => {
+  const EARLY = "2026-10-04T23:15:00.000Z";
+  const LATER = "2026-10-06T08:07:00.000Z";
+  const row = (tag: string, position: number, seenAt: string | null, attack?: [number, number, string]) => ({
+    ...slot("#W", FOE, tag, position, 18, attack),
+    seenAt,
+  });
+  const sizes = new Map<string, number | null>([["#W", 3]]);
+
+  it("drops the row that stopped being written, and keeps the map order of the rest", () => {
+    // Four rows for a 3-base war: #G was swapped out and never written again.
+    const rows = [row("#A", 2, LATER), row("#G", 9, EARLY), row("#B", 12, LATER), row("#C", 30, LATER)];
+    expect(fieldedOnly(rows, sizes).map((m) => m.tag)).toEqual(["#A", "#B", "#C"]);
+  });
+
+  it("treats a row never updated as last seen when it was created", () => {
+    const rows = [row("#A", 1, LATER), row("#B", 2, LATER), row("#G", 3, null), row("#C", 4, LATER)];
+    expect(fieldedOnly(rows, sizes).map((m) => m.tag)).toEqual(["#A", "#B", "#C"]);
+  });
+
+  it("never drops a member who attacked or was attacked, whatever the clock says", () => {
+    // After the war the attackers were written last (the order backfill), so a
+    // fielded member who did not attack is older than they are — and still
+    // newer than the one swapped out.
+    const rows = [
+      row("#A", 1, LATER, [3, 100, "#U1"]),
+      row("#QUIET", 2, "2026-10-05T10:00:00.000Z"),
+      row("#G", 3, EARLY),
+      row("#C", 4, LATER, [2, 80, "#U2"]),
+    ];
+    expect(fieldedOnly(rows, sizes).map((m) => m.tag)).toEqual(["#A", "#QUIET", "#C"]);
+
+    // Attacked by the other side, seen long ago: still in the war.
+    const hit = [
+      row("#A", 1, LATER),
+      row("#B", 2, LATER),
+      row("#OLD", 3, EARLY),
+      row("#G", 4, "2026-10-05T10:00:00.000Z"),
+      { ...slot("#W", US, "#U1", 1, 18, [3, 100, "#OLD"]), seenAt: LATER },
+    ];
+    expect(fieldedOnly(hit, sizes).filter((m) => m.clanTag === FOE).map((m) => m.tag)).toEqual(["#A", "#B", "#OLD"]);
+  });
+
+  it("leaves a side at its team size alone, and a war whose size is not known", () => {
+    const rows = [row("#A", 1, EARLY), row("#B", 2, null), row("#C", 3, LATER)];
+    expect(fieldedOnly(rows, sizes)).toEqual(rows);
+    const four = [...rows, row("#D", 4, LATER)];
+    expect(fieldedOnly(four, new Map([["#W", null]]))).toEqual(four);
+    expect(fieldedOnly(four, new Map())).toEqual(four);
+  });
+
+  it("cuts each side of each war on its own", () => {
+    const rows = [
+      row("#A", 1, LATER),
+      row("#B", 2, LATER),
+      row("#C", 3, LATER),
+      { ...slot("#W", US, "#U1", 1, 18), seenAt: LATER },
+      { ...slot("#W", US, "#U2", 2, 18), seenAt: EARLY },
+      { ...slot("#W", US, "#U3", 3, 18), seenAt: LATER },
+      { ...slot("#W", US, "#U4", 4, 18), seenAt: LATER },
+      { ...slot("#OTHER", FOE, "#G", 1, 18), seenAt: EARLY },
+    ];
+    expect(fieldedOnly(rows, new Map([["#W", 3], ["#OTHER", 3]])).map((m) => m.tag)).toEqual([
+      "#A", "#B", "#C", "#U1", "#U3", "#U4", "#G",
+    ]);
+  });
+
+  it("gives the bases their numbers back: the last base of 15 is #15, not #16", () => {
+    // Fifteen fielded and one swapped out at position 5.
+    const fieldedTags = Array.from({ length: 15 }, (_, i) => `#E${i + 1}`);
+    const rows = [
+      ...fieldedTags.map((tag, i) => row(tag, (i + 1) * 2, LATER)),
+      row("#GHOST", 9, EARLY),
+    ];
+    const next = nextLineup(
+      US,
+      [war("#W", 1, "preparation", FOE, US)],
+      fieldedOnly(rows, new Map([["#W", 15]])),
+    )!;
+    expect(next.theirs).toHaveLength(15);
+    expect(next.theirs.at(-1)).toMatchObject({ tag: "#E15", position: 15 });
   });
 });

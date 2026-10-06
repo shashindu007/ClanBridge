@@ -43,6 +43,73 @@ export interface ScoutWarMember {
   attackDefenderTag: string | null;
   /** The API's order of the attack within its war (062). Null without one, or before 062. */
   attackOrder: number | null;
+  /**
+   * When the sync last wrote this row — which it does every run for as long as
+   * the API still lists the member in that war's lineup. See fieldedOnly().
+   */
+  seenAt: string | null;
+}
+
+/**
+ * The lineups that were actually FIELDED: each side cut back to its war's team
+ * size, without the members swapped out before battle day.
+ *
+ * WHY THERE ARE EXTRA ROWS. A lineup can be changed all through preparation
+ * day. The sync upserts whoever the API lists and never removes anyone (R4),
+ * so a member swapped out stays in cwl_group_war_members beside the one who
+ * replaced him: sixteen rows, eighteen, twenty for a 15-base war. Every base
+ * below a ghost was then numbered one too low — "their #16 of 16" — and the
+ * ghost himself was a player who "missed his attack".
+ *
+ * HOW A GHOST IS TOLD FROM A PLAYER. A fielded member is written again on
+ * every run until the war ends; a swapped-out one stops being written the
+ * moment he leaves the lineup. So of a side's rows, the ones seen most
+ * recently are the lineup. Before that comes the proof that needs no clock: a
+ * member who attacked, or was attacked, was in the war.
+ *
+ * A side at or under its team size is returned as it is, and so is a war
+ * whose size is not known.
+ */
+export function fieldedOnly(
+  lineups: readonly ScoutWarMember[],
+  teamSizes: ReadonlyMap<string, number | null>,
+): ScoutWarMember[] {
+  const sides = new Map<string, ScoutWarMember[]>();
+  const attacked = new Map<string, Set<string>>();
+  for (const m of lineups) {
+    const key = `${m.warTag}|${m.clanTag}`;
+    const side = sides.get(key) ?? [];
+    side.push(m);
+    sides.set(key, side);
+    if (m.attackDefenderTag !== null) {
+      const hit = attacked.get(m.warTag) ?? new Set<string>();
+      hit.add(m.attackDefenderTag);
+      attacked.set(m.warTag, hit);
+    }
+  }
+
+  const ghosts = new Set<ScoutWarMember>();
+  for (const side of sides.values()) {
+    const size = teamSizes.get(side[0]!.warTag) ?? null;
+    if (size === null || side.length <= size) continue;
+    const hit = attacked.get(side[0]!.warTag);
+    const played = (m: ScoutWarMember) => (m.attackStars !== null || hit?.has(m.tag) ? 1 : 0);
+    const seen = (m: ScoutWarMember) => (m.seenAt === null ? 0 : Date.parse(m.seenAt) || 0);
+    const ranked = [...side].sort(
+      (a, b) =>
+        played(b) - played(a) ||
+        seen(b) - seen(a) ||
+        (a.mapPosition ?? 99) - (b.mapPosition ?? 99) ||
+        a.tag.localeCompare(b.tag),
+    );
+    for (const ghost of ranked.slice(size)) ghosts.add(ghost);
+  }
+  return ghosts.size ? lineups.filter((m) => !ghosts.has(m)) : [...lineups];
+}
+
+/** war tag -> team size, from the group's wars, for fieldedOnly(). */
+export function teamSizes(wars: ReadonlyArray<{ warTag: string; teamSize: number | null }>): Map<string, number | null> {
+  return new Map(wars.map((w) => [w.warTag, w.teamSize]));
 }
 
 export interface ScoutVillage {

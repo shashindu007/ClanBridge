@@ -97,10 +97,22 @@ export function dayBoard(input: {
   /** The same war in the group table, for the enemy's attack count without a lineup. */
   groupWar?: GroupWar | null;
 }): DayBoard {
-  const { roster, attacks, lineup, ourTag, teamSize, groupWar } = input;
+  const { attacks, lineup, ourTag, teamSize, groupWar } = input;
   const ourRows = lineup.filter((m) => m.clanTag === ourTag);
   const enemyRows = lineup.filter((m) => m.clanTag !== ourTag);
   const enemyKnown = enemyRows.length > 0;
+
+  // One of OURS swapped out in preparation is the same ghost as the enemy's
+  // (fieldedOnly) in a table that is written once and never refreshed:
+  // cwl_war_members would list him for good, as a base and as a missed attack.
+  // Where the roster runs past the team size, our fielded lineup says who
+  // played — and anyone who attacked did, whatever else is known.
+  const fielded = new Set(ourRows.map((m) => m.tag));
+  const attackers = new Set(attacks.map((a) => a.playerId));
+  const roster =
+    teamSize !== null && input.roster.length > teamSize && fielded.size > 0
+      ? input.roster.filter((m) => fielded.has(m.tag) || attackers.has(m.playerId))
+      : input.roster;
 
   // The lineup row first: it is refreshed while the war is live, where the
   // roster keeps the position it was first written with.

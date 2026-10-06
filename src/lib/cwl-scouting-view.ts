@@ -10,6 +10,8 @@ import type { GroupWar } from "@/repositories/cwl";
 import { ourVillages, scoutingForSeason } from "@/repositories/cwl-scouting";
 import {
   clanScout,
+  fieldedOnly,
+  teamSizes,
   type ClanScout,
   type ScoutSeason,
   type StandingScout,
@@ -24,6 +26,18 @@ export async function loadScouting(
   const ourTags = season.roster.filter((m) => m.clanTag === ourTag).map((m) => m.tag);
   const ours = await ourVillages(supabase, ourTag, ourTags);
   return { ...season, villages: [...season.villages.filter((v) => v.clanTag !== ourTag), ...ours] };
+}
+
+/**
+ * The scouting with each war's lineups cut back to who was fielded — without
+ * the members swapped out in preparation, who would otherwise shift every base
+ * number below them and be counted as having missed an attack.
+ *
+ * A step of its own because the team sizes come with the group's wars, which
+ * the pages load beside the scouting rather than before it.
+ */
+export function fieldedScouting(season: ScoutSeason, wars: readonly GroupWar[]): ScoutSeason {
+  return { ...season, lineups: fieldedOnly(season.lineups, teamSizes(wars)) };
 }
 
 /** One scout per clan in the group, by tag. */
