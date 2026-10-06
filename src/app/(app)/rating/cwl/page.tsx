@@ -187,8 +187,8 @@ export default async function CwlRatingPage({
           <p className="text-muted-foreground text-sm">
             {started
               ? only
-                ? `Rating is each finished day's share of ${only.clan.name}'s marks, added up.`
-                : "Rating is each finished day's share of a player's own clan's marks, added up."
+                ? `Rating is each finished day's share of ${only.clan.name}'s plus marks, added up.`
+                : "Rating is each finished day's share of a player's own clan's plus marks, added up."
               : "No day has finished yet — this is the running day so far, and it will move."}
             {started && running && " The day still running is shown beside it and is not counted yet."}
           </p>

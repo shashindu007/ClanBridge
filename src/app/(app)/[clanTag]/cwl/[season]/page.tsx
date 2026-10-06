@@ -339,7 +339,7 @@ export default async function CwlDayDetailPage({
                 <SectionHeader id="top-title" icon={Trophy} title="Top performers" />
                 <p className="text-muted-foreground text-xs">
                   {rating.started
-                    ? "By season rating: marks for attack and defence, as each player's share of the clan's marks on every finished day, added up."
+                    ? "By season rating: marks for attack and defence, as each player's share of the clan's plus marks on every finished day, added up."
                     : `Day ${liveDay?.dayNumber ?? "?"} so far — provisional. A day joins the rating once it has finished.`}
                 </p>
               </div>

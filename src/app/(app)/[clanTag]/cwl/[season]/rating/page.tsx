@@ -165,7 +165,7 @@ export default async function CwlRatingPage({
             <div className="space-y-1">
               <SectionHeader id="rating-title" icon={Medal} title="Season rating" count={rating.players.length} />
               <p className="text-muted-foreground text-sm">
-                Each day a player&apos;s marks are taken as a share of the whole clan&apos;s marks, and the
+                Each day a player&apos;s marks are taken as a share of the clan&apos;s plus marks, and the
                 rating is those shares added up over the finished days.
                 {provisional && " The day still running is shown but not counted yet."}
               </p>
@@ -233,8 +233,9 @@ export default async function CwlRatingPage({
               </Table>
             </div>
             <p className="text-muted-foreground text-xs">
-              Under each day: the share of the clan&apos;s marks, then the marks themselves. &ldquo;clan +123&rdquo; is
-              what everyone&apos;s marks came to that day. A dash is a day the player was not in the lineup.
+              Under each day: the share of the clan&apos;s plus marks, then the marks themselves. &ldquo;clan
+              +123&rdquo; is what the marks of everyone above zero came to that day — minus marks are not taken
+              off it. A dash is a day the player was not in the lineup.
               &ldquo;Per day&rdquo; is the rating divided by the finished days played — the rating is a sum, so it is
               the fair comparison between someone fielded seven days and someone fielded four.
               {unrated > 0 &&
@@ -273,7 +274,7 @@ export default async function CwlRatingPage({
               <p className="text-muted-foreground text-sm">
                 {shown.day.status === "provisional"
                   ? "Still running: these marks move with every attack, and nobody has lost marks for an unused attack yet."
-                  : `The clan's marks came to ${signed(shown.day.total)}; each share is a player's marks out of that.`}
+                  : `The clan's plus marks came to ${signed(shown.day.total)}; each share is a player's marks out of that. Minus marks are not taken off it.`}
               </p>
 
               <div className="-mx-5 overflow-x-auto px-5">
@@ -428,8 +429,11 @@ export default async function CwlRatingPage({
 
             <h3 className="pt-2 font-semibold">From marks to rating</h3>
             <p className="text-muted-foreground">
-              Day share = your marks ÷ the whole clan&apos;s marks that day. 4 marks when the other players have
-              47 between them is 4 ÷ 51 = 7.8%. A minus day is a minus share. The rating is the shares of
+              Day share = your marks ÷ the clan&apos;s plus marks that day — the marks of everyone who finished
+              above zero. 4 marks when the other players have 47 between them is 4 ÷ 51 = 7.8%. Minus marks
+              are left out of what is divided by, so the plus shares always add up to 100% and one
+              player&apos;s bad day does not lift everyone else&apos;s. A minus day is a minus share, never worse
+              than {oneDecimal(CWL_MARKS.worstShare)}%. The rating is the shares of
               every finished day added up; players level on it are ordered by marks, then by average
               destruction.
             </p>

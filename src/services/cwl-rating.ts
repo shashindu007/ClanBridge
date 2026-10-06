@@ -43,8 +43,13 @@
 //            destruction, order and duration and nothing else — so they are
 //            chosen here, by the comparisons in heroicAttack / heroicDefence.
 //
-//   DAY %    a player's marks ÷ everyone's marks that day. A minus day is a
-//            minus share; a day the whole clan ends at 0 or less counts 0.
+//   DAY %    a player's marks ÷ the clan's PLUS marks that day — the marks
+//            of everyone who finished above zero. Minus marks are left out of
+//            what is divided by: inside it they shrank it, so one player's
+//            bad day pushed every other share up, past 100% on a day bad
+//            enough. Now the plus shares add up to exactly 100.
+//            A minus day is a minus share, never worse than −100%. A day
+//            nobody finished above zero counts 0.
 //
 //   SEASON   the day shares added up — FINISHED days only. A running day is
 //            worked out the same way and shown as provisional: early on, three
@@ -117,6 +122,13 @@ export const CWL_MARKS = {
   /** In the lineup of a finished day, and no enemy attacked the base. */
   notAttacked: 2,
   heroicDefence: 5,
+
+  /**
+   * The worst a single day's share can be, as a percentage. The plus side
+   * cannot pass 100; without this the minus side could, on a day the clan's
+   * plus marks were few, and one such day would cost a player the month.
+   */
+  worstShare: -100,
 } as const;
 
 /** "without 3 stars", "without 2 stars", "without a star" — what a short result lacked. */
@@ -160,7 +172,10 @@ export type DayRatingStatus = "counted" | "provisional" | "notStarted" | "notRat
 
 export interface DayRating {
   status: DayRatingStatus;
-  /** Everyone's marks added up — what a share is a share of. */
+  /**
+   * The marks of everyone who finished the day above zero, added up — what a
+   * share is a share of. Minus marks are not in it.
+   */
   total: number;
   /** In map order. Empty unless counted or provisional. */
   players: PlayerDayRating[];
@@ -407,12 +422,16 @@ export function dayRating(board: DayBoard, state: string | null, final = false):
     };
   });
 
-  const total = round1(rows.reduce((t, r) => t + r.marks, 0));
+  // Plus marks only. See DAY % at the top of the file.
+  const total = round1(rows.reduce((t, r) => t + Math.max(0, r.marks), 0));
   return {
     status: over ? "counted" : "provisional",
     total,
-    // A clan total of 0 or less has no shares to hand out: the day counts 0.
-    players: rows.map((r) => ({ ...r, share: total > 0 ? (r.marks / total) * 100 : 0 })),
+    // Nobody above zero: there are no shares to hand out, and the day counts 0.
+    players: rows.map((r) => ({
+      ...r,
+      share: total > 0 ? Math.max(CWL_MARKS.worstShare, (r.marks / total) * 100) : 0,
+    })),
     orderMissing: board.bases.some((b) => b.attack?.alreadyTaken === null),
   };
 }

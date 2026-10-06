@@ -331,16 +331,57 @@ describe("dayRating", () => {
     expect(day.players.map((p) => p.marks)).toEqual([7 + 4 + 10 + 5, 7 + 10, 7 + 3]);
   });
 
-  it("makes a minus day a minus share", () => {
-    // No attack −10 and left alone +2; three stars on the mirror 7, heroic +4, left alone +2.
-    const day = dayRating(board([base(1), base(2, { attack: [3, 2, 17] })]), "warEnded");
-    expect(day.players.map((p) => p.marks)).toEqual([-8, 13]);
-    expect(day.players[0]!.share).toBeCloseTo((-8 / 5) * 100, 6);
+  it("divides by the plus marks only: +15 and +13 with a −12 is out of 28", () => {
+    const day = dayRating(
+      board([
+        base(1, { attack: [3, 1, 17] }), // C: 7, heroic attack +4, left alone +2 = 13
+        base(2, { attack: [3, 2, 17], hits: [[2, 2]] }), // A: 7, held to 2★ +3, heroic defence +5 = 15
+        base(3, { hits: [[3, 5]] }), // B: no attack −10, 3-starred from below −2 = −12
+      ]),
+      "warEnded",
+    );
+    expect(day.players.map((p) => p.marks)).toEqual([13, 15, -12]);
+    expect(day.total).toBe(28);
+    expect(day.players.map((p) => p.share)).toEqual([
+      expect.closeTo((13 / 28) * 100, 6),
+      expect.closeTo((15 / 28) * 100, 6),
+      expect.closeTo((-12 / 28) * 100, 6),
+    ]);
+    // The plus shares are the whole of it, whoever went under.
+    const plus = day.players.filter((p) => p.marks > 0).reduce((t, p) => t + p.share, 0);
+    expect(plus).toBeCloseTo(100, 6);
   });
 
-  it("counts 0 for everyone when the clan's total is 0 or less", () => {
-    const day = dayRating(board([base(1), base(2, { attack: [1, 2, 17] })]), "warEnded");
-    expect(day.total).toBe(-10 + 2 + -1 + 2);
+  it("never lets a minus player push anyone's share past 100%", () => {
+    // +13 and −8: out of everyone's marks that was 13 of 5, or 260%.
+    const day = dayRating(board([base(1), base(2, { attack: [3, 2, 17] })]), "warEnded");
+    expect(day.players.map((p) => p.marks)).toEqual([-8, 13]);
+    expect(day.total).toBe(13);
+    expect(day.players[1]!.share).toBe(100);
+    expect(day.players[0]!.share).toBeCloseTo((-8 / 13) * 100, 6);
+  });
+
+  it("never makes a day's share worse than −100%", () => {
+    // 7 above zero in the whole clan and a player on −12: −171% before the limit.
+    const day = dayRating(
+      board([
+        base(1, { attack: [1, 1, 17], hits: [[2, 1]] }), // −3 + 1 + 1, held to 2★ +3, heroic defence +5 = 7
+        base(2, { hits: [[3, 5]] }), // no attack −10, 3-starred from below −2 = −12
+      ]),
+      "warEnded",
+    );
+    expect(day.players.map((p) => p.marks)).toEqual([7, -12]);
+    expect(day.total).toBe(7);
+    expect(day.players.map((p) => p.share)).toEqual([100, -100]);
+  });
+
+  it("counts 0 for everyone when nobody finished the day above zero", () => {
+    const day = dayRating(
+      board([base(1, { hits: [[3, 1]] }), base(2, { attack: [1, 2, 17], hits: [[3, 2]] })]),
+      "warEnded",
+    );
+    expect(day.players.map((p) => p.marks)).toEqual([-10, -1]);
+    expect(day.total).toBe(0);
     expect(day.players.map((p) => p.share)).toEqual([0, 0]);
   });
 
