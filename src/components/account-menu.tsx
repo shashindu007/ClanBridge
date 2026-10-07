@@ -121,12 +121,12 @@ export function AccountMenu({
   const label = username ?? email ?? "Account";
 
   return (
-    <details ref={ref} className="group relative shrink-0">
+    <details ref={ref} className="group relative shrink-0 max-sm:static">
       <summary
         // The control says WHOSE account it is. The bug that started T10 was a
         // member with two accounts who could not tell which one they were signed
         // in as, so the name is the label rather than a generic avatar.
-        className="text-rail-ink-dim hover:text-rail-ink flex cursor-pointer list-none items-center gap-1.5 rounded-control px-2 py-1.5 text-[0.9375rem] transition-colors hover:bg-white/8 group-open:bg-white/12 group-open:text-rail-ink [&::-webkit-details-marker]:hidden"
+        className="text-rail-ink-dim hover:text-rail-ink flex cursor-pointer list-none items-center gap-1.5 rounded-control px-2 py-1.5 text-[0.9375rem] transition-colors hover:bg-white/8 group-open:bg-white/12 group-open:text-rail-ink max-sm:p-2.5 [&::-webkit-details-marker]:hidden"
         aria-label={`Account and settings for ${label}`}
         title={email ?? undefined}
       >
@@ -149,10 +149,13 @@ export function AccountMenu({
         ) : (
           <CircleUser aria-hidden className="size-4 shrink-0" />
         )}
-        <span className="max-w-[9rem] truncate">{label}</span>
+        {/* The name is dropped below `sm`: with it the rail was wider than a
+            phone and this button was the part cut off. It is still the first
+            line of the open menu, and the accessible name above. */}
+        <span className="max-w-[9rem] truncate max-sm:hidden">{label}</span>
         <ChevronDown
           aria-hidden
-          className="size-3.5 shrink-0 transition-transform group-open:rotate-180"
+          className="size-3.5 shrink-0 transition-transform group-open:rotate-180 max-sm:hidden"
         />
       </summary>
 
@@ -161,8 +164,9 @@ export function AccountMenu({
           were cutting their text off rather than floating above them. The
           popover tier is lighter, ringed and deeply shadowed, and nothing on a
           page uses it. Capped to the viewport and scrolls inside itself, so on
-          a short phone the way out is never below the fold. */}
-      <div className="cb-popover absolute right-0 z-50 mt-2 flex max-h-[calc(100dvh-5rem)] w-64 flex-col overflow-y-auto rounded-panel p-2 text-left">
+          a short phone the way out is never below the fold. Below `sm` it
+          spans the rail (the <details> goes static, the nav is the anchor). */}
+      <div className="cb-popover absolute right-0 z-50 mt-2 flex max-h-[calc(100dvh-5rem)] w-64 flex-col overflow-y-auto rounded-panel p-2 text-left max-sm:inset-x-3 max-sm:top-full max-sm:w-auto">
         {/* Which account, spelled out. The username is on the control above;
             the email is the thing that actually distinguishes two accounts
             belonging to the same person. */}

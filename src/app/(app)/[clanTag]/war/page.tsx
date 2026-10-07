@@ -652,7 +652,7 @@ export default async function WarBoardPage({
           </p>
 
           <div className="-mx-5 overflow-x-auto px-5">
-            <table className="w-full min-w-[40rem] text-sm">
+            <table className="cb-stack w-full sm:min-w-[40rem] text-sm">
               <thead className="text-muted-foreground border-b text-left text-xs uppercase">
                 <tr>
                   <th className="py-2 pr-3 font-medium">Our base</th>
@@ -665,8 +665,8 @@ export default async function WarBoardPage({
               <tbody>
                 {record.map((m) => (
                   <tr key={m.playerId} className="border-b align-top last:border-0">
-                    <td className="text-muted-foreground py-3 pr-3 tabular-nums">#{m.mapPosition ?? "?"}</td>
-                    <td className="py-3 pr-3">
+                    <td data-cell="corner" className="text-muted-foreground py-3 pr-3 tabular-nums">#{m.mapPosition ?? "?"}</td>
+                    <td data-cell="title" className="py-3 pr-3">
                       <Link
                         className="font-medium underline-offset-2 hover:underline"
                         href={`${base}/player/${encodeURIComponent(m.tag)}`}
@@ -682,7 +682,7 @@ export default async function WarBoardPage({
                     </td>
 
                     {/* THE PLAN */}
-                    <td className="py-3 pr-3">
+                    <td data-cell="wide" data-label="Target" className="py-3 pr-3">
                       {m.targets.length === 0 ? (
                         <span className="text-muted-foreground">No target</span>
                       ) : (
@@ -748,7 +748,7 @@ export default async function WarBoardPage({
 
                     {/* THE OUTCOME. Deliberately the next column and not the same one:
                         the gap between them is what this page is for. */}
-                    <td className="py-3 pr-3">
+                    <td data-cell="wide" data-label="Attacked" className="py-3 pr-3">
                       {m.attacks.length === 0 ? (
                         <span className="text-muted-foreground">{preparation ? "—" : "Not yet"}</span>
                       ) : (
@@ -767,7 +767,7 @@ export default async function WarBoardPage({
                       )}
                     </td>
 
-                    <td className="py-3 pr-3 text-right font-medium tabular-nums">
+                    <td data-cell="row" data-label="Stars" className="py-3 pr-3 text-right font-medium tabular-nums">
                       {m.attacks.length ? m.stars : "—"}
                     </td>
                   </tr>

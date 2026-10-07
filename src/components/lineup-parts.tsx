@@ -346,7 +346,7 @@ export function PoolSearch({
           defaultValue={q}
           placeholder="Search by name or tag"
           aria-label="Search players by name or tag"
-          className="h-9 pl-9"
+          className="pl-9"
         />
       </div>
       {clans && clans.length > 1 && (
@@ -354,7 +354,7 @@ export function PoolSearch({
           name="from"
           defaultValue={from ?? ""}
           aria-label="Only players currently in this clan"
-          className="border-input bg-background h-9 rounded-control border px-3 text-sm"
+          className="border-input bg-background h-10 sm:h-9 rounded-control border px-3 text-base sm:text-sm"
         >
           <option value="">From all clans</option>
           {clans.map((clan) => (

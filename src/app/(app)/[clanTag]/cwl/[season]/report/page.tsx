@@ -184,7 +184,7 @@ export default async function CwlSeasonReportPage({
           <p className="text-muted-foreground text-sm">No war data was captured for this season.</p>
         ) : (
           <div className="-mx-6 overflow-x-auto px-6">
-            <Table>
+            <Table className="cb-stack">
               <TableHeader>
                 <TableRow>
                   <TableHead>Player</TableHead>
@@ -198,7 +198,7 @@ export default async function CwlSeasonReportPage({
               <TableBody>
                 {contributions.map((c) => (
                   <TableRow key={c.playerId}>
-                    <TableCell className="font-medium">
+                    <TableCell data-cell="title" className="font-medium">
                       <Link
                         className="underline-offset-2 hover:underline"
                         href={`${clanBase}/player/${encodeURIComponent(c.tag)}`}
@@ -206,15 +206,15 @@ export default async function CwlSeasonReportPage({
                         {c.name}
                       </Link>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{c.warsPlayed}</TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell data-label="War days" className="text-right tabular-nums">{c.warsPlayed}</TableCell>
+                    <TableCell data-label="Attacks" className="text-right tabular-nums">
                       {c.attacksUsed} of {c.warsPlayed}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell data-label="Missed" className="text-right tabular-nums">
                       {c.missed > 0 ? <span className="text-destructive font-medium">{c.missed}</span> : "—"}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{c.stars}</TableCell>
-                    <TableCell className="text-right tabular-nums">{c.averageDestruction.toFixed(1)}%</TableCell>
+                    <TableCell data-label="Stars" className="text-right tabular-nums">{c.stars}</TableCell>
+                    <TableCell data-label="Avg destruction" className="text-right tabular-nums">{c.averageDestruction.toFixed(1)}%</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

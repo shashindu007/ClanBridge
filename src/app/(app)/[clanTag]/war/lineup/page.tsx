@@ -396,7 +396,7 @@ export default async function WarLineupPage({
             <select
               name="size"
               defaultValue={supports ?? 15}
-              className="border-input bg-background h-10 w-full rounded-control border px-3 text-sm sm:w-56"
+              className="border-input bg-background h-11 sm:h-10 w-full rounded-control border px-3 text-base sm:text-sm sm:w-56"
             >
               {WAR_SIZES.map((s) => (
                 <option key={s} value={s}>
@@ -500,7 +500,7 @@ export default async function WarLineupPage({
               </p>
             ) : (
               <div className="-mx-5 overflow-x-auto px-5">
-                <table className="w-full min-w-[32rem] text-sm">
+                <table className="cb-stack w-full sm:min-w-[32rem] text-sm">
                   <thead className="text-muted-foreground border-b text-left text-xs uppercase">
                     <tr>
                       <th className="py-2 pr-3 font-medium">Player</th>
@@ -514,7 +514,7 @@ export default async function WarLineupPage({
                   <tbody>
                     {shown.map((m) => (
                       <tr key={m.playerId} className="border-b align-middle last:border-0">
-                        <td className="py-2.5 pr-3">
+                        <td data-cell="title" className="py-2.5 pr-3">
                           <Link
                             className="block font-medium underline-offset-2 hover:underline"
                             href={`${base}/player/${encodeURIComponent(m.tag)}`}
@@ -528,13 +528,13 @@ export default async function WarLineupPage({
                             </span>
                           )}
                         </td>
-                        <td className="py-2.5 pr-3">
+                        <td data-label="Town Hall" className="py-2.5 pr-3">
                           <TownHall level={m.thLevel} />
                         </td>
-                        <td className="py-2.5 pr-3">
+                        <td data-label="Availability" className="py-2.5 pr-3">
                           <AvailabilityBadge answer={m.answer} />
                         </td>
-                        <td className="py-2.5 text-right">
+                        <td data-cell="row" className="py-2.5 text-right">
                           {full ? (
                             <span className="text-muted-foreground text-xs">Lineup full</span>
                           ) : (

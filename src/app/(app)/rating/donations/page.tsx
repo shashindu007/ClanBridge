@@ -221,7 +221,7 @@ function SeasonDonations({
           <p className="text-muted-foreground text-sm">No donation readings for this season yet.</p>
         ) : (
           <div className="-mx-5 overflow-x-auto px-5">
-            <Table>
+            <Table className="cb-stack">
               <TableHeader>
                 <TableRow>
                   <TableHead>Member</TableHead>
@@ -236,7 +236,7 @@ function SeasonDonations({
                   const member = byId.get(row.playerId)!;
                   return (
                     <TableRow key={row.playerId}>
-                      <TableCell>
+                      <TableCell data-cell="title">
                         <Link
                           href={`/${encodeURIComponent(member.clanTag)}/player/${encodeURIComponent(member.tag)}`}
                           className="font-medium hover:underline"
@@ -247,7 +247,7 @@ function SeasonDonations({
                           {member.tag}
                         </span>
                       </TableCell>
-                      <TableCell>
+                      <TableCell data-cell="wide" data-label="In each clan">
                         <ul className="space-y-0.5 text-sm">
                           {row.byClan.map((s) => (
                             <li key={s.clanId} className="flex items-center gap-2">
@@ -262,15 +262,15 @@ function SeasonDonations({
                           ))}
                         </ul>
                       </TableCell>
-                      <TableCell className="text-right text-sm tabular-nums">
+                      <TableCell data-label="Other clans" className="text-right text-sm tabular-nums">
                         {/* "—", not 0: no usable lifetime reading is not the
                             same as having given nothing elsewhere. */}
                         {row.other === null ? "—" : row.other.toLocaleString("en-GB")}
                       </TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">
+                      <TableCell data-label="Total given" className="text-right font-medium tabular-nums">
                         {row.total.toLocaleString("en-GB")}
                       </TableCell>
-                      <TableCell className="text-right text-sm tabular-nums">
+                      <TableCell data-label="Received" className="text-right text-sm tabular-nums">
                         {row.received.toLocaleString("en-GB")}
                       </TableCell>
                     </TableRow>
@@ -300,7 +300,7 @@ function SeasonDonations({
 function MemberTable({ list }: { list: ParticipationRow[] }) {
   return (
     <div className="-mx-5 overflow-x-auto px-5">
-      <Table>
+      <Table className="cb-stack">
         <TableHeader>
           <TableRow>
             <TableHead>Member</TableHead>
@@ -314,7 +314,7 @@ function MemberTable({ list }: { list: ParticipationRow[] }) {
         <TableBody>
           {list.map((row) => (
             <TableRow key={row.playerId}>
-              <TableCell>
+              <TableCell data-cell="title">
                 <Link
                   href={`/${encodeURIComponent(row.clanTag)}/player/${encodeURIComponent(row.tag)}`}
                   className="font-medium hover:underline"
@@ -325,19 +325,19 @@ function MemberTable({ list }: { list: ParticipationRow[] }) {
                   {row.tag}
                 </span>
               </TableCell>
-              <TableCell className="text-muted-foreground text-sm">
+              <TableCell data-label="Clan" className="text-muted-foreground text-sm">
                 {row.clanName}
               </TableCell>
-              <TableCell className="text-right">
+              <TableCell data-label="TH" className="text-right">
                 <TownHall level={row.thLevel} />
               </TableCell>
-              <TableCell className="text-right text-sm">
+              <TableCell data-label="Given" className="text-right text-sm">
                 {/* "—" rather than 0: a member the sync has not reached
                     has no reading, and a zero there is indistinguishable
                     from genuinely having donated nothing. */}
                 {row.activity.donations ?? "—"}
               </TableCell>
-              <TableCell className="text-right text-sm">
+              <TableCell data-label="Ratio" className="text-right text-sm">
                 {row.activity.lowRatio ? (
                   <Badge variant="destructive">
                     {ratioLabel(row.activity.ratio)}
@@ -346,7 +346,7 @@ function MemberTable({ list }: { list: ParticipationRow[] }) {
                   ratioLabel(row.activity.ratio)
                 )}
               </TableCell>
-              <TableCell>
+              <TableCell data-cell="wide" data-label="Needs a look">
                 {row.flags.length === 0 ? (
                   <span className="text-muted-foreground text-sm">—</span>
                 ) : (

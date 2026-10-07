@@ -103,7 +103,7 @@ export default async function FeedbackPage() {
               rows={5}
               defaultValue={pending?.body ?? ""}
               aria-describedby="body-hint"
-              className="border-input bg-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-control border px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+              className="border-input bg-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-control border px-3 py-2 text-base sm:text-sm shadow-xs outline-none focus-visible:ring-[3px]"
               placeholder="The war board means nobody asks who is left to attack any more."
             />
             <p id="body-hint" className="text-muted-foreground text-xs">

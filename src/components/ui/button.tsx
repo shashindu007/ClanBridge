@@ -94,18 +94,22 @@ const buttonVariants = cva(
       // These land near 31/40/45/49px once the root scale is applied, so
       // `default` and `lg` clear the guideline and the two compact sizes stop
       // being unusable on a phone.
+      //
+      // The root scale is 112.5% only from `sm` up (globals.css), so below it
+      // each size takes one more step to stay the same height under a finger:
+      // 32/40/44px on a phone against 31/40/45px on a laptop.
       size: {
-        default: "h-10 px-4 py-2 has-[>svg]:px-3",
-        xs: "h-7 gap-1 rounded-chip px-2.5 text-xs has-[>svg]:px-2 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-9 gap-1.5 px-3.5 has-[>svg]:px-3",
-        lg: "h-11 px-6 has-[>svg]:px-4",
+        default: "h-11 px-4 py-2 has-[>svg]:px-3 sm:h-10",
+        xs: "h-8 gap-1 rounded-chip px-2.5 text-xs has-[>svg]:px-2 sm:h-7 [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-10 gap-1.5 px-3.5 has-[>svg]:px-3 sm:h-9",
+        lg: "h-12 px-6 has-[>svg]:px-4 sm:h-11",
         // The call to action on a tile or a banner: taller, and wide enough
         // to be hit with a thumb without looking.
         cta: "h-12 px-6 text-base has-[>svg]:px-5 [&_svg:not([class*='size-'])]:size-5",
-        icon: "size-10",
-        "icon-xs": "size-7 rounded-chip [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-9",
-        "icon-lg": "size-11",
+        icon: "size-11 sm:size-10",
+        "icon-xs": "size-8 rounded-chip sm:size-7 [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm": "size-10 sm:size-9",
+        "icon-lg": "size-12 sm:size-11",
       },
     },
     defaultVariants: {

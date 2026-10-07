@@ -121,7 +121,7 @@ export function PlayerReportSections({
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <Table>
+            <Table className="cb-stack">
               <TableHeader>
                 <TableRow>
                   <TableHead>Season</TableHead>
@@ -141,7 +141,7 @@ export function PlayerReportSections({
                   const canOpen = clanNames.has(s.clanId);
                   return (
                     <TableRow key={`${s.clanId}:${s.season}`}>
-                      <TableCell className="font-medium">
+                      <TableCell data-cell="title" className="font-medium">
                         {canOpen ? (
                           <Link
                             className="underline-offset-2 hover:underline"
@@ -153,21 +153,21 @@ export function PlayerReportSections({
                           s.season
                         )}
                       </TableCell>
-                      <TableCell>{s.clanName}</TableCell>
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell data-label="Clan">{s.clanName}</TableCell>
+                      <TableCell data-label="Wars" className="text-right tabular-nums">
                         {s.warsRostered}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell data-label="Attacks" className="text-right tabular-nums">
                         {s.attacksUsed}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell data-label="Missed" className="text-right tabular-nums">
                         {missed > 0 ? (
                           <span className="text-destructive">{missed}</span>
                         ) : (
                           "—"
                         )}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">{s.stars}</TableCell>
+                      <TableCell data-label="Stars" className="text-right tabular-nums">{s.stars}</TableCell>
                     </TableRow>
                   );
                 })}

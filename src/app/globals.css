@@ -276,9 +276,21 @@
 
      Everything in this project sizes in rem — spacing, radii and max-widths
      included — so this scales text, padding and container widths together.
-     The dense tables absorb it by scrolling inside `overflow-x-auto`. */
+
+     ONLY FROM `sm` UP. On a phone the larger scale left a 360px screen with
+     20rem of room, and most members read this on a phone. Below 40rem the
+     scale is the reader's own size, untouched; the wide tables turn into cards
+     there (.cb-stack, at the foot of this file). 40rem in a media query is
+     always 640px — it is measured against the browser's default, not against
+     this rule — so it is the same line as Tailwind's `sm:`. */
   html {
-    font-size: 112.5%; /* 16px -> 18px, before the reader's own preference */
+    font-size: 100%;
+  }
+
+  @media (min-width: 40rem) {
+    html {
+      font-size: 112.5%; /* 16px -> 18px, before the reader's own preference */
+    }
   }
 
   body {
@@ -1255,6 +1267,19 @@
       var(--gauge, var(--primary));
   }
 
+  /* A stacked row's surface (see THE STACK at the foot of this file). Here
+     rather than there so a row's own bg-* utility still wins: the "You" row
+     in the standings, a ticked row in the player picker. */
+  @media (width < 40rem) {
+    .cb-stack > tbody > tr {
+      background: oklch(0.3 0.05 264 / 0.045);
+    }
+
+    .dark .cb-stack > tbody > tr {
+      background: oklch(0 0 0 / 0.26);
+    }
+  }
+
   /* Nobody asked the interface to move. The depth stays, since depth is not
      motion; only the travel goes. */
   @media (prefers-reduced-motion: reduce) {
@@ -1316,6 +1341,136 @@
   color: var(--foreground);
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE STACK
+
+   A table that is a table from `sm` up and a list of cards below it. The wide
+   tables here are 32 to 58rem across; on a phone they scrolled sideways under
+   a hidden scrollbar and the player's name scrolled away with the first
+   column. `.cb-stack` on the <table> turns each row into a card instead: the
+   name on top, every other cell as a labelled value.
+
+   One set of markup. Each <td> carries `data-label` (its column heading,
+   drawn before the value) and, where it is not a plain value, `data-cell`:
+
+     title    the row's name: full width, drawn first wherever it sits
+     corner   pinned top-right: a rank, a base number, a checkbox
+     row      full width, label left and value right
+     wide     full width, label above: attack lists, anything with controls
+     mini     a quarter, label above: one of a run of days or Town Halls
+     hide     not shown in a card
+
+   A cell with neither is half the card: label left, value right.
+
+   UNLAYERED, like the sheet above, and that is the point: these have to beat
+   the `whitespace-nowrap`, `p-2`, `text-right` and `min-w-[..]` utilities the
+   same cells wear as a table, and no layered rule can. The card's background
+   is the one part that must lose to a utility, so it lives in the components
+   layer (search "A stacked row's surface").
+
+   The label is floated, not laid out with flex: a cell's content is whatever
+   the page put there (text beside a block span, a list, a form) and a flex
+   row would space those apart as separate items.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (width < 40rem) {
+  .cb-stack,
+  .cb-stack > tbody {
+    display: block;
+    min-width: 0;
+  }
+
+  /* Read out, not drawn: every cell says its own heading in a card. */
+  .cb-stack > thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .cb-stack > tbody > tr {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: start;
+    gap: 0.375rem 0.875rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+  }
+
+  .cb-stack > tbody > tr + tr {
+    margin-top: 0.5rem;
+  }
+
+  .cb-stack > tbody > tr > :is(td, th) {
+    display: flow-root;
+    grid-column: span 2;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    height: auto;
+    padding: 0;
+    border: 0;
+    text-align: right;
+    white-space: normal;
+    /* break-word, not anywhere: `anywhere` also shrinks a cell's smallest
+       width, which folded the standings' "You" pill onto two lines. */
+    overflow-wrap: break-word;
+  }
+
+  .cb-stack > tbody > tr > [data-label]::before {
+    content: attr(data-label);
+    float: left;
+    margin-right: 0.75rem;
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.25rem;
+    text-align: left;
+  }
+
+  .cb-stack > tbody > tr > :is([data-cell="title"], [data-cell="row"], [data-cell="wide"], [colspan]) {
+    grid-column: 1 / -1;
+  }
+
+  .cb-stack > tbody > tr > :is([data-cell="title"], [data-cell="wide"], [colspan]) {
+    text-align: left;
+  }
+
+  .cb-stack > tbody > tr > [data-cell="title"] {
+    order: -1;
+    font-size: 0.9375rem;
+  }
+
+  .cb-stack > tbody > tr > [data-cell="mini"] {
+    grid-column: span 1;
+    text-align: center;
+  }
+
+  .cb-stack > tbody > tr > :is([data-cell="wide"], [data-cell="mini"])[data-label]::before {
+    float: none;
+    display: block;
+    margin: 0 0 0.125rem;
+    text-align: inherit;
+  }
+
+  .cb-stack > tbody > tr > [data-cell="corner"] {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+  }
+
+  .cb-stack > tbody > tr:has(> [data-cell="corner"]) > [data-cell="title"] {
+    padding-right: 3.5rem;
+  }
+
+  .cb-stack > tbody > tr > [data-cell="hide"] {
+    display: none;
+  }
 }
 
 @media print {

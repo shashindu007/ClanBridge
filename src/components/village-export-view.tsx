@@ -177,7 +177,7 @@ function BuildingPanel({ group }: { group: BuildingGroup }) {
         <span className="text-muted-foreground text-sm tabular-nums">{group.pct}%</span>
       </div>
       <Progress value={group.pct} label={`${group.label} progress`} />
-      <Table>
+      <Table className="cb-stack">
         <TableHeader>
           <TableRow>
             <TableHead>Building</TableHead>
@@ -192,7 +192,7 @@ function BuildingPanel({ group }: { group: BuildingGroup }) {
             const maxed = trusted && Object.keys(b.levels).every((l) => Number(l) >= b.cap!);
             return (
               <TableRow key={`${b.village}:${b.name}`}>
-                <TableCell>
+                <TableCell data-cell="title">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{b.name}</span>
                     {maxed && <Badge variant="success">max</Badge>}
@@ -203,9 +203,9 @@ function BuildingPanel({ group }: { group: BuildingGroup }) {
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="text-right tabular-nums">{b.count}</TableCell>
-                <TableCell className="text-right tabular-nums">{levelSummary(b)}</TableCell>
-                <TableCell className="text-muted-foreground text-right tabular-nums">
+                <TableCell data-cell="row" data-label="Count" className="text-right tabular-nums">{b.count}</TableCell>
+                <TableCell data-cell="row" data-label="Levels" className="text-right tabular-nums">{levelSummary(b)}</TableCell>
+                <TableCell data-cell="row" data-label="Max" className="text-muted-foreground text-right tabular-nums">
                   {trusted ? b.cap : "—"}
                 </TableCell>
               </TableRow>

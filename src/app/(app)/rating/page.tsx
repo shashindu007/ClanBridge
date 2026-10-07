@@ -91,7 +91,7 @@ export default async function PlayerRatingPage() {
           />
         ) : (
           <div className="-mx-5 overflow-x-auto px-5">
-            <Table>
+            <Table className="cb-stack">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12 text-right">#</TableHead>
@@ -107,7 +107,7 @@ export default async function PlayerRatingPage() {
                   const rank = s ? i + 1 : null;
                   return (
                     <TableRow key={member.playerId}>
-                      <TableCell className="text-right">
+                      <TableCell data-cell="corner" className="text-right">
                         {rank !== null && rank <= 3 ? (
                           <span
                             className="inline-flex size-7 items-center justify-center rounded-full text-sm font-bold text-black"
@@ -121,7 +121,7 @@ export default async function PlayerRatingPage() {
                           </span>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell data-cell="title">
                         <Link
                           href={`/${encodeURIComponent(member.clanTag)}/player/${encodeURIComponent(member.tag)}`}
                           className="font-medium hover:underline"
@@ -132,7 +132,7 @@ export default async function PlayerRatingPage() {
                           {member.tag}
                         </span>
                       </TableCell>
-                      <TableCell>
+                      <TableCell data-label="Clan">
                         <span className="flex items-center gap-2 text-sm">
                           <span
                             aria-hidden
@@ -142,13 +142,13 @@ export default async function PlayerRatingPage() {
                           <span className="text-muted-foreground">{member.clanName}</span>
                         </span>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell data-label="TH" className="text-right">
                         <TownHall level={member.thLevel} />
                       </TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">
+                      <TableCell data-label="Donated" className="text-right font-medium tabular-nums">
                         {s ? s.total.toLocaleString("en-GB") : "—"}
                       </TableCell>
-                      <TableCell className="text-right text-sm tabular-nums">
+                      <TableCell data-label="Received" className="text-right text-sm tabular-nums">
                         {s ? s.received.toLocaleString("en-GB") : "—"}
                       </TableCell>
                     </TableRow>

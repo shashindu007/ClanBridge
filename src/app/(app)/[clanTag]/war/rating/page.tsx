@@ -176,7 +176,7 @@ export default async function ClanWarRatingPage({
             </div>
 
             <div className="-mx-5 overflow-x-auto px-5">
-              <Table className="min-w-[36rem]">
+              <Table className="cb-stack sm:min-w-[36rem]">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10 text-right">#</TableHead>
@@ -193,8 +193,8 @@ export default async function ClanWarRatingPage({
                 <TableBody>
                   {ranked.map((p, index) => (
                     <TableRow key={p.playerId}>
-                      <TableCell className="text-muted-foreground text-right tabular-nums">{index + 1}</TableCell>
-                      <TableCell>
+                      <TableCell data-cell="corner" className="text-muted-foreground text-right tabular-nums">{index + 1}</TableCell>
+                      <TableCell data-cell="title">
                         <span className="flex items-center gap-2">
                           <TownHall level={p.thLevel} />
                           <Link
@@ -205,21 +205,21 @@ export default async function ClanWarRatingPage({
                           </Link>
                         </span>
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">{p.warsCounted}</TableCell>
-                      <TableCell className="text-right">
+                      <TableCell data-label="Wars" className="text-right tabular-nums">{p.warsCounted}</TableCell>
+                      <TableCell data-label="Marks" className="text-right">
                         <Marks value={p.marks} />
                       </TableCell>
                       {fighting && (
-                        <TableCell className="text-muted-foreground text-right text-sm tabular-nums">
+                        <TableCell data-label="This war so far" className="text-muted-foreground text-right text-sm tabular-nums">
                           {p.provisional
                             ? `${signed(p.provisional.marks)} · ${oneDecimal(p.provisional.share)}%`
                             : "—"}
                         </TableCell>
                       )}
-                      <TableCell className="text-muted-foreground text-right text-sm tabular-nums">
+                      <TableCell data-label="Per war" className="text-muted-foreground text-right text-sm tabular-nums">
                         {p.perWar === null ? "—" : oneDecimal(p.perWar)}
                       </TableCell>
-                      <TableCell className="cb-title text-right text-base tabular-nums">
+                      <TableCell data-label="Rating" className="cb-title text-right text-base tabular-nums">
                         {oneDecimal(p.rating)}
                       </TableCell>
                     </TableRow>
@@ -274,7 +274,7 @@ export default async function ClanWarRatingPage({
               </p>
 
               <div className="-mx-5 overflow-x-auto px-5">
-                <Table className="min-w-[50rem]">
+                <Table className="cb-stack sm:min-w-[50rem]">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-14">Base</TableHead>
@@ -288,8 +288,8 @@ export default async function ClanWarRatingPage({
                   <TableBody>
                     {shownRows.map((row) => (
                       <TableRow key={row.playerId}>
-                        <TableCell className="cb-title align-top text-base tabular-nums">#{row.base ?? "?"}</TableCell>
-                        <TableCell className="align-top">
+                        <TableCell data-cell="corner" className="cb-title align-top text-base tabular-nums">#{row.base ?? "?"}</TableCell>
+                        <TableCell data-cell="title" className="align-top">
                           <span className="flex items-center gap-2">
                             <TownHall level={row.thLevel} />
                             <Link
@@ -300,7 +300,7 @@ export default async function ClanWarRatingPage({
                             </Link>
                           </span>
                         </TableCell>
-                        <TableCell className="space-y-2.5 align-top whitespace-normal">
+                        <TableCell data-cell="wide" data-label="Attacks" className="space-y-2.5 align-top whitespace-normal">
                           {row.attacks.map((attack, i) => (
                             <div key={i} className="space-y-1">
                               <p className="flex flex-wrap items-center gap-x-1.5 text-xs">
@@ -324,17 +324,17 @@ export default async function ClanWarRatingPage({
                             <span className="text-muted-foreground text-xs">Not attacked yet</span>
                           )}
                         </TableCell>
-                        <TableCell className="align-top">
+                        <TableCell data-cell="wide" data-label="Defence" className="align-top">
                           {shown.war.attackOnly ? (
                             <span className="text-muted-foreground text-xs">Not recorded</span>
                           ) : (
                             <Lines lines={row.defence} empty="Not attacked yet" />
                           )}
                         </TableCell>
-                        <TableCell className="text-right align-top">
+                        <TableCell data-label="Marks" className="text-right align-top">
                           <Marks value={row.marks} className="font-semibold" />
                         </TableCell>
-                        <TableCell className="text-right align-top font-medium tabular-nums">
+                        <TableCell data-label="Share" className="text-right align-top font-medium tabular-nums">
                           {oneDecimal(row.share)}%
                         </TableCell>
                       </TableRow>

@@ -595,7 +595,7 @@ export default async function RosterBuilderPage({
                   </Link>
                 </p>
               ) : (
-                <table className="w-full min-w-[58rem] text-sm">
+                <table className="cb-stack w-full sm:min-w-[58rem] text-sm">
                   <thead className="bg-card text-muted-foreground sticky top-0 z-10 border-b text-left text-xs uppercase">
                     <tr>
                       <th className="w-10 py-2 pr-2 font-medium">
@@ -620,7 +620,7 @@ export default async function RosterBuilderPage({
                           key={p.playerId}
                           className={`border-b align-middle last:border-0 has-[:checked]:bg-primary/10 ${here ? "bg-success-tint/50" : ""}`}
                         >
-                          <td className="py-2.5 pr-2">
+                          <td data-cell="corner" className="py-2.5 pr-2">
                             {here ? (
                               <Badge variant="success" title="Already in this lineup">✓</Badge>
                             ) : (
@@ -636,7 +636,7 @@ export default async function RosterBuilderPage({
                               />
                             )}
                           </td>
-                          <td className="py-2.5 pr-3">
+                          <td data-cell="title" className="py-2.5 pr-3">
                             <label htmlFor={here ? undefined : boxId} className={elsewhere ? "" : "cursor-pointer"}>
                               <span className="block font-medium">{p.name}</span>
                               <span className="text-muted-foreground block text-xs">
@@ -651,22 +651,22 @@ export default async function RosterBuilderPage({
                               )}
                             </label>
                           </td>
-                          <td className="py-2.5 pr-3">
+                          <td data-label="TH" className="py-2.5 pr-3">
                             <TownHall level={p.detail?.thLevel ?? p.thLevel} />
                           </td>
-                          <td className="max-w-56 py-2.5 pr-3">
+                          <td data-cell="wide" data-label="Heroes" className="max-w-56 py-2.5 pr-3">
                             <HeroLevels heroes={p.detail?.heroes ?? []} compact />
                           </td>
-                          <td className="py-2.5 pr-3">
+                          <td data-label="Max" className="py-2.5 pr-3">
                             <MaxPct pct={p.detail?.maxPct ?? null} />
                           </td>
-                          <td className="py-2.5 pr-3">
+                          <td data-label="Offence" className="py-2.5 pr-3">
                             <MaxPct pct={p.detail?.offencePct ?? null} label="of troop, spell, pet and equipment max" />
                           </td>
-                          <td className="py-2.5 pr-3">
+                          <td data-cell="wide" data-label="Last CWLs (stars · attacks)" className="py-2.5 pr-3">
                             <CwlHistoryChips seasons={p.detail?.history ?? []} ownClanName={p.clanName} />
                           </td>
-                          <td className="py-2.5">
+                          <td data-cell="row" data-label="Availability" className="py-2.5">
                             <AvailabilityBadge answer={p.answer} />
                           </td>
                         </tr>

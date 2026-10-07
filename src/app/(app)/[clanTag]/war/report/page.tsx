@@ -283,7 +283,7 @@ export default async function WarReportPage({
           </p>
         ) : (
           <div className="-mx-5 overflow-x-auto px-5">
-            <table className="w-full min-w-[34rem] text-sm">
+            <table className="cb-stack w-full sm:min-w-[34rem] text-sm">
               <thead className="text-muted-foreground border-b text-left text-xs uppercase">
                 <tr>
                   <th className="py-2 pr-3 font-medium">Member</th>
@@ -297,7 +297,7 @@ export default async function WarReportPage({
               <tbody>
                 {contribution.map((c) => (
                   <tr key={c.playerId} className="border-b last:border-0">
-                    <td className="py-2 pr-3">
+                    <td data-cell="title" className="py-2 pr-3">
                       <Link
                         className="underline-offset-2 hover:underline"
                         href={`${base}/player/${encodeURIComponent(c.tag)}`}
@@ -305,14 +305,14 @@ export default async function WarReportPage({
                         {c.name}
                       </Link>
                     </td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{c.warsPlayed}</td>
+                    <td data-label="Wars" className="py-2 pr-3 text-right tabular-nums">{c.warsPlayed}</td>
                     {/* The denominator is what makes the numerator mean
                         anything: 4 attacks from 7 wars is a different
                         conversation from 4 from 2. */}
-                    <td className="py-2 pr-3 text-right tabular-nums">
+                    <td data-label="Attacks" className="py-2 pr-3 text-right tabular-nums">
                       {c.attacksUsed} of {c.attacksAvailable}
                     </td>
-                    <td className="py-2 pr-3 text-right tabular-nums">
+                    <td data-label="Missed" className="py-2 pr-3 text-right tabular-nums">
                       {c.attacksMissed === 0 ? (
                         <span className="text-muted-foreground">—</span>
                       ) : (
@@ -328,8 +328,8 @@ export default async function WarReportPage({
                         </span>
                       )}
                     </td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{c.stars}</td>
-                    <td className="py-2 tabular-nums">
+                    <td data-label="Stars" className="py-2 pr-3 text-right tabular-nums">{c.stars}</td>
+                    <td data-label="On plan" className="py-2 tabular-nums">
                       {c.targetsJudged === 0 ? (
                         <span className="text-muted-foreground">—</span>
                       ) : (

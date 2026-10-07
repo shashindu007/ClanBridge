@@ -359,7 +359,7 @@ function StoragePanel({
             id="months"
             name="months"
             defaultValue={String(state?.keepMonths ?? 4)}
-            className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 rounded-control border px-2 text-sm outline-none focus-visible:ring-[3px]"
+            className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-10 sm:h-9 rounded-control border px-2 text-base sm:text-sm outline-none focus-visible:ring-[3px]"
           >
             {KEEP_MONTH_CHOICES.map((m) => (
               <option key={m} value={m}>
@@ -525,11 +525,11 @@ function RunRow({ run, clanNames }: { run: SyncRunRecord; clanNames: Map<string,
 
   return (
     <tr className="border-b align-top last:border-0">
-      <td className="py-2.5 pr-4">
+      <td data-cell="title" className="py-2.5 pr-4">
         <span className="block text-sm font-medium">{jobLabel(run.jobType)}</span>
         <span className="text-muted-foreground font-mono text-xs">{run.jobType}</span>
       </td>
-      <td className="py-2.5 pr-4">
+      <td data-label="Result" className="py-2.5 pr-4">
         {run.status === "failed" ? (
           <Badge variant="destructive">Failed</Badge>
         ) : run.status === "running" ? (
@@ -540,11 +540,11 @@ function RunRow({ run, clanNames }: { run: SyncRunRecord; clanNames: Map<string,
           <Badge variant="success">Succeeded</Badge>
         )}
       </td>
-      <td className="text-muted-foreground py-2.5 pr-4 text-sm">
+      <td data-label="Clan" className="text-muted-foreground py-2.5 pr-4 text-sm">
         {run.clanId ? (clanNames.get(run.clanId) ?? "—") : "All clans"}
       </td>
-      <td className="text-muted-foreground py-2.5 pr-4 text-sm whitespace-nowrap">{ago(minutes)}</td>
-      <td className="text-muted-foreground py-2.5 pr-4 text-sm">
+      <td data-label="Started" className="text-muted-foreground py-2.5 pr-4 text-sm whitespace-nowrap">{ago(minutes)}</td>
+      <td data-cell="wide" data-label="Details" className="text-muted-foreground py-2.5 pr-4 text-sm">
         {/* A skip is a NORMAL outcome (R10), so it shows its reason rather than a
             row count. */}
         {run.status === "skipped"
@@ -886,7 +886,7 @@ export default async function AdminPage({
         ) : (
           <>
             <div className="-mx-5 overflow-x-auto px-5">
-              <table className="w-full min-w-[40rem] text-left">
+              <table className="cb-stack w-full sm:min-w-[40rem] text-left">
                 <thead>
                   <tr className="text-muted-foreground border-b text-xs uppercase">
                     <th className="py-2 pr-4 font-medium">Job</th>

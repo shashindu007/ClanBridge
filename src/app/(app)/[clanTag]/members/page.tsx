@@ -313,9 +313,28 @@ export default async function MemberDirectoryPage({
           />
         </Panel>
       ) : (
-        <section className="cb-panel rounded-panel border">
+        <section className="cb-panel rounded-panel border max-sm:p-3">
+          {/* On a phone the table is a list of cards (.cb-stack in globals.css)
+              and its heading row is not drawn, so the sort links are repeated
+              here. Hidden from `sm` up, where the headings do the same job. */}
+          <nav aria-label="Sort members" className="flex flex-wrap items-center gap-1.5 pb-3 text-xs sm:hidden">
+            <span className="text-muted-foreground">Sort by</span>
+            {(Object.keys(SORTS) as SortKey[]).map((key) => (
+              <Link
+                key={key}
+                href={link(key)}
+                aria-current={sort === key ? "true" : undefined}
+                className={`rounded-chip border px-2 py-1 font-medium ${
+                  sort === key ? "bg-primary text-primary-foreground border-transparent" : "text-muted-foreground"
+                }`}
+              >
+                {SORTS[key]}
+                {sort === key && (descending ? " ↓" : " ↑")}
+              </Link>
+            ))}
+          </nav>
           <div className="overflow-x-auto">
-            <Table>
+            <Table className="cb-stack">
               <TableHeader>
                 <TableRow>
                   {(Object.keys(SORTS) as SortKey[]).map((key) => (
@@ -338,7 +357,7 @@ export default async function MemberDirectoryPage({
               <TableBody>
                 {visible.map(({ member, activity }) => (
                   <TableRow key={member.playerId}>
-                    <TableCell className="font-medium">
+                    <TableCell data-cell="title" className="font-medium">
                       <Link
                         className="underline-offset-2 hover:underline"
                         href={`/${encodeURIComponent(clan.tag)}/player/${encodeURIComponent(member.tag)}`}
@@ -354,22 +373,22 @@ export default async function MemberDirectoryPage({
                         {member.tag}
                       </span>
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
+                    <TableCell data-label={SORTS.role} className="text-muted-foreground text-sm">
                       {member.clanRole ?? "—"}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell data-label={SORTS.th} className="text-right">
                       <TownHall level={member.thLevel} />
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell data-label={SORTS.trophies} className="text-right tabular-nums">
                       {activity.trophies ?? "—"}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell data-label={SORTS.given} className="text-right tabular-nums">
                       {activity.donations ?? "—"}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell data-label={SORTS.received} className="text-right tabular-nums">
                       {activity.donationsReceived ?? "—"}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell data-label={SORTS.ratio} className="text-right tabular-nums">
                       {activity.ratio === null ? (
                         "—"
                       ) : (
@@ -378,7 +397,7 @@ export default async function MemberDirectoryPage({
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-right text-sm">
+                    <TableCell data-label={SORTS.activity} className="text-muted-foreground text-right text-sm">
                       {activity.lastActivityAt
                         ? `${daysBetween(activity.lastActivityAt, now)}d ago`
                         : coveredDays > 0

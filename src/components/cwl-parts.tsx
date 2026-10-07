@@ -179,7 +179,7 @@ export function StandingsTable({
 }) {
   return (
     <div className="-mx-5 overflow-x-auto px-5">
-      <table className={cn("w-full text-sm", scout ? "min-w-[50rem]" : "min-w-[34rem]")}>
+      <table className={cn("cb-stack w-full text-sm", scout ? "sm:min-w-[50rem]" : "sm:min-w-[34rem]")}>
         <thead className="text-muted-foreground border-b text-left text-xs uppercase">
           <tr>
             <th className="py-2 pr-3 font-medium">#</th>
@@ -220,7 +220,7 @@ export function StandingsTable({
                   s.isUs && "bg-primary/10 font-semibold",
                 )}
               >
-                <td className="py-2.5 pr-3">
+                <td data-cell="corner" className="py-2.5 pr-3">
                   <span
                     className="cb-title inline-flex size-7 items-center justify-center rounded-full text-sm tabular-nums"
                     style={
@@ -232,7 +232,7 @@ export function StandingsTable({
                     {s.rank}
                   </span>
                 </td>
-                <td className="py-2.5 pr-3">
+                <td data-cell="title" className="py-2.5 pr-3">
                   <span className="flex min-w-0 items-center gap-2">
                     <ClanBadge src={s.badgeUrl} name={s.name} size="sm" tone={s.isUs ? "var(--primary)" : "var(--foe)"} />
                     {href ? (
@@ -243,19 +243,19 @@ export function StandingsTable({
                       <span className="truncate">{s.name}</span>
                     )}
                     {s.isUs && (
-                      <span className="bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 text-[0.625rem] font-bold uppercase">
+                      <span className="bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 text-[0.6875rem] sm:text-[0.625rem] font-bold uppercase">
                         You
                       </span>
                     )}
                   </span>
                 </td>
                 {scout && (
-                  <td className="py-2.5 pr-3 font-normal">
+                  <td data-cell="wide" data-label="Town Halls" className="py-2.5 pr-3 font-normal">
                     {scouted ? <ThMix breakdown={scouted.roster} /> : <span className="text-muted-foreground text-xs">—</span>}
                   </td>
                 )}
                 {scout && (
-                  <td className="py-2.5 pr-3 text-right tabular-nums">
+                  <td data-label="Heroes" className="py-2.5 pr-3 text-right tabular-nums">
                     {scouted?.avgHeroPct != null ? `${Math.round(scouted.avgHeroPct)}%` : "—"}
                     {scouted && scouted.weakPoints > 0 && (
                       <span className="text-muted-foreground block text-[0.6875rem] font-normal">
@@ -265,7 +265,7 @@ export function StandingsTable({
                   </td>
                 )}
                 {scout && (
-                  <td className="py-2.5 pr-3 text-right tabular-nums">
+                  <td data-label="Defence" className="py-2.5 pr-3 text-right tabular-nums">
                     {scouted?.avgDestructionAgainst != null ? (
                       <>
                         {Math.round(scouted.avgDestructionAgainst)}%
@@ -278,10 +278,10 @@ export function StandingsTable({
                     )}
                   </td>
                 )}
-                <td className="py-2.5 pr-3 text-right tabular-nums">
+                <td data-label="W–L–D" className="py-2.5 pr-3 text-right tabular-nums">
                   {s.wins}–{s.losses}–{s.ties}
                 </td>
-                <td className="py-2.5 pr-3 text-right tabular-nums">
+                <td data-label="Stars" className="py-2.5 pr-3 text-right tabular-nums">
                   {s.stars}
                   {!compact && s.wins > 0 && (
                     <span className="text-muted-foreground block text-[0.6875rem] font-normal">
@@ -289,7 +289,7 @@ export function StandingsTable({
                     </span>
                   )}
                 </td>
-                <td className="py-2.5 text-right tabular-nums">{s.destruction.toFixed(0)}%</td>
+                <td data-label="Destruction" className="py-2.5 text-right tabular-nums">{s.destruction.toFixed(0)}%</td>
               </tr>
             );
           })}

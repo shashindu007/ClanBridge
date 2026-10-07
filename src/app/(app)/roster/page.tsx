@@ -233,7 +233,7 @@ export default async function RosterSeasonsPage() {
               <select
                 name="season"
                 defaultValue={canStart[0]}
-                className="border-input bg-background h-10 rounded-control border px-3 text-sm"
+                className="border-input bg-background h-11 sm:h-10 rounded-control border px-3 text-base sm:text-sm"
               >
                 {canStart.map((s) => (
                   <option key={s} value={s}>
