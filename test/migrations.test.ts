@@ -160,6 +160,11 @@ async function seedFixtures(h: Harness) {
       ('11111111-0000-4000-8000-000000000003', '#C2V89UGL', 'Opponent A', 1, 15),
       ('22222222-0000-4000-8000-000000000003', '#C2V89UGJ', 'Opponent B', 1, 14);
 
+    -- 063 — and what the other side did, keyed by their tag for the same reason.
+    insert into war_opponent_attacks (war_id, attacker_tag, attack_order, defender_tag, stars, destruction, war_order) values
+      ('11111111-0000-4000-8000-000000000003', '#C2V89UGL', 1, '#A', 2, 71, 1),
+      ('22222222-0000-4000-8000-000000000003', '#C2V89UGJ', 1, '#B', 3, 100, 1);
+
     -- 024 — and the leader's intended lineup, which no sync job may write.
     insert into war_lineups (id, clan_id, size, status, created_by) values
       ('11111111-0000-4000-8000-000000000009', '${CLAN_A}', 15, 'published', '${USER_A}'),
@@ -515,6 +520,8 @@ describe("T3.7 — a member of clan A cannot read clan B", () => {
     // with a policy nobody ever asserts.
     "war_members",
     "war_opponent_members",
+    // 063 — the same one-level join to `wars`.
+    "war_opponent_attacks",
     "raid_seasons",
     "raid_participants",
     "clan_games",

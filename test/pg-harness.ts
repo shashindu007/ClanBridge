@@ -158,6 +158,9 @@ export const PHASE1_MIGRATIONS = [
   // The order of each attack within its CWL war, for the rating's
   // "new stars only" rule.
   "062_cwl_attack_order.sql",
+  // The enemy's attacks in a regular war, and the order of every attack —
+  // defence and "did it add a star" for the war rating. Follows 003 and 026.
+  "063_war_opponent_attacks.sql",
 ] as const;
 
 /**
@@ -374,6 +377,7 @@ export const PHASE1_TABLES = [
   "war_lineup_members",
   "war_lineups",
   "war_members",
+  "war_opponent_attacks",
   "war_opponent_members",
   "war_targets",
   "wars",

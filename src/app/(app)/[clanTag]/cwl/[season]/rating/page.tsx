@@ -21,6 +21,7 @@ import { SyncBadge } from "@/components/sync-badge";
 import { TownHall } from "@/components/lineup-parts";
 import { Disclosure, EmptyState, Panel, SectionHeader } from "@/components/kit";
 import { CwlSeasonHeader } from "@/components/cwl-season-header";
+import { Lines, Marks, RuleList } from "@/components/rating-parts";
 import {
   Table,
   TableBody,
@@ -41,7 +42,6 @@ import {
   oneDecimal,
   signed,
   type DayRatingStatus,
-  type MarkLine,
   type RatedDay,
 } from "@/services/cwl-rating";
 
@@ -56,36 +56,6 @@ function dayNote(day: RatedDay): string {
     notRated: "not rated",
   };
   return notes[day.status];
-}
-
-/** Marks in their colour: gained, lost, or nothing. The sign carries it too. */
-function Marks({ value, className }: { value: number; className?: string }) {
-  return (
-    <span
-      className={cn(
-        "tabular-nums",
-        value > 0 ? "text-success-ink" : value < 0 ? "text-destructive" : "text-muted-foreground",
-        className,
-      )}
-    >
-      {signed(value)}
-    </span>
-  );
-}
-
-/** The sum behind a number: "3 stars +5 · 6 bases up +6". */
-function Lines({ lines, empty }: { lines: MarkLine[]; empty: string }) {
-  if (lines.length === 0) return <span className="text-muted-foreground text-xs">{empty}</span>;
-  return (
-    <ul className="space-y-0.5 text-xs">
-      {lines.map((line) => (
-        <li key={line.label} className="flex items-baseline justify-between gap-3">
-          <span className="text-muted-foreground">{line.label}</span>
-          <Marks value={line.marks} className="font-medium" />
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 export default async function CwlRatingPage({
@@ -441,18 +411,5 @@ export default async function CwlRatingPage({
         </div>
       </Disclosure>
     </main>
-  );
-}
-
-function RuleList({ rules }: { rules: Array<[label: string, marks: number]> }) {
-  return (
-    <ul className="divide-y rounded-control border">
-      {rules.map(([label, marks]) => (
-        <li key={label} className="flex items-baseline justify-between gap-3 px-3 py-1.5">
-          <span>{label}</span>
-          <Marks value={marks} className="font-semibold" />
-        </li>
-      ))}
-    </ul>
   );
 }

@@ -67,6 +67,7 @@ describe("activeNav", () => {
     ["/war", "Board"],
     ["/war/history", "History"],
     ["/war/report", "Report"],
+    ["/war/rating", "Rating"],
   ])("resolves %s to the %s sub-tab", (path, child) => {
     const active = activeNav(`${TAG}${path}`);
     expect(active?.section.label).toBe("War");

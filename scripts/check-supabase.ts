@@ -41,6 +41,7 @@ const TABLES = [
   "wars",
   "war_members", // 024
   "war_opponent_members", // 026
+  "war_opponent_attacks", // 063
   "war_targets",
   "war_attacks",
   "war_lineups", // 024

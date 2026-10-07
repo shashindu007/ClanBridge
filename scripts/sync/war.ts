@@ -260,6 +260,10 @@ async function upsertWarAttacks(
       destruction: attack.destruction,
       defender_tag: attack.defenderTag,
       defender_position: defenderPositions.get(attack.defenderTag) ?? null,
+      // 063 — and the global order kept beside it, not instead of it. A base
+      // hit by two of ours gave the clan its stars once; only this says whose
+      // attack came first.
+      war_order: attack.order ?? null,
       // The API carries no per-attack timestamp. Left null rather than guessed:
       // a fabricated time is worse than a missing one.
       attacked_at: null,
@@ -273,6 +277,59 @@ async function upsertWarAttacks(
     .upsert(rows, { onConflict: "war_id,player_id,attack_order", ignoreDuplicates: true });
 
   if (error) throw new Error(`war_attacks upsert failed: ${error.message}`);
+  return rows.length;
+}
+
+/**
+ * The enemy's attacks, as rows (063). Pure — exported for the test.
+ *
+ * Keyed by the attacker's TAG and their own first or second attack: the
+ * opposition have no players row and must not (026).
+ */
+export function opponentAttackRows(warId: string, members: WarMember[]) {
+  return members.flatMap((m) =>
+    m.attacks.map((attack, index) => ({
+      war_id: warId,
+      attacker_tag: m.tag,
+      attack_order: index + 1,
+      defender_tag: attack.defenderTag,
+      stars: attack.stars,
+      destruction: attack.destruction,
+      war_order: attack.order ?? null,
+    })),
+  );
+}
+
+/**
+ * What the other side did to us (063) — fetched on the same response as
+ * everything above and, until now, discarded. It is the whole of our defence:
+ * which bases they attacked, and how each held.
+ *
+ * Insert-once, like our own attacks: an attack does not change, and the key
+ * makes every later run a no-op (R5).
+ *
+ * The war is stamped whether or not there was anything to write. Zero rows
+ * means "they have not attacked" only once it is known they were looked for —
+ * a war from before 063 has zero rows too, and is not the same thing.
+ */
+async function upsertOpponentAttacks(
+  supabase: SupabaseClient,
+  warId: string,
+  members: WarMember[],
+): Promise<number> {
+  const rows = opponentAttackRows(warId, members);
+  if (rows.length) {
+    const { error } = await supabase
+      .from("war_opponent_attacks")
+      .upsert(rows, { onConflict: "war_id,attacker_tag,attack_order", ignoreDuplicates: true });
+    if (error) throw new Error(`war_opponent_attacks upsert failed: ${error.message}`);
+  }
+
+  const { error: stampError } = await supabase
+    .from("wars")
+    .update({ opponent_attacks_captured_at: new Date().toISOString() })
+    .eq("id", warId);
+  if (stampError) throw new Error(`wars could not be stamped: ${stampError.message}`);
   return rows.length;
 }
 
@@ -625,6 +682,16 @@ export async function syncWar(ctx: JobContext): Promise<void> {
       ctx.recorded(await upsertOpponents(supabase, warId, sides.theirs.members));
       ctx.recorded(
         await upsertWarAttacks(supabase, warId, sides.ours.members, playerIds, defenderPositions),
+      );
+      // 063 — after ours, and never allowed to cost them: our attacks are the
+      // irreplaceable half, and a failure here is put right by the next run
+      // while the war lasts. Not counted in records_written, which stays "our
+      // roster, their lineup and our attacks" — the number the health checks
+      // are read against.
+      await upsertOpponentAttacks(supabase, warId, sides.theirs.members).catch((error: unknown) =>
+        console.warn(
+          `  ${clan.tag}: enemy attacks not captured — ${error instanceof Error ? error.message : String(error)}`,
+        ),
       );
 
       console.log(

@@ -75,7 +75,7 @@ interface WarSideFixture {
   members: Array<{
     tag: string;
     mapPosition: number;
-    attacks?: Array<{ defenderTag: string; stars: number }>;
+    attacks?: Array<{ defenderTag: string; stars: number; order?: number }>;
   }>;
 }
 
@@ -94,6 +94,7 @@ const THEIR_TAG = THEIRS.tag;
 const ROSTER_SIZE = OURS.members.length;
 const OPPONENT_SIZE = THEIRS.members.length;
 const ATTACK_COUNT = OURS.members.reduce((n, m) => n + (m.attacks?.length ?? 0), 0);
+const OPPONENT_ATTACK_COUNT = THEIRS.members.reduce((n, m) => n + (m.attacks?.length ?? 0), 0);
 
 async function count(h: Harness, table: string, where = "true"): Promise<number> {
   const res = await h.db.query<{ n: number }>(
@@ -373,6 +374,72 @@ describe("T6.1 — the clan war sync", () => {
       expect(await count(h, "war_lineup_members")).toBe(0);
       // The lineup the leader started is exactly as they left it.
       expect(await count(h, "war_lineups", "status = 'draft' and war_id is null")).toBe(1);
+    });
+
+    describe("063 — the enemy's attacks, and the order of every attack", () => {
+      it("records what the other side did, by their tag and with no players row", async () => {
+        await runSyncJob("war", syncWar, { client });
+
+        expect(await count(h, "war_opponent_attacks")).toBe(OPPONENT_ATTACK_COUNT);
+        expect(await count(h, "players")).toBe(ROSTER_SIZE);
+
+        const attacker = THEIRS.members.find((m) => m.attacks?.length)!;
+        const res = await h.db.query<{ defender_tag: string; stars: number; war_order: number; attack_order: number }>(
+          `select defender_tag, stars, war_order, attack_order from war_opponent_attacks
+            where attacker_tag = '${attacker.tag}' order by attack_order`,
+        );
+        expect(res.rows[0]).toMatchObject({
+          defender_tag: attacker.attacks![0]!.defenderTag,
+          stars: attacker.attacks![0]!.stars,
+          war_order: attacker.attacks![0]!.order,
+          attack_order: 1,
+        });
+        // Every one of them lands on one of ours.
+        expect(
+          await count(
+            h,
+            "war_opponent_attacks a",
+            `not exists (select 1 from war_members m join players p on p.id = m.player_id
+                          where m.war_id = a.war_id and p.tag = a.defender_tag)`,
+          ),
+        ).toBe(0);
+      });
+
+      it("keeps the order of the war beside each of our attacks, without replacing the player's own", async () => {
+        await runSyncJob("war", syncWar, { client });
+
+        expect(await count(h, "war_attacks", "war_order is null")).toBe(0);
+        const attacker = OURS.members.find((m) => m.attacks?.length)!;
+        const res = await h.db.query<{ attack_order: number; war_order: number }>(
+          `select a.attack_order, a.war_order from war_attacks a join players p on p.id = a.player_id
+            where p.tag = '${attacker.tag}' order by a.attack_order`,
+        );
+        expect(res.rows[0]).toEqual({ attack_order: 1, war_order: attacker.attacks![0]!.order });
+      });
+
+      it("stamps the war as looked at, so no enemy attacks is not mistaken for never recorded", async () => {
+        await runSyncJob("war", syncWar, { client });
+        expect(await count(h, "wars", "opponent_attacks_captured_at is not null")).toBe(1);
+      });
+
+      it("writes them once: a second run adds nothing", async () => {
+        await runSyncJob("war", syncWar, { client });
+        const ids = await h.db.query<{ id: string }>(`select id from war_opponent_attacks order by id`);
+        await runSyncJob("war", syncWar, { client });
+        const again = await h.db.query<{ id: string }>(`select id from war_opponent_attacks order by id`);
+        expect(again.rows).toEqual(ids.rows);
+      });
+
+      it("still captures our own attacks when the enemy's cannot be written", async () => {
+        await h.db.exec(`alter table war_opponent_attacks rename to war_opponent_attacks_hidden`);
+        try {
+          const result = await runSyncJob("war", syncWar, { client });
+          expect(result).toBe("success");
+          expect(await count(h, "war_attacks")).toBe(ATTACK_COUNT);
+        } finally {
+          await h.db.exec(`alter table war_opponent_attacks_hidden rename to war_opponent_attacks`);
+        }
+      });
     });
 
     describe("running it repeatedly changes nothing (R5)", () => {

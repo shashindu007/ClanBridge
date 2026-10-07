@@ -138,6 +138,33 @@ export const CWL_MARKS = {
   worstShare: -100,
 } as const;
 
+/**
+ * The two places the same marks are read differently by CWL and by a regular
+ * war (services/war-rating.ts). Everything else in CWL_MARKS is shared.
+ */
+export interface AttackRules {
+  /**
+   * A 2★ or 3★ on a base a clanmate already hit:
+   *
+   *   minusTaken  loses a mark for each star already taken (CWL)
+   *   fullIfNew   keeps its marks as long as it added a star — a regular war
+   *               is half clean-up attacks, and they are the job
+   *
+   * Either way one that added NO new star earns no star marks and nothing for
+   * hitting up.
+   */
+  sameBase: "minusTaken" | "fullIfNew";
+  /**
+   * What three stars on their #1 is worth. Null keeps targetRank.step a base,
+   * so a bigger war's top base is worth more (CWL, by the clan's choice). A
+   * number fixes the top and spaces the bases evenly below it, so wars of
+   * thirty and forty bases rate alike.
+   */
+  rankTop: number | null;
+}
+
+export const CWL_RULES: AttackRules = { sameBase: "minusTaken", rankTop: null };
+
 /** "without 3 stars", "without 2 stars", "without a star" — what a short result lacked. */
 function lacking(stars: number): string {
   return stars === 0 ? "without a star" : `without ${stars + 1} stars`;
@@ -199,15 +226,21 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
  * binary drift — 12.2 arrives as 12.200000000000001 — so every sum is rounded
  * back to the one decimal the rules are written in.
  */
-const round1 = (n: number) => Math.round(n * 10) / 10;
+export const round1 = (n: number) => Math.round(n * 10) / 10;
 const sum = (lines: MarkLine[]) => round1(lines.reduce((t, l) => t + l.marks, 0));
 
 /**
  * The lines for one player's attack. `over` — the day has ended, so no attack
  * is a miss. `enemyBases` — how many bases the enemy fielded, for the target's
- * rank; null when not known, and the rank line is then left out.
+ * rank; null when not known, and the rank line is then left out. `rules` —
+ * CWL's unless a regular war says otherwise.
  */
-export function attackLines(base: DayBase, over: boolean, enemyBases: number | null = null): MarkLine[] {
+export function attackLines(
+  base: DayBase,
+  over: boolean,
+  enemyBases: number | null = null,
+  rules: AttackRules = CWL_RULES,
+): MarkLine[] {
   const attack = base.attack;
   if (!attack) return over ? [{ label: "Did not attack", marks: CWL_MARKS.missed }] : [];
 
@@ -221,7 +254,7 @@ export function attackLines(base: DayBase, over: boolean, enemyBases: number | n
 
   if (nothingNew) {
     lines.push({ label: `${plural(attack.stars, "star")}, none new`, marks: 0 });
-  } else if (good && taken > 0) {
+  } else if (good && taken > 0 && rules.sameBase === "minusTaken") {
     lines.push({
       label: `${plural(attack.stars, "star")}, ${taken} already taken`,
       marks: table - taken,
@@ -277,9 +310,11 @@ export function attackLines(base: DayBase, over: boolean, enemyBases: number | n
     !nothingNew
   ) {
     const placesUp = Math.max(0, enemyBases - target.base);
+    const step =
+      rules.rankTop === null ? rank.step : enemyBases > 1 ? (rules.rankTop - rank.last) / (enemyBases - 1) : 0;
     lines.push({
       label: `Their #${target.base} of ${enemyBases}`,
-      marks: round1(rank.last + rank.step * placesUp),
+      marks: round1(rank.last + step * placesUp),
     });
   }
 

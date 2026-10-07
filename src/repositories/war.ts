@@ -814,3 +814,138 @@ export async function lineupForWar(
   const rows = data as unknown as Array<Record<string, unknown>>;
   return rows.length ? toLineup(rows[0]!) : null;
 }
+
+// ---------------------------------------------------------------------------
+// The war rating (063) — services/war-rating.ts
+//
+// Its own reads, with every column asked for as "*", rather than more columns on
+// the reads above. Those are behind the war board, the dashboard and the home
+// page; naming war_order or opponent_attacks_captured_at there would fail every
+// one of them on a database 063 has not reached. Here, before 063, the new
+// columns are simply absent and the rating falls back to attack-only.
+// ---------------------------------------------------------------------------
+
+/** A war with what the rating needs to know about it beyond WarRow. */
+export interface WarRatingWar extends WarRow {
+  /** Set once the sync has looked for the enemy's attacks. Null before 063. */
+  opponentAttacksCapturedAt: string | null;
+}
+
+/** One of our attacks, with its order in the war (063). */
+export interface WarRatingAttackRow extends WarAttackRow {
+  /** The API's order within the war, both sides counted. Null before 063. */
+  warOrder: number | null;
+}
+
+/** One of the enemy's attacks (063). */
+export interface WarOpponentAttackRow {
+  attackerTag: string;
+  attackOrder: number;
+  defenderTag: string | null;
+  stars: number;
+  destruction: number;
+  warOrder: number | null;
+}
+
+/**
+ * This clan's wars that STARTED in one calendar month (UTC), oldest first.
+ * `month` is 'YYYY-MM'.
+ */
+export async function warsInMonth(
+  supabase: SupabaseClient,
+  clanId: string,
+  month: string,
+): Promise<WarRatingWar[]> {
+  const match = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!match) return [];
+  const from = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1));
+  const to = new Date(Date.UTC(Number(match[1]), Number(match[2]), 1));
+
+  const { data, error } = await supabase
+    .from("wars")
+    .select("*")
+    .eq("clan_id", clanId) // R3
+    .is("deleted_at", null)
+    .gte("start_time", from.toISOString())
+    .lt("start_time", to.toISOString())
+    .order("start_time");
+
+  if (error || !data) return [];
+  return (data as unknown as Array<Record<string, unknown>>).map((r) => {
+    const captured = r.opponent_attacks_captured_at;
+    return {
+      ...toWar(r),
+      // PostgREST sends an ISO string; the PGlite stand-in a Date.
+      startTime: new Date(r.start_time as string | Date).toISOString(),
+      opponentAttacksCapturedAt:
+        captured === null || captured === undefined ? null : new Date(captured as string | Date).toISOString(),
+    };
+  });
+}
+
+/** The months ('YYYY-MM', UTC) this clan has a war in, newest first. */
+export async function warMonthsForClan(supabase: SupabaseClient, clanId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("wars")
+    .select("start_time")
+    .eq("clan_id", clanId) // R3
+    .is("deleted_at", null)
+    .limit(1000)
+    .order("start_time", { ascending: false });
+
+  if (error || !data) return [];
+  const months = (data as unknown as Array<{ start_time: string | Date }>).map((r) =>
+    new Date(r.start_time).toISOString().slice(0, 7),
+  );
+  return [...new Set(months)];
+}
+
+/** Our attacks in one war, each with its order in the war. `warId` must already be clan-checked. */
+export async function ratingAttacksForWar(
+  supabase: SupabaseClient,
+  warId: string,
+): Promise<WarRatingAttackRow[]> {
+  const { data, error } = await supabase
+    .from("war_attacks")
+    .select("*")
+    .eq("war_id", warId)
+    .is("deleted_at", null)
+    .order("attack_order");
+
+  if (error || !data) return [];
+  return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
+    playerId: r.player_id as string,
+    attackOrder: r.attack_order as number,
+    stars: r.stars as number,
+    destruction: Number(r.destruction),
+    defenderTag: (r.defender_tag as string | null) ?? null,
+    defenderPosition: (r.defender_position as number | null) ?? null,
+    warOrder: r.war_order === null || r.war_order === undefined ? null : Number(r.war_order),
+  }));
+}
+
+/**
+ * The enemy's attacks in one war. [] before 063, or for a war from before it —
+ * WarRatingWar.opponentAttacksCapturedAt is what says which.
+ */
+export async function opponentAttacksOfWar(
+  supabase: SupabaseClient,
+  warId: string,
+): Promise<WarOpponentAttackRow[]> {
+  const { data, error } = await supabase
+    .from("war_opponent_attacks")
+    .select("attacker_tag, attack_order, defender_tag, stars, destruction, war_order")
+    .eq("war_id", warId)
+    .is("deleted_at", null)
+    .order("attack_order");
+
+  if (error || !data) return [];
+  return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
+    attackerTag: r.attacker_tag as string,
+    attackOrder: r.attack_order as number,
+    defenderTag: (r.defender_tag as string | null) ?? null,
+    stars: r.stars as number,
+    destruction: Number(r.destruction),
+    warOrder: r.war_order === null || r.war_order === undefined ? null : Number(r.war_order),
+  }));
+}
