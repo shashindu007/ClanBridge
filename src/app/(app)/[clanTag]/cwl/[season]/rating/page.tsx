@@ -142,7 +142,7 @@ export default async function CwlRatingPage({
             </div>
 
             <div className="-mx-5 overflow-x-auto px-5">
-              <Table className="min-w-[52rem]">
+              <Table className="cb-stack sm:min-w-[52rem]">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10 text-right">#</TableHead>
@@ -163,8 +163,8 @@ export default async function CwlRatingPage({
                 <TableBody>
                   {rating.players.map((p, index) => (
                     <TableRow key={p.playerId}>
-                      <TableCell className="text-muted-foreground text-right tabular-nums">{index + 1}</TableCell>
-                      <TableCell>
+                      <TableCell data-cell="corner" className="text-muted-foreground text-right tabular-nums">{index + 1}</TableCell>
+                      <TableCell data-cell="title">
                         <span className="flex items-center gap-2">
                           <TownHall level={p.thLevel} />
                           <Link
@@ -178,7 +178,7 @@ export default async function CwlRatingPage({
                       {p.days.map((entry, dayIndex) => {
                         const live = rating.days[dayIndex]!.status === "provisional";
                         return (
-                          <TableCell key={dayIndex} className={cn("text-right", live && "opacity-70")}>
+                          <TableCell data-cell="mini" data-label={`Day ${rating.days[dayIndex]!.dayNumber ?? "?"}`} key={dayIndex} className={cn("text-right", live && "opacity-70")}>
                             {entry ? (
                               <>
                                 <span className="block text-sm font-medium tabular-nums">{oneDecimal(entry.share)}%</span>
@@ -190,13 +190,13 @@ export default async function CwlRatingPage({
                           </TableCell>
                         );
                       })}
-                      <TableCell className="text-right">
+                      <TableCell data-label="Marks" className="text-right">
                         <Marks value={p.marks} />
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-right text-sm tabular-nums">
+                      <TableCell data-label="Per day" className="text-muted-foreground text-right text-sm tabular-nums">
                         {p.perDay === null ? "—" : oneDecimal(p.perDay)}
                       </TableCell>
-                      <TableCell className="cb-title text-right text-base tabular-nums">{oneDecimal(p.rating)}</TableCell>
+                      <TableCell data-label="Rating" className="cb-title text-right text-base tabular-nums">{oneDecimal(p.rating)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -248,7 +248,7 @@ export default async function CwlRatingPage({
               </p>
 
               <div className="-mx-5 overflow-x-auto px-5">
-                <Table className="min-w-[46rem]">
+                <Table className="cb-stack sm:min-w-[46rem]">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-14">Base</TableHead>
@@ -262,8 +262,8 @@ export default async function CwlRatingPage({
                   <TableBody>
                     {shownRows.map((row) => (
                       <TableRow key={row.playerId}>
-                        <TableCell className="cb-title align-top text-base tabular-nums">#{row.base ?? "?"}</TableCell>
-                        <TableCell className="align-top">
+                        <TableCell data-cell="corner" className="cb-title align-top text-base tabular-nums">#{row.base ?? "?"}</TableCell>
+                        <TableCell data-cell="title" className="align-top">
                           <span className="flex items-center gap-2">
                             <TownHall level={row.thLevel} />
                             <Link
@@ -274,16 +274,16 @@ export default async function CwlRatingPage({
                             </Link>
                           </span>
                         </TableCell>
-                        <TableCell className="align-top">
+                        <TableCell data-cell="wide" data-label="Attack" className="align-top">
                           <Lines lines={row.attack} empty="Not attacked yet" />
                         </TableCell>
-                        <TableCell className="align-top">
+                        <TableCell data-cell="wide" data-label="Defence" className="align-top">
                           <Lines lines={row.defence} empty="Not attacked yet" />
                         </TableCell>
-                        <TableCell className="text-right align-top">
+                        <TableCell data-label="Marks" className="text-right align-top">
                           <Marks value={row.marks} className="font-semibold" />
                         </TableCell>
-                        <TableCell className="text-right align-top font-medium tabular-nums">
+                        <TableCell data-label="Share" className="text-right align-top font-medium tabular-nums">
                           {oneDecimal(row.share)}%
                         </TableCell>
                       </TableRow>

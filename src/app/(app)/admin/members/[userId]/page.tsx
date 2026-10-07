@@ -402,7 +402,7 @@ export default async function AdminAccountPage({
                         id={selectId}
                         name="role"
                         defaultValue={current ?? ""}
-                        className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 rounded-control border px-2 text-sm outline-none focus-visible:ring-[3px]"
+                        className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-10 sm:h-9 rounded-control border px-2 text-base sm:text-sm outline-none focus-visible:ring-[3px]"
                       >
                         <option value="">Not in this clan</option>
                         {ROLES.filter((r) => admin || r !== "leader").map((r) => (
@@ -468,7 +468,7 @@ export default async function AdminAccountPage({
                 rows={4}
                 maxLength={BODY_LIMIT}
                 placeholder="Say what happened and what you would like them to do."
-                className="border-input bg-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-control border px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
+                className="border-input bg-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-control border px-3 py-2 text-base sm:text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
               />
             </div>
             <SubmitButton pendingLabel="Sending">

@@ -238,16 +238,16 @@ export function LineupSummary({ rows }: { rows: LineupSummaryRow[] }) {
       {levels.map((level) => {
         const n = countAt(b, level);
         return (
-          <td key={level} className={cn("px-2 py-2 text-center tabular-nums", n === 0 && "text-muted-foreground/50")}>
+          <td data-cell="mini" data-label={`TH${level}`} key={level} className={cn("px-2 py-2 text-center tabular-nums", n === 0 && "text-muted-foreground/50")}>
             {n || "·"}
           </td>
         );
       })}
-      {overall.unknown > 0 && <td className="px-2 py-2 text-center tabular-nums">{b.unknown || "·"}</td>}
-      <td className="px-2 py-2 text-right tabular-nums">{avg(b.avgTh, 1)}</td>
-      <td className="px-2 py-2 text-right tabular-nums">{b.avgHeroPct === null ? "—" : `${avg(b.avgHeroPct)}%`}</td>
-      <td className="px-2 py-2 text-right tabular-nums">{b.avgOffencePct === null ? "—" : `${avg(b.avgOffencePct)}%`}</td>
-      <td className="px-2 py-2 text-right tabular-nums">{b.avgMaxPct === null ? "—" : `${avg(b.avgMaxPct)}%`}</td>
+      {overall.unknown > 0 && <td data-cell="mini" data-label="TH ?" className="px-2 py-2 text-center tabular-nums">{b.unknown || "·"}</td>}
+      <td data-label="Avg TH" className="px-2 py-2 text-right tabular-nums">{avg(b.avgTh, 1)}</td>
+      <td data-label="Heroes" className="px-2 py-2 text-right tabular-nums">{b.avgHeroPct === null ? "—" : `${avg(b.avgHeroPct)}%`}</td>
+      <td data-label="Offence" className="px-2 py-2 text-right tabular-nums">{b.avgOffencePct === null ? "—" : `${avg(b.avgOffencePct)}%`}</td>
+      <td data-label="Max" className="px-2 py-2 text-right tabular-nums">{b.avgMaxPct === null ? "—" : `${avg(b.avgMaxPct)}%`}</td>
     </>
   );
 
@@ -269,7 +269,7 @@ export function LineupSummary({ rows }: { rows: LineupSummaryRow[] }) {
         </div>
       )}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[32rem] text-sm">
+        <table className="cb-stack w-full sm:min-w-[32rem] text-sm">
           <thead className="text-muted-foreground border-b text-xs uppercase">
             <tr>
               <th className="py-2 pr-3 text-left font-medium">Clan</th>
@@ -289,7 +289,7 @@ export function LineupSummary({ rows }: { rows: LineupSummaryRow[] }) {
           <tbody>
             {perRow.map(({ row, breakdown }) => (
               <tr key={row.key} className={cn("border-b", row.active && "bg-primary/10")}>
-                <td className="py-2 pr-3 font-medium">
+                <td data-cell="title" className="py-2 pr-3 font-medium">
                   {row.href && !row.active ? (
                     <Link href={row.href} className="underline-offset-2 hover:underline">
                       {row.name}
@@ -298,7 +298,7 @@ export function LineupSummary({ rows }: { rows: LineupSummaryRow[] }) {
                     row.name
                   )}
                 </td>
-                <td className="px-2 py-2 text-right tabular-nums">
+                <td data-label="Picked" className="px-2 py-2 text-right tabular-nums">
                   {breakdown.total}/{row.slots}
                 </td>
                 {cells(breakdown)}
@@ -306,8 +306,8 @@ export function LineupSummary({ rows }: { rows: LineupSummaryRow[] }) {
             ))}
             {many && (
               <tr className="font-semibold">
-                <td className="py-2 pr-3">All lineups</td>
-                <td className="px-2 py-2 text-right tabular-nums">
+                <td data-cell="title" className="py-2 pr-3">All lineups</td>
+                <td data-label="Picked" className="px-2 py-2 text-right tabular-nums">
                   {overall.total}/{slots}
                 </td>
                 {cells(overall)}

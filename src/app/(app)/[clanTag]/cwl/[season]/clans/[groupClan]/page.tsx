@@ -252,7 +252,7 @@ export default async function CwlGroupClanPage({
 function PlayersTable({ players, days }: { players: ScoutedPlayer[]; days: number[] }) {
   return (
     <div className="-mx-5 overflow-x-auto px-5">
-      <table className="w-full min-w-[52rem] text-sm">
+      <table className="cb-stack w-full sm:min-w-[52rem] text-sm">
         <thead className="text-muted-foreground border-b text-left text-xs uppercase">
           <tr>
             <th className="py-2 pr-3 font-medium">#</th>
@@ -277,8 +277,8 @@ function PlayersTable({ players, days }: { players: ScoutedPlayer[]; days: numbe
         <tbody>
           {players.map((p, i) => (
             <tr key={p.tag} className="border-b align-middle last:border-0">
-              <td className="text-muted-foreground py-2 pr-3 tabular-nums">{i + 1}</td>
-              <td className="py-2 pr-3">
+              <td data-cell="corner" className="text-muted-foreground py-2 pr-3 tabular-nums">{i + 1}</td>
+              <td data-cell="title" className="py-2 pr-3">
                 <span className="flex min-w-0 items-center gap-2">
                   <TownHall level={p.thLevel} size="sm" />
                   <span className="min-w-0">
@@ -289,7 +289,7 @@ function PlayersTable({ players, days }: { players: ScoutedPlayer[]; days: numbe
                     {p.thWeaponCap !== null && p.thWeaponLevel !== null && (
                       <span
                         className={cn(
-                          "ml-1.5 rounded-chip border px-1 text-[0.625rem] font-semibold tabular-nums",
+                          "ml-1.5 rounded-chip border px-1 text-[0.6875rem] sm:text-[0.625rem] font-semibold tabular-nums",
                           p.thWeaponLevel >= p.thWeaponCap && "border-gold/60 bg-gold/15",
                         )}
                         title={`Town Hall weapon level ${p.thWeaponLevel} of ${p.thWeaponCap}`}
@@ -300,24 +300,24 @@ function PlayersTable({ players, days }: { players: ScoutedPlayer[]; days: numbe
                   </span>
                 </span>
               </td>
-              <td className="py-2 pr-3">
+              <td data-cell="wide" data-label="Heroes" className="py-2 pr-3">
                 {p.scouted ? (
                   <HeroLevels heroes={p.heroes} compact />
                 ) : (
                   <span className="text-muted-foreground text-xs">Not read yet</span>
                 )}
               </td>
-              <td className="py-2 pr-3">
+              <td data-label="Hero %" className="py-2 pr-3">
                 <MaxPct pct={p.heroPct} label="of hero max" />
               </td>
-              <td className="py-2 pr-3">
+              <td data-label="Pets" className="py-2 pr-3">
                 <MaxPct pct={p.petPct} label="of pet max" />
               </td>
-              <td className="py-2 pr-3">
+              <td data-label="Equipment" className="py-2 pr-3">
                 <MaxPct pct={p.equipmentPct} label="of equipment max" />
               </td>
               {p.byDay.map((d) => (
-                <td key={d.day} className="px-1 py-2 text-center tabular-nums">
+                <td data-cell="mini" data-label={`D${d.day}`} key={d.day} className="px-1 py-2 text-center tabular-nums">
                   {!d.fielded ? (
                     <span className="text-muted-foreground/50">·</span>
                   ) : d.stars === null ? (
@@ -329,7 +329,7 @@ function PlayersTable({ players, days }: { players: ScoutedPlayer[]; days: numbe
                   )}
                 </td>
               ))}
-              <td className="py-2 text-right tabular-nums">
+              <td data-cell="row" data-label="Defence" className="py-2 text-right tabular-nums">
                 {p.defences && p.avgDestructionAgainst !== null ? (
                   <span className="inline-flex flex-col items-end">
                     <span className="flex items-center gap-2">
@@ -393,7 +393,7 @@ function LineupVersus({
   }
   return (
     <div className="-mx-5 overflow-x-auto px-5">
-      <table className="w-full min-w-[36rem] text-sm">
+      <table className="cb-stack w-full sm:min-w-[36rem] text-sm">
         <thead className="text-muted-foreground border-b text-left text-xs uppercase">
           <tr>
             <th className="py-2 pr-3 font-medium">#</th>
@@ -410,8 +410,8 @@ function LineupVersus({
             const gap = them?.thLevel && us?.thLevel ? us.thLevel - them.thLevel : 0;
             return (
               <tr key={i} className="border-b last:border-0">
-                <td className="text-muted-foreground py-2 pr-3 tabular-nums">{them?.position ?? us?.position ?? i + 1}</td>
-                <td className="py-2 pr-3">
+                <td data-cell="corner" className="text-muted-foreground py-2 pr-3 tabular-nums">{them?.position ?? us?.position ?? i + 1}</td>
+                <td data-cell="title" data-label={theirName} className="py-2 pr-3">
                   {them ? (
                     <span className="flex items-center gap-2">
                       <TownHall level={them.thLevel} size="sm" />
@@ -421,10 +421,10 @@ function LineupVersus({
                     "—"
                   )}
                 </td>
-                <td className="py-2 pr-3">
+                <td data-cell="row" data-label="Heroes" className="py-2 pr-3">
                   {enemy?.scouted ? <HeroLevels heroes={enemy.heroes} compact /> : <span className="text-muted-foreground text-xs">—</span>}
                 </td>
-                <td className="py-2">
+                <td data-cell="row" data-label={ourName} className="py-2">
                   {us ? (
                     <span className="flex items-center gap-2">
                       <TownHall level={us.thLevel} size="sm" />

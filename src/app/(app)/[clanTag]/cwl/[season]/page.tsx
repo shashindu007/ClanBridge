@@ -431,7 +431,7 @@ export default async function CwlDayDetailPage({
                   />
                 )}
                 <div className="-mx-5 overflow-x-auto px-5">
-                  <Table className="min-w-[44rem]">
+                  <Table className="cb-stack sm:min-w-[44rem]">
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-14">Base</TableHead>
@@ -443,8 +443,8 @@ export default async function CwlDayDetailPage({
                     <TableBody>
                       {board.bases.map((b) => (
                         <TableRow key={b.playerId}>
-                          <TableCell className="cb-title align-top text-base tabular-nums">#{b.base ?? "?"}</TableCell>
-                          <TableCell className="align-top">
+                          <TableCell data-cell="corner" className="cb-title align-top text-base tabular-nums">#{b.base ?? "?"}</TableCell>
+                          <TableCell data-cell="title" className="align-top">
                             <span className="flex items-center gap-2">
                               <TownHall level={b.thLevel} />
                               <Link
@@ -455,7 +455,7 @@ export default async function CwlDayDetailPage({
                               </Link>
                             </span>
                           </TableCell>
-                          <TableCell className="align-top">
+                          <TableCell data-cell="wide" data-label="Attack — their base we hit" className="align-top">
                             {b.attack ? (
                               <div className="space-y-1">
                                 <HitResult
@@ -473,7 +473,7 @@ export default async function CwlDayDetailPage({
                               <Badge variant="outline">Not yet</Badge>
                             )}
                           </TableCell>
-                          <TableCell className="align-top">
+                          <TableCell data-cell="wide" data-label="Defence — enemy attacks on this base" className="align-top">
                             {dayState === "preparation" || !board.enemyKnown ? (
                               <span className="text-muted-foreground">—</span>
                             ) : b.defences.length === 0 ? (

@@ -167,8 +167,12 @@ export default async function AppLayout({
         {/* max-w-page is every page's width too, so the rail's edges and the
             content's line up. They did not (7xl here, 6xl on Home), and the
             account menu, pinned to the rail's right edge, landed 64px inside
-            Home's side column and appeared to cut its text off. */}
-        <nav className="mx-auto flex max-w-page items-center gap-x-4 gap-y-2 px-4 py-3">
+            Home's side column and appeared to cut its text off.
+
+            Tighter below `sm`, and `relative`: on a phone the two menus hang
+            from this row rather than from their own buttons (max-sm:static on
+            each <details>), so neither can open past the edge of the screen. */}
+        <nav className="relative mx-auto flex max-w-page items-center gap-x-1.5 gap-y-2 px-3 py-2 sm:gap-x-4 sm:px-4 sm:py-3">
           {/* shrink-0 so the brand never compresses, and the wordmark drops
               below `sm` where the space it costs is space the clan switcher
               needs. The shield stays at every width — it is the only mark this
@@ -278,7 +282,7 @@ export default async function AppLayout({
               href="/search"
               aria-label="Search members"
               title="Search members across every clan"
-              className="hover:text-rail-ink flex shrink-0 items-center rounded-control px-2 py-1.5 transition-colors hover:bg-white/8"
+              className="hover:text-rail-ink flex shrink-0 items-center rounded-control px-2 py-1.5 transition-colors hover:bg-white/8 max-sm:p-2.5"
             >
               <Search aria-hidden className="size-4" />
             </Link>
@@ -290,7 +294,7 @@ export default async function AppLayout({
               unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
             }
             title="Announcements, reminders and anything sent to you"
-            className={`hover:text-rail-ink flex shrink-0 items-center gap-1.5 rounded-control px-2 py-1 transition-colors hover:bg-white/8 ${
+            className={`hover:text-rail-ink flex shrink-0 items-center gap-1.5 rounded-control px-2 py-1 transition-colors hover:bg-white/8 max-sm:p-2.5 ${
               unread > 0 ? "text-rail-ink font-medium" : "text-rail-ink-dim"
             }`}
           >

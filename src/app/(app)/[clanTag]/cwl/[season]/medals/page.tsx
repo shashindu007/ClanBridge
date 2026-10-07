@@ -135,7 +135,7 @@ export default async function CwlMedalsPage({
                 <select
                   name="league"
                   defaultValue={previewLeague ?? ""}
-                  className="border-input bg-background h-9 rounded-control border px-2 text-sm"
+                  className="border-input bg-background h-10 sm:h-9 rounded-control border px-2 text-base sm:text-sm"
                 >
                   <option value="">Choose…</option>
                   {CWL_LEAGUES.map((l) => (
@@ -152,7 +152,7 @@ export default async function CwlMedalsPage({
                 <select
                   name="rank"
                   defaultValue={previewRank ?? ""}
-                  className="border-input bg-background h-9 rounded-control border px-2 text-sm"
+                  className="border-input bg-background h-10 sm:h-9 rounded-control border px-2 text-base sm:text-sm"
                 >
                   <option value="">Choose…</option>
                   {[1, 2, 3, 4, 5, 6, 7, 8].map((r) => (
@@ -225,7 +225,7 @@ export default async function CwlMedalsPage({
                 <p className="text-muted-foreground text-sm">No attacks recorded yet.</p>
               ) : (
                 <div className="-mx-5 overflow-x-auto px-5">
-                  <table className="w-full min-w-[32rem] text-sm">
+                  <table className="cb-stack w-full sm:min-w-[32rem] text-sm">
                     <thead className="text-muted-foreground border-b text-left text-xs uppercase">
                       <tr>
                         <th className="py-2 pr-3 font-medium">#</th>
@@ -242,8 +242,8 @@ export default async function CwlMedalsPage({
                           key={p.playerId}
                           className={cn("border-b last:border-0", index < plan.bonusCount && "bg-gold/10")}
                         >
-                          <td className="text-muted-foreground py-2.5 pr-3 tabular-nums">{index + 1}</td>
-                          <td className="py-2.5 pr-3">
+                          <td data-cell="corner" className="text-muted-foreground py-2.5 pr-3 tabular-nums">{index + 1}</td>
+                          <td data-cell="title" className="py-2.5 pr-3">
                             <Link
                               href={`${clanBase}/player/${encodeURIComponent(p.tag)}`}
                               className="font-medium hover:underline"
@@ -251,11 +251,11 @@ export default async function CwlMedalsPage({
                               {p.name}
                             </Link>
                           </td>
-                          <td className="py-2.5 pr-3 text-right font-semibold tabular-nums">{p.stars}</td>
-                          <td className="text-muted-foreground py-2.5 pr-3 text-right tabular-nums">
+                          <td data-label="Stars" className="py-2.5 pr-3 text-right font-semibold tabular-nums">{p.stars}</td>
+                          <td data-label="Attacks" className="text-muted-foreground py-2.5 pr-3 text-right tabular-nums">
                             {p.attacksUsed}/{p.warsPlayed}
                           </td>
-                          <td className="py-2.5 pr-3">
+                          <td data-label="Share" className="py-2.5 pr-3">
                             <span className="flex items-center gap-2">
                               <span
                                 className="cb-gauge h-1.5 w-16"
@@ -266,7 +266,7 @@ export default async function CwlMedalsPage({
                               <span className="text-xs tabular-nums">{Math.round(p.share * 100)}%</span>
                             </span>
                           </td>
-                          <td className="py-2.5 text-right font-semibold tabular-nums">
+                          <td data-label="≈ Medals" className="py-2.5 text-right font-semibold tabular-nums">
                             {plan.position ? p.medals : "—"}
                           </td>
                         </tr>
@@ -302,7 +302,7 @@ export default async function CwlMedalsPage({
                         <td className="py-2 pr-3">
                           {ordinal(index + 1)}
                           {ours && (
-                            <span className="bg-primary text-primary-foreground ml-2 rounded-full px-1.5 py-0.5 text-[0.625rem] font-bold uppercase">
+                            <span className="bg-primary text-primary-foreground ml-2 rounded-full px-1.5 py-0.5 text-[0.6875rem] sm:text-[0.625rem] font-bold uppercase">
                               You
                             </span>
                           )}

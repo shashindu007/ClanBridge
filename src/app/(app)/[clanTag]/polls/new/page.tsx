@@ -209,7 +209,7 @@ export default async function CreatePollPage({
               id="season"
               name="season"
               defaultValue={seasons[0]}
-              className="border-input bg-background h-10 w-full rounded-control border px-3 text-sm sm:w-72"
+              className="border-input bg-background h-11 sm:h-10 w-full rounded-control border px-3 text-base sm:text-sm sm:w-72"
             >
               {seasons.map((s, i) => (
                 <option key={s} value={s}>
@@ -261,7 +261,7 @@ export default async function CreatePollPage({
             rows={4}
             required
             defaultValue={template.options.join("\n")}
-            className="border-input placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-control border bg-transparent px-3 py-2 text-sm shadow-xs focus-visible:ring-1 focus-visible:outline-none"
+            className="border-input placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-control border bg-transparent px-3 py-2 text-base sm:text-sm shadow-xs focus-visible:ring-1 focus-visible:outline-none"
           />
           <p className="text-muted-foreground text-xs">
             One answer per line, at least two.

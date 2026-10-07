@@ -154,8 +154,8 @@ export default async function AdminAuditPage({
         </section>
       ) : (
         <section className="cb-panel rounded-panel border">
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="overflow-x-auto max-sm:p-3">
+            <Table className="cb-stack">
               <TableHeader>
                 <TableRow>
                   <TableHead>When</TableHead>
@@ -166,16 +166,16 @@ export default async function AdminAuditPage({
               <TableBody>
                 {entries.map((entry) => (
                   <TableRow key={entry.id}>
-                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                    <TableCell data-cell="row" data-label="When" className="text-muted-foreground text-sm whitespace-nowrap">
                       {when(entry.createdAt)}
                     </TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell data-cell="row" data-label="Who" className="text-sm">
                       {/* An id that does not resolve is a user this leader may
                           not see. "A user" is the honest answer; a bare uuid
                           would be noise, and inventing a name would be a lie. */}
                       {entry.userId ? (actors.get(entry.userId) ?? "a user") : "the system"}
                     </TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell data-cell="wide" data-label="What" className="text-sm">
                       {describeAudit(entry)}
                       <Badge variant="outline" className="ml-2 font-normal">
                         {entry.entity.replace(/_/g, " ")}

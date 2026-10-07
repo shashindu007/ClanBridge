@@ -202,7 +202,7 @@ export default async function NoticesPage({
               required
               maxLength={5000}
               rows={4}
-              className="border-input bg-background focus-visible:ring-ring w-full rounded-control border px-3 py-2 text-sm focus-visible:ring-1 focus-visible:outline-none"
+              className="border-input bg-background focus-visible:ring-ring w-full rounded-control border px-3 py-2 text-base sm:text-sm focus-visible:ring-1 focus-visible:outline-none"
             />
             <p className="text-muted-foreground text-xs">
               Plain text. Line breaks are kept; nothing else is formatted, and no

@@ -160,7 +160,7 @@ export default async function WarHistoryPage({
                 summary={`${won} won · ${lost} lost`}
               >
                 <div className="-mx-5 overflow-x-auto px-5">
-                  <table className="w-full min-w-[36rem] text-sm">
+                  <table className="cb-stack w-full sm:min-w-[36rem] text-sm">
                     <thead className="text-muted-foreground border-b text-left text-xs uppercase">
                       <tr>
                         <th className="py-2 pr-3 font-medium">Started</th>
@@ -174,7 +174,7 @@ export default async function WarHistoryPage({
                     <tbody>
                       {inMonth.map((war) => (
                         <tr key={war.id} className="border-b last:border-0">
-                          <td className="py-2.5 pr-3">
+                          <td data-label="Started" className="py-2.5 pr-3">
                             <Link
                               className="text-primary font-medium underline-offset-2 hover:underline"
                               href={`${base}/war?war=${encodeURIComponent(war.id)}`}
@@ -182,7 +182,7 @@ export default async function WarHistoryPage({
                               {when(war.startTime)}
                             </Link>
                           </td>
-                          <td className="py-2.5 pr-3">
+                          <td data-cell="title" className="py-2.5 pr-3">
                             <span className="flex items-center gap-2">
                               <ClanBadge
                                 src={war.opponentBadgeUrl}
@@ -193,14 +193,14 @@ export default async function WarHistoryPage({
                               {war.opponentName ?? <span className="text-muted-foreground">unknown</span>}
                             </span>
                           </td>
-                          <td className="py-2.5 pr-3 text-right tabular-nums">{war.teamSize ?? "—"}</td>
-                          <td className="py-2.5 pr-3 text-right font-medium tabular-nums">
+                          <td data-label="Size" className="py-2.5 pr-3 text-right tabular-nums">{war.teamSize ?? "—"}</td>
+                          <td data-label="Stars" className="py-2.5 pr-3 text-right font-medium tabular-nums">
                             {war.ourStars ?? 0} – {war.theirStars ?? 0}
                           </td>
-                          <td className="text-muted-foreground py-2.5 pr-3 text-right tabular-nums">
+                          <td data-label="Destruction" className="text-muted-foreground py-2.5 pr-3 text-right tabular-nums">
                             {(war.ourDestruction ?? 0).toFixed(1)}% – {(war.theirDestruction ?? 0).toFixed(1)}%
                           </td>
-                          <td className="py-2.5">{resultBadge(war)}</td>
+                          <td data-label="Result" className="py-2.5">{resultBadge(war)}</td>
                         </tr>
                       ))}
                     </tbody>

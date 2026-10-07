@@ -238,7 +238,7 @@ export default async function WarRatingPage({
           />
         ) : (
           <div className="-mx-5 overflow-x-auto px-5">
-            <Table>
+            <Table className="cb-stack">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12 text-right">#</TableHead>
@@ -257,7 +257,7 @@ export default async function WarRatingPage({
               <TableBody>
                 {rows.map(({ clan, player }, index) => (
                   <TableRow key={`${clan.id}:${player.playerId}`}>
-                    <TableCell className="text-right">
+                    <TableCell data-cell="corner" className="text-right">
                       {index < 3 ? (
                         <span
                           className="inline-flex size-7 items-center justify-center rounded-full text-sm font-bold text-black"
@@ -269,7 +269,7 @@ export default async function WarRatingPage({
                         <span className="text-muted-foreground text-sm tabular-nums">{index + 1}</span>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-cell="title">
                       <Link
                         href={`/${encodeURIComponent(clan.tag)}/player/${encodeURIComponent(player.tag)}`}
                         className="font-medium hover:underline"
@@ -278,7 +278,7 @@ export default async function WarRatingPage({
                       </Link>
                     </TableCell>
                     {!only && (
-                      <TableCell>
+                      <TableCell data-label="Clan">
                         <Link href={clanHref(clan.tag)} className="group flex items-center gap-2 text-sm">
                           <span
                             aria-hidden
@@ -289,24 +289,24 @@ export default async function WarRatingPage({
                         </Link>
                       </TableCell>
                     )}
-                    <TableCell className="text-right">
+                    <TableCell data-label="TH" className="text-right">
                       <TownHall level={player.thLevel} />
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{player.warsCounted}</TableCell>
-                    <TableCell className={cn("text-right tabular-nums", player.marks < 0 && "text-destructive")}>
+                    <TableCell data-label="Wars" className="text-right tabular-nums">{player.warsCounted}</TableCell>
+                    <TableCell data-label="Marks" className={cn("text-right tabular-nums", player.marks < 0 && "text-destructive")}>
                       {signed(player.marks)}
                     </TableCell>
                     {fighting && (
-                      <TableCell className="text-muted-foreground text-right text-sm tabular-nums">
+                      <TableCell data-label="This war so far" className="text-muted-foreground text-right text-sm tabular-nums">
                         {player.provisional
                           ? `${signed(player.provisional.marks)} · ${oneDecimal(player.provisional.share)}%`
                           : "—"}
                       </TableCell>
                     )}
-                    <TableCell className="text-muted-foreground text-right text-sm tabular-nums">
+                    <TableCell data-label="Per war" className="text-muted-foreground text-right text-sm tabular-nums">
                       {player.perWar === null ? "—" : oneDecimal(player.perWar)}
                     </TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums">
+                    <TableCell data-label="Rating" className="text-right font-semibold tabular-nums">
                       {oneDecimal(player.rating)}
                     </TableCell>
                   </TableRow>

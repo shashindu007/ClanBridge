@@ -78,7 +78,7 @@ export function HomeLink() {
       href="/dashboard"
       aria-label="Home"
       aria-current={active ? "page" : undefined}
-      className={`flex shrink-0 items-center gap-1.5 rounded-control px-2.5 py-1.5 text-[0.9375rem] transition-colors ${
+      className={`flex shrink-0 items-center gap-1.5 rounded-control px-2.5 py-1.5 text-[0.9375rem] transition-colors max-sm:p-2.5 ${
         active ? ACTIVE : IDLE
       }`}
     >
@@ -113,9 +113,9 @@ export function ClanMenu({ clans }: { clans: RailClan[] }) {
   const here = clans.find((c) => c.tag === current) ?? null;
 
   return (
-    <details ref={ref} className="group relative min-w-0 shrink">
+    <details ref={ref} className="group relative min-w-0 shrink max-sm:static">
       <summary
-        className={`flex min-w-0 cursor-pointer list-none items-center gap-1.5 rounded-control px-2.5 py-1.5 text-[0.9375rem] transition-colors [&::-webkit-details-marker]:hidden ${
+        className={`flex min-w-0 cursor-pointer list-none items-center gap-1.5 rounded-control px-2.5 py-1.5 text-[0.9375rem] transition-colors max-sm:py-2 [&::-webkit-details-marker]:hidden ${
           here ? `${ACTIVE} font-semibold` : `${IDLE} group-open:bg-white/12 group-open:text-rail-ink`
         }`}
         aria-label={here ? `Clan: ${here.name}. Switch clan` : "Switch clan"}
@@ -129,8 +129,9 @@ export function ClanMenu({ clans }: { clans: RailClan[] }) {
       </summary>
 
       {/* The popover tier — see account-menu.tsx on why a menu must not wear
-          a panel's surface. */}
-      <div className="cb-popover absolute left-0 z-50 mt-2 w-64 rounded-panel p-2 text-left">
+          a panel's surface. Below `sm` it spans the rail instead of hanging
+          from this button, where its right-hand side fell off the screen. */}
+      <div className="cb-popover absolute left-0 z-50 mt-2 w-64 rounded-panel p-2 text-left max-sm:inset-x-3 max-sm:top-full max-sm:w-auto">
         <p className="text-muted-foreground px-2 pt-1 pb-1.5 text-xs font-medium tracking-wide uppercase">
           Your clans
         </p>
@@ -233,7 +234,7 @@ export function ClanSectionTabs({ clans }: { clans: RailClan[] }) {
                 aria-current={active ? "page" : undefined}
                 title={section.hint}
                 className={
-                  "flex shrink-0 items-center gap-1.5 rounded-control px-3 py-1.5 text-[0.9375rem] transition-colors " +
+                  "flex shrink-0 items-center gap-1.5 rounded-control px-3 py-2 text-[0.9375rem] transition-colors sm:py-1.5 " +
                   (active ? ACTIVE : IDLE)
                 }
               >
@@ -259,7 +260,7 @@ export function ClanSectionTabs({ clans }: { clans: RailClan[] }) {
                   aria-current={active ? "page" : undefined}
                   title={child.hint}
                   className={
-                    "shrink-0 rounded-sm px-1 py-0.5 text-[0.8125rem] transition-colors " +
+                    "shrink-0 rounded-sm px-1 py-0.5 text-[0.8125rem] transition-colors max-sm:py-1.5 " +
                     (active
                       ? "text-rail-ink font-medium underline decoration-gold decoration-2 underline-offset-4"
                       : "text-rail-ink-dim hover:text-rail-ink")

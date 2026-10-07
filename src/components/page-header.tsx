@@ -52,7 +52,7 @@ export function PageHeader({
             {/* T12.8 — the display face. This one line is what makes every
                 redesigned page's title match the game look, since they all
                 come through here. */}
-            <h1 className="cb-title text-3xl">{title}</h1>
+            <h1 className="cb-title text-2xl sm:text-3xl">{title}</h1>
             {ribbons && <div className="flex flex-wrap items-center gap-2 pt-1">{ribbons}</div>}
             {description && <p className="text-muted-foreground max-w-2xl text-sm">{description}</p>}
           </div>

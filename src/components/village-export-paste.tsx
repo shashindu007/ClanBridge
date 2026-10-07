@@ -112,7 +112,7 @@ export function VillageExportPaste({ tag, label }: VillageExportPasteProps) {
               spellCheck={false}
               autoComplete="off"
               placeholder='{"tag":"#…","timestamp":…,"buildings":[…]}'
-              className="border-input bg-background focus-visible:ring-ring/50 w-full rounded-control border p-3 font-mono text-xs focus-visible:ring-[3px] focus-visible:outline-none"
+              className="border-input bg-background focus-visible:ring-ring/50 w-full rounded-control border p-3 font-mono text-base sm:text-xs focus-visible:ring-[3px] focus-visible:outline-none"
             />
           </div>
 

@@ -120,8 +120,8 @@ export default async function CrossClanSearchPage({
           <p className="text-muted-foreground px-5 pt-4 text-sm">
             {hits.length} {hits.length === 1 ? "match" : "matches"}
           </p>
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="overflow-x-auto max-sm:p-3">
+            <Table className="cb-stack">
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
@@ -152,7 +152,7 @@ export default async function CrossClanSearchPage({
 
                   return (
                     <TableRow key={hit.playerId}>
-                      <TableCell className="font-medium">
+                      <TableCell data-cell="title" className="font-medium">
                         <Link className="underline-offset-2 hover:underline" href={nameHref}>
                           {hit.name}
                         </Link>
@@ -165,7 +165,7 @@ export default async function CrossClanSearchPage({
                           {hit.tag}
                         </span>
                       </TableCell>
-                      <TableCell className="text-sm">
+                      <TableCell data-label="Clan" className="text-sm">
                         <Link className="underline-offset-2 hover:underline" href={clanHref}>
                           {clan.name}
                         </Link>
@@ -173,10 +173,10 @@ export default async function CrossClanSearchPage({
                           <span className="text-muted-foreground ml-2 text-xs">visiting</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
+                      <TableCell data-label="Role" className="text-muted-foreground text-sm">
                         {hit.clanRole ?? "—"}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell data-label="TH" className="text-right">
                         <TownHall level={hit.thLevel} />
                       </TableCell>
                     </TableRow>
