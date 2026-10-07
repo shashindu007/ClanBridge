@@ -22,7 +22,7 @@
 //                        the target itself, so a mirror at #1 is worth more
 //                        than a mirror at #15.
 //            Falling short away from the mirror, on top of the stars:
-//                        hitting up    2★ −2 (under 2★ the up marks are
+//                        hitting up    2★ −0.5 (under 2★ the up marks are
 //                                      already lost, and that is the cost)
 //                        hitting down  2★ −3 · 1★ −6 · 0★ −10
 //            the day's heroic attack +4
@@ -34,7 +34,8 @@
 //
 //   DEFENCE  the enemy's BEST hit on the base, the one that scores in the war:
 //            held to 0★ +10 · 1★ +5 · 2★ +3 · 3★ 0
-//            3-starred by an enemy lower on the map −2
+//            3-starred by an enemy lower on the map −0.5
+//            any stars lost to an enemy higher on the map +0.5
 //            not attacked +2, once the day is over — a base the enemy chose
 //            to leave alone held as surely as one they failed on
 //            the day's heroic defence +5
@@ -106,7 +107,7 @@ export const CWL_MARKS = {
    * all, which is the cost already. Dropping to a lower base and still not
    * clearing it costs more, the worse the result.
    */
-  shortUp: [0, 0, -2, 0],
+  shortUp: [0, 0, -0.5, 0],
   shortDown: [-10, -6, -3, 0],
   /**
    * How high the target sits on THEIR map, whoever attacked it: `last` for
@@ -125,7 +126,13 @@ export const CWL_MARKS = {
   /** By the stars the enemy's best hit took, 0 to 3. */
   defence: [10, 5, 3, 0],
   /** 3-starred by an enemy whose base is lower on the map than the defender's. */
-  tripledFromBelow: -2,
+  tripledFromBelow: -0.5,
+  /**
+   * The other way round: the hit that scores came from an enemy HIGHER on the
+   * map than the defender, and took at least a star. A stronger base did what
+   * a stronger base does; this hands a little of it back.
+   */
+  starredFromAbove: 0.5,
   /** In the lineup of a finished day, and no enemy attacked the base. */
   notAttacked: 2,
   heroicDefence: 5,
@@ -359,6 +366,10 @@ export function defenceLines(base: DayBase, over: boolean): MarkLine[] {
       : base.defences.find((d) => d.stars === 3 && d.by.base !== null && d.by.base > ownBase);
   if (fromBelow) {
     lines.push({ label: `By their #${fromBelow.by.base}, a lower base`, marks: CWL_MARKS.tripledFromBelow });
+  }
+  // Read off the hit that scores, like the marks for it above.
+  if (best.stars > 0 && ownBase !== null && best.by.base !== null && best.by.base < ownBase) {
+    lines.push({ label: `By their #${best.by.base}, a higher base`, marks: CWL_MARKS.starredFromAbove });
   }
   return lines;
 }

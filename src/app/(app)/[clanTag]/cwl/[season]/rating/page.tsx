@@ -373,6 +373,7 @@ export default async function CwlRatingPage({
                 ["Held to 2 stars", CWL_MARKS.defence[2]],
                 ["3-starred", CWL_MARKS.defence[3]],
                 ["3-starred by an enemy base lower on the map than yours", CWL_MARKS.tripledFromBelow],
+                ["Any stars taken by an enemy base higher on the map than yours", CWL_MARKS.starredFromAbove],
                 ["Not attacked (once the day is over)", CWL_MARKS.notAttacked],
                 ["The day's heroic defence", CWL_MARKS.heroicDefence],
               ]}

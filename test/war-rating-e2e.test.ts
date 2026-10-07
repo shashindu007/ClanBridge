@@ -163,9 +163,9 @@ describe("the war rating, from database rows to marks", () => {
       missed: null,
       defence: [
         { label: "3-starred", marks: 0 },
-        { label: "By their #3, a lower base", marks: -2 },
+        { label: "By their #3, a lower base", marks: -0.5 },
       ],
-      marks: 33.9,
+      marks: 35.4,
     });
 
     expect(war.get("Three")).toMatchObject({
@@ -183,8 +183,11 @@ describe("the war rating, from database rows to marks", () => {
       ],
       bonus: { label: "Best attack × 1.5", marks: 0.5 },
       missed: { label: "1 attack not used", marks: -10 },
-      defence: [{ label: "3-starred", marks: 0 }],
-      marks: -8.5,
+      defence: [
+        { label: "3-starred", marks: 0 },
+        { label: "By their #1, a higher base", marks: 0.5 },
+      ],
+      marks: -8,
     });
 
     expect(war.get("One")).toMatchObject({
@@ -197,10 +200,10 @@ describe("the war rating, from database rows to marks", () => {
       marks: 15.5,
     });
 
-    // Out of the plus marks: 15.5 + 33.9.
-    expect(rating.wars[1]!.total).toBe(49.4);
-    expect(war.get("Two")!.share).toBeCloseTo((33.9 / 49.4) * 100, 6);
-    expect(war.get("Three")!.share).toBeCloseTo((-8.5 / 49.4) * 100, 6);
+    // Out of the plus marks: 15.5 + 35.4.
+    expect(rating.wars[1]!.total).toBe(50.9);
+    expect(war.get("Two")!.share).toBeCloseTo((35.4 / 50.9) * 100, 6);
+    expect(war.get("Three")!.share).toBeCloseTo((-8 / 50.9) * 100, 6);
   });
 
   it("rates a war from before 063 on its attacks alone", async () => {
@@ -218,7 +221,7 @@ describe("the war rating, from database rows to marks", () => {
     const { rating } = await load();
     const two = rating.players.find((p) => p.name === "Two")!;
     expect(two.warsCounted).toBe(2);
-    expect(two.rating).toBeCloseTo((15.8 / 24.1) * 100 + (33.9 / 49.4) * 100, 6);
+    expect(two.rating).toBeCloseTo((15.8 / 24.1) * 100 + (35.4 / 50.9) * 100, 6);
     expect(two.perWar).toBeCloseTo(two.rating / 2, 6);
     expect(rating.players.map((p) => p.name)).toEqual(["Two", "One", "Three"]);
   });

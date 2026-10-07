@@ -423,6 +423,7 @@ export default async function ClanWarRatingPage({
                 ["Held to 2 stars", CWL_MARKS.defence[2]],
                 ["3-starred", CWL_MARKS.defence[3]],
                 ["3-starred by an enemy base lower on the map than yours", CWL_MARKS.tripledFromBelow],
+                ["Any stars taken by an enemy base higher on the map than yours", CWL_MARKS.starredFromAbove],
                 ["Not attacked (once the war is over)", CWL_MARKS.notAttacked],
                 ["The war's heroic defence", CWL_MARKS.heroicDefence],
               ]}

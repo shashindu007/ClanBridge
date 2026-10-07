@@ -97,16 +97,16 @@ describe("two attacks", () => {
 
   it("counts the first as the better one when the two are level", () => {
     // Our #12 takes two stars from their #1 and their #2: eleven and ten bases
-    // up, both counted as 10, so 1 + 10 + 1 − 2 + 1 each. Our #1's three stars
+    // up, both counted as 10, so 1 + 10 + 1 − 0.5 + 1 each. Our #1's three stars
     // take the heroic attack, which would otherwise split them.
     const rated = warRating(
       board(12, [attack(12, 1, 1, 2), attack(12, 2, 2, 2), attack(1, 1, 3, 3)]),
       "inWar",
     );
     const p = player(rated, 12);
-    expect(p.attacks.map((a) => a.marks)).toEqual([11, 11]);
+    expect(p.attacks.map((a) => a.marks)).toEqual([12.5, 12.5]);
     expect(p.attacks.map((a) => a.best)).toEqual([true, false]);
-    expect(p.bonus?.marks).toBe(5.5);
+    expect(p.bonus?.marks).toBe(6.3);
   });
 
   it("takes 10 for each attack not used — once the war is over, not while it runs", () => {
@@ -212,9 +212,13 @@ describe("defence", () => {
     // 3-starred by their #3, a lower base than our #2.
     expect(player(rated, 2).defence).toEqual([
       { label: "3-starred", marks: 0 },
-      { label: "By their #3, a lower base", marks: -2 },
+      { label: "By their #3, a lower base", marks: -0.5 },
     ]);
-    expect(player(rated, 3).defence).toEqual([{ label: "Held to 2 stars", marks: 3 }]);
+    // Two stars lost to their #1, a higher base than our #3.
+    expect(player(rated, 3).defence).toEqual([
+      { label: "Held to 2 stars", marks: 3 },
+      { label: "By their #1, a higher base", marks: 0.5 },
+    ]);
     expect(rated.attackOnly).toBe(false);
   });
 

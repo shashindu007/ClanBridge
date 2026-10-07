@@ -123,13 +123,13 @@ describe("attack marks", () => {
     expect(marks(attackLines(base(1, { attack: [1, 3, 15] }), true))).toBe(-3 - 2 - 2 - 6);
   });
 
-  it("takes 2 for stopping at two stars on a higher base, and nothing more below that", () => {
+  it("takes half a mark for stopping at two stars on a higher base, and nothing more below that", () => {
     // Our #10 on their #7 at the same Town Hall: 3 bases up (for 2★ or more),
     // +1 for not hitting down and +1 for the Town Hall.
     const of = (stars: number) => attackLines(base(10, { attack: [stars, 7, 17] }), true);
     expect(marks(of(3))).toBe(5 + 3 + 1 + 1);
-    expect(of(2)).toContainEqual({ label: "Hitting up without 3 stars", marks: -2 });
-    expect(marks(of(2))).toBe(1 + 3 + 1 + 1 - 2);
+    expect(of(2)).toContainEqual({ label: "Hitting up without 3 stars", marks: -0.5 });
+    expect(marks(of(2))).toBe(1 + 3 + 1 + 1 - 0.5);
     // Under two stars the up marks are not given: that is the whole cost.
     for (const stars of [1, 0]) {
       expect(of(stars).some((l) => l.label.startsWith("Hitting"))).toBe(false);
@@ -248,12 +248,12 @@ describe("new stars only", () => {
 
 describe("defence marks", () => {
   it("scores the enemy's best hit: 0★ +10, 1★ +5, 2★ +3, 3★ 0", () => {
-    const of = (stars: number) => marks(defended(base(5, { hits: [[stars, 2]] })));
+    const of = (stars: number) => marks(defended(base(5, { hits: [[stars, 5]] })));
     expect([0, 1, 2, 3].map(of)).toEqual([10, 5, 3, 0]);
   });
 
   it("counts only the best hit on a base attacked twice", () => {
-    expect(defended(base(5, { hits: [[2, 3], [0, 9]] }))).toEqual([{ label: "Held to 2 stars", marks: 3 }]);
+    expect(defended(base(5, { hits: [[2, 5], [0, 9]] }))).toEqual([{ label: "Held to 2 stars", marks: 3 }]);
   });
 
   it("gives 2 for a base nobody attacked — once the day is over, not while it runs", () => {
@@ -261,15 +261,41 @@ describe("defence marks", () => {
     expect(defenceLines(base(5), false)).toEqual([]);
   });
 
-  it("takes 2 when a lower base 3-stars it, and not when a higher or mirror base does", () => {
+  it("takes half a mark when a lower base 3-stars it, and not when a higher or mirror base does", () => {
     expect(defended(base(5, { hits: [[3, 12]] }))).toEqual([
       { label: "3-starred", marks: 0 },
-      { label: "By their #12, a lower base", marks: -2 },
+      { label: "By their #12, a lower base", marks: -0.5 },
     ]);
     expect(marks(defended(base(5, { hits: [[3, 5]] })))).toBe(0);
-    expect(marks(defended(base(5, { hits: [[3, 1]] })))).toBe(0);
+    expect(defended(base(5, { hits: [[3, 1]] })).some((l) => l.label.includes("lower base"))).toBe(false);
     // Two stars from below is not a triple.
     expect(marks(defended(base(5, { hits: [[2, 12]] })))).toBe(3);
+  });
+});
+
+describe("stars lost to a higher base", () => {
+  it("gives half a mark back when the hit that scores came from higher on the map", () => {
+    // Our #5, attacked by their #2.
+    expect(defended(base(5, { hits: [[3, 2]] }))).toEqual([
+      { label: "3-starred", marks: 0 },
+      { label: "By their #2, a higher base", marks: 0.5 },
+    ]);
+    expect(marks(defended(base(5, { hits: [[2, 2]] })))).toBe(3 + 0.5);
+    expect(marks(defended(base(5, { hits: [[1, 4]] })))).toBe(5 + 0.5);
+  });
+
+  it("gives nothing when they took no star, or came from the mirror or below", () => {
+    const from = (stars: number, by: number) =>
+      defended(base(5, { hits: [[stars, by]] })).some((l) => l.label.includes("higher base"));
+    expect(from(0, 2)).toBe(false);
+    expect(from(2, 5)).toBe(false);
+    expect(from(2, 9)).toBe(false);
+  });
+
+  it("goes by the hit that scores, not by a weaker one from higher up", () => {
+    // Their #9 took two stars; their #1 only one. The two stars are what count.
+    const lines = defended(base(5, { hits: [[2, 9], [1, 1]] }));
+    expect(lines).toEqual([{ label: "Held to 2 stars", marks: 3 }]);
   });
 });
 
@@ -348,21 +374,21 @@ describe("dayRating", () => {
     expect(day.players.map((p) => p.marks)).toEqual([7 + 4 + 10 + 5, 7 + 10, 7 + 3]);
   });
 
-  it("divides by the plus marks only: +15 and +13 with a −12 is out of 28", () => {
+  it("divides by the plus marks only: +15 and +13 with a −10.5 is out of 28", () => {
     const day = dayRating(
       board([
         base(1, { attack: [3, 1, 17] }), // C: 7, heroic attack +4, left alone +2 = 13
         base(2, { attack: [3, 2, 17], hits: [[2, 2]] }), // A: 7, held to 2★ +3, heroic defence +5 = 15
-        base(3, { hits: [[3, 5]] }), // B: no attack −10, 3-starred from below −2 = −12
+        base(3, { hits: [[3, 5]] }), // B: no attack −10, 3-starred from below −0.5 = −10.5
       ]),
       "warEnded",
     );
-    expect(day.players.map((p) => p.marks)).toEqual([13, 15, -12]);
+    expect(day.players.map((p) => p.marks)).toEqual([13, 15, -10.5]);
     expect(day.total).toBe(28);
     expect(day.players.map((p) => p.share)).toEqual([
       expect.closeTo((13 / 28) * 100, 6),
       expect.closeTo((15 / 28) * 100, 6),
-      expect.closeTo((-12 / 28) * 100, 6),
+      expect.closeTo((-10.5 / 28) * 100, 6),
     ]);
     // The plus shares are the whole of it, whoever went under.
     const plus = day.players.filter((p) => p.marks > 0).reduce((t, p) => t + p.share, 0);
@@ -379,15 +405,15 @@ describe("dayRating", () => {
   });
 
   it("never makes a day's share worse than −100%", () => {
-    // 7 above zero in the whole clan and a player on −12: −171% before the limit.
+    // 7 above zero in the whole clan and a player on −10.5: −150% before the limit.
     const day = dayRating(
       board([
         base(1, { attack: [1, 1, 17], hits: [[2, 1]] }), // −3 + 1 + 1, held to 2★ +3, heroic defence +5 = 7
-        base(2, { hits: [[3, 5]] }), // no attack −10, 3-starred from below −2 = −12
+        base(2, { hits: [[3, 5]] }), // no attack −10, 3-starred from below −0.5 = −10.5
       ]),
       "warEnded",
     );
-    expect(day.players.map((p) => p.marks)).toEqual([7, -12]);
+    expect(day.players.map((p) => p.marks)).toEqual([7, -10.5]);
     expect(day.total).toBe(7);
     expect(day.players.map((p) => p.share)).toEqual([100, -100]);
   });
