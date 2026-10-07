@@ -146,8 +146,8 @@ export const CWL_MARKS = {
 } as const;
 
 /**
- * The two places the same marks are read differently by CWL and by a regular
- * war (services/war-rating.ts). Everything else in CWL_MARKS is shared.
+ * The places the same marks are read differently by CWL and by a regular war
+ * (services/war-rating.ts). Everything else in CWL_MARKS is shared.
  */
 export interface AttackRules {
   /**
@@ -162,15 +162,22 @@ export interface AttackRules {
    */
   sameBase: "minusTaken" | "fullIfNew";
   /**
-   * What three stars on their #1 is worth. Null keeps targetRank.step a base,
-   * so a bigger war's top base is worth more (CWL, by the clan's choice). A
-   * number fixes the top and spaces the bases evenly below it, so wars of
-   * thirty and forty bases rate alike.
+   * Marks by stars taken, 0 to 3. A regular war gives two attacks, and a
+   * failed one out of two is not the loss a failed one out of one is.
    */
-  rankTop: number | null;
+  stars: readonly number[];
+  /**
+   * What each place above their last base adds to targetRank.last, for three
+   * stars. Per base, so a bigger war's top base is worth more.
+   */
+  rankStep: number;
 }
 
-export const CWL_RULES: AttackRules = { sameBase: "minusTaken", rankTop: null };
+export const CWL_RULES: AttackRules = {
+  sameBase: "minusTaken",
+  stars: CWL_MARKS.stars,
+  rankStep: CWL_MARKS.targetRank.step,
+};
 
 /** "without 3 stars", "without 2 stars", "without a star" — what a short result lacked. */
 function lacking(stars: number): string {
@@ -251,7 +258,7 @@ export function attackLines(
   const attack = base.attack;
   if (!attack) return over ? [{ label: "Did not attack", marks: CWL_MARKS.missed }] : [];
 
-  const table = CWL_MARKS.stars[attack.stars] ?? 0;
+  const table = rules.stars[attack.stars] ?? 0;
   const taken = attack.alreadyTaken ?? 0;
   // New stars only — for a result worth having. A 1★ or 0★ is scored as it
   // always was: failing a base someone already opened is no better.
@@ -317,11 +324,9 @@ export function attackLines(
     !nothingNew
   ) {
     const placesUp = Math.max(0, enemyBases - target.base);
-    const step =
-      rules.rankTop === null ? rank.step : enemyBases > 1 ? (rules.rankTop - rank.last) / (enemyBases - 1) : 0;
     lines.push({
       label: `Their #${target.base} of ${enemyBases}`,
-      marks: round1(rank.last + step * placesUp),
+      marks: round1(rank.last + rules.rankStep * placesUp),
     });
   }
 

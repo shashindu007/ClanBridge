@@ -9,7 +9,8 @@
 //   - a war with the enemy's attacks and the order of every attack (after 063):
 //     two attacks a player, a base hit by three of ours in a known order, an
 //     attack that added nothing, one attack not used, a triple from below
-//   - a war from BEFORE 063 in the same month: no enemy attacks, no order
+//   - a war from BEFORE 063 in the same month: no enemy attacks and no order,
+//     only the time the sync first saw each attack
 //   - a war in the next month, which must not be counted in this one
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -71,10 +72,11 @@ describe("the war rating, from database rows to marks", () => {
       ${lineups(OLD_WAR)}
       ${lineups(WAR)}
 
-      -- Before 063: two of ours on their #1, and nothing to say who was first.
-      insert into war_attacks (war_id, player_id, attack_order, stars, destruction, defender_tag, defender_position) values
-        ('${OLD_WAR}', '${PLAYER.one}', 1, 3, 100, '#F1', 1),
-        ('${OLD_WAR}', '${PLAYER.two}', 1, 3, 100, '#F1', 1);
+      -- Before 063: two of ours triple their #1. No order from the game — but
+      -- the sync saw One's attack two hours before Two's.
+      insert into war_attacks (war_id, player_id, attack_order, stars, destruction, defender_tag, defender_position, created_at) values
+        ('${OLD_WAR}', '${PLAYER.two}', 1, 3, 100, '#F1', 1, '2026-09-05 22:00:00+00'),
+        ('${OLD_WAR}', '${PLAYER.one}', 1, 3, 100, '#F1', 1, '2026-09-05 20:00:00+00');
 
       -- After it. Their #1 is hit by all three of ours: One takes two stars,
       -- Two finishes it, Three arrives after it is done.
@@ -106,12 +108,12 @@ describe("the war rating, from database rows to marks", () => {
   it("takes the wars that started in the month, oldest first, and no other", async () => {
     const { rating } = await load();
     expect(rating.wars.map((w) => [w.opponentName, w.status, w.attackOnly, w.orderMissing])).toEqual([
-      ["Old rival", "counted", true, true],
+      ["Old rival", "counted", true, false],
       ["Rival", "counted", false, false],
     ]);
   });
 
-  it("builds the board: two attacks a player, and each enemy hit on the base it landed on", async () => {
+  it("builds the board: two attacks a player, the order on each base, and one best attack per base", async () => {
     const { boards } = await load();
     const board = boards[1]!;
     expect(board.enemyBases).toBe(3);
@@ -122,6 +124,13 @@ describe("the war rating, from database rows to marks", () => {
     ]);
     // Their #1, by the order of the war: nothing taken, then two stars, then three.
     expect(board.bases.map((b) => b.attacks[0]!.alreadyTaken)).toEqual([0, 2, 3]);
+    // …and Two, the first to three stars, has the best attack on it. Their #3
+    // and #2 were each attacked once.
+    expect(board.bases.map((b) => b.attacks.map((a) => a.bestOnBase))).toEqual([
+      [false, true],
+      [true, true],
+      [false],
+    ]);
     // Our #1 was hit twice; the better hit leads.
     expect(board.bases[0]!.defences.map((d) => [d.stars, d.by.base])).toEqual([
       [2, 1],
@@ -129,49 +138,52 @@ describe("the war rating, from database rows to marks", () => {
     ]);
   });
 
-  it("rates the war: every attack's lines, the better attack, and every share", async () => {
+  it("rates the war: every attack's lines, the best attack on each base, and every share", async () => {
     const { rating } = await load();
     const war = new Map(rating.players.map((p) => [p.name, p.wars[1]!]));
 
     expect(war.get("Two")).toMatchObject({
       attacks: [
         {
-          // Finishing a base a clanmate opened keeps its full marks.
+          // Finishing a base a clanmate opened keeps its full marks — and is
+          // the best attack on it.
           lines: [
             { label: "3 stars", marks: 5 },
             { label: "1 base up", marks: 1 },
             { label: "Mirror or above", marks: 1 },
-            { label: "Their #1 of 3", marks: 5.2 },
+            { label: "Their #1 of 3", marks: 1.2 },
             { label: "Same TH", marks: 1 },
             { label: "Heroic attack", marks: 4 },
           ],
-          marks: 17.2,
+          marks: 13.2,
           best: true,
+          bonus: { label: "Best attack on their #1 × 1.5", marks: 6.6 },
         },
         {
           lines: [
             { label: "3 stars", marks: 5 },
             { label: "Mirror", marks: 1 },
-            { label: "Their #2 of 3", marks: 3.1 },
+            { label: "Their #2 of 3", marks: 1.1 },
             { label: "Same TH", marks: 1 },
           ],
-          marks: 10.1,
-          best: false,
+          marks: 8.1,
+          best: true,
+          bonus: { label: "Best attack on their #2 × 1.5", marks: 4.1 },
         },
       ],
-      bonus: { label: "Best attack × 1.5", marks: 8.6 },
       missed: null,
       defence: [
         { label: "3-starred", marks: 0 },
         { label: "By their #3, a lower base", marks: -0.5 },
       ],
-      marks: 35.4,
+      marks: 31.5,
     });
 
     expect(war.get("Three")).toMatchObject({
       attacks: [
         {
-          // Three stars on a base already at three: nothing new for the clan.
+          // Three stars on a base already at three: nothing new for the clan,
+          // and not the best attack on it.
           lines: [
             { label: "3 stars, none new", marks: 0 },
             { label: "2 bases up, no new star", marks: 0 },
@@ -179,20 +191,24 @@ describe("the war rating, from database rows to marks", () => {
             { label: "1 TH up, no new star", marks: 0 },
           ],
           marks: 1,
+          best: false,
+          bonus: null,
         },
       ],
-      bonus: { label: "Best attack × 1.5", marks: 0.5 },
-      missed: { label: "1 attack not used", marks: -10 },
+      missed: { label: "1 attack not used", marks: -4 },
       defence: [
         { label: "3-starred", marks: 0 },
         { label: "By their #1, a higher base", marks: 0.5 },
       ],
-      marks: -8,
+      marks: -2.5,
     });
 
     expect(war.get("One")).toMatchObject({
-      attacks: [{ marks: 3, best: true }, { marks: 3, best: false }],
-      bonus: { label: "Best attack × 1.5", marks: 1.5 },
+      attacks: [
+        // Two stars on their #1, which Two then cleared: not the best there.
+        { marks: 3, best: false, bonus: null },
+        { marks: 3, best: true, bonus: { label: "Best attack on their #3 × 1.5", marks: 1.5 } },
+      ],
       defence: [
         { label: "Held to 2 stars", marks: 3 },
         { label: "Heroic defence", marks: 5 },
@@ -200,30 +216,35 @@ describe("the war rating, from database rows to marks", () => {
       marks: 15.5,
     });
 
-    // Out of the plus marks: 15.5 + 35.4.
-    expect(rating.wars[1]!.total).toBe(50.9);
-    expect(war.get("Two")!.share).toBeCloseTo((35.4 / 50.9) * 100, 6);
-    expect(war.get("Three")!.share).toBeCloseTo((-8 / 50.9) * 100, 6);
+    // Out of the plus marks: 15.5 + 31.5.
+    expect(rating.wars[1]!.total).toBe(47);
+    expect(war.get("Two")!.share).toBeCloseTo((31.5 / 47) * 100, 6);
+    expect(war.get("Three")!.share).toBeCloseTo((-2.5 / 47) * 100, 6);
   });
 
-  it("rates a war from before 063 on its attacks alone", async () => {
+  it("rates a war from before 063 on its attacks alone, ordered by when the sync saw them", async () => {
     const { rating } = await load();
     const old = new Map(rating.players.map((p) => [p.name, p.wars[0]!]));
-    // Both scored as a first hit on their #1: the order is not known.
-    expect(old.get("One")!.attacks[0]!.lines[0]).toEqual({ label: "3 stars", marks: 5 });
-    expect(old.get("Two")!.attacks[0]!.lines[0]).toEqual({ label: "3 stars", marks: 5 });
+    // One was seen first, so One's is the best attack on their #1 and Two's added nothing.
+    expect(old.get("One")!.attacks[0]).toMatchObject({
+      best: true,
+      marks: 12.2,
+      bonus: { label: "Best attack on their #1 × 1.5", marks: 6.1 },
+    });
+    expect(old.get("Two")!.attacks[0]).toMatchObject({ best: false, bonus: null });
+    expect(old.get("Two")!.attacks[0]!.lines[0]).toEqual({ label: "3 stars, none new", marks: 0 });
     expect([...old.values()].every((p) => p.defence.length === 0 && !p.heroicDefence)).toBe(true);
-    // One: 12.2 × 1.5 − 10. Two: 17.2 × 1.5 − 10. Three: both attacks unused.
-    expect([old.get("One")!.marks, old.get("Two")!.marks, old.get("Three")!.marks]).toEqual([8.3, 15.8, -20]);
+    // One: 12.2 + 6.1 − 4. Two: 1 + 1 − 4. Three: both attacks unused.
+    expect([old.get("One")!.marks, old.get("Two")!.marks, old.get("Three")!.marks]).toEqual([14.3, -2, -8]);
   });
 
   it("adds the two wars' shares up into the month", async () => {
     const { rating } = await load();
     const two = rating.players.find((p) => p.name === "Two")!;
     expect(two.warsCounted).toBe(2);
-    expect(two.rating).toBeCloseTo((15.8 / 24.1) * 100 + (35.4 / 50.9) * 100, 6);
+    expect(two.rating).toBeCloseTo((-2 / 14.3) * 100 + (31.5 / 47) * 100, 6);
     expect(two.perWar).toBeCloseTo(two.rating / 2, 6);
-    expect(rating.players.map((p) => p.name)).toEqual(["Two", "One", "Three"]);
+    expect(rating.players.map((p) => p.name)).toEqual(["One", "Two", "Three"]);
   });
 
   it("has nothing for a month with no war", async () => {

@@ -2,33 +2,44 @@
 // regular wars.
 //
 // The marks are CWL's, from the same constants and the same functions — a
-// 3-star, a Town Hall up, a base held to one star are worth here exactly what
-// they are worth there. A regular war differs in four ways, and those are the
-// whole of this file:
+// 3-star, a Town Hall up, a base held to one star are worth here what they are
+// worth there. A regular war differs in these ways, and they are the whole of
+// this file:
 //
-//   TWO ATTACKS   each is scored and the two are added, with the better one
-//                 counting 1.5 times when it is above zero: +12 and +4 is
-//                 12 × 1.5 + 4 = 22. An attack not used costs 10 each once
-//                 the war is over.
+//   TWO ATTACKS   each is scored and the two are added. An attack not used
+//                 costs 4, and so does one that takes no star (CWL: 10 — one
+//                 failure out of two is not one out of one).
 //
-//   THE SAME BASE In a regular war a base is hit by several of ours as a
-//                 matter of course (7 to 25 bases a war). An attack that adds
-//                 a star keeps its full marks — clean-up is the job, not a
-//                 lesser attack. One that adds none earns no star marks and
-//                 nothing for hitting up. Read from the order of attacks (063).
+//   THE SAME BASE A base is hit by several of ours as a matter of course (7 to
+//                 25 bases a war). An attack that adds a star keeps its full
+//                 marks — clean-up is the job. One that adds none earns no star
+//                 marks and nothing for hitting up.
 //
-//   TARGET RANK   their last base +1, their #1 always +5.2, evenly between,
-//                 whatever the war's size — these run from 5 to 50 bases.
+//   BEST ATTACK   Every enemy base that was attacked has ONE best attack: the
+//                 most stars, and of several with the same stars, the first —
+//                 the second found the base already cleared. That attack counts
+//                 1.5 times when it is above zero. It is per enemy base, not per
+//                 player: a player can earn it on both attacks, or on neither.
+//
+//   TARGET RANK   three stars on their last base +1, and +0.1 for each place
+//                 higher: their #1 of 40 is +4.9.
 //
 //   THE PERIOD    there is no week. A player's shares are added over the wars
 //                 that started in a calendar month.
 //
-// ATTACK-ONLY WARS. The enemy's attacks and the order of ours are stored from
-// 063 on; the API serves the current war only, so nothing older can be filled
-// in. A war from before it is rated on its attacks alone — no defence marks,
-// no heroic defence, and a base hit twice scored as a first hit each time —
-// and is marked so. A share is a share of ONE war's plus marks, so such a war
-// is fair in itself; it is the months that mix both kinds that the page labels.
+// WHO WAS FIRST. Two of the rules above turn on the order of attacks. From 063
+// the sync keeps the game's own order. A war from before it has none — but each
+// attack row was written by the sync that first SAW the attack, and the sync
+// runs about hourly, so the time on the row orders most of them: of the 217
+// bases hit more than once in the wars stored before 063, it fully orders 133.
+// Attacks first seen in the same run cannot be told apart; they are scored as
+// if neither had seen the other, and a tie for best attack between them goes to
+// the higher destruction, then to the attacker lower on our map.
+//
+// ATTACK-ONLY WARS. The enemy's attacks are stored from 063 on, and the API
+// serves the current war only. A war from before it has no defence marks and no
+// heroic defence, and is marked so. A share is a share of ONE war's plus marks,
+// so such a war is fair in itself.
 //
 // Derived, never stored, like the CWL rating.
 
@@ -51,14 +62,25 @@ import {
   type MarkLine,
 } from "@/services/cwl-rating";
 
-export const WAR_RULES: AttackRules = { sameBase: "fullIfNew", rankTop: 5.2 };
+export const WAR_RULES: AttackRules = {
+  sameBase: "fullIfNew",
+  // 0 stars costs what an unused attack costs; the rest are CWL's.
+  stars: [-4, CWL_MARKS.stars[1], CWL_MARKS.stars[2], CWL_MARKS.stars[3]],
+  rankStep: 0.1,
+};
 
 export const WAR_MARKS = {
-  /** What a player's better attack is multiplied by, when it is above zero. */
+  /** What the best attack on an enemy base is multiplied by, when it is above zero. */
   bestAttack: 1.5,
   /** Per attack not used, once the war is over. */
-  missed: CWL_MARKS.missed,
+  missed: -4,
 } as const;
+
+/** One of our attacks in a regular war. */
+export interface WarAttack extends DayAttack {
+  /** The one best attack on the enemy base it hit — see BEST ATTACK above. */
+  bestOnBase: boolean;
+}
 
 /** One of our bases in a regular war: up to two attacks, and the enemy's hits on it. */
 export interface WarBase {
@@ -70,7 +92,7 @@ export interface WarBase {
   base: number | null;
   attacksAllowed: number;
   /** The owner's attacks, first then second. */
-  attacks: DayAttack[];
+  attacks: WarAttack[];
   /** Every enemy attack on this base, the one that counts first. */
   defences: DayDefence[];
 }
@@ -82,6 +104,23 @@ export interface WarBoard {
   enemyBases: number | null;
   /** False for a war from before 063: the enemy's attacks were never recorded. */
   defenceKnown: boolean;
+  /**
+   * False when some enemy base was hit by several of ours and which attack came
+   * first could not be told for all of them — see WHO WAS FIRST above.
+   */
+  orderKnown: boolean;
+}
+
+/**
+ * When each of several attacks on one base came, as numbers that compare: the
+ * game's order where every one of them has it, else the time the sync first
+ * saw each. Null when neither covers them all. Equal numbers are attacks that
+ * cannot be told apart.
+ */
+function times(hits: readonly WarRatingAttackRow[]): number[] | null {
+  if (hits.every((h) => h.warOrder !== null)) return hits.map((h) => h.warOrder as number);
+  if (hits.every((h) => h.seenAt !== null)) return hits.map((h) => Date.parse(h.seenAt as string));
+  return null;
 }
 
 export function warBoard(input: {
@@ -104,9 +143,9 @@ export function warBoard(input: {
     const member = enemyByTag.get(tag);
     return { tag, base: enemyBase.get(tag) ?? null, name: member?.name ?? null, thLevel: member?.thLevel ?? null };
   };
+  const baseOfPlayer = new Map(members.map((m) => [m.playerId, ourBase.get(m.tag) ?? null]));
 
-  // What each attack found already taken, by the order of the war. Keyed by
-  // the attack itself: the same player has two.
+  // Keyed by the attack itself: the same player has two.
   const key = (a: { playerId: string; attackOrder: number }) => `${a.playerId}:${a.attackOrder}`;
   const onTarget = new Map<string, WarRatingAttackRow[]>();
   for (const attack of attacks) {
@@ -115,21 +154,39 @@ export function warBoard(input: {
     list.push(attack);
     onTarget.set(attack.defenderTag, list);
   }
+
   const alreadyTaken = new Map<string, number | null>();
+  const best = new Set<string>();
+  let orderKnown = true;
+
   for (const hits of onTarget.values()) {
-    if (hits.length === 1) {
-      alreadyTaken.set(key(hits[0]!), 0);
-      continue;
-    }
-    if (hits.some((h) => h.warOrder === null)) {
-      for (const h of hits) alreadyTaken.set(key(h), null);
-      continue;
-    }
-    let best = 0;
-    for (const h of [...hits].sort((a, b) => (a.warOrder as number) - (b.warOrder as number))) {
-      alreadyTaken.set(key(h), best);
-      best = Math.max(best, h.stars);
-    }
+    const when = hits.length === 1 ? [0] : times(hits);
+    if (when === null || new Set(when).size !== when.length) orderKnown = false;
+
+    // What each found already taken: the best result of the attacks before it.
+    hits.forEach((hit, i) => {
+      if (when === null) {
+        alreadyTaken.set(key(hit), null);
+        return;
+      }
+      const before = hits.filter((_, j) => when[j]! < when[i]!).map((h) => h.stars);
+      alreadyTaken.set(key(hit), before.length ? Math.max(...before) : 0);
+    });
+
+    // The one best attack: the most stars, and the first to get there. Only
+    // where "first" cannot be told does anything else decide it.
+    const top = Math.max(...hits.map((h) => h.stars));
+    const winner = hits
+      .map((hit, i) => ({ hit, at: when === null ? 0 : when[i]! }))
+      .filter(({ hit }) => hit.stars === top)
+      .sort(
+        (a, b) =>
+          a.at - b.at ||
+          b.hit.destruction - a.hit.destruction ||
+          (baseOfPlayer.get(b.hit.playerId) ?? 0) - (baseOfPlayer.get(a.hit.playerId) ?? 0) ||
+          a.hit.attackOrder - b.hit.attackOrder,
+      )[0]!;
+    best.add(key(winner.hit));
   }
 
   const hitsOn = new Map<string, DayDefence[]>();
@@ -158,12 +215,13 @@ export function warBoard(input: {
           destruction: a.destruction,
           target: a.defenderTag ? enemyRef(a.defenderTag) : null,
           alreadyTaken: alreadyTaken.has(key(a)) ? (alreadyTaken.get(key(a)) as number | null) : 0,
+          bestOnBase: best.has(key(a)),
         })),
       defences: (hitsOn.get(m.tag) ?? []).sort((a, b) => b.stars - a.stars || b.destruction - a.destruction),
     }))
     .sort((a, b) => (a.base ?? 999) - (b.base ?? 999) || a.name.localeCompare(b.name));
 
-  return { bases, enemyBases: opponents.length || teamSize, defenceKnown };
+  return { bases, enemyBases: opponents.length || teamSize, defenceKnown, orderKnown };
 }
 
 /** One attack of a player's, scored. */
@@ -172,9 +230,12 @@ export interface RatedAttack {
   destruction: number;
   target: BaseRef | null;
   lines: MarkLine[];
+  /** The lines added up, before the bonus. */
   marks: number;
-  /** The better of the player's attacks — the one that counts 1.5 times. */
+  /** The best attack on its enemy base. */
   best: boolean;
+  /** "Best attack on their #5 × 1.5" — only for the best attack, and only above zero. */
+  bonus: MarkLine | null;
 }
 
 export interface PlayerWarRating {
@@ -184,8 +245,6 @@ export interface PlayerWarRating {
   thLevel: number | null;
   base: number | null;
   attacks: RatedAttack[];
-  /** "Best attack × 1.5", or null when there is no attack above zero. */
-  bonus: MarkLine | null;
   /** Attacks not used, as one line. Null while the war runs, or with none unused. */
   missed: MarkLine | null;
   defence: MarkLine[];
@@ -211,7 +270,7 @@ export interface WarRating {
   status: WarRatingStatus;
   /** No defence marks: the enemy's attacks were never recorded (before 063). */
   attackOnly: boolean;
-  /** A base was hit by several of ours and the order was never recorded. */
+  /** Which of several attacks on a base came first could not be told for all of them. */
   orderMissing: boolean;
   /** The marks of everyone above zero, added up — what a share is a share of. */
   total: number;
@@ -246,21 +305,33 @@ export function warRating(board: WarBoard, state: string | null): WarRating {
   const bestDefence = board.defenceKnown ? heroicDefence(board.bases.map((b) => asDayBase(b, null))) : null;
 
   const rows = board.bases.map((base) => {
-    const scored = base.attacks.map((attack) => {
+    const scored = base.attacks.map((attack): RatedAttack => {
       const lines = attackLines(asDayBase(base, attack), over, board.enemyBases, WAR_RULES);
       if (heroic && heroic.playerId === base.playerId && heroic.attack === attack) {
         lines.push({ label: "Heroic attack", marks: CWL_MARKS.heroicAttack });
       }
-      return { stars: attack.stars, destruction: attack.destruction, target: attack.target, lines, marks: sum(lines) };
+      const marks = sum(lines);
+      // Counted 1.5 times only above zero: multiplying a minus would make the
+      // best attack on a base cost more for being the best.
+      // Worked in whole tenths, so half of 8.1 is 4.1 every time and never
+      // whichever side of 4.05 a float happens to land on.
+      const bonus: MarkLine | null =
+        attack.bestOnBase && marks > 0
+          ? {
+              label: `Best attack on their #${attack.target?.base ?? "?"} × ${WAR_MARKS.bestAttack}`,
+              marks: Math.round(Math.round(marks * 10) * (WAR_MARKS.bestAttack - 1)) / 10,
+            }
+          : null;
+      return {
+        stars: attack.stars,
+        destruction: attack.destruction,
+        target: attack.target,
+        lines,
+        marks,
+        best: attack.bestOnBase,
+        bonus,
+      };
     });
-
-    // The better attack, the first on a tie. Counted 1.5 times only above zero:
-    // multiplying a minus would make a bad best attack cost more.
-    const top = scored.reduce<number>((best, a, i) => (best < 0 || a.marks > scored[best]!.marks ? i : best), -1);
-    const bonus: MarkLine | null =
-      top >= 0 && scored[top]!.marks > 0
-        ? { label: `Best attack × ${WAR_MARKS.bestAttack}`, marks: round1(scored[top]!.marks * (WAR_MARKS.bestAttack - 1)) }
-        : null;
 
     const unused = Math.max(0, base.attacksAllowed - base.attacks.length);
     const missed: MarkLine | null =
@@ -273,7 +344,7 @@ export function warRating(board: WarBoard, state: string | null): WarRating {
     if (isHeroicDefence) defence.push({ label: "Heroic defence", marks: CWL_MARKS.heroicDefence });
 
     const attackMarks = round1(
-      scored.reduce((t, a) => t + a.marks, 0) + (bonus?.marks ?? 0) + (missed?.marks ?? 0),
+      scored.reduce((t, a) => t + a.marks + (a.bonus?.marks ?? 0), 0) + (missed?.marks ?? 0),
     );
     const defenceMarks = sum(defence);
     return {
@@ -282,8 +353,7 @@ export function warRating(board: WarBoard, state: string | null): WarRating {
       name: base.name,
       thLevel: base.thLevel,
       base: base.base,
-      attacks: scored.map((a, i): RatedAttack => ({ ...a, best: i === top && bonus !== null })),
-      bonus,
+      attacks: scored,
       missed,
       defence,
       attackMarks,
@@ -300,7 +370,7 @@ export function warRating(board: WarBoard, state: string | null): WarRating {
   return {
     status: over ? "counted" : "provisional",
     attackOnly: !board.defenceKnown,
-    orderMissing: board.bases.some((b) => b.attacks.some((a) => a.alreadyTaken === null)),
+    orderMissing: !board.orderKnown,
     total,
     players: rows.map((r) => ({
       ...r,

@@ -835,6 +835,13 @@ export interface WarRatingWar extends WarRow {
 export interface WarRatingAttackRow extends WarAttackRow {
   /** The API's order within the war, both sides counted. Null before 063. */
   warOrder: number | null;
+  /**
+   * When the sync first saw this attack — the row is written once and never
+   * again. Not the time of the attack, but an order of its own: of two attacks
+   * seen an hour apart, the earlier one came first. What a war from before 063
+   * has in place of warOrder.
+   */
+  seenAt: string | null;
 }
 
 /** One of the enemy's attacks (063). */
@@ -921,6 +928,11 @@ export async function ratingAttacksForWar(
     defenderTag: (r.defender_tag as string | null) ?? null,
     defenderPosition: (r.defender_position as number | null) ?? null,
     warOrder: r.war_order === null || r.war_order === undefined ? null : Number(r.war_order),
+    // PostgREST sends an ISO string; the PGlite stand-in a Date.
+    seenAt:
+      r.created_at === null || r.created_at === undefined
+        ? null
+        : new Date(r.created_at as string | Date).toISOString(),
   }));
 }
 

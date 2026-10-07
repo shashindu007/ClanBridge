@@ -1,10 +1,10 @@
 // The war rating for one clan: a month of regular wars, everyone ranked, and
 // one war taken apart mark by mark.
 //
-// The rules are CWL's with four differences, all in services/war-rating.ts —
-// two attacks with the better one counting 1.5 times, full marks for a clean-up
-// that adds a star, a target-rank scale that does not grow with the war, and a
-// calendar month where CWL has a week.
+// The rules are CWL's with a few differences, all in services/war-rating.ts —
+// two attacks added together, full marks for a clean-up that adds a star, the
+// best attack on each enemy base counting 1.5 times, a smaller step for target
+// rank, lighter penalties, and a calendar month where CWL has a week.
 //
 // Three answers, in the order they get asked, as on the CWL rating page:
 //
@@ -270,7 +270,7 @@ export default async function ClanWarRatingPage({
                   ? "Still being fought: these marks move with every attack, and nobody has lost marks for an unused attack yet."
                   : `The clan's plus marks came to ${signed(shown.war.total)}; each share is a player's marks out of that. Minus marks are not taken off it.`}
                 {shown.war.orderMissing &&
-                  " A base hit by more than one of ours is scored as a first hit each time here: the order of the attacks was not recorded for this war."}
+                  " On some bases hit by more than one of ours, which attack came first could not be told (they were recorded together); those are scored as if neither had seen the other."}
               </p>
 
               <div className="-mx-5 overflow-x-auto px-5">
@@ -310,16 +310,16 @@ export default async function ClanWarRatingPage({
                                   on #{attack.target?.base ?? "?"} {attack.target?.name ?? ""}
                                 </span>
                                 {attack.best && (
-                                  <span className="text-foreground font-semibold">· best</span>
+                                  <span className="text-foreground font-semibold" title="The best attack on this enemy base">
+                                    · best on this base
+                                  </span>
                                 )}
-                                <Marks value={attack.marks} className="ml-auto font-semibold" />
+                                <Marks value={attack.marks + (attack.bonus?.marks ?? 0)} className="ml-auto font-semibold" />
                               </p>
-                              <Lines lines={attack.lines} />
+                              <Lines lines={attack.bonus ? [...attack.lines, attack.bonus] : attack.lines} />
                             </div>
                           ))}
-                          {(row.bonus || row.missed) && (
-                            <Lines lines={[row.bonus, row.missed].flatMap((l) => (l ? [l] : []))} />
-                          )}
+                          {row.missed && <Lines lines={[row.missed]} />}
                           {row.attacks.length === 0 && !row.missed && (
                             <span className="text-muted-foreground text-xs">Not attacked yet</span>
                           )}
@@ -363,8 +363,8 @@ export default async function ClanWarRatingPage({
                 ["3 stars", CWL_MARKS.stars[3]],
                 ["2 stars", CWL_MARKS.stars[2]],
                 [`2 stars with ${CWL_MARKS.nearMiss.destruction}% destruction or more, extra`, CWL_MARKS.nearMiss.marks],
-                ["1 star", CWL_MARKS.stars[1]],
-                ["0 stars", CWL_MARKS.stars[0]],
+                ["1 star", WAR_RULES.stars[1] ?? 0],
+                ["0 stars", WAR_RULES.stars[0] ?? 0],
                 ["Each Town Hall level above your own", CWL_MARKS.thUp],
                 ["The same Town Hall as your own", CWL_MARKS.sameTh],
                 ["Each Town Hall level below your own", CWL_MARKS.thBelow],
@@ -372,7 +372,7 @@ export default async function ClanWarRatingPage({
                 ["Your mirror base, or any base above it", CWL_MARKS.mirror],
                 ["Each base below your own", CWL_MARKS.baseBelow],
                 ["3 stars on their last base", CWL_MARKS.targetRank.last],
-                ["3 stars on their #1", WAR_RULES.rankTop ?? 0],
+                ["…and for each place higher on their map", WAR_RULES.rankStep],
                 ["The war's heroic attack", CWL_MARKS.heroicAttack],
               ]}
             />
@@ -387,8 +387,8 @@ export default async function ClanWarRatingPage({
               </li>
               <li>
                 Three stars also score for how high the base sits on their map: their last base{" "}
-                {signed(CWL_MARKS.targetRank.last)}, their #1 {signed(WAR_RULES.rankTop ?? 0)}, evenly between,
-                whatever the size of the war.
+                {signed(CWL_MARKS.targetRank.last)}, and {signed(WAR_RULES.rankStep)} for each place higher — in a
+                40-base war their #1 is {signed(CWL_MARKS.targetRank.last + WAR_RULES.rankStep * 39)}.
               </li>
               <li>
                 Not finishing away from your mirror: a higher base with 2 stars {signed(CWL_MARKS.shortUp[2])};
@@ -400,13 +400,15 @@ export default async function ClanWarRatingPage({
           <div className="space-y-2">
             <h3 className="font-semibold">Your two attacks together</h3>
             <ul className="text-muted-foreground list-disc space-y-1 pl-5">
-              <li>
-                Both are scored and added, and the <span className="text-foreground font-medium">better
-                one counts {WAR_MARKS.bestAttack} times</span> when it is above zero: +12 and +4 is 12 ×{" "}
-                {WAR_MARKS.bestAttack} + 4 = 22.
-              </li>
+              <li>Both are scored and added.</li>
               <li>
                 An attack not used costs {signed(WAR_MARKS.missed)} each, once the war is over.
+              </li>
+              <li>
+                <span className="text-foreground font-medium">Best attack on each enemy base:</span> every
+                enemy base that was attacked has one best attack — the most stars, and if two players got the
+                same stars, the first of them. That attack counts {WAR_MARKS.bestAttack} times when it is
+                above zero. You can earn it on both of your attacks.
               </li>
               <li>
                 <span className="text-foreground font-medium">A base a clanmate already hit:</span> you keep

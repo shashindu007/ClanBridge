@@ -317,8 +317,9 @@ export default async function WarRatingPage({
         )}
 
         <p className="text-muted-foreground text-xs">
-          Each attack is marked like a CWL attack; both of a player&apos;s attacks are added, with the better
-          one counting 1.5 times. &ldquo;Per war&rdquo; is the rating divided by the finished wars played. The
+          Each attack is marked much like a CWL attack and both of a player&apos;s attacks are added; the
+          best attack on each enemy base counts 1.5 times. &ldquo;Per war&rdquo; is the rating divided by the
+          finished wars played. The
           rules, and every player&apos;s sum for each war, are on each clan&apos;s own war rating page —{" "}
           {only ? "the link above" : "follow a clan's name"}.
           {attackOnly > 0 &&
