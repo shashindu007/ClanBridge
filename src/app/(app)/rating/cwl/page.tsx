@@ -15,13 +15,13 @@
 // Outside [clanTag] because it spans clans, like Season donations beside it.
 //
 // R3 — spanning clans is not the same as not filtering by clan. Each season is
-// resolved under its own clan (seasonsForClan), over the list visibleClans()
-// returned, and every read below hangs off that season's id. RLS on the CWL
-// tables is auth_clan_ids(), so a member of clan A reads nothing of clan B here.
+// resolved under its own clan (lib/cwl-latest.ts), over the list visibleClans()
+// returned, and every read hangs off that season's id. RLS on the CWL tables is
+// auth_clan_ids(), so a member of clan A reads nothing of clan B here.
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Medal } from "lucide-react";
+import { ImageDown, Medal } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -33,16 +33,15 @@ import {
 import { currentUserId } from "@/lib/auth";
 import { clanAccent } from "@/lib/clan-accent";
 import { visibleClans } from "@/lib/clans";
-import { loadSeasonBoards, loadSeasonView, ratingFor } from "@/lib/cwl-season";
+import { latestCwlMonth } from "@/lib/cwl-latest";
 import { seasonLabel } from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
-import { canSeeMemberStats } from "@/lib/visibility";
+import { canSeeMemberStats, isLeadership } from "@/lib/visibility";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, Panel, SectionHeader } from "@/components/kit";
 import { TownHall } from "@/components/game/town-hall";
 import { RatingNav } from "@/components/rating-nav";
-import { seasonsForClan } from "@/repositories/cwl";
 import { oneDecimal, signed } from "@/services/cwl-rating";
 
 export const dynamic = "force-dynamic";
@@ -120,9 +119,8 @@ export default async function CwlRatingPage({
   }
 
   // The latest CWL month any of these clans has, and the clans that played it.
-  const seasonLists = await Promise.all(clans.map((clan) => seasonsForClan(supabase, clan.id)));
-  const month = seasonLists.flatMap((list) => list.map((s) => s.season)).sort().at(-1) ?? null;
-  if (!month) {
+  const latest = await latestCwlMonth(supabase, clans);
+  if (!latest) {
     return (
       <Shell>
         <Panel>
@@ -136,17 +134,9 @@ export default async function CwlRatingPage({
     );
   }
 
-  const played = clans.flatMap((clan, index) => {
-    const season = seasonLists[index]!.find((s) => s.season === month);
-    return season ? [{ clan, season }] : [];
-  });
-  const ratings = await Promise.all(
-    played.map(async ({ clan, season }) => {
-      const view = await loadSeasonView(supabase, clan, season, { withPlayers: true });
-      const boards = await loadSeasonBoards(supabase, clan, view);
-      return { clan, rating: ratingFor(view, boards) };
-    }),
-  );
+  const { month, entries: ratings } = latest;
+  // Leaders post the month's results; the image is theirs to make.
+  const leads = clans.some((c) => isLeadership(c.role));
 
   // One clan when asked for and it played this month; otherwise all of them.
   // An unknown tag is "all", never an error.
@@ -209,12 +199,23 @@ export default async function CwlRatingPage({
               />
             ))}
           </nav>
-          {/* The clan's own table: the days, and the sum behind every mark. */}
-          {only && (
-            <Link href={monthHref(only.clan.tag)} className="text-primary text-sm font-medium hover:underline">
-              {only.clan.name}, day by day →
-            </Link>
-          )}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* The clan's own table: the days, and the sum behind every mark. */}
+            {only && (
+              <Link href={monthHref(only.clan.tag)} className="text-primary text-sm font-medium hover:underline">
+                {only.clan.name}, day by day →
+              </Link>
+            )}
+            {leads && (
+              <Link
+                href="/rating/cwl/share"
+                className="hover:bg-accent flex items-center gap-2 rounded-control border px-3 py-1.5 text-sm font-medium"
+              >
+                <ImageDown aria-hidden className="size-4" />
+                Results image
+              </Link>
+            )}
+          </div>
         </div>
 
         {rows.length === 0 ? (

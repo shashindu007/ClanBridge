@@ -19,9 +19,9 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-type Size = "sm" | "md" | "lg" | "xl";
+type Size = "xs" | "sm" | "md" | "lg" | "xl";
 
-const PX: Record<Size, number> = { sm: 24, md: 40, lg: 56, xl: 80 };
+const PX: Record<Size, number> = { xs: 14, sm: 24, md: 40, lg: 56, xl: 80 };
 
 export function ClanBadge({
   src,
