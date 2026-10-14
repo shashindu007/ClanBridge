@@ -7,6 +7,14 @@
 // Every size inside it is in px, not rem: phones and laptops have different
 // root font sizes (globals.css), and the image must come out the same from
 // either. For the same reason there is no `.cb-stack` table in it.
+//
+// THE SITE'S OWN LOOK. The picture behind it is the scene every signed-in page
+// stands on (app/(app)/layout.tsx — the crystal cave), under the same night
+// veil, and the sheet is always in the dark theme (`dark` on the article sets
+// its tokens), whatever theme the leader who exports it uses. Each clan sits on
+// a see-through night panel with the app's aqua rim, so the tables read as
+// clearly as on a plain card. No CSS blur: the export draws the sheet inside an
+// SVG, where a filter is the part browsers disagree on; the veil does the work.
 
 import { ClanBadge } from "@/components/game/clan-badge";
 import { LeagueArt } from "@/components/cwl-parts";
@@ -20,6 +28,19 @@ import { oneDecimal } from "@/services/cwl-rating";
 
 /** Gold, silver, bronze, as on CWL rating. */
 const MEDAL = ["#f5c542", "#c0c7d1", "#cd8a4b"];
+
+/** The page's scene, darkened top and bottom where the title and footer sit. */
+const BACKDROP = [
+  "linear-gradient(180deg, oklch(0.17 0.05 265 / 0.62) 0%, oklch(0.17 0.05 265 / 0.45) 35%, oklch(0.15 0.05 265 / 0.82) 100%)",
+  'url("/scenes/crystal-cave.webp") center / cover no-repeat',
+].join(", ");
+
+/** A clan's panel: the app's night card, see-through, with its aqua rim and glow. */
+const PANEL = {
+  background: "color-mix(in oklch, var(--card) 80%, transparent)",
+  borderColor: "oklch(0.6 0.1 222 / 0.75)",
+  boxShadow: "0 0 0 1px oklch(0.72 0.12 215 / 0.16), 0 0 18px -8px oklch(0.68 0.14 215 / 0.55)",
+};
 
 /**
  * One group-table row, in px. Eight of them and the clan's header must fit a
@@ -45,8 +66,18 @@ export function CwlResultsSheet({
   return (
     <article
       id={id}
-      className="cb-sheet flex flex-col overflow-hidden rounded-panel border shadow-lg"
-      style={{ width: 540, height: 675, padding: 16, gap: 10, fontSize: 12, lineHeight: "16px" }}
+      className="dark text-foreground flex flex-col overflow-hidden shadow-lg"
+      style={{
+        width: 540,
+        height: 675,
+        padding: 16,
+        gap: 10,
+        fontSize: 12,
+        lineHeight: "16px",
+        background: BACKDROP,
+        backgroundColor: "oklch(0.17 0.05 265)",
+        colorScheme: "dark",
+      }}
     >
       <header
         className="flex items-end justify-between"
@@ -59,7 +90,7 @@ export function CwlResultsSheet({
           >
             Clan War League results
           </p>
-          <h1 className="cb-title" style={{ fontSize: 28, lineHeight: "32px", textShadow: "none" }}>
+          <h1 className="cb-title" style={{ fontSize: 28, lineHeight: "32px" }}>
             CWL · {seasonLabel(month)}
           </h1>
         </div>
@@ -102,11 +133,11 @@ function ClanBlock({ entry }: { entry: LatestCwlEntry }) {
   return (
     <section
       className="flex shrink-0 flex-col overflow-hidden border"
-      style={{ borderRadius: 8, borderTop: `3px solid ${accent}` }}
+      style={{ ...PANEL, borderRadius: 8, borderTop: `3px solid ${accent}` }}
     >
-      <div className="bg-muted flex items-center border-b" style={{ gap: 8, padding: "4px 8px" }}>
+      <div className="bg-muted/70 flex items-center border-b" style={{ gap: 8, padding: "4px 8px" }}>
         <ClanBadge src={clan.badgeUrl} name={clan.name} size="sm" tone={accent} sameOrigin />
-        <p className="cb-title min-w-0 flex-1 truncate" style={{ fontSize: 16, lineHeight: "20px", textShadow: "none" }}>
+        <p className="cb-title min-w-0 flex-1 truncate" style={{ fontSize: 16, lineHeight: "20px" }}>
           {clan.name}
         </p>
         {league && (
@@ -145,7 +176,7 @@ function ClanBlock({ entry }: { entry: LatestCwlEntry }) {
                     className={cn("align-middle", s.isUs && "font-bold")}
                     style={{
                       height: ROW,
-                      background: s.isUs ? `color-mix(in oklch, ${accent} 18%, transparent)` : undefined,
+                      background: s.isUs ? `color-mix(in oklch, ${accent} 32%, transparent)` : undefined,
                     }}
                   >
                     <td className="text-right tabular-nums" style={{ padding: "0 2px" }}>
