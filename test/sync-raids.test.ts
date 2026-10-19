@@ -55,8 +55,21 @@ const RAIDS = JSON.parse(
       bonusAttackLimit?: number;
       capitalResourcesLooted?: number;
     }>;
+    attackLog?: Array<{
+      defender: { tag: string };
+      districts: Array<{
+        id: number;
+        attacks?: Array<{ attacker: { tag: string }; destructionPercent: number; stars: number }>;
+      }>;
+    }>;
   }>;
 };
+
+const CLAN_LEAGUE = (
+  JSON.parse(readFileSync(join(process.cwd(), "fixtures", "clan.json"), "utf8")) as {
+    capitalLeague: { id: number; name: string };
+  }
+).capitalLeague;
 
 /** The clan the raid weekends belong to — the same one clan.json describes. */
 const OUR_TAG = CLAN_FIXTURE.tag;
@@ -74,6 +87,18 @@ const FIRST_RAIDER = LATEST.members![0]!;
  * is the reason raids are the most forgiving data in the project.
  */
 const SEASON_COUNT = RAIDS.items.length;
+
+/**
+ * 064 — the latest weekend's raids and attacks. The older weekends on the same
+ * response carry no attackers, which is what the capture tests below lean on.
+ */
+const LATEST_RAIDS = LATEST.attackLog ?? [];
+const ATTACK_COUNT = LATEST_RAIDS.reduce(
+  (t, raid) => t + raid.districts.reduce((n, d) => n + (d.attacks?.length ?? 0), 0),
+  0,
+);
+/** The first district attacked in the first raid, its attacks newest first as the API lists them. */
+const FIRST_DISTRICT = LATEST_RAIDS[0]!.districts.find((d) => d.attacks?.length)!;
 
 async function count(h: Harness, table: string, where = "true"): Promise<number> {
   const res = await h.db.query<{ n: number }>(
@@ -106,7 +131,7 @@ describe("T7.1 — the capital raid sync", () => {
 
     await h.asSuperuser();
     await h.db.exec(`
-      truncate feedback, notifications, raid_participants, raid_seasons,
+      truncate feedback, notifications, raid_attacks, raid_opponents, raid_participants, raid_seasons,
                member_snapshots, players, sync_log, users, clans cascade;
       delete from auth.users;
       insert into clans (id, tag, name) values ('${CLAN_A}', '${OUR_TAG}', 'Synthetic Clan');
@@ -232,6 +257,90 @@ describe("T7.1 — the capital raid sync", () => {
     expect(await count(h, "cwl_rosters")).toBe(0);
   });
 
+  // 064 — the raid rating's input. The API sends who attacked what for the
+  // latest weekend only, so these are captured then or never.
+  describe("064 — every attack, and the league of every clan raided", () => {
+    it("captures every attack of the latest weekend, and none of the older ones", async () => {
+      await runSyncJob("raids", syncRaids, { client });
+
+      expect(ATTACK_COUNT).toBeGreaterThan(0);
+      expect(await count(h, "raid_attacks")).toBe(ATTACK_COUNT);
+      // The older weekends had no detail to capture, and must say so: a weekend
+      // marked captured with no attacks would be rated as one nobody raided.
+      expect(await count(h, "raid_seasons", "attacks_captured_at is not null")).toBe(1);
+    });
+
+    it("numbers a district's attacks from the oldest, with the district's destruction after each", async () => {
+      await runSyncJob("raids", syncRaids, { client });
+
+      const rows = await h.db.query<{ attack_number: number; destruction: number; tag: string }>(
+        `select ra.attack_number, ra.destruction, p.tag
+           from raid_attacks ra join players p on p.id = ra.player_id
+          where ra.raid_number = 1 and ra.district_id = ${FIRST_DISTRICT.id}
+          order by ra.attack_number`,
+      );
+      const oldestFirst = [...FIRST_DISTRICT.attacks!].reverse();
+      expect(rows.rows).toEqual(
+        oldestFirst.map((a, i) => ({
+          attack_number: i + 1,
+          destruction: a.destructionPercent,
+          tag: a.attacker.tag,
+        })),
+      );
+    });
+
+    it("reads each enemy clan's capital league", async () => {
+      await runSyncJob("raids", syncRaids, { client });
+
+      const rows = await h.db.query<{
+        raid_number: number;
+        defender_tag: string;
+        capital_league_id: number;
+        capital_league: string;
+      }>(`select raid_number, defender_tag, capital_league_id, capital_league
+            from raid_opponents order by raid_number`);
+
+      // Fixture mode answers every /clans/{tag} with clan.json, so every enemy
+      // here reads as that clan's league.
+      expect(rows.rows).toEqual(
+        LATEST_RAIDS.map((raid, i) => ({
+          raid_number: i + 1,
+          defender_tag: raid.defender.tag,
+          capital_league_id: CLAN_LEAGUE.id,
+          capital_league: CLAN_LEAGUE.name,
+        })),
+      );
+    });
+
+    it("never writes an attack twice", async () => {
+      await runSyncJob("raids", syncRaids, { client });
+      await h.db.exec(`update raid_seasons set state = 'ongoing'`);
+      await runSyncJob("raids", syncRaids, { client });
+
+      expect(await count(h, "raid_attacks")).toBe(ATTACK_COUNT);
+      expect(await count(h, "raid_opponents")).toBe(LATEST_RAIDS.length);
+    });
+
+    // A finished weekend stored before 064 has its totals and no attacks. The
+    // attacks are added once; the totals stay as they were (R5).
+    it("adds the attacks to a finished weekend without touching its totals", async () => {
+      await runSyncJob("raids", syncRaids, { client });
+      await h.db.exec(`
+        truncate raid_attacks, raid_opponents;
+        update raid_seasons set attacks_captured_at = null, offensive_reward = 9999;
+      `);
+
+      const result = await runSyncJob("raids", syncRaids, { client });
+
+      expect(result).toBe("success");
+      expect(await count(h, "raid_attacks")).toBe(ATTACK_COUNT);
+      expect(await count(h, "raid_seasons", "offensive_reward = 9999")).toBe(SEASON_COUNT);
+
+      // And once is enough: the next run finds it captured and does nothing.
+      expect(await runSyncJob("raids", syncRaids, { client })).toBe("skipped");
+    });
+  });
+
   describe("R5 — a settled weekend is never rewritten", () => {
     it("running it repeatedly changes nothing", async () => {
       await runSyncJob("raids", syncRaids, { client });
@@ -337,7 +446,9 @@ describe("T7.1 — the capital raid sync", () => {
       const row = log.rows[0]!;
       expect(row.status).toBe("success");
       expect(row.finished_at).not.toBeNull();
-      expect(row.records_written).toBe(SEASON_COUNT + RAIDER_COUNT);
+      expect(row.records_written).toBe(
+        SEASON_COUNT + RAIDER_COUNT + ATTACK_COUNT + LATEST_RAIDS.length,
+      );
     });
   });
 
@@ -471,6 +582,119 @@ describe("T7.1 — the capital raid sync", () => {
         `select state from raid_seasons`,
       );
       expect(row.rows[0]!.state).toBeNull();
+    });
+
+    // 064 — a live weekend, read twice. The raid endpoint and the enemy clan's
+    // endpoint answer differently, so the stub routes by URL.
+    describe("064 — a weekend being raided", () => {
+      const ENEMY = "#2QQ";
+      const A = "#PY2";
+      const B = "#PY8";
+
+      /** The weekend as the API sends it, with `attacks` on one district, newest first. */
+      function weekend(attacks: Array<[string, number]>) {
+        return {
+          items: [
+            {
+              state: "ongoing",
+              startTime: "20260807T070000.000Z",
+              endTime: "20260810T070000.000Z",
+              members: [...new Set(attacks.map(([tag]) => tag))].map((tag) => ({
+                tag,
+                name: tag === A ? "Ann" : "Bob",
+                attacks: attacks.filter(([t]) => t === tag).length,
+                attackLimit: 5,
+                bonusAttackLimit: 0,
+                capitalResourcesLooted: 1000,
+              })),
+              attackLog: [
+                {
+                  defender: { tag: ENEMY, name: "Enemy" },
+                  districts: [
+                    {
+                      id: 70000000,
+                      name: "Capital Peak",
+                      districtHallLevel: 10,
+                      attackCount: attacks.length,
+                      attacks: attacks.map(([tag, after]) => ({
+                        attacker: { tag },
+                        destructionPercent: after,
+                        stars: 0,
+                      })),
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        };
+      }
+
+      /** Raids answer `raids`; a clan answers `clan`, or 404 when it is null. */
+      function respond(raids: unknown, clan: unknown) {
+        process.env.USE_FIXTURES = "false";
+        process.env.COC_API_TOKEN = "not-a-real-token";
+        process.env.COC_THROTTLE_MS = "0";
+        process.env.COC_BACKOFF_MS = "0";
+        vi.stubGlobal("fetch", (url: string | URL) => {
+          const isRaids = String(url).includes("capitalraidseasons");
+          const body = isRaids ? raids : (clan ?? { reason: "notFound" });
+          return Promise.resolve(
+            new Response(JSON.stringify(body), {
+              status: isRaids || clan ? 200 : 404,
+              headers: { "content-type": "application/json" },
+            }),
+          );
+        });
+      }
+
+      const silverII = { tag: ENEMY, name: "Enemy", capitalLeague: { id: 85000005, name: "Silver League II" } };
+
+      it("numbers attacks from the oldest, so a later run adds to them rather than renumbering", async () => {
+        respond(weekend([[A, 38]]), silverII);
+        await runSyncJob("raids", syncRaids, { client });
+        // Later the same weekend: B has hit the same district. Newest first.
+        respond(weekend([[B, 78], [A, 38]]), silverII);
+        await runSyncJob("raids", syncRaids, { client });
+
+        const rows = await h.db.query<{ tag: string; attack_number: number; destruction: number }>(
+          `select p.tag, ra.attack_number, ra.destruction
+             from raid_attacks ra join players p on p.id = ra.player_id
+            order by ra.attack_number`,
+        );
+        expect(rows.rows).toEqual([
+          { tag: A, attack_number: 1, destruction: 38 },
+          { tag: B, attack_number: 2, destruction: 78 },
+        ]);
+      });
+
+      it("keeps the attacks when the enemy clan cannot be read, and reads its league next time", async () => {
+        respond(weekend([[A, 38]]), null);
+        expect(await runSyncJob("raids", syncRaids, { client })).toBe("success");
+
+        expect(await count(h, "raid_attacks")).toBe(1);
+        const before = await h.db.query<{ capital_league_id: number | null }>(
+          `select capital_league_id from raid_opponents`,
+        );
+        expect(before.rows).toEqual([{ capital_league_id: null }]);
+
+        respond(weekend([[A, 38]]), silverII);
+        await runSyncJob("raids", syncRaids, { client });
+        const after = await h.db.query<{ capital_league_id: number; capital_league: string }>(
+          `select capital_league_id, capital_league from raid_opponents`,
+        );
+        expect(after.rows).toEqual([{ capital_league_id: 85000005, capital_league: "Silver League II" }]);
+      });
+
+      it("reads a league once, and keeps it when the clan moves league later", async () => {
+        respond(weekend([[A, 38]]), silverII);
+        await runSyncJob("raids", syncRaids, { client });
+        respond(weekend([[A, 38]]), { ...silverII, capitalLeague: { id: 85000006, name: "Silver League I" } });
+        await runSyncJob("raids", syncRaids, { client });
+
+        const rows = await h.db.query<{ capital_league_id: number }>(`select capital_league_id from raid_opponents`);
+        expect(rows.rows).toEqual([{ capital_league_id: 85000005 }]);
+      });
     });
   });
 });

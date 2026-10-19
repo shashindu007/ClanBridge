@@ -20,6 +20,7 @@ import type {
   PlayerDetail,
   PlayerProgress,
   ProgressUnit,
+  RaidRaid,
   RaidSeason,
   Village,
   War,
@@ -33,6 +34,7 @@ import type {
   ApiClanMember,
   ApiCwlGroup,
   ApiPlayer,
+  ApiRaidSeason,
   ApiRaidSeasons,
   ApiRole,
   ApiUnit,
@@ -343,5 +345,45 @@ export function mapRaidSeasons(api: ApiRaidSeasons): RaidSeason[] {
       bonusAttackLimit: m.bonusAttackLimit,
       loot: m.capitalResourcesLooted,
     })),
+    raids: mapRaidAttackLog(season),
+  }));
+}
+
+/**
+ * 064 — `attackLog` as raids and attacks, or null when the API left the detail
+ * out.
+ *
+ * Detail is judged present only when the weekend has its `members` AND every
+ * district that was attacked lists who attacked it. The API sends neither for
+ * any weekend but the latest, and a half-sent one is treated the same as an
+ * absent one: rating a weekend on some of its attacks would read as a complete
+ * weekend and is not one.
+ *
+ * A district lists its attacks NEWEST FIRST; attackNumber counts from the
+ * oldest, so it stays fixed as later attacks are added on top.
+ */
+function mapRaidAttackLog(season: ApiRaidSeason): RaidRaid[] | null {
+  if (!season.members || !season.attackLog) return null;
+  const complete = season.attackLog.every((raid) =>
+    raid.districts.every((d) => (d.attackCount ?? 0) === 0 || d.attacks !== undefined),
+  );
+  if (!complete) return null;
+
+  return season.attackLog.map((raid, index) => ({
+    raidNumber: index + 1,
+    defenderTag: normaliseTag(raid.defender.tag),
+    defenderName: raid.defender.name,
+    attacks: raid.districts.flatMap((district) =>
+      [...(district.attacks ?? [])].reverse().map((attack, order) => ({
+        districtId: district.id,
+        districtName: district.name,
+        districtHallLevel: district.districtHallLevel,
+        attackNumber: order + 1,
+        playerTag: normaliseTag(attack.attacker.tag),
+        name: attack.attacker.name,
+        destruction: attack.destructionPercent,
+        stars: attack.stars,
+      })),
+    ),
   }));
 }

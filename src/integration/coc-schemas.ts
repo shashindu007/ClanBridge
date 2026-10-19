@@ -80,6 +80,12 @@ export const clanSchema = z.looseObject({
   clanLevel: z.number().optional(),
   badgeUrls,
   warLeague: league,
+  /**
+   * The Clan Capital league. 064 — the raid rating reads it for every enemy
+   * clan raided, because the raid response itself does not carry it. The id
+   * runs 85000001 (Bronze League III) to 85000022 (Legend League).
+   */
+  capitalLeague: league,
   members: z.number().optional(),
   memberList: z.array(clanMemberSchema).default([]),
 
@@ -240,6 +246,43 @@ export const raidMemberSchema = z.looseObject({
   capitalResourcesLooted: z.number().optional(),
 });
 
+/**
+ * One attack on one district, from `attackLog` (064).
+ *
+ * `destructionPercent` and `stars` are the DISTRICT's after this attack, not
+ * what the attack itself added, and a district lists its attacks NEWEST FIRST.
+ * One attack's own share is its number minus the one after it in the list.
+ */
+export const raidDistrictAttackSchema = z.looseObject({
+  attacker: z.looseObject({ tag, name: z.string().optional() }),
+  destructionPercent: z.number(),
+  stars: z.number(),
+});
+
+export const raidDistrictSchema = z.looseObject({
+  id: z.number(),
+  name: z.string().optional(),
+  districtHallLevel: z.number().optional(),
+  destructionPercent: z.number().optional(),
+  stars: z.number().optional(),
+  attackCount: z.number().optional(),
+  totalLooted: z.number().optional(),
+  /**
+   * Absent, not empty, on every weekend but the latest — the API sends the
+   * district's totals there and nothing about who attacked it.
+   */
+  attacks: z.array(raidDistrictAttackSchema).optional(),
+});
+
+/** One enemy capital raided. `attackLog` lists them oldest first. */
+export const raidAttackLogSchema = z.looseObject({
+  defender: z.looseObject({ tag, name: z.string().optional(), level: z.number().optional() }),
+  attackCount: z.number().optional(),
+  districtCount: z.number().optional(),
+  districtsDestroyed: z.number().optional(),
+  districts: z.array(raidDistrictSchema).default([]),
+});
+
 export const raidSeasonSchema = z.looseObject({
   state: z.string().optional(),
   startTime: cocTimestamp,
@@ -250,6 +293,7 @@ export const raidSeasonSchema = z.looseObject({
   offensiveReward: z.number().optional(),
   defensiveReward: z.number().optional(),
   members: z.array(raidMemberSchema).optional(),
+  attackLog: z.array(raidAttackLogSchema).optional(),
 });
 
 export const raidSeasonsSchema = z.looseObject({

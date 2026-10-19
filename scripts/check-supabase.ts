@@ -48,6 +48,8 @@ const TABLES = [
   "war_lineup_members", // 024
   "raid_seasons",
   "raid_participants",
+  "raid_opponents", // 064
+  "raid_attacks", // 064
   "clan_games",
   "clan_games_scores",
   "base_layouts",

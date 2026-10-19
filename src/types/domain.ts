@@ -134,6 +134,39 @@ export interface RaidSeason {
   offensiveReward?: number;
   defensiveReward?: number;
   participants: RaidParticipant[];
+  /**
+   * 064 — every enemy capital raided and every attack on it, oldest raid first.
+   *
+   * NULL MEANS NOT SENT, not "no raids". The API gives attack detail for the
+   * latest weekend only; the older ones arrive with district totals and no
+   * attackers, and a weekend read from those must not be rated as one where
+   * nobody attacked.
+   */
+  raids: RaidRaid[] | null;
+}
+
+/** One enemy capital raided in a weekend (064). */
+export interface RaidRaid {
+  /** 1 for the weekend's first raid. The API lists them oldest first. */
+  raidNumber: number;
+  defenderTag: string;
+  defenderName?: string;
+  attacks: RaidAttack[];
+}
+
+/** One of our attacks on one district (064). */
+export interface RaidAttack {
+  districtId: number;
+  districtName?: string;
+  districtHallLevel?: number;
+  /** 1 for the first attack on this district in this raid. */
+  attackNumber: number;
+  playerTag: string;
+  name?: string;
+  /** The DISTRICT's destruction after this attack, 0-100 — not this attack's share. */
+  destruction: number;
+  /** The district's stars after this attack. */
+  stars: number;
 }
 
 export interface RaidParticipant {

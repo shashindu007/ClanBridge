@@ -16,7 +16,8 @@
 //     cwl_seasons, cwl_wars, cwl_attacks, cwl_group_clans, cwl_group_wars
 //     cwl_group_members, cwl_group_war_members, cwl_scout_players
 //     wars, war_attacks
-//     raid_seasons, raid_participants, clan_games, clan_games_scores
+//     raid_seasons, raid_participants, raid_opponents, raid_attacks
+//     clan_games, clan_games_scores
 //     sync_log
 //
 //   MUST NEVER WRITE (human decisions, entered by people):

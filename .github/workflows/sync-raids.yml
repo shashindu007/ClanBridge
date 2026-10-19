@@ -53,6 +53,12 @@ name: sync-raids
 # missed run still costs nothing — the API returns the last ten weekends on
 # every call, and the next run backfills.
 #
+# ONE MORE ON MONDAY AT 06:31, before the 07:00 close (064). The raid rating
+# gives marks for the enemy clan's capital league, which is not on the raid
+# response: it is read from each enemy clan the first time a run sees it
+# raided. Leagues move when the weekend closes, so a clan first raided after
+# Sunday's run would otherwise be read on Monday at 08:41, in its NEXT league.
+#
 # CLAN GAMES — 22nd to 28th, 08:00 UTC (src/lib/coc-time.ts). The score is the
 # "Games Champion" achievement at the end minus at the start, and a missed START
 # is a lost month (clan-games.ts). So each boundary gets a run and a backup:
@@ -69,6 +75,7 @@ name: sync-raids
 on:
   schedule:
     - cron: "41 8 * * 5,6,0,1" # raids: Friday to Monday
+    - cron: "31 6 * * 1"       # raids: Monday, before the weekend closes
     - cron: "31 8 22 * *"      # clan games: start
     - cron: "31 10 22 * *"     # clan games: start, backup
     - cron: "41 8 28 * *"      # clan games: end
@@ -98,7 +105,7 @@ jobs:
       - run: npm ci
 
       - name: Sync capital raid weekends
-        if: github.event_name != 'schedule' || github.event.schedule == '41 8 * * 5,6,0,1'
+        if: github.event_name != 'schedule' || github.event.schedule == '41 8 * * 5,6,0,1' || github.event.schedule == '31 6 * * 1'
         run: npm run sync:raids
         env:
           COC_API_TOKEN: ${{ secrets.COC_API_TOKEN }}
@@ -115,7 +122,7 @@ jobs:
         # These two share a workflow for billing reasons alone and have no
         # dependency on each other — and of the pair, this is the one whose
         # missed run is unrecoverable. Same argument as sync-clans.yml's war step.
-        if: always() && (github.event_name != 'schedule' || github.event.schedule != '41 8 * * 5,6,0,1')
+        if: always() && (github.event_name != 'schedule' || (github.event.schedule != '41 8 * * 5,6,0,1' && github.event.schedule != '31 6 * * 1'))
         run: npm run sync:clan-games
         env:
           COC_API_TOKEN: ${{ secrets.COC_API_TOKEN }}

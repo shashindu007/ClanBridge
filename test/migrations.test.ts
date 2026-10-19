@@ -182,6 +182,15 @@ async function seedFixtures(h: Harness) {
       ('11111111-0000-4000-8000-000000000004', '${PLAYER_A}', 6, 12000),
       ('22222222-0000-4000-8000-000000000004', '${PLAYER_B}', 5, 9000);
 
+    -- 064 — each attack, and each clan raided, by a one-level join to the season.
+    insert into raid_opponents (raid_season_id, raid_number, defender_tag, capital_league_id, capital_league) values
+      ('11111111-0000-4000-8000-000000000004', 1, '#C2V89UGL', 85000009, 'Gold League I'),
+      ('22222222-0000-4000-8000-000000000004', 1, '#C2V89UGJ', 85000007, 'Gold League III');
+
+    insert into raid_attacks (raid_season_id, raid_number, district_id, attack_number, player_id, destruction, stars) values
+      ('11111111-0000-4000-8000-000000000004', 1, 70000000, 1, '${PLAYER_A}', 61, 1),
+      ('22222222-0000-4000-8000-000000000004', 1, 70000000, 1, '${PLAYER_B}', 100, 3);
+
     insert into clan_games (id, clan_id, season) values
       ('11111111-0000-4000-8000-000000000005', '${CLAN_A}', '2026-07'),
       ('22222222-0000-4000-8000-000000000005', '${CLAN_B}', '2026-07');
@@ -524,6 +533,9 @@ describe("T3.7 — a member of clan A cannot read clan B", () => {
     "war_opponent_attacks",
     "raid_seasons",
     "raid_participants",
+    // 064 — the same one-level join to `raid_seasons`.
+    "raid_opponents",
+    "raid_attacks",
     "clan_games",
     "clan_games_scores",
     "base_layouts",
