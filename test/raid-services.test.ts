@@ -38,6 +38,7 @@ function season(over: Partial<RaidSeasonRow> = {}): RaidSeasonRow {
     totalAttacks: 42,
     offensiveReward: 180,
     defensiveReward: 95,
+    attacksCapturedAt: null,
     ...over,
   };
 }

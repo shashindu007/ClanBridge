@@ -38,6 +38,12 @@ export interface RaidSeasonRow {
   /** Raid medals — the number members compare weekends by. */
   offensiveReward: number | null;
   defensiveReward: number | null;
+  /**
+   * 064 — when the weekend's attacks were captured, as an ISO string. Null
+   * means they never were (the API sends them for the latest weekend only),
+   * and the raid rating cannot rate the weekend.
+   */
+  attacksCapturedAt: string | null;
 }
 
 export interface RaidParticipantRow {
@@ -53,7 +59,12 @@ export interface RaidParticipantRow {
 
 const SEASON_COLUMNS =
   "id, start_time, end_time, total_loot, state, raids_completed, " +
-  "total_attacks, offensive_reward, defensive_reward";
+  "total_attacks, offensive_reward, defensive_reward, attacks_captured_at";
+
+/** PostgREST sends an ISO string; the PGlite stand-in a Date. */
+function isoOrNull(value: unknown): string | null {
+  return value === null || value === undefined ? null : new Date(value as string | Date).toISOString();
+}
 
 function toSeason(r: Record<string, unknown>): RaidSeasonRow {
   return {
@@ -66,6 +77,7 @@ function toSeason(r: Record<string, unknown>): RaidSeasonRow {
     totalAttacks: (r.total_attacks as number | null) ?? null,
     offensiveReward: (r.offensive_reward as number | null) ?? null,
     defensiveReward: (r.defensive_reward as number | null) ?? null,
+    attacksCapturedAt: isoOrNull(r.attacks_captured_at),
   };
 }
 
@@ -208,5 +220,150 @@ export async function seasonsForPlayer(
   return seasons.map((season) => ({
     season,
     participation: bySeason.get(season.id) ?? null,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// 064 — the raid rating's reads: a month of weekends, and each weekend's
+// attacks and the clans it raided.
+// ---------------------------------------------------------------------------
+
+/** A month's weekends need their start as a sortable ISO string, whatever the client sent. */
+export interface RaidRatingSeason extends RaidSeasonRow {
+  startTime: string;
+}
+
+/**
+ * This clan's weekends that started in one month ('YYYY-MM', UTC), oldest
+ * first. A weekend belongs to the month it started in — a Friday the 31st
+ * counts for that month, not the next.
+ */
+export async function raidSeasonsInMonth(
+  supabase: SupabaseClient,
+  clanId: string,
+  month: string,
+): Promise<RaidRatingSeason[]> {
+  const match = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!match) return [];
+  const from = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1));
+  const to = new Date(Date.UTC(Number(match[1]), Number(match[2]), 1));
+
+  const { data, error } = await supabase
+    .from("raid_seasons")
+    .select(SEASON_COLUMNS)
+    .eq("clan_id", clanId) // R3
+    .is("deleted_at", null)
+    .gte("start_time", from.toISOString())
+    .lt("start_time", to.toISOString())
+    .order("start_time");
+
+  if (error || !data) return [];
+  return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
+    ...toSeason(r),
+    startTime: isoOrNull(r.start_time) as string,
+  }));
+}
+
+/** The months ('YYYY-MM', UTC) this clan has a weekend in, newest first. */
+export async function raidMonthsForClan(
+  supabase: SupabaseClient,
+  clanId: string,
+): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("raid_seasons")
+    .select("start_time")
+    .eq("clan_id", clanId) // R3
+    .is("deleted_at", null)
+    .limit(1000)
+    .order("start_time", { ascending: false });
+
+  if (error || !data) return [];
+  const months = (data as unknown as Array<{ start_time: string | Date }>).map((r) =>
+    new Date(r.start_time).toISOString().slice(0, 7),
+  );
+  return [...new Set(months)];
+}
+
+export interface RaidAttackRow {
+  raidNumber: number;
+  districtId: number;
+  districtName: string | null;
+  districtHallLevel: number | null;
+  /** 1 for the first attack on the district in this raid. */
+  attackNumber: number;
+  playerId: string;
+  tag: string;
+  name: string;
+  /** The DISTRICT's destruction after this attack — not this attack's share. */
+  destruction: number;
+  stars: number;
+}
+
+/** Every attack of one weekend. `seasonId` must already be clan-checked. */
+export async function raidAttacksOfSeason(
+  supabase: SupabaseClient,
+  seasonId: string,
+): Promise<RaidAttackRow[]> {
+  const { data, error } = await supabase
+    .from("raid_attacks")
+    .select(
+      "raid_number, district_id, district_name, district_hall_level, attack_number, " +
+        "player_id, destruction, stars",
+    )
+    .eq("raid_season_id", seasonId)
+    .is("deleted_at", null)
+    .order("attack_number");
+
+  if (error || !data) return [];
+  const rows = data as unknown as Array<Record<string, unknown>>;
+  const names = await playerNames(
+    supabase,
+    [...new Set(rows.map((r) => r.player_id as string))],
+  );
+
+  return rows.map((r) => ({
+    raidNumber: Number(r.raid_number),
+    districtId: Number(r.district_id),
+    districtName: (r.district_name as string | null) ?? null,
+    districtHallLevel:
+      r.district_hall_level === null || r.district_hall_level === undefined ? null : Number(r.district_hall_level),
+    attackNumber: Number(r.attack_number),
+    playerId: r.player_id as string,
+    tag: names.get(r.player_id as string)?.tag ?? "",
+    name: names.get(r.player_id as string)?.name ?? "Unknown player",
+    destruction: Number(r.destruction),
+    stars: Number(r.stars),
+  }));
+}
+
+export interface RaidOpponentRow {
+  raidNumber: number;
+  defenderTag: string;
+  defenderName: string | null;
+  /** The API's league id, 85000001 (Bronze League III) to 85000022 (Legend League). */
+  capitalLeagueId: number | null;
+  capitalLeague: string | null;
+}
+
+/** The enemy capitals one weekend raided. `seasonId` must already be clan-checked. */
+export async function raidOpponentsOfSeason(
+  supabase: SupabaseClient,
+  seasonId: string,
+): Promise<RaidOpponentRow[]> {
+  const { data, error } = await supabase
+    .from("raid_opponents")
+    .select("raid_number, defender_tag, defender_name, capital_league_id, capital_league")
+    .eq("raid_season_id", seasonId)
+    .is("deleted_at", null)
+    .order("raid_number");
+
+  if (error || !data) return [];
+  return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
+    raidNumber: Number(r.raid_number),
+    defenderTag: r.defender_tag as string,
+    defenderName: (r.defender_name as string | null) ?? null,
+    capitalLeagueId:
+      r.capital_league_id === null || r.capital_league_id === undefined ? null : Number(r.capital_league_id),
+    capitalLeague: (r.capital_league as string | null) ?? null,
   }));
 }
