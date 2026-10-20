@@ -20,7 +20,7 @@ export const RATING_SECTIONS: readonly RatingSection[] = [
   { kind: "war", label: "War rating", href: "/rating/war", ready: true },
   { kind: "cwl", label: "CWL rating", href: "/rating/cwl", ready: true },
   { kind: "games", label: "Clan Games rating", href: "/rating/games", ready: false },
-  { kind: "raids", label: "Raids rating", href: "/rating/raids", ready: false },
+  { kind: "raids", label: "Raids rating", href: "/rating/raids", ready: true },
 ];
 
 export function ratingSection(kind: string): RatingSection | undefined {

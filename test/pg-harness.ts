@@ -161,6 +161,9 @@ export const PHASE1_MIGRATIONS = [
   // The enemy's attacks in a regular war, and the order of every attack —
   // defence and "did it add a star" for the war rating. Follows 003 and 026.
   "063_war_opponent_attacks.sql",
+  // Every raid attack and the league of every clan raided — the raid rating.
+  // Follows 004 and 027.
+  "064_raid_attacks.sql",
 ] as const;
 
 /**
@@ -369,6 +372,8 @@ export const PHASE1_TABLES = [
   "poll_responses",
   "polls",
   "push_subscriptions",
+  "raid_attacks",
+  "raid_opponents",
   "raid_participants",
   "raid_seasons",
   "sync_log",

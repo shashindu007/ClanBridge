@@ -30,7 +30,28 @@
 // war.ts, which reads one row for one war, a clan has many raid seasons on one
 // response and the settled ones have to be filtered as a set.
 //
-// R11 — writes raid_seasons and raid_participants only. Both are game facts.
+// R11 — writes raid_seasons, raid_participants, and from 064 raid_opponents
+// and raid_attacks. All four are game facts.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// 064 — THE ATTACKS ARE ON THE LATEST WEEKEND ONLY
+//
+// The header above is right about the weekends and wrong about their detail.
+// `attackLog` — who hit which district, and how far each attack took it —
+// comes with the newest weekend alone; the nine behind it arrive with district
+// totals and no attackers. So the raid rating's input has the opposite
+// property to everything else here: it must be captured while the weekend is
+// the latest, and a run missed then is not backfilled by the next one.
+//
+// Hence captureAttacks runs on every weekend the API sends detail for — the
+// ongoing one, and a finished one whose attacks were never captured (stored
+// before 064, or settled by a run that failed half way). A settled weekend's
+// TOTALS are still never rewritten; its attacks are new rows, not edits.
+//
+// The enemy's capital league is not on the raid response. It is read from
+// `/clans/{tag}` once per enemy clan, the first time the clan is seen raided —
+// during the weekend, because leagues move when it closes.
+// ─────────────────────────────────────────────────────────────────────────────
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // A 403 HERE IS NOT CAUGHT, AND THAT IS A DECISION, NOT AN OVERSIGHT
@@ -56,12 +77,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { capitalRaidsEndpoint, request } from "@/integration/coc-client";
-import { raidSeasonsSchema } from "@/integration/coc-schemas";
+import { capitalRaidsEndpoint, clanEndpoint, request } from "@/integration/coc-client";
+import { clanSchema, raidSeasonsSchema } from "@/integration/coc-schemas";
 import { CocNotFoundError } from "@/integration/errors";
 import { mapRaidSeasons } from "@/integration/mappers";
 import { normaliseTag } from "@/lib/tags";
-import type { RaidParticipant, RaidSeason } from "@/types/domain";
+import type { RaidParticipant, RaidRaid, RaidSeason } from "@/types/domain";
 // resolvePlayers is cwl.ts's, for the same reason war.ts imports it: a raider
 // who joined and left between two runs of sync:clans has no players row, and
 // dropping their participation is the outcome this project exists to prevent.
@@ -102,34 +123,50 @@ export function isOngoing(state: string | null | undefined): boolean {
   return state === "ongoing";
 }
 
+/** A weekend already in raid_seasons, as the per-season decisions below need it. */
+interface RecordedSeason {
+  id: string;
+  /** Recorded as finished — its totals are closed (R5). See isOngoing. */
+  settled: boolean;
+  /** 064 — its attacks have been captured. */
+  captured: boolean;
+}
+
 /**
- * The start times of this clan's weekends that are already recorded as finished.
+ * This clan's weekends already recorded, by start time.
  *
  * R5. war.ts checks one row because a clan is in at most one war at a time;
- * a raid response carries ten weekends at once, so this is a set read once per
- * clan rather than a query per season. See isOngoing for what counts as closed.
+ * a raid response carries ten weekends at once, so this is one read per clan
+ * rather than a query per season. See isOngoing for what counts as closed.
  */
-async function settledSeasons(
+async function recordedSeasons(
   supabase: SupabaseClient,
   clan: ClanRow,
-): Promise<Set<string>> {
+): Promise<Map<string, RecordedSeason>> {
   const { data, error } = await supabase
     .from("raid_seasons")
-    .select("start_time, state")
+    .select("id, start_time, state, attacks_captured_at")
     .eq("clan_id", clan.id) // R3
     .is("deleted_at", null);
 
   if (error) throw new Error(`raid_seasons read failed for ${clan.tag}: ${error.message}`);
 
-  const settled = new Set<string>();
-  for (const row of (data ?? []) as Array<{ start_time: string; state: string | null }>) {
-    // A row with no state at all has never been labelled by the API and is left
-    // writable — it is the one case where "not ongoing" should not mean "done".
-    if (row.state && !isOngoing(row.state)) {
-      settled.add(new Date(row.start_time).toISOString());
-    }
+  const recorded = new Map<string, RecordedSeason>();
+  for (const row of (data ?? []) as Array<{
+    id: string;
+    start_time: string;
+    state: string | null;
+    attacks_captured_at: string | null;
+  }>) {
+    recorded.set(new Date(row.start_time).toISOString(), {
+      id: row.id,
+      // A row with no state at all has never been labelled by the API and is
+      // left writable — the one case where "not ongoing" should not mean "done".
+      settled: Boolean(row.state) && !isOngoing(row.state),
+      captured: row.attacks_captured_at !== null && row.attacks_captured_at !== undefined,
+    });
   }
-  return settled;
+  return recorded;
 }
 
 /** The season row, returning its id. Upsert on the natural key (clan_id, start_time). */
@@ -222,6 +259,145 @@ async function upsertParticipants(
   return rows.length;
 }
 
+/**
+ * An enemy clan's capital league, or nulls when the clan cannot be read.
+ *
+ * A failure here costs that raid its league marks and nothing else: the
+ * attacks are the irreplaceable part, and they must not wait on a lookup of a
+ * clan that may have been disbanded since. A row left with a null league is
+ * looked up again on the next run that sees the weekend.
+ */
+async function capitalLeagueOf(
+  clan: ClanRow,
+  defenderTag: string,
+): Promise<{ id: number | null; name: string | null }> {
+  try {
+    const enemy = await request(clanEndpoint(defenderTag), clanSchema);
+    return { id: enemy.capitalLeague?.id ?? null, name: enemy.capitalLeague?.name ?? null };
+  } catch (error) {
+    console.warn(
+      `  ${clan.tag}: capital league of ${defenderTag} not read — ` +
+        (error instanceof Error ? error.message : String(error)),
+    );
+    return { id: null, name: null };
+  }
+}
+
+/**
+ * raid_opponents and raid_attacks for one weekend, then attacks_captured_at.
+ * `seasonId` must be this clan's — it came from upsertSeason or recordedSeasons.
+ *
+ * Both writes are idempotent. An attack never changes once made, so its row is
+ * written once and every later run's copy is ignored (R5). An opponent is
+ * written once too, except that one still without a league is looked up again.
+ */
+async function captureAttacks(
+  supabase: SupabaseClient,
+  clan: ClanRow,
+  seasonId: string,
+  raids: RaidRaid[],
+  playerIds: Map<string, string>,
+): Promise<number> {
+  const { data: known, error: readError } = await supabase
+    .from("raid_opponents")
+    .select("raid_number, capital_league_id")
+    .eq("raid_season_id", seasonId)
+    .is("deleted_at", null);
+  if (readError) throw new Error(`raid_opponents read failed for ${clan.tag}: ${readError.message}`);
+
+  const leagueKnown = new Set(
+    ((known ?? []) as Array<{ raid_number: number; capital_league_id: number | null }>)
+      .filter((r) => r.capital_league_id !== null)
+      .map((r) => Number(r.raid_number)),
+  );
+
+  const opponents = [];
+  for (const raid of raids) {
+    if (leagueKnown.has(raid.raidNumber)) continue;
+    const league = await capitalLeagueOf(clan, raid.defenderTag);
+    opponents.push({
+      raid_season_id: seasonId,
+      raid_number: raid.raidNumber,
+      defender_tag: raid.defenderTag,
+      defender_name: raid.defenderName ?? null,
+      capital_league_id: league.id,
+      capital_league: league.name,
+    });
+  }
+
+  if (opponents.length) {
+    const { error } = await supabase
+      .from("raid_opponents")
+      .upsert(opponents, { onConflict: "raid_season_id,raid_number", ignoreDuplicates: false });
+    if (error) throw new Error(`raid_opponents upsert failed for ${clan.tag}: ${error.message}`);
+  }
+
+  const attacks = raids.flatMap((raid) =>
+    raid.attacks
+      .map((a) => {
+        const playerId = playerIds.get(a.playerTag);
+        // Same rule as upsertParticipants: dropped rather than guessed at.
+        if (!playerId) return null;
+        return {
+          raid_season_id: seasonId,
+          raid_number: raid.raidNumber,
+          district_id: a.districtId,
+          district_name: a.districtName ?? null,
+          district_hall_level: a.districtHallLevel ?? null,
+          attack_number: a.attackNumber,
+          player_id: playerId,
+          destruction: Math.round(a.destruction),
+          stars: a.stars,
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null),
+  );
+
+  if (attacks.length) {
+    const { error } = await supabase.from("raid_attacks").upsert(attacks, {
+      onConflict: "raid_season_id,raid_number,district_id,attack_number",
+      ignoreDuplicates: true,
+    });
+    if (error) throw new Error(`raid_attacks upsert failed for ${clan.tag}: ${error.message}`);
+  }
+
+  const { error: stampError } = await supabase
+    .from("raid_seasons")
+    .update({ attacks_captured_at: new Date().toISOString() })
+    .eq("clan_id", clan.id) // R3
+    .eq("id", seasonId);
+  if (stampError) throw new Error(`raid_seasons update failed for ${clan.tag}: ${stampError.message}`);
+
+  return opponents.length + attacks.length;
+}
+
+/**
+ * Everyone a weekend names — its participants and every attacker — as the
+ * players rows their participation and attacks are written under.
+ *
+ * resolvePlayers speaks WarMember. A raider is the same two fields it needs —
+ * the raid endpoint reports no Town Hall level, so thLevel is genuinely absent
+ * rather than dropped here.
+ */
+async function raidPlayers(
+  supabase: SupabaseClient,
+  clan: ClanRow,
+  season: RaidSeason,
+): Promise<Map<string, string>> {
+  const named = new Map<string, string>();
+  for (const p of season.participants) named.set(p.playerTag, p.name);
+  for (const raid of season.raids ?? []) {
+    for (const a of raid.attacks) if (!named.has(a.playerTag)) named.set(a.playerTag, a.name ?? a.playerTag);
+  }
+  if (!named.size) return new Map();
+  return resolvePlayers(
+    supabase,
+    clan,
+    [...named].map(([tag, name]) => ({ tag, name, attacks: [] })),
+    "raid",
+  );
+}
+
 export async function syncRaids(ctx: JobContext): Promise<void> {
   const { supabase } = ctx;
   const clans = await activeClans(supabase);
@@ -259,40 +435,38 @@ export async function syncRaids(ctx: JobContext): Promise<void> {
         continue;
       }
 
-      const settled = await settledSeasons(supabase, clan);
+      const recorded = await recordedSeasons(supabase, clan);
       let wrote = 0;
 
       for (const season of seasons) {
-        const startIso = season.startTime.toISOString();
+        const known = recorded.get(season.startTime.toISOString());
 
         // R5. A finished weekend recorded once is never touched again, even
-        // though the API will keep sending it on every run for weeks.
-        if (settled.has(startIso)) continue;
+        // though the API will keep sending it on every run for weeks — except
+        // to add the attacks 064 captures, once, if they are still missing.
+        if (known?.settled) {
+          if (known.captured || season.raids === null) continue;
+          const playerIds = await raidPlayers(supabase, clan, season);
+          ctx.recorded(await captureAttacks(supabase, clan, known.id, season.raids, playerIds));
+          seasonsWritten += 1;
+          wrote += 1;
+          continue;
+        }
 
         const seasonId = await upsertSeason(supabase, clan, season);
         seasonsWritten += 1;
         wrote += 1;
         ctx.recorded(1);
 
-        if (!season.participants.length) continue;
-
-        // resolvePlayers speaks WarMember. A raider is the same two fields it
-        // needs — the raid endpoint reports no Town Hall level, so thLevel is
-        // genuinely absent rather than dropped here.
-        const playerIds = await resolvePlayers(
-          supabase,
-          clan,
-          season.participants.map((p) => ({
-            tag: p.playerTag,
-            name: p.name,
-            attacks: [],
-          })),
-          "raid",
-        );
-
-        ctx.recorded(
-          await upsertParticipants(supabase, seasonId, season.participants, playerIds),
-        );
+        const playerIds = await raidPlayers(supabase, clan, season);
+        if (season.participants.length) {
+          ctx.recorded(
+            await upsertParticipants(supabase, seasonId, season.participants, playerIds),
+          );
+        }
+        if (season.raids !== null) {
+          ctx.recorded(await captureAttacks(supabase, clan, seasonId, season.raids, playerIds));
+        }
       }
 
       console.log(

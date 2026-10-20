@@ -53,6 +53,9 @@ const IRREPLACEABLE = [
   "cwl_wars",
   "member_snapshots",
   "poll_responses",
+  // 064 — the API sends who attacked what for the latest weekend only.
+  "raid_attacks",
+  "raid_opponents",
   "raid_participants",
   "raid_seasons",
   "war_attacks",
