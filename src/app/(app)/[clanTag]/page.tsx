@@ -37,6 +37,8 @@ import {
   BellRing,
   CalendarClock,
   Flag,
+  Flame,
+  Medal,
   Megaphone,
   Shield,
   Swords,
@@ -64,6 +66,7 @@ import { isLeader } from "@/lib/visibility";
 import { cwlPhase, nextCwlWindow } from "@/lib/coc-time";
 import { createClient } from "@/lib/supabase/server";
 import { clanDetail, currentMemberCount, latestAnnouncement } from "@/repositories/clans";
+import { clanProfile } from "@/repositories/profiles";
 import { seasonsForClan, warsInSeason, type CwlWar } from "@/repositories/cwl";
 import { countsForPoll, pollsForClan } from "@/repositories/polls";
 import { latestRun } from "@/repositories/sync-log";
@@ -154,7 +157,7 @@ export default async function ClanDashboardPage({
   const href = `/${encodeURIComponent(clan.tag)}`;
   const accent = clanAccent(clan.id);
 
-  const [detail, held, announcement, seasons, clansRun, war, polls] =
+  const [detail, held, announcement, seasons, clansRun, war, polls, profile] =
     await Promise.all([
       clanDetail(supabase, clan.id),
       currentMemberCount(supabase, clan.id),
@@ -163,6 +166,8 @@ export default async function ClanDashboardPage({
       latestRun(supabase, "clans", clan.id),
       currentWar(supabase, clan.id),
       pollsForClan(supabase, clan.id),
+      // 065 — the war record, from the clan sync.
+      clanProfile(supabase, clan.id),
     ]);
 
   const fresh = freshness(clansRun);
@@ -306,6 +311,31 @@ export default async function ClanDashboardPage({
                   ...(detail?.level ? [{ label: "level", value: detail.level, icon: Shield }] : []),
                   ...(detail?.warLeague
                     ? [{ label: "war league", value: detail.warLeague, art: leagueArt(20) }]
+                    : []),
+                  // 065 — the game's own record. Ties and losses are absent
+                  // while the war log is private, so wins stand alone then.
+                  ...(profile?.warWins !== null && profile?.warWins !== undefined
+                    ? [
+                        {
+                          label:
+                            profile.warLosses !== null ? "won · lost · tied" : "wars won",
+                          value:
+                            profile.warLosses !== null
+                              ? `${profile.warWins} · ${profile.warLosses} · ${profile.warTies ?? 0}`
+                              : profile.warWins,
+                          icon: Medal,
+                          title: "Regular wars, from the game's war log. CWL is not counted.",
+                        },
+                      ]
+                    : []),
+                  ...(profile?.warWinStreak
+                    ? [
+                        {
+                          label: profile.warWinStreak === 1 ? "win in a row" : "wins in a row",
+                          value: profile.warWinStreak,
+                          icon: Flame,
+                        },
+                      ]
                     : []),
                   {
                     // The one number here worth a link: Clash deletes a league

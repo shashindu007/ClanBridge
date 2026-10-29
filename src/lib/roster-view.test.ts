@@ -15,6 +15,7 @@ import {
   lineupFocusSeason,
   nextSeason,
   type PoolEntry,
+  warPreferenceClash,
 } from "./roster-view";
 
 const CLAN_A = "aaaaaaaa-0000-4000-8000-0000000000a1";
@@ -214,5 +215,22 @@ describe("lineupBreakdown", () => {
       avgHeroPct: null,
       avgOffencePct: null,
     });
+  });
+});
+
+describe("065 — warPreferenceClash", () => {
+  it("flags In or Maybe on the poll while Out in game", () => {
+    expect(warPreferenceClash("In", "out")).toBe(true);
+    expect(warPreferenceClash("maybe", "out")).toBe(true);
+  });
+
+  it("is quiet when the two agree, or the member said Out anyway", () => {
+    expect(warPreferenceClash("In", "in")).toBe(false);
+    expect(warPreferenceClash("Out", "out")).toBe(false);
+    expect(warPreferenceClash(null, "out")).toBe(false);
+  });
+
+  it("is never a clash before the preference has been read", () => {
+    expect(warPreferenceClash("In", undefined)).toBe(false);
   });
 });

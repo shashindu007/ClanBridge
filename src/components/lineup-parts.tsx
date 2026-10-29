@@ -14,7 +14,7 @@
 //   - A DISABLED BUTTON SAYS WHY, beside it, rather than looking broken.
 
 import Link from "next/link";
-import { CheckCircle2, CircleDashed, CircleHelp, Eye, EyeOff, Search, XCircle } from "lucide-react";
+import { CheckCircle2, CircleDashed, CircleHelp, Eye, EyeOff, Search, TriangleAlert, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ import {
   AVAILABILITY_FILTERS,
   AVAILABILITY_LABELS,
   availabilityOf,
+  warPreferenceClash,
   type AvailabilityFilter,
 } from "@/lib/roster-view";
 
@@ -69,6 +70,38 @@ export function AvailabilityBadge({ answer }: { answer: string | null }) {
     );
   }
   return <Badge variant="secondary">{answer}</Badge>;
+}
+
+/**
+ * 065 — the member's own war preference in game, under their poll answer.
+ * A warning when the two disagree (warPreferenceClash), a quiet line when they
+ * do not, and nothing before the daily player sync has read it.
+ */
+export function WarPreferenceNote({
+  answer,
+  preference,
+}: {
+  answer: string | null;
+  preference: "in" | "out" | undefined;
+}) {
+  if (!preference) return null;
+  if (warPreferenceClash(answer, preference)) {
+    return (
+      <Badge
+        variant="outline"
+        className="text-destructive mt-1"
+        title="Their war preference in game is Out. Ask them to set it to In."
+      >
+        <TriangleAlert aria-hidden />
+        Out in game
+      </Badge>
+    );
+  }
+  return (
+    <span className="text-muted-foreground mt-1 block text-xs">
+      In game: {preference === "in" ? "In" : "Out"}
+    </span>
+  );
 }
 
 /** Draft or published, and — the half that matters — who can see it. */

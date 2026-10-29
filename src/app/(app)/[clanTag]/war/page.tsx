@@ -58,7 +58,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { CalendarClock, Crosshair, Flag, Gauge, Percent, Shield, Star, Swords, Target, Users } from "lucide-react";
+import { CalendarClock, Crosshair, Flag, Gauge, Percent, Shield, Star, Swords, Target, Timer, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/submit-button";
@@ -89,6 +89,7 @@ import {
   clearTarget,
   currentWar,
   membersOfWar,
+  opponentAttacksOfWar,
   opponentsOfWar,
   releaseTarget,
   targetsForWar,
@@ -96,11 +97,14 @@ import {
   type WarRow,
 } from "@/repositories/war";
 import {
+  attackDuration,
+  defencesByTag,
   enemyBoard,
   outstandingAttacks,
   parseBasePosition,
   warRecord,
   warSummary,
+  type Defence,
   type MemberWarRecord,
 } from "@/services/war";
 import { freshness } from "@/services/freshness";
@@ -280,15 +284,21 @@ export default async function WarBoardPage({
     );
   }
 
-  const [members, attacks, targets, opponents, mine] = await Promise.all([
+  const [members, attacks, targets, opponents, mine, theirAttacks] = await Promise.all([
     membersOfWar(supabase, war.id),
     attacksForWar(supabase, war.id),
     targetsForWar(supabase, war.id),
     opponentsOfWar(supabase, war.id),
     myPlayers(supabase, userId),
+    // 065 — the enemy's attacks (063), read here for each base's defence.
+    opponentAttacksOfWar(supabase, war.id),
   ]);
 
   const record = warRecord(members, attacks, targets);
+  const defences = defencesByTag(theirAttacks);
+  // An ended war with none of their attacks on record is almost always one from
+  // before 063 captured them, so "not attacked" there would be a guess.
+  const defencesKnown = theirAttacks.length > 0 || war.state !== "warEnded";
   const outstanding = outstandingAttacks(record);
   const size = war.teamSize ?? members.length;
   const board = enemyBoard(size, opponents, attacks, members, targets);
@@ -510,6 +520,7 @@ export default async function WarBoardPage({
                       <span className="font-medium">Base {a.defenderPosition ?? "?"}</span>
                       <Stars stars={a.stars} />
                       <span className="text-muted-foreground text-xs">{a.destruction.toFixed(0)}%</span>
+                      <AttackTime seconds={a.durationSeconds} />
                     </li>
                   ))}
                 </ul>
@@ -652,13 +663,14 @@ export default async function WarBoardPage({
           </p>
 
           <div className="-mx-5 overflow-x-auto px-5">
-            <table className="cb-stack w-full sm:min-w-[40rem] text-sm">
+            <table className="cb-stack w-full sm:min-w-[48rem] text-sm">
               <thead className="text-muted-foreground border-b text-left text-xs uppercase">
                 <tr>
                   <th className="py-2 pr-3 font-medium">Our base</th>
                   <th className="py-2 pr-3 font-medium">Member</th>
                   <th className="py-2 pr-3 font-medium">Target</th>
                   <th className="py-2 pr-3 font-medium">Attacked</th>
+                  <th className="py-2 pr-3 font-medium">Defence</th>
                   <th className="py-2 pr-3 text-right font-medium">Stars</th>
                 </tr>
               </thead>
@@ -757,7 +769,8 @@ export default async function WarBoardPage({
                             <span key={a.attackOrder} className="block tabular-nums">
                               Base {a.defenderPosition ?? "?"}{" "}
                               <Stars stars={a.stars} />{" "}
-                              <span className="text-muted-foreground text-xs">{a.destruction.toFixed(0)}%</span>
+                              <span className="text-muted-foreground text-xs">{a.destruction.toFixed(0)}%</span>{" "}
+                              <AttackTime seconds={a.durationSeconds} />
                             </span>
                           ))}
                           {m.followedTarget === false && (
@@ -765,6 +778,11 @@ export default async function WarBoardPage({
                           )}
                         </span>
                       )}
+                    </td>
+
+                    {/* 065 — what the other side managed against this base. */}
+                    <td data-cell="wide" data-label="Defence" className="py-3 pr-3">
+                      <DefenceCell defence={defences.get(m.tag)} known={defencesKnown && !preparation} />
                     </td>
 
                     <td data-cell="row" data-label="Stars" className="py-3 pr-3 text-right font-medium tabular-nums">
@@ -828,6 +846,43 @@ export default async function WarBoardPage({
       </Panel>
     </main>
     </WarPlanProvider>
+  );
+}
+
+/** 065 — "2m 41s" beside an attack. Nothing for one recorded before 065. */
+function AttackTime({ seconds }: { seconds: number | null | undefined }) {
+  const time = attackDuration(seconds);
+  if (!time) return null;
+  return (
+    <span className="text-muted-foreground inline-flex items-center gap-1 text-xs" title="How long the attack took">
+      <Timer aria-hidden className="size-3" />
+      {time}
+    </span>
+  );
+}
+
+/**
+ * 065 — the best attack the other side made on one of our bases. No attack is
+ * "not attacked" only when `known`: battle day has begun and their attacks were
+ * captured. Otherwise it is a dash, not a claim.
+ */
+function DefenceCell({
+  defence,
+  known,
+}: {
+  defence: Defence | undefined;
+  known: boolean;
+}) {
+  if (!defence) {
+    return <span className="text-muted-foreground">{known ? "Not attacked" : "—"}</span>;
+  }
+  return (
+    <span className="block tabular-nums" title="The best attack made on this base">
+      <Stars stars={defence.stars} />{" "}
+      <span className="text-muted-foreground text-xs">
+        {defence.destruction.toFixed(0)}% · {defence.attacks} attack{defence.attacks === 1 ? "" : "s"}
+      </span>
+    </span>
   );
 }
 

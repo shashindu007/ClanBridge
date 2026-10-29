@@ -44,6 +44,11 @@ export interface RaidSeasonRow {
    * and the raid rating cannot rate the weekend.
    */
   attacksCapturedAt: string | null;
+  /**
+   * 065 — when the weekend's defence log was captured. Null means never: it
+   * is kept once the weekend has ended, so a live weekend is always null.
+   */
+  defensesCapturedAt: string | null;
 }
 
 export interface RaidParticipantRow {
@@ -59,7 +64,7 @@ export interface RaidParticipantRow {
 
 const SEASON_COLUMNS =
   "id, start_time, end_time, total_loot, state, raids_completed, " +
-  "total_attacks, offensive_reward, defensive_reward, attacks_captured_at";
+  "total_attacks, offensive_reward, defensive_reward, attacks_captured_at, defenses_captured_at";
 
 /** PostgREST sends an ISO string; the PGlite stand-in a Date. */
 function isoOrNull(value: unknown): string | null {
@@ -78,6 +83,7 @@ function toSeason(r: Record<string, unknown>): RaidSeasonRow {
     offensiveReward: (r.offensive_reward as number | null) ?? null,
     defensiveReward: (r.defensive_reward as number | null) ?? null,
     attacksCapturedAt: isoOrNull(r.attacks_captured_at),
+    defensesCapturedAt: isoOrNull(r.defenses_captured_at),
   };
 }
 
@@ -365,5 +371,49 @@ export async function raidOpponentsOfSeason(
     capitalLeagueId:
       r.capital_league_id === null || r.capital_league_id === undefined ? null : Number(r.capital_league_id),
     capitalLeague: (r.capital_league as string | null) ?? null,
+  }));
+}
+
+/** How one of our districts held against one enemy raid (065). */
+export interface RaidDefenceRow {
+  raidNumber: number;
+  attackerTag: string;
+  attackerName: string | null;
+  districtId: number;
+  districtName: string | null;
+  districtHallLevel: number | null;
+  /** How many attacks the enemy spent on this district. */
+  attackCount: number;
+  destruction: number;
+  stars: number;
+}
+
+/** Every enemy raid on our capital in one weekend. `seasonId` must already be clan-checked. */
+export async function raidDefencesOfSeason(
+  supabase: SupabaseClient,
+  seasonId: string,
+): Promise<RaidDefenceRow[]> {
+  const { data, error } = await supabase
+    .from("raid_defenses")
+    .select(
+      "raid_number, attacker_tag, attacker_name, district_id, district_name, " +
+        "district_hall_level, attack_count, destruction, stars",
+    )
+    .eq("raid_season_id", seasonId)
+    .is("deleted_at", null)
+    .order("raid_number");
+
+  if (error || !data) return [];
+  return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
+    raidNumber: Number(r.raid_number),
+    attackerTag: r.attacker_tag as string,
+    attackerName: (r.attacker_name as string | null) ?? null,
+    districtId: Number(r.district_id),
+    districtName: (r.district_name as string | null) ?? null,
+    districtHallLevel:
+      r.district_hall_level === null || r.district_hall_level === undefined ? null : Number(r.district_hall_level),
+    attackCount: Number(r.attack_count),
+    destruction: Number(r.destruction),
+    stars: Number(r.stars),
   }));
 }
