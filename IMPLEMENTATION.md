@@ -29,7 +29,38 @@ four auth-adjacent security findings ·
 **Phase 11 entire** — a member's own villages, in one place, with a report each ·
 **Phase 11B entire** — Base details: progress against Town Hall caps, and a
 view-only paste of the in-game village export ·
-**Phase 11C entire** — a base's CWL record from every clan in the family.
+**Phase 11C entire** — a base's CWL record from every clan in the family ·
+**Phase 12 entire** — family directory, account admin, notification feed, home ·
+**Phase 13 entire except T13.10** — CWL lineups, scouting and images, the
+war, CWL, raids and Clan Games ratings, the phone layout.
+
+### Status as of 2026-10-29
+
+The ledger had fallen a month behind the code — nothing after 2026-09-26 was in
+it. Phases 12 and 13 below are written up from the code and the commits rather
+than planned ahead, so they are shorter than the phases before them.
+
+**Left to build:**
+
+- **T13.10 — the combined Player rating.** `/rating` still ranks by season
+  donations alone. The four other ratings each have a page and none is weighed
+  into the main ranking yet. The formula is still being decided.
+- **Building counts per Town Hall** ("7 of 7 cannons"). See the known gaps in
+  `src/data/game/README.md`.
+- **Enforcing the CSP.** It ships report-only (`src/lib/csp.ts`). Open the main
+  pages on the live site signed in, fix any console warnings, then change
+  `CSP_HEADER` to `Content-Security-Policy`.
+
+**Needs something outside the repo:**
+
+- **Apply migrations up to 064 to the live database**, then `npm run types:db`.
+  `src/types/database.ts` stops at 37 tables (nothing after 052 is in it).
+- **Supabase dashboard:** minimum password length 10, leaked-password protection
+  on, and the `avatars` bucket checked (Phase 10 and 11 lists below).
+- **T9.4** — run `npm run restore:verify` against a scratch project.
+- **T9.3** — the Vercel half, and a re-run now that layouts and passwords exist.
+- **T0.9** — check the Upstash limiter end to end in production.
+- **A real village export** captured into `fixtures/` (Phase 11B list).
 
 **Every phase in this document is now complete except T9.4 (restore test) and
 the deployment-side half of T9.3.** Both need something outside the codebase: a
@@ -643,9 +674,38 @@ clanbridge/
 │       ├── 036_player_progress.sql    T11B.4 one reading a village a day, the CAP
 │       │                                     stored with each level. Clan policy OR
 │       │                                     owner policy; no UPDATE for anybody
-│       └── 037_family_cwl_history.sql T11C.1 CWL season TOTALS from every platform
-│                                             clan — the one deliberate R3 exception.
-│                                             Table policies untouched
+│       ├── 037_family_cwl_history.sql T11C.1 CWL season TOTALS from every platform
+│       │                                     clan — the one deliberate R3 exception.
+│       │                                     Table policies untouched
+│       │  ── Phase 12 ─────────────────────────────────────────────────────
+│       ├── 038_family_directory.sql   T12.1  the visitor tier: every clan's overview
+│       ├── 039_account_administration.sql T12.2
+│       ├── 040_notification_feed.sql  T12.3  notifications kept even when no push lands
+│       ├── 041_active_members.sql     T12.4  who is here, and when last seen
+│       ├── 042_feedback_and_public_stats.sql T12.5
+│       ├── 043_avatar_storage_limits.sql T12.7
+│       ├── 044_set_clan_role.sql      T12.9
+│       │  ── Phase 13 and QA ──────────────────────────────────────────────
+│       ├── 045_war_opponent_badge.sql
+│       ├── 046_qa_hardening.sql              privilege holes, poll and roster fixes
+│       ├── 047_war_one_member_per_base.sql
+│       ├── 048_cwl_group.sql          T13.1  the other seven clans and their wars
+│       ├── 049_latest_player_progress.sql   051 widens it family-wide
+│       ├── 050_war_targets_per_attack.sql
+│       ├── 051_latest_progress_family.sql
+│       ├── 052_donation_counters.sql  T13.6  season donations that survive a move
+│       ├── 053_data_retention.sql     T13.7  thinning old readings for the 500 MB cap
+│       ├── 054_half_hour_snapshots.sql
+│       ├── 055_last_activity.sql
+│       ├── 056_notification_and_push_hardening.sql
+│       ├── 057_cwl_scouting.sql       T13.2  ┐
+│       ├── 058_purge_cwl_scouting.sql        │ scouting, and clearing other
+│       ├── 059_purge_other_clans_only.sql    │ clans' scouting after the
+│       ├── 060_scout_th_weapon.sql           │ season
+│       ├── 061_purge_keeps_our_wars.sql      ┘
+│       ├── 062_cwl_attack_order.sql   T13.4  the order of attacks in a CWL war
+│       ├── 063_war_opponent_attacks.sql T13.5 the enemy's attacks in a regular war
+│       └── 064_raid_attacks.sql       T13.8  every raid attack, and the raided league
 │
 ├── test/                    QA — runs the migrations against real Postgres (PGlite)
 │   ├── pg-harness.ts        boots PGlite
@@ -1945,10 +2005,10 @@ by name.*
   dropped by decision (see T0.13), so the right empty state for it is not a
   better message — it is not being routable. Nothing linked to it.
 
-  **"No layouts uploaded" is the one genuinely outstanding case**, and it is
-  outstanding because Phase 8 is not built. Its two placeholder pages are
-  unlinked, so no member reaches them; they get real empty states when the
-  feature lands rather than a placeholder dressed up as one.
+  **"No layouts uploaded" was the last case, and Phase 8 closed it.** The
+  layouts page says "No layouts yet", or "Nothing matches that filter" when a
+  filter is on. (Corrected 2026-10-29: this note said Phase 8 was not built for
+  a month after it was.)
 
 ---
 
@@ -2176,7 +2236,9 @@ before.
   bootstrap scripts, so a real one needs a per-request nonce threaded through
   middleware — its own change, with its own way of silently breaking the app. A
   CSP containing `'unsafe-inline'` is a header that looks like protection and is
-  not. **Outstanding, recorded rather than half-done.**
+  not. **Done 2026-10-29, report-only:** middleware builds the policy with a fresh
+  nonce on each request (`src/lib/csp.ts`), and the theme script is allowed by
+  its hash. Enforcing it is in §0's list.
 
   **d. Raw Postgres errors reached the browser** — most Server Actions redirect
   with `?error=${error.message}`. React escapes it, so not XSS, but the member
@@ -2185,9 +2247,10 @@ before.
   schema. The RLS one is the worse half: naming the table a policy guards is
   describing the lock to whoever is picking it. `lib/errors.ts` logs the raw text
   and returns a sentence; applied in the new auth code and in both `admin/`
-  files. **The remaining call sites are an outstanding mechanical sweep** —
-  `[clanTag]/notices`, `polls`, `war`, `layouts`, `roster` — left out of this
-  commit because a dozen unrelated files would make it unreviewable.
+  files. **The sweep is done** (checked 2026-10-29): the server actions all use
+  `safeMessage`, and the last raw message, the layout upload's Storage error,
+  now does too. `auth/callback` still passes Supabase's link errors through, on
+  purpose — they are written for the member (commit 7ad03b9).
 
 **Outstanding after Phase 10, all of it needing something outside the repo:**
 
@@ -2203,7 +2266,7 @@ before.
 - **T9.3 needs re-running**, and now for two reasons rather than one: its own
   note said to redo it after Phase 8 (which has since landed), and Phase 10 has
   added the first password field in the product.
-- **The CSP** and **the `safeMessage` sweep**, both above.
+- ~~**The CSP** and **the `safeMessage` sweep**~~ — both done, see above.
 
 ---
 
@@ -2755,6 +2818,79 @@ deliberate R3 exception**, and it is made as narrowly as it can be.
   under DH CWL ONLY, 14 wars and 13 attacks in all.
 - **Clan movement and the other five report panels are unchanged** — still confined
   to clans the reader holds a role in. Only CWL was asked for.
+
+---
+
+# Phase 12 — The family, the home page, and running the accounts
+
+*Written up 2026-10-29 from the code. The T12 ids were already in the comments
+and migrations; this is the first time they are in the ledger.*
+
+- [x] **T12.1 — Family directory** (038) — every platform clan's overview and
+  roster, readable by any approved member, and the family-wide member search.
+- [x] **T12.2 — Account administration** (039) — `/admin/members`: the accounts
+  that already got in, not only the pending queue.
+- [x] **T12.3 — Notification feed** (040) — `/notifications`. A notification
+  exists whether or not a push was delivered.
+- [x] **T12.4 — Active members** (041) — who is here, by name, with when they
+  were last around.
+- [x] **T12.5 — Feedback and the landing page** (042) — `/feedback` and
+  `/admin/feedback`, and `/` as the one public page.
+- [x] **T12.6 — Home** — members land on `/dashboard`, not on a clan.
+- [x] **T12.7 — Smaller avatars** (043) — and a way to delete the old ones.
+- [x] **T12.8 — The look** — the display face and the decoration hues in
+  `globals.css`, the scene backdrops and the game art.
+- [x] **T12.9 — Choosing a member's role in a clan** (044).
+- [x] **T12.10 — Shared page parts** — `components/kit.tsx`, and the way back
+  to the home page.
+
+---
+
+# Phase 13 — CWL in depth, the ratings, and phones
+
+*Written up 2026-10-29 from the code and the commits from 2026-09-27 to
+2026-10-22.*
+
+- [x] **T13.1 — The whole CWL group** (048) — the other seven clans and their
+  wars, group standings, the season's league and the medal table.
+  `cwl/[season]/standings`, `medals`, `clans/[groupClan]`, and the monthly
+  printable report.
+- [x] **T13.2 — CWL scouting** (057–061) — each enemy clan's Town Hall mix,
+  heroes against their Town Hall's caps, Town Hall weapon, and how they attack
+  and defend (`services/cwl-scouting.ts`). The admin clears OTHER clans'
+  scouting after the season (058, 059); the enemy lineups of our own wars are
+  kept (061).
+- [x] **T13.3 — CWL lineups** — the lineup builder, war order with the highest
+  base first, a Town Hall summary per clan, and every clan's lineup on one
+  image. A member swapped out in preparation is taken off the lineup.
+- [x] **T13.4 — The CWL day** (062) — base numbers, defence per base, both
+  clans' attacks, and top performers ranked by the harder hit.
+- [x] **T13.5 — Both sides of a regular war** (063) — the enemy's attacks and
+  the order of every attack, which the war rating needs for defence.
+- [x] **T13.6 — Season donations** (052) — donations that survive a clan move.
+  `/rating/donations`; `/report` now redirects there.
+- [x] **T13.7 — Data retention** (053, 054) — snapshots every 30 minutes, and
+  old readings thinned from `/admin` so the 500 MB free tier lasts.
+- [x] **T13.8 — The ratings.** Each rating turns marks into a player's share of
+  the clan's marks, and the clan's rules live as constants in one file, which
+  the explanation page prints from:
+
+  | Rating | Rules | Data | Page |
+  |---|---|---|---|
+  | CWL | `services/cwl-rating.ts` (`CWL_MARKS`); `services/cwl-audit.ts` checks its rows | `lib/cwl-latest.ts` | `/rating/cwl`, `cwl/[season]/rating` |
+  | War | `services/war-rating.ts` — CWL's marks, two attacks | `lib/war-rating-data.ts` | `/rating/war`, `war/rating` |
+  | Raids | `services/raid-rating.ts` (`RAID_MARKS`) — needs 064 | `lib/raid-rating-data.ts` | `/rating/raids` |
+  | Clan Games | `services/games-rating.ts` (`GAMES_MARKS`) | `lib/games-rating-data.ts` | `/rating/games` |
+
+  `lib/rating.ts` lists the sections; the nav and the `[kind]` placeholder
+  route both read it.
+- [x] **T13.9 — The CWL results image** — `/rating/cwl/share`, leaders only: a
+  1080×1350 image of each clan's group and top three, shared straight to apps
+  on a phone.
+- [ ] **T13.10 — The combined Player rating.** `/rating` still ranks by
+  donations alone. The formula that weighs the five ratings together is still
+  being decided, so nothing is built yet.
+- [x] **T13.11 — Phone layout** — every page fits a 390px screen.
 
 ---
 
