@@ -103,6 +103,25 @@ export const clanSchema = z.looseObject({
   type: z.string().optional(),
   warWins: z.number().optional(),
   warWinStreak: z.number().optional(),
+  // 065 — the rest of the war record. A private war log sends warWins alone,
+  // so all three stay optional.
+  warTies: z.number().optional(),
+  warLosses: z.number().optional(),
+  /** 065 — our own Clan Capital: the hall and each district's level. */
+  clanCapital: z
+    .looseObject({
+      capitalHallLevel: z.number().optional(),
+      districts: z
+        .array(
+          z.looseObject({
+            id: z.number(),
+            name: z.string().optional(),
+            districtHallLevel: z.number().optional(),
+          }),
+        )
+        .default([]),
+    })
+    .optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -274,6 +293,18 @@ export const raidDistrictSchema = z.looseObject({
   attacks: z.array(raidDistrictAttackSchema).optional(),
 });
 
+/**
+ * One enemy clan's raid on OUR capital (065), from `defenseLog`. The same
+ * district shape as attackLog; only the totals are read.
+ */
+export const raidDefenseLogSchema = z.looseObject({
+  attacker: z.looseObject({ tag, name: z.string().optional(), level: z.number().optional() }),
+  attackCount: z.number().optional(),
+  districtCount: z.number().optional(),
+  districtsDestroyed: z.number().optional(),
+  districts: z.array(raidDistrictSchema).default([]),
+});
+
 /** One enemy capital raided. `attackLog` lists them oldest first. */
 export const raidAttackLogSchema = z.looseObject({
   defender: z.looseObject({ tag, name: z.string().optional(), level: z.number().optional() }),
@@ -294,6 +325,7 @@ export const raidSeasonSchema = z.looseObject({
   defensiveReward: z.number().optional(),
   members: z.array(raidMemberSchema).optional(),
   attackLog: z.array(raidAttackLogSchema).optional(),
+  defenseLog: z.array(raidDefenseLogSchema).optional(),
 });
 
 export const raidSeasonsSchema = z.looseObject({
@@ -362,6 +394,7 @@ export const playerSchema = z.looseObject({
   trophies: z.number().optional(),
   bestTrophies: z.number().optional(),
   builderBaseTrophies: z.number().optional(),
+  bestBuilderBaseTrophies: z.number().optional(),
   attackWins: z.number().optional(),
   defenseWins: z.number().optional(),
   warStars: z.number().optional(),

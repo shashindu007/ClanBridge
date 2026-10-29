@@ -72,7 +72,7 @@ interface WarSideFixture {
   members: Array<{
     tag: string;
     mapPosition: number;
-    attacks?: Array<{ defenderTag: string; stars: number; order?: number }>;
+    attacks?: Array<{ defenderTag: string; stars: number; order?: number; duration?: number }>;
   }>;
 }
 
@@ -412,6 +412,18 @@ describe("T6.1 — the clan war sync", () => {
             where p.tag = '${attacker.tag}' order by a.attack_order`,
         );
         expect(res.rows[0]).toEqual({ attack_order: 1, war_order: attacker.attacks![0]!.order });
+      });
+
+      it("keeps how long each of our attacks lasted (065)", async () => {
+        await runSyncJob("war", syncWar, { client });
+
+        const attacker = OURS.members.find((m) => m.attacks?.length)!;
+        expect(attacker.attacks![0]!.duration).toBeGreaterThan(0);
+        const res = await h.db.query<{ duration_seconds: number }>(
+          `select a.duration_seconds from war_attacks a join players p on p.id = a.player_id
+            where p.tag = '${attacker.tag}' order by a.attack_order`,
+        );
+        expect(res.rows[0]!.duration_seconds).toBe(attacker.attacks![0]!.duration);
       });
 
       it("stamps the war as looked at, so no enemy attacks is not mistaken for never recorded", async () => {

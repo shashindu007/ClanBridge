@@ -25,7 +25,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createHarness, type Harness } from "./pg-harness";
 import { createPgliteSupabase } from "./pglite-supabase";
 import { runSyncJob } from "../scripts/sync/shared";
-import { syncRaids } from "../scripts/sync/raids";
+import { defenceRows, defencesDue, syncRaids } from "../scripts/sync/raids";
+import { mapRaidSeasons } from "../src/integration/mappers";
+import { raidSeasonsSchema } from "../src/integration/coc-schemas";
 
 const CLAN_A = "aaaaaaaa-0000-4000-8000-000000000001";
 const OTHER = "aaaaaaaa-0000-4000-8000-000000000002";
@@ -62,6 +64,10 @@ const RAIDS = JSON.parse(
         attacks?: Array<{ attacker: { tag: string }; destructionPercent: number; stars: number }>;
       }>;
     }>;
+    defenseLog?: Array<{
+      attacker: { tag: string; name?: string };
+      districts: Array<{ id: number; attackCount?: number; destructionPercent?: number }>;
+    }>;
   }>;
 };
 
@@ -97,6 +103,16 @@ const ATTACK_COUNT = LATEST_RAIDS.reduce(
   (t, raid) => t + raid.districts.reduce((n, d) => n + (d.attacks?.length ?? 0), 0),
   0,
 );
+/**
+ * 065 — one row per district per enemy raid on us, across every weekend: the
+ * defence log comes with finished weekends too, and every fixture weekend has
+ * ended.
+ */
+const DEFENCE_ROWS = RAIDS.items.reduce(
+  (t, item) => t + (item.defenseLog ?? []).reduce((n, raid) => n + raid.districts.length, 0),
+  0,
+);
+
 /** The first district attacked in the first raid, its attacks newest first as the API lists them. */
 const FIRST_DISTRICT = LATEST_RAIDS[0]!.districts.find((d) => d.attacks?.length)!;
 
@@ -341,6 +357,85 @@ describe("T7.1 — the capital raid sync", () => {
     });
   });
 
+  describe("065 — the defence log, kept once each weekend has ended", () => {
+    it("writes every enemy raid on us, district by district, for every finished weekend", async () => {
+      await runSyncJob("raids", syncRaids, { client });
+
+      expect(DEFENCE_ROWS).toBeGreaterThan(0);
+      expect(await count(h, "raid_defenses")).toBe(DEFENCE_ROWS);
+      expect(await count(h, "raid_seasons", "defenses_captured_at is not null")).toBe(SEASON_COUNT);
+    });
+
+    it("keeps the API's totals for one district exactly", async () => {
+      await runSyncJob("raids", syncRaids, { client });
+
+      const raid = LATEST.defenseLog![0]!;
+      const district = raid.districts[0]!;
+      const rows = await h.db.query<{ attacker_tag: string; attack_count: number; destruction: number }>(
+        `select d.attacker_tag, d.attack_count, d.destruction
+           from raid_defenses d join raid_seasons s on s.id = d.raid_season_id
+          where d.raid_number = 1 and d.district_id = ${district.id}
+          order by s.start_time desc limit 1`,
+      );
+      expect(rows.rows[0]).toEqual({
+        attacker_tag: raid.attacker.tag,
+        attack_count: district.attackCount ?? 0,
+        destruction: Math.round(district.destructionPercent ?? 0),
+      });
+    });
+
+    it("never writes the log twice", async () => {
+      await runSyncJob("raids", syncRaids, { client });
+      // Reopen every weekend: the totals are rewritten, the defence log is not.
+      await h.db.exec(`update raid_seasons set state = 'ongoing'`);
+      await runSyncJob("raids", syncRaids, { client });
+
+      expect(await count(h, "raid_defenses")).toBe(DEFENCE_ROWS);
+    });
+
+    it("adds the log to a weekend stored before 065, and then leaves it alone", async () => {
+      await runSyncJob("raids", syncRaids, { client });
+      await h.db.exec(`
+        truncate raid_defenses;
+        update raid_seasons set defenses_captured_at = null;
+      `);
+
+      expect(await runSyncJob("raids", syncRaids, { client })).toBe("success");
+      expect(await count(h, "raid_defenses")).toBe(DEFENCE_ROWS);
+      expect(await runSyncJob("raids", syncRaids, { client })).toBe("skipped");
+    });
+
+    it("waits while a weekend is still being played", () => {
+      const [season] = mapRaidSeasons(raidSeasonsSchema.parse(RAIDS));
+      expect(defencesDue(season!, undefined)).toBe(true);
+      expect(defencesDue({ ...season!, state: "ongoing" }, undefined)).toBe(false);
+      expect(defencesDue({ ...season!, defences: null }, undefined)).toBe(false);
+      expect(
+        defencesDue(season!, { id: "x", settled: true, captured: true, defended: true }),
+      ).toBe(false);
+    });
+
+    it("stores no enemy player — only how each of our districts held", () => {
+      const [season] = mapRaidSeasons(raidSeasonsSchema.parse(RAIDS));
+      const rows = defenceRows("season", season!.defences!);
+      expect(rows).toHaveLength(LATEST.defenseLog!.reduce((n, r) => n + r.districts.length, 0));
+      expect(Object.keys(rows[0]!).sort()).toEqual([
+        "attack_count",
+        "attacker_level",
+        "attacker_name",
+        "attacker_tag",
+        "destruction",
+        "district_hall_level",
+        "district_id",
+        "district_name",
+        "raid_number",
+        "raid_season_id",
+        "stars",
+        "total_looted",
+      ]);
+    });
+  });
+
   describe("R5 — a settled weekend is never rewritten", () => {
     it("running it repeatedly changes nothing", async () => {
       await runSyncJob("raids", syncRaids, { client });
@@ -447,7 +542,7 @@ describe("T7.1 — the capital raid sync", () => {
       expect(row.status).toBe("success");
       expect(row.finished_at).not.toBeNull();
       expect(row.records_written).toBe(
-        SEASON_COUNT + RAIDER_COUNT + ATTACK_COUNT + LATEST_RAIDS.length,
+        SEASON_COUNT + RAIDER_COUNT + ATTACK_COUNT + LATEST_RAIDS.length + DEFENCE_ROWS,
       );
     });
   });

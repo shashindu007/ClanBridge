@@ -40,6 +40,12 @@ const CLAN_FIXTURE = JSON.parse(
   clanLevel: number;
   warLeague?: { name: string };
   isWarLogPublic?: boolean;
+  warWins?: number;
+  warTies?: number;
+  warLosses?: number;
+  warWinStreak?: number;
+  capitalLeague?: { name: string };
+  clanCapital?: { capitalHallLevel?: number; districts: Array<{ id: number; name: string; districtHallLevel: number }> };
   memberList: Array<{
     name: string;
     // The API's own vocabulary, which is NOT the database's — mapRole() is the
@@ -145,6 +151,40 @@ describe("T2.6 — sync:clans against real Postgres, offline", () => {
     expect(clan.member_count).toBe(MEMBER_COUNT);
     // T0.1. False here would mean phase 6 can collect nothing for this clan.
     expect(clan.is_war_log_public).toBe(CLAN_FIXTURE.isWarLogPublic);
+  });
+
+  // 065 — the war record and the Clan Capital, in a table only the sync writes.
+  it("stores the clan's war record and Clan Capital (065)", async () => {
+    await runSyncJob("clans", syncClans, { client });
+    const res = await h.db.query<{
+      war_wins: number;
+      war_ties: number;
+      war_losses: number;
+      war_win_streak: number;
+      capital_league: string;
+      capital_hall_level: number;
+      capital_districts: Array<{ id: number; name: string; level: number }>;
+    }>(`select war_wins, war_ties, war_losses, war_win_streak, capital_league,
+               capital_hall_level, capital_districts
+          from clan_profiles where clan_id = '${CLAN_A}'`);
+
+    const row = res.rows[0]!;
+    expect(row.war_wins).toBe(CLAN_FIXTURE.warWins);
+    expect(row.war_ties).toBe(CLAN_FIXTURE.warTies);
+    expect(row.war_losses).toBe(CLAN_FIXTURE.warLosses);
+    expect(row.war_win_streak).toBe(CLAN_FIXTURE.warWinStreak);
+    expect(row.capital_league).toBe(CLAN_FIXTURE.capitalLeague?.name);
+    expect(row.capital_hall_level).toBe(CLAN_FIXTURE.clanCapital?.capitalHallLevel);
+    expect(row.capital_districts).toEqual(
+      CLAN_FIXTURE.clanCapital!.districts.map((d) => ({ id: d.id, name: d.name, level: d.districtHallLevel })),
+    );
+  });
+
+  it("keeps one clan_profiles row per clan however often it runs (065)", async () => {
+    await runSyncJob("clans", syncClans, { client });
+    await runSyncJob("clans", syncClans, { client });
+    const res = await h.db.query<{ n: number }>(`select count(*)::int as n from clan_profiles`);
+    expect(res.rows[0]!.n).toBe(1);
   });
 
   it("translates roles, including admin to elder", async () => {

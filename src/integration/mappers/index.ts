@@ -18,8 +18,10 @@ import type {
   MemberSnapshot,
   Player,
   PlayerDetail,
+  PlayerProfile,
   PlayerProgress,
   ProgressUnit,
+  RaidDefence,
   RaidRaid,
   RaidSeason,
   Village,
@@ -74,6 +76,17 @@ export function mapClan(api: ApiClan): Clan {
     warLeague: api.warLeague?.name,
     memberCount: api.members ?? api.memberList.length,
     isWarLogPublic: api.isWarLogPublic,
+    warWins: api.warWins,
+    warTies: api.warTies,
+    warLosses: api.warLosses,
+    warWinStreak: api.warWinStreak,
+    capitalLeague: api.capitalLeague?.name,
+    capitalHallLevel: api.clanCapital?.capitalHallLevel,
+    capitalDistricts: (api.clanCapital?.districts ?? []).map((d) => ({
+      id: d.id,
+      name: d.name,
+      level: d.districtHallLevel,
+    })),
   };
 }
 
@@ -180,6 +193,37 @@ export function mapDonationCounters(api: ApiPlayer): DonationCounters {
   };
 }
 
+/**
+ * 065 — the rest of the player endpoint: war preference, career numbers and
+ * achievements. A war preference other than 'in' or 'out' is dropped rather
+ * than passed on, so a new word from Supercell reads as unknown, not as a
+ * third answer every page has to guess at.
+ */
+export function mapPlayerProfile(api: ApiPlayer): PlayerProfile {
+  const preference = api.warPreference === "in" || api.warPreference === "out" ? api.warPreference : undefined;
+
+  return {
+    tag: normaliseTag(api.tag),
+    warPreference: preference,
+    expLevel: api.expLevel,
+    bestTrophies: api.bestTrophies,
+    attackWins: api.attackWins,
+    defenseWins: api.defenseWins,
+    warStars: api.warStars,
+    capitalContributions: api.clanCapitalContributions,
+    builderBaseTrophies: api.builderBaseTrophies,
+    bestBuilderBaseTrophies: api.bestBuilderBaseTrophies,
+    achievements: api.achievements.map((a) => ({
+      name: a.name,
+      stars: a.stars ?? 0,
+      value: a.value,
+      target: a.target,
+      info: a.info,
+      village: mapVillage(a.village),
+    })),
+  };
+}
+
 export function mapPlayerProgress(api: ApiPlayer): PlayerProgress {
   return {
     tag: normaliseTag(api.tag),
@@ -202,6 +246,7 @@ function mapWarAttack(api: ApiWarAttack): WarAttack {
     // leaking into service and repository code.
     destruction: api.destructionPercentage,
     order: api.order,
+    duration: api.duration,
   };
 }
 
@@ -346,6 +391,31 @@ export function mapRaidSeasons(api: ApiRaidSeasons): RaidSeason[] {
       loot: m.capitalResourcesLooted,
     })),
     raids: mapRaidAttackLog(season),
+    defences: mapRaidDefenseLog(season),
+  }));
+}
+
+/**
+ * 065 — `defenseLog` as one entry per enemy clan that raided us, with each of
+ * our districts' totals against it. Null when the API left the log out.
+ */
+function mapRaidDefenseLog(season: ApiRaidSeason): RaidDefence[] | null {
+  if (!season.defenseLog) return null;
+
+  return season.defenseLog.map((raid, index) => ({
+    raidNumber: index + 1,
+    attackerTag: normaliseTag(raid.attacker.tag),
+    attackerName: raid.attacker.name,
+    attackerLevel: raid.attacker.level,
+    districts: raid.districts.map((d) => ({
+      districtId: d.id,
+      districtName: d.name,
+      districtHallLevel: d.districtHallLevel,
+      attackCount: d.attackCount ?? 0,
+      destruction: d.destructionPercent ?? 0,
+      stars: d.stars ?? 0,
+      totalLooted: d.totalLooted,
+    })),
   }));
 }
 

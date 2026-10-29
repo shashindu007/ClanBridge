@@ -264,6 +264,8 @@ async function upsertWarAttacks(
       // hit by two of ours gave the clan its stars once; only this says whose
       // attack came first.
       war_order: attack.order ?? null,
+      // 065 — how long the attack lasted. Not when it happened: see below.
+      duration_seconds: attack.duration ?? null,
       // The API carries no per-attack timestamp. Left null rather than guessed:
       // a fabricated time is worse than a missing one.
       attacked_at: null,

@@ -264,6 +264,20 @@ async function seedFixtures(h: Harness) {
                                    sieges_donated, clan_donations, clan_donations_received) values
       ('${PLAYER_A}', '${CLAN_A}', 145000, 3700, 600, 1200, 900),
       ('${PLAYER_B}', '${CLAN_B}', 90000, 2100, 300, 400, 1500);
+
+    -- 065. A clan's war record, a village's profile, and how a raid on our
+    -- capital went — one of each per clan.
+    insert into clan_profiles (clan_id, war_wins, war_ties, war_losses, war_win_streak) values
+      ('${CLAN_A}', 37, 4, 34, 1),
+      ('${CLAN_B}', 12, 0, 9, 3);
+
+    insert into player_profiles (player_id, clan_id, war_preference, war_stars) values
+      ('${PLAYER_A}', '${CLAN_A}', 'in', 1240),
+      ('${PLAYER_B}', '${CLAN_B}', 'out', 310);
+
+    insert into raid_defenses (raid_season_id, raid_number, attacker_tag, district_id, attack_count, destruction, stars) values
+      ('11111111-0000-4000-8000-000000000004', 1, '#C2V89UGL', 70000000, 4, 100, 3),
+      ('22222222-0000-4000-8000-000000000004', 1, '#C2V89UGJ', 70000000, 2, 100, 3);
   `);
 }
 
@@ -544,6 +558,10 @@ describe("T3.7 — a member of clan A cannot read clan B", () => {
     "member_snapshots",
     "player_progress",
     "donation_counters",
+    // 065 — clan_id directly on the first two, the raid_seasons join on the third.
+    "clan_profiles",
+    "player_profiles",
+    "raid_defenses",
   ])("reads exactly one row from %s — its own", async (table) => {
     await h.asUser(USER_A);
     expect(await count(h, table)).toBe(1);
@@ -558,6 +576,22 @@ describe("T3.7 — a member of clan A cannot read clan B", () => {
   it("cannot read another user's push subscriptions", async () => {
     await h.asUser(USER_A);
     expect(await count(h, "push_subscriptions")).toBe(1);
+  });
+
+  // 065 — game facts, so a session may read them and never write them (R11).
+  // User B is a leader, which is the role most likely to be handed a write by
+  // accident.
+  it.each([
+    ["clan_profiles", `update clan_profiles set war_wins = 9999`],
+    ["player_profiles", `update player_profiles set war_preference = 'in'`],
+    [
+      "raid_defenses",
+      `insert into raid_defenses (raid_season_id, raid_number, attacker_tag, district_id, attack_count, destruction, stars)
+         values ('22222222-0000-4000-8000-000000000004', 2, '#C2V89UGL', 70000000, 1, 100, 3)`,
+    ],
+  ])("refuses a session's write to %s", async (_table, sql) => {
+    await h.asUser(USER_B);
+    await expect(h.db.exec(sql)).rejects.toThrow(/permission denied/i);
   });
 
   // T9.6 — audit_log is leader-only. User A is a member, user B is a leader.

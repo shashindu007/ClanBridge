@@ -41,14 +41,18 @@
 // 052 — donation_counters rides along on the same response: the lifetime
 // donation achievements and the clan counters, which is what lets a season's
 // donations survive a clan move (services/season-donations.ts). No extra call.
+//
+// 065 — and player_profiles: war preference, career numbers and achievements,
+// from the same response again. Unlike the two above it is the LATEST reading,
+// overwritten each day, not a history — 065's header has the arithmetic.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { playerEndpoint, request } from "@/integration/coc-client";
 import { playerSchema } from "@/integration/coc-schemas";
 import { CocNotFoundError } from "@/integration/errors";
-import { mapDonationCounters, mapPlayerProgress } from "@/integration/mappers";
+import { mapDonationCounters, mapPlayerProfile, mapPlayerProgress } from "@/integration/mappers";
 import { lockedUnits, resolveUnit, type ResolvedUnit, type UnitSource } from "@/data/game";
-import type { DonationCounters, PlayerProgress, ProgressUnit } from "@/types/domain";
+import type { DonationCounters, PlayerProfile, PlayerProgress, ProgressUnit } from "@/types/domain";
 import { activeClans, main, skip, type JobContext } from "./shared";
 
 /** One village to read, and the clan its reading is filed under. */
@@ -180,6 +184,31 @@ export function counterRow(
   };
 }
 
+/**
+ * 065 — the stored shape of one profile reading. Pure, like progressRow().
+ *
+ * Filed under the same clan as the progress reading beside it (036's rule): a
+ * village that has left every platform clan is null, and only its owner sees
+ * it from then on.
+ */
+export function profileRow(target: ProgressTarget, profile: PlayerProfile, capturedAt: string) {
+  return {
+    player_id: target.id,
+    clan_id: target.clanId,
+    war_preference: profile.warPreference ?? null,
+    exp_level: profile.expLevel ?? null,
+    best_trophies: profile.bestTrophies ?? null,
+    attack_wins: profile.attackWins ?? null,
+    defense_wins: profile.defenseWins ?? null,
+    war_stars: profile.warStars ?? null,
+    capital_contributions: profile.capitalContributions ?? null,
+    builder_base_trophies: profile.builderBaseTrophies ?? null,
+    best_builder_base_trophies: profile.bestBuilderBaseTrophies ?? null,
+    achievements: profile.achievements,
+    captured_at: capturedAt,
+  };
+}
+
 export async function syncPlayers(ctx: JobContext): Promise<void> {
   const { supabase } = ctx;
 
@@ -192,6 +221,8 @@ export async function syncPlayers(ctx: JobContext): Promise<void> {
 
   const rows: Array<ReturnType<typeof progressRow>> = [];
   const counters: Array<ReturnType<typeof counterRow>> = [];
+  const profiles: Array<ReturnType<typeof profileRow>> = [];
+  const capturedAt = new Date().toISOString();
   let missing = 0;
 
   for (const target of targets) {
@@ -199,6 +230,7 @@ export async function syncPlayers(ctx: JobContext): Promise<void> {
       const api = await request(playerEndpoint(target.tag), playerSchema);
       rows.push(progressRow(target, mapPlayerProgress(api)));
       counters.push(counterRow(target, mapDonationCounters(api), clanIdByTag));
+      profiles.push(profileRow(target, mapPlayerProfile(api), capturedAt));
     } catch (error) {
       // A village the API no longer knows — a banned or deleted account — must
       // not cost everybody else their reading. clan-games.ts does the same.
@@ -231,6 +263,15 @@ export async function syncPlayers(ctx: JobContext): Promise<void> {
         ignoreDuplicates: true,
       });
     if (error) throw new Error(`donation_counters insert failed: ${error.message}`);
+  }
+
+  // Last, and overwriting: this is the latest reading, so a second run today
+  // replaces it with the same numbers rather than adding a row.
+  for (let i = 0; i < profiles.length; i += BATCH) {
+    const { error } = await supabase
+      .from("player_profiles")
+      .upsert(profiles.slice(i, i + BATCH), { onConflict: "player_id", ignoreDuplicates: false });
+    if (error) throw new Error(`player_profiles upsert failed: ${error.message}`);
   }
 
   ctx.recorded(rows.length);
