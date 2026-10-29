@@ -12,9 +12,21 @@
 
 import type { NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
+import { CSP_HEADER, buildCsp, createNonce, themeScriptHash } from "@/lib/csp";
 
 export async function middleware(request: NextRequest) {
-  return await updateSession(request);
+  // A fresh nonce per request. The policy goes on the request too (inside
+  // updateSession), because that is where Next looks for the nonce to stamp
+  // on its own scripts. See lib/csp.ts.
+  const csp = buildCsp(createNonce(), {
+    dev: process.env.NODE_ENV === "development",
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    scriptHashes: [await themeScriptHash()],
+  });
+
+  const response = await updateSession(request, csp);
+  response.headers.set(CSP_HEADER, csp);
+  return response;
 }
 
 export const config = {
