@@ -91,7 +91,11 @@ async function loadFixture(endpoint: string): Promise<unknown> {
     throw new CocFixtureError(endpoint, "no fixture is mapped to this endpoint");
   }
 
-  const file = join(process.cwd(), "fixtures", match[1]);
+  // COC_FIXTURES_DIR lets a test point at its own edited copy instead of
+  // rewriting the committed files, which other test processes read at the same
+  // time. Read per call, like USE_FIXTURES.
+  const dir = process.env.COC_FIXTURES_DIR || join(process.cwd(), "fixtures");
+  const file = join(dir, match[1]);
   let raw: string;
   try {
     raw = await readFile(file, "utf8");

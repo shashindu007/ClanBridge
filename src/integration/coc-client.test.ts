@@ -4,10 +4,9 @@
 // replace fetch with something that throws, so if any code path reaches the
 // network the test fails rather than quietly succeeding.
 
-import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { useFixtureCopy } from "../../test/fixture-dir";
 import {
   CocAuthError,
   CocNotFoundError,
@@ -403,15 +402,14 @@ describe("USE_FIXTURES — the offline path (T2.3 done-when)", () => {
   // An unfilled fixture must say so in words. Otherwise the Zod failure that
   // follows reads like a schema bug rather than "you have not run T2.1".
   it("explains that a fixture is an unfilled placeholder", async () => {
-    const path = join(process.cwd(), "fixtures", "clan.json");
-    const original = readFileSync(path, "utf8");
+    const fixtures = useFixtureCopy();
     try {
-      writeFileSync(path, "{}\n", "utf8");
+      fixtures.write("clan.json", "{}\n");
       const error = await request(clanEndpoint("#2PP0JCCL"), anySchema).catch((e) => e);
       expect((error as Error).message).toMatch(/placeholder/i);
       expect((error as Error).message).toMatch(/fixtures:capture/);
     } finally {
-      writeFileSync(path, original, "utf8");
+      fixtures.cleanup();
     }
   });
 
