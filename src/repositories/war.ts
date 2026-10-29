@@ -67,6 +67,11 @@ export interface WarAttackRow {
   destruction: number;
   defenderTag: string | null;
   defenderPosition: number | null;
+  /**
+   * 065 — how long the attack lasted, in seconds. Null before 065, and absent
+   * where the read did not ask for it.
+   */
+  durationSeconds?: number | null;
 }
 
 /**
@@ -295,7 +300,7 @@ export async function attacksForWar(
 ): Promise<WarAttackRow[]> {
   const { data, error } = await supabase
     .from("war_attacks")
-    .select("player_id, attack_order, stars, destruction, defender_tag, defender_position")
+    .select("player_id, attack_order, stars, destruction, defender_tag, defender_position, duration_seconds")
     .eq("war_id", warId)
     .is("deleted_at", null)
     .order("attack_order");
@@ -308,6 +313,8 @@ export async function attacksForWar(
     destruction: Number(r.destruction),
     defenderTag: (r.defender_tag as string | null) ?? null,
     defenderPosition: (r.defender_position as number | null) ?? null,
+    durationSeconds:
+      r.duration_seconds === null || r.duration_seconds === undefined ? null : Number(r.duration_seconds),
   }));
 }
 
@@ -434,7 +441,7 @@ export async function warRostersFor(
     supabase
       .from("war_attacks")
       .select(
-        "war_id, player_id, attack_order, stars, destruction, defender_tag, defender_position",
+        "war_id, player_id, attack_order, stars, destruction, defender_tag, defender_position, duration_seconds",
       )
       .in("war_id", ids)
       .is("deleted_at", null),
@@ -475,6 +482,8 @@ export async function warRostersFor(
     destruction: Number(r.destruction),
     defenderTag: (r.defender_tag as string | null) ?? null,
     defenderPosition: (r.defender_position as number | null) ?? null,
+    durationSeconds:
+      r.duration_seconds === null || r.duration_seconds === undefined ? null : Number(r.duration_seconds),
   }));
 
   const targetsByWar = byWar(targetRows, (r) => ({

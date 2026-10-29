@@ -32,6 +32,18 @@ export const AVAILABILITY_LABELS: Record<AvailabilityFilter, string> = {
 };
 
 /**
+ * 065 — a member who told the poll In or Maybe while their own war preference
+ * in game is Out. Worth a warning beside the answer: the poll says one thing,
+ * the game setting another, and only the member can change the setting.
+ * Unknown preference (not read yet) is never a clash.
+ */
+export function warPreferenceClash(answer: string | null, preference: "in" | "out" | undefined): boolean {
+  if (preference !== "out") return false;
+  const kind = availabilityOf(answer);
+  return kind === "in" || kind === "maybe";
+}
+
+/**
  * A poll answer as one of the four states a leader acts on.
  *
  * The CWL availability template's options are In / Maybe / Out, but a leader can

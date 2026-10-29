@@ -32,7 +32,8 @@ view-only paste of the in-game village export ·
 **Phase 11C entire** — a base's CWL record from every clan in the family ·
 **Phase 12 entire** — family directory, account admin, notification feed, home ·
 **Phase 13 entire except T13.10** — CWL lineups, scouting and images, the
-war, CWL, raids and Clan Games ratings, the phone layout.
+war, CWL, raids and Clan Games ratings, the phone layout, and the API data the
+syncs used to drop (T13.12).
 
 ### Status as of 2026-10-29
 
@@ -53,8 +54,9 @@ than planned ahead, so they are shorter than the phases before them.
 
 **Needs something outside the repo:**
 
-- **Apply migrations up to 064 to the live database**, then `npm run types:db`.
-  `src/types/database.ts` stops at 37 tables (nothing after 052 is in it).
+- **Apply migration 065 to the live database BEFORE deploying T13.12**, then
+  `npm run types:db`. The war and raids pages select 065's new columns, and
+  until they exist those reads return nothing.
 - **Supabase dashboard:** minimum password length 10, leaked-password protection
   on, and the `avatars` bucket checked (Phase 10 and 11 lists below).
 - **T9.4** — run `npm run restore:verify` against a scratch project.
@@ -705,7 +707,8 @@ clanbridge/
 │       ├── 061_purge_keeps_our_wars.sql      ┘
 │       ├── 062_cwl_attack_order.sql   T13.4  the order of attacks in a CWL war
 │       ├── 063_war_opponent_attacks.sql T13.5 the enemy's attacks in a regular war
-│       └── 064_raid_attacks.sql       T13.8  every raid attack, and the raided league
+│       ├── 064_raid_attacks.sql       T13.8  every raid attack, and the raided league
+│       └── 065_api_extras.sql         T13.12 war record, profiles, durations, raid defence
 │
 ├── test/                    QA — runs the migrations against real Postgres (PGlite)
 │   ├── pg-harness.ts        boots PGlite
@@ -2891,6 +2894,23 @@ and migrations; this is the first time they are in the ledger.*
   donations alone. The formula that weighs the five ratings together is still
   being decided, so nothing is built yet.
 - [x] **T13.11 — Phone layout** — every page fits a 390px screen.
+- [x] **T13.12 — What the API sent and the syncs dropped** (065). All of it
+  was already on responses the syncs fetch; no new API calls.
+  - Clan home: the war record (won · lost · tied) and win streak.
+    `clan_profiles`, written by sync:clans.
+  - War board: how long each attack took (`war_attacks.duration_seconds`),
+    and each of our bases' defence, derived from 063's enemy attacks.
+  - Raids: our capital's defence, from `defenseLog` (`raid_defenses`, kept once
+    a weekend ends), with the district that falls fastest named; and our
+    district levels from `clan_profiles`.
+  - Player pages: lifetime career numbers and every achievement
+    (`player_profiles`, written by sync:players, shared by the profile and
+    `/account/bases/[tag]` through `components/player-career.tsx`).
+  - CWL roster builder: each member's war preference in game beside their
+    poll answer, and a warning when they said In or Maybe but are Out in game.
+  - `clan_profiles` and `player_profiles` hold the LATEST reading only, so
+    the database grows by the raid defence log alone, a few MB a year. 065's
+    header has the arithmetic, and why the clan facts are not on `clans`.
 
 ---
 

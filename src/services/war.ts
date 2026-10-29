@@ -33,6 +33,7 @@ import type {
   WarAttackRow,
   WarMemberRow,
   WarOpponentRow,
+  WarOpponentAttackRow,
   WarRow,
   WarTargetRow,
 } from "@/repositories/war";
@@ -579,4 +580,50 @@ export function parseBasePosition(raw: unknown, teamSize: number | null): number
   if (position < 1 || position > upper) return null;
 
   return position;
+}
+
+/**
+ * 065 — an attack's length as the game shows it: "2m 41s", or "45s" under a
+ * minute. Null when it was not recorded (every attack from before 065).
+ */
+export function attackDuration(seconds: number | null | undefined): string | null {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds) || seconds < 0) return null;
+  const whole = Math.round(seconds);
+  const minutes = Math.floor(whole / 60);
+  const rest = whole % 60;
+  return minutes ? `${minutes}m ${String(rest).padStart(2, "0")}s` : `${rest}s`;
+}
+
+/** The best the other side did against one of our bases (065). */
+export interface Defence {
+  /** The best attack's stars and destruction: the game's "best opponent attack". */
+  stars: number;
+  destruction: number;
+  /** How many of their attacks this base took. */
+  attacks: number;
+}
+
+/**
+ * Each of our bases' defence, keyed by the member's TAG, from the enemy's
+ * attacks (063). Derived, never stored — 063's header says why.
+ *
+ * A member with no entry was not attacked. Whether that means "held all war"
+ * or "nobody has got to them yet" is the war's state, which the caller knows.
+ */
+export function defencesByTag(attacks: WarOpponentAttackRow[]): Map<string, Defence> {
+  const out = new Map<string, Defence>();
+  for (const attack of attacks) {
+    if (!attack.defenderTag) continue;
+    const seen = out.get(attack.defenderTag);
+    const better =
+      !seen ||
+      attack.stars > seen.stars ||
+      (attack.stars === seen.stars && attack.destruction > seen.destruction);
+    out.set(attack.defenderTag, {
+      stars: better ? attack.stars : seen!.stars,
+      destruction: better ? attack.destruction : seen!.destruction,
+      attacks: (seen?.attacks ?? 0) + 1,
+    });
+  }
+  return out;
 }

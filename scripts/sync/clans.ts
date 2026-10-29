@@ -11,7 +11,8 @@
 //   T3.9  membership movement. Players move between the three clans and some
 //         leave entirely; neither may lose history.
 //
-// R11 — this job writes GAME FACTS only: clans, players, member_snapshots.
+// R11 — this job writes GAME FACTS only: clans, clan_profiles (065), players,
+// member_snapshots.
 // It must never touch clan_roles (that is a user's app role, not the in-game
 // one), nor any human-decision table.
 //
@@ -61,6 +62,38 @@ async function syncClanRecord(
     .eq("id", clan.id);
 
   if (error) throw new Error(`clans update failed for ${clan.tag}: ${error.message}`);
+}
+
+/**
+ * 065 — the clan's war record and Clan Capital, one row per clan, overwritten
+ * each run. The latest reading, not a history: 065's header says why.
+ *
+ * Its own table rather than more columns on `clans`, because sessions may
+ * update `clans` (015) and must not be able to edit a war record.
+ */
+export function clanProfileRow(clanId: string, api: ReturnType<typeof mapClan>) {
+  return {
+    clan_id: clanId,
+    war_wins: api.warWins ?? null,
+    war_ties: api.warTies ?? null,
+    war_losses: api.warLosses ?? null,
+    war_win_streak: api.warWinStreak ?? null,
+    capital_league: api.capitalLeague ?? null,
+    capital_hall_level: api.capitalHallLevel ?? null,
+    capital_districts: api.capitalDistricts,
+  };
+}
+
+async function syncClanProfile(
+  supabase: SupabaseClient,
+  clan: ClanRow,
+  api: ReturnType<typeof mapClan>,
+): Promise<void> {
+  const { error } = await supabase
+    .from("clan_profiles")
+    .upsert([clanProfileRow(clan.id, api)], { onConflict: "clan_id", ignoreDuplicates: false });
+
+  if (error) throw new Error(`clan_profiles upsert failed for ${clan.tag}: ${error.message}`);
 }
 
 /**
@@ -205,6 +238,7 @@ export async function syncClans(ctx: JobContext): Promise<void> {
       const members = mapClanMembers(api);
 
       await syncClanRecord(supabase, clan, mapped);
+      await syncClanProfile(supabase, clan, mapped);
       const written = await syncMembers(supabase, clan, members);
       ctx.recorded(written);
 

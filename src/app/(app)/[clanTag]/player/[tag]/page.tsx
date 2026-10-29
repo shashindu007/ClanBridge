@@ -24,6 +24,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Castle, Hash, History } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { PlayerCareer } from "@/components/player-career";
 import { FactRow } from "@/components/kit";
 import { TownHall } from "@/components/game/town-hall";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,7 @@ import { currentUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { decodeTag, encodeTag, InvalidTagError } from "@/lib/tags";
 import { playerReport } from "@/repositories/player-report";
+import { playerProfile } from "@/repositories/profiles";
 
 export const dynamic = "force-dynamic";
 
@@ -88,9 +90,11 @@ export default async function PlayerProfilePage({
 
   // The report's own seven reads, plus the one this page needs to turn clan ids
   // into names. Issued together: the name lookup does not depend on the report.
-  const [report, userId] = await Promise.all([
+  const [report, userId, profile] = await Promise.all([
     playerReport(supabase, clan.id, player.id),
     currentUserId(supabase),
+    // 065 — clan-scoped like everything else here (R3).
+    playerProfile(supabase, player.id, { clanId: clan.id }),
   ]);
 
   // Only clans this user may see resolve, which is the same restriction RLS
@@ -151,6 +155,8 @@ export default async function PlayerProfilePage({
         clanName={clan.name}
         clanNames={clanNames}
       />
+
+      <PlayerCareer profile={profile} />
     </main>
   );
 }

@@ -33,6 +33,7 @@ import { Castle } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { TownHall } from "@/components/game/town-hall";
 import { PlayerReportSections, dayLabel } from "@/components/player-report-sections";
+import { PlayerCareer } from "@/components/player-career";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { clanRoles, currentUserId } from "@/lib/auth";
@@ -42,6 +43,7 @@ import { createClient } from "@/lib/supabase/server";
 import { decodeTag, encodeTag, InvalidTagError } from "@/lib/tags";
 import { basesForUser } from "@/repositories/account-bases";
 import { playerReport } from "@/repositories/player-report";
+import { playerProfile } from "@/repositories/profiles";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +74,10 @@ export default async function OwnBaseReportPage({
   // The gate. Not a clan check — see the header.
   const base = bases.find((b) => b.tag === playerTag);
   if (!base) notFound();
+
+  // 065 — read as the OWNER, after the gate above: the career is about the
+  // village, not a clan, so it shows even when there is no clan report.
+  const profile = await playerProfile(supabase, base.playerId, "owner");
 
   const label = baseLabel(base.nickname, base.name);
   const named = label !== base.name;
@@ -153,6 +159,8 @@ export default async function OwnBaseReportPage({
           )}
         </section>
       )}
+
+      <PlayerCareer profile={profile} />
     </main>
   );
 }

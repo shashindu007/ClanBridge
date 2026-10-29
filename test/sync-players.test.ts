@@ -244,6 +244,49 @@ describe("T11B.5 — players sync", () => {
     expect(await count(h, "donation_counters")).toBe(3);
   });
 
+  // 065 — the latest reading, filed like progress, and overwritten not added.
+  it("stores each village's war preference, career numbers and achievements", async () => {
+    respondFor(allKnown);
+    await run();
+
+    const rows = await h.db.query<{
+      player_id: string;
+      clan_id: string | null;
+      war_preference: string | null;
+      war_stars: number;
+      capital_contributions: number;
+      achievements: Array<{ name: string; stars: number; village: string }>;
+    }>(`select player_id, clan_id, war_preference, war_stars, capital_contributions, achievements
+          from player_profiles order by player_id`);
+
+    expect(rows.rows.map((r) => [r.player_id, r.clan_id])).toEqual(
+      [
+        [MEMBER, CLAN_A],
+        [OWNED_MEMBER, CLAN_A],
+        [OWNED_GONE, null],
+      ].sort((a, b) => a[0]!.localeCompare(b[0]!)),
+    );
+    const row = rows.rows[0]!;
+    expect(row.war_preference).toBe(FIXTURE.warPreference);
+    expect(row.war_stars).toBe(FIXTURE.warStars);
+    expect(Number(row.capital_contributions)).toBe(FIXTURE.clanCapitalContributions);
+    const achievements = FIXTURE.achievements as unknown[];
+    expect(row.achievements).toHaveLength(achievements.length);
+    expect(row.achievements[0]).toMatchObject({ name: (achievements[0] as { name: string }).name });
+  });
+
+  it("overwrites the profile on a later run instead of adding a row", async () => {
+    respondFor(allKnown);
+    await run();
+    await h.db.exec(`update player_profiles set war_preference = null, war_stars = 1`);
+
+    respondFor(allKnown);
+    await run();
+
+    expect(await count(h, "player_profiles")).toBe(3);
+    expect(await count(h, "player_profiles", "war_stars = 1")).toBe(0);
+  });
+
   it("skips cleanly when there is nobody to read (R10)", async () => {
     await h.db.exec(`truncate player_progress, players cascade`);
     respondFor(allKnown);

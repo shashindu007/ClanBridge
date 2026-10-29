@@ -164,6 +164,9 @@ export const PHASE1_MIGRATIONS = [
   // Every raid attack and the league of every clan raided — the raid rating.
   // Follows 004 and 027.
   "064_raid_attacks.sql",
+  // What the API sends and the syncs dropped: clan war record and capital,
+  // player profiles, attack durations, the raid defence log.
+  "065_api_extras.sql",
 ] as const;
 
 /**
@@ -345,6 +348,7 @@ export const PHASE1_TABLES = [
   "base_layouts",
   "clan_games",
   "clan_games_scores",
+  "clan_profiles",
   "clan_roles",
   "clans",
   "cwl_attacks",
@@ -366,6 +370,7 @@ export const PHASE1_TABLES = [
   "notification_preferences",
   "notifications",
   "player_nicknames",
+  "player_profiles",
   "player_progress",
   "players",
   "poll_options",
@@ -373,6 +378,7 @@ export const PHASE1_TABLES = [
   "polls",
   "push_subscriptions",
   "raid_attacks",
+  "raid_defenses",
   "raid_opponents",
   "raid_participants",
   "raid_seasons",

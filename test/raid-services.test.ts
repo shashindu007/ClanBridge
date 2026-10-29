@@ -15,10 +15,11 @@
 // worse than not knowing it — pretending to.
 
 import { describe, expect, it } from "vitest";
-import type { RaidParticipantRow, RaidSeasonRow } from "@/repositories/raids";
+import type { RaidDefenceRow, RaidParticipantRow, RaidSeasonRow } from "@/repositories/raids";
 import {
   attacksOffered,
   attacksOwed,
+  defenceSummary,
   historyTotals,
   isOngoing,
   outstandingRaidAttacks,
@@ -39,6 +40,7 @@ function season(over: Partial<RaidSeasonRow> = {}): RaidSeasonRow {
     offensiveReward: 180,
     defensiveReward: 95,
     attacksCapturedAt: null,
+    defensesCapturedAt: null,
     ...over,
   };
 }
@@ -293,5 +295,55 @@ describe("services/raids", () => {
       // overwritten forever. scripts/sync/raids.ts argues it in full.
       expect(isOngoing(season({ state: null }))).toBe(false);
     });
+  });
+});
+
+describe("065 — defenceSummary, our capital's defence", () => {
+  const row = (over: Partial<RaidDefenceRow>): RaidDefenceRow => ({
+    raidNumber: 1,
+    attackerTag: "#AAA",
+    attackerName: "Raiders",
+    districtId: 70000000,
+    districtName: "Capital Peak",
+    districtHallLevel: 10,
+    attackCount: 4,
+    destruction: 100,
+    stars: 3,
+    ...over,
+  });
+
+  it("totals each enemy raid", () => {
+    const { raids } = defenceSummary([
+      row({}),
+      row({ districtId: 70000001, districtName: "Barbarian Camp", attackCount: 2 }),
+      row({ districtId: 70000002, districtName: "Wizard Valley", attackCount: 3, destruction: 64, stars: 1 }),
+    ]);
+    expect(raids).toEqual([
+      { raidNumber: 1, attackerTag: "#AAA", attackerName: "Raiders", attacks: 9, districtsDestroyed: 2, districts: 3 },
+    ]);
+  });
+
+  it("puts the district that falls fastest first, and one never destroyed last", () => {
+    const { districts } = defenceSummary([
+      row({ districtId: 1, districtName: "Strong", attackCount: 6, destruction: 80, stars: 2 }),
+      row({ districtId: 2, districtName: "Weak", attackCount: 1 }),
+      row({ raidNumber: 2, attackerTag: "#BBB", districtId: 2, districtName: "Weak", attackCount: 3 }),
+      row({ districtId: 3, districtName: "Middle", attackCount: 4 }),
+    ]);
+    expect(districts.map((d) => [d.name, d.attacksToDestroy, d.raids, d.destroyed])).toEqual([
+      ["Weak", 2, 2, 2],
+      ["Middle", 4, 1, 1],
+      ["Strong", null, 1, 0],
+    ]);
+  });
+
+  it("does not count a district the raid never reached as one that held", () => {
+    const { districts, raids } = defenceSummary([row({}), row({ districtId: 2, attackCount: 0, destruction: 0, stars: 0 })]);
+    expect(districts.map((d) => d.districtId)).toEqual([70000000]);
+    expect(raids[0]!.districts).toBe(2);
+  });
+
+  it("is empty for a weekend nobody raided", () => {
+    expect(defenceSummary([])).toEqual({ raids: [], districts: [] });
   });
 });

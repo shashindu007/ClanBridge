@@ -26,7 +26,7 @@
 // readable, wrong number that nobody thinks to question.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import type { RaidParticipantRow, RaidSeasonRow } from "@/repositories/raids";
+import type { RaidDefenceRow, RaidParticipantRow, RaidSeasonRow } from "@/repositories/raids";
 
 /** A weekend the API still says is being played. Mirrors scripts/sync/raids.ts. */
 export function isOngoing(season: RaidSeasonRow): boolean {
@@ -208,5 +208,103 @@ export function playerRaidSummary(
     weekendsRaided,
     attacksUsed,
     totalLoot,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 065 — OUR CAPITAL'S DEFENCE
+//
+// The defence log says, for every enemy clan that raided us, how many attacks
+// each of our districts cost them. Read the other way round, that is which of
+// our districts are weak: one that falls in two attacks every time is the one
+// worth upgrading first.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One enemy clan's raid on us, totalled. */
+export interface DefenceRaid {
+  raidNumber: number;
+  attackerTag: string;
+  attackerName: string | null;
+  /** Attacks the raid cost them, across every district. */
+  attacks: number;
+  districtsDestroyed: number;
+  districts: number;
+}
+
+/** One of our districts across every raid on it in the weekend. */
+export interface DefenceDistrict {
+  districtId: number;
+  name: string | null;
+  hallLevel: number | null;
+  /** Raids that attacked it at all. */
+  raids: number;
+  /** Raids that took it to 100%. */
+  destroyed: number;
+  attacksTaken: number;
+  /**
+   * Average attacks a raid needed to destroy it, over the raids that did.
+   * Null when nobody destroyed it, which is the best a district can do.
+   */
+  attacksToDestroy: number | null;
+}
+
+export interface DefenceSummary {
+  raids: DefenceRaid[];
+  /** Weakest first: fewest attacks to destroy, then never destroyed. */
+  districts: DefenceDistrict[];
+}
+
+export function defenceSummary(rows: RaidDefenceRow[]): DefenceSummary {
+  const raids = new Map<number, DefenceRaid>();
+  const districts = new Map<number, DefenceDistrict & { destroyedAttacks: number }>();
+
+  for (const row of rows) {
+    const raid = raids.get(row.raidNumber) ?? {
+      raidNumber: row.raidNumber,
+      attackerTag: row.attackerTag,
+      attackerName: row.attackerName,
+      attacks: 0,
+      districtsDestroyed: 0,
+      districts: 0,
+    };
+    raid.attacks += row.attackCount;
+    raid.districts += 1;
+    if (row.destruction >= 100) raid.districtsDestroyed += 1;
+    raids.set(row.raidNumber, raid);
+
+    // A district the raid never reached is not a district that held.
+    if (row.attackCount === 0) continue;
+    const district = districts.get(row.districtId) ?? {
+      districtId: row.districtId,
+      name: row.districtName,
+      hallLevel: row.districtHallLevel,
+      raids: 0,
+      destroyed: 0,
+      attacksTaken: 0,
+      attacksToDestroy: null,
+      destroyedAttacks: 0,
+    };
+    district.raids += 1;
+    district.attacksTaken += row.attackCount;
+    if (row.destruction >= 100) {
+      district.destroyed += 1;
+      district.destroyedAttacks += row.attackCount;
+    }
+    districts.set(row.districtId, district);
+  }
+
+  const districtList = [...districts.values()].map(({ destroyedAttacks, ...d }) => ({
+    ...d,
+    attacksToDestroy: d.destroyed ? destroyedAttacks / d.destroyed : null,
+  }));
+  districtList.sort(
+    (a, b) =>
+      (a.attacksToDestroy ?? Infinity) - (b.attacksToDestroy ?? Infinity) ||
+      (a.name ?? "").localeCompare(b.name ?? ""),
+  );
+
+  return {
+    raids: [...raids.values()].sort((a, b) => a.raidNumber - b.raidNumber),
+    districts: districtList,
   };
 }

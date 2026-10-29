@@ -70,6 +70,7 @@ import {
   SlotMeter,
   Step,
   TownHall,
+  WarPreferenceNote,
 } from "@/components/lineup-parts";
 import {
   CwlHistoryChips,
@@ -97,9 +98,11 @@ import {
   lineupDeadline,
   parseBuilderQuery,
   seasonLabel,
+  warPreferenceClash,
 } from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
 import { membersForClan } from "@/repositories/members";
+import { warPreferences } from "@/repositories/profiles";
 import {
   optionsForPoll,
   pollsForClan,
@@ -312,14 +315,17 @@ export default async function RosterBuilderPage({
   // (T11C.4: history from every clan in the family). Every lineup's players are
   // included, even if they have since left the clans in the pool — the summary
   // needs them all, not just the lineup on screen.
-  const details = await playerDetails(
-    supabase,
-    [
-      ...perClan.flatMap(({ members }) => members.map((m) => m.playerId)),
-      ...memberLists.flat().map((m) => m.playerId),
-    ],
-    { before: season },
-  );
+  const poolIds = perClan.flatMap(({ members }) => members.map((m) => m.playerId));
+  const [details, preferences] = await Promise.all([
+    playerDetails(
+      supabase,
+      [...poolIds, ...memberLists.flat().map((m) => m.playerId)],
+      { before: season },
+    ),
+    // 065 — each member's own war preference in game, beside their poll
+    // answer. Only the clans this leader runs (R3).
+    warPreferences(supabase, poolIds, leads.map((c) => c.id)),
+  ]);
 
   const pool: PoolPlayer[] = [];
   for (const { clan, members } of perClan) {
@@ -357,6 +363,7 @@ export default async function RosterBuilderPage({
   const counts = availabilityCounts(pool, current);
   const everyone = availabilityCounts(pool, { ...DEFAULT_QUERY, picked: "show" });
   const pickedCount = pool.filter((p) => p.assignedTo !== null).length;
+  const preferenceClashes = pool.filter((p) => warPreferenceClash(p.answer, preferences.get(p.playerId))).length;
   const nobodyPickedYet = editable.every((r) => (rosterMembers.get(r.id) ?? []).length === 0);
   const filtersActive = current.show !== "all" || current.q !== "" || current.from !== null;
   const rosterClanName = (rosterId: string) =>
@@ -570,6 +577,12 @@ export default async function RosterBuilderPage({
                       </>
                     )}
                   </p>
+                  {preferenceClashes > 0 && (
+                    <p className="text-destructive text-sm">
+                      {preferenceClashes} said In or Maybe but {preferenceClashes === 1 ? "has" : "have"} war
+                      preference Out in game. Ask them to switch it to In.
+                    </p>
+                  )}
                 </>
               }
               footer={
@@ -668,6 +681,7 @@ export default async function RosterBuilderPage({
                           </td>
                           <td data-cell="row" data-label="Availability" className="py-2.5">
                             <AvailabilityBadge answer={p.answer} />
+                            <WarPreferenceNote answer={p.answer} preference={preferences.get(p.playerId)} />
                           </td>
                         </tr>
                       );

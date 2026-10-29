@@ -31,6 +31,22 @@ export interface Clan {
    * The API reports it, so it is checked on every sync rather than trusted once.
    */
   isWarLogPublic?: boolean;
+  /** 065 — the war record. Ties and losses are absent on a private war log. */
+  warWins?: number;
+  warTies?: number;
+  warLosses?: number;
+  warWinStreak?: number;
+  /** 065 — the Clan Capital league's name, e.g. "Gold League I". */
+  capitalLeague?: string;
+  capitalHallLevel?: number;
+  /** 065 — every district of our capital, in the API's order. */
+  capitalDistricts: CapitalDistrict[];
+}
+
+export interface CapitalDistrict {
+  id: number;
+  name?: string;
+  level?: number;
 }
 
 export interface Player {
@@ -65,6 +81,8 @@ export interface WarAttack {
   stars: number;
   destruction: number;
   order?: number;
+  /** 065 — how long the attack lasted, in seconds. */
+  duration?: number;
 }
 
 export interface WarMember {
@@ -143,6 +161,32 @@ export interface RaidSeason {
    * nobody attacked.
    */
   raids: RaidRaid[] | null;
+  /**
+   * 065 — every enemy clan that raided OUR capital, district by district.
+   * Null when the API left `defenseLog` out, which is not "nobody raided us".
+   */
+  defences: RaidDefence[] | null;
+}
+
+/** One enemy clan's raid on our capital (065). */
+export interface RaidDefence {
+  /** 1 for the first raid in the weekend's defence log. */
+  raidNumber: number;
+  attackerTag: string;
+  attackerName?: string;
+  attackerLevel?: number;
+  districts: RaidDefenceDistrict[];
+}
+
+/** How one of our districts held against one raid (065). Totals, not attacks. */
+export interface RaidDefenceDistrict {
+  districtId: number;
+  districtName?: string;
+  districtHallLevel?: number;
+  attackCount: number;
+  destruction: number;
+  stars: number;
+  totalLooted?: number;
 }
 
 /** One enemy capital raided in a weekend (064). */
@@ -189,6 +233,39 @@ export interface RaidParticipant {
 export interface PlayerDetail extends Player {
   /** T7.4 differences the "Games Champion" value between two snapshots. */
   gamesChampionValue?: number;
+}
+
+/**
+ * 065 — what the player endpoint says about a village beyond its unit levels.
+ * Each field is undefined when the API left it out, never 0.
+ */
+export interface PlayerProfile {
+  tag: string;
+  /** The in-game war preference. Undefined for anything but 'in' or 'out'. */
+  warPreference?: "in" | "out";
+  expLevel?: number;
+  bestTrophies?: number;
+  attackWins?: number;
+  defenseWins?: number;
+  /** Lifetime war stars, regular wars and CWL together. */
+  warStars?: number;
+  /** Lifetime Capital Gold contributed. */
+  capitalContributions?: number;
+  builderBaseTrophies?: number;
+  bestBuilderBaseTrophies?: number;
+  achievements: Achievement[];
+}
+
+export interface Achievement {
+  name: string;
+  /** 0-3. */
+  stars: number;
+  value: number;
+  /** The next star's goal. */
+  target?: number;
+  /** What the achievement asks for, in the game's words. */
+  info?: string;
+  village: Village;
 }
 
 /** Which village a unit belongs to. Supercell spells the second one "builderBase". */

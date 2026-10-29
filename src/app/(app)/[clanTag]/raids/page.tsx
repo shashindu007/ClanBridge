@@ -27,7 +27,7 @@
 // normal state and it says so, rather than rendering an empty table.
 
 import Link from "next/link";
-import { Castle, Coins, Medal, Swords, Target, Trophy } from "lucide-react";
+import { Castle, Coins, Landmark, Medal, ShieldHalf, Swords, Target, Trophy } from "lucide-react";
 import { SyncBadge } from "@/components/sync-badge";
 import { Badge } from "@/components/ui/badge";
 import { requireClanByTag } from "@/lib/clans";
@@ -35,19 +35,23 @@ import { isLeader } from "@/lib/visibility";
 import { createClient } from "@/lib/supabase/server";
 import {
   participantsOfSeason,
+  raidDefencesOfSeason,
   seasonById,
   seasonsForClan,
   type RaidSeasonRow,
 } from "@/repositories/raids";
+import { clanProfile, type ClanProfile } from "@/repositories/profiles";
 import { latestRun } from "@/repositories/sync-log";
 import { freshness } from "@/services/freshness";
 import { DISPLAY_ZONE } from "@/lib/display-time";
 import {
+  defenceSummary,
   historyTotals,
   isOngoing,
   outstandingRaidAttacks,
   raidRecord,
   seasonTotals,
+  type DefenceSummary,
 } from "@/services/raids";
 import { PageHeader } from "@/components/page-header";
 import { Disclosure, EmptyState, FactRow, Panel } from "@/components/kit";
@@ -96,9 +100,11 @@ export default async function RaidsPage({
   const clan = await requireClanByTag(supabase, clanTag);
   const base = `/${encodeURIComponent(clan.tag)}`;
 
-  const [seasons, run] = await Promise.all([
+  const [seasons, run, profile] = await Promise.all([
     seasonsForClan(supabase, clan.id),
     latestRun(supabase, "raids", clan.id),
+    // 065 — our own capital's hall and districts, from the clan sync.
+    clanProfile(supabase, clan.id),
   ]);
   const fresh = freshness(run);
 
@@ -108,7 +114,15 @@ export default async function RaidsPage({
     ? ((await seasonById(supabase, clan.id, requested)) ?? seasons[0] ?? null)
     : (seasons[0] ?? null);
 
-  const participants = season ? await participantsOfSeason(supabase, season.id) : [];
+  // The season was resolved under the clan filter above, so its children may
+  // be read by its id (R3, as repositories/raids.ts's header sets out).
+  const [participants, defenceRows] = season
+    ? await Promise.all([
+        participantsOfSeason(supabase, season.id),
+        raidDefencesOfSeason(supabase, season.id),
+      ])
+    : [[], []];
+  const defence = defenceSummary(defenceRows);
   const record = raidRecord(participants);
   const outstanding = outstandingRaidAttacks(record);
   const totals = season ? seasonTotals(season, participants) : null;
@@ -277,8 +291,13 @@ export default async function RaidsPage({
               </div>
             )}
           </Disclosure>
+
+          {/* ── 065 — the other way round: who raided us ──────────────────── */}
+          <CapitalDefence season={season} summary={defence} />
         </>
       )}
+
+      {profile && profile.capitalDistricts.length > 0 && <OurCapital profile={profile} />}
 
       {/* ── History ────────────────────────────────────────────────────────── */}
       {seasons.length > 0 && (
@@ -338,5 +357,134 @@ export default async function RaidsPage({
       )}
 
     </main>
+  );
+}
+
+/**
+ * 065 — how enemy clans did against our capital this weekend, and which of our
+ * districts fell fastest. Captured once the weekend ends (065's header), so a
+ * live weekend says when it will appear instead of showing nothing.
+ */
+function CapitalDefence({ season, summary }: { season: RaidSeasonRow; summary: DefenceSummary }) {
+  return (
+    <Disclosure title="Our capital's defence" icon={ShieldHalf} count={summary.raids.length} defaultOpen={false}>
+      <CapitalDefenceBody season={season} summary={summary} />
+    </Disclosure>
+  );
+}
+
+function CapitalDefenceBody({ season, summary }: { season: RaidSeasonRow; summary: DefenceSummary }) {
+  if (isOngoing(season)) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        Shown once this weekend ends. Raids on us are still moving until then, so the numbers
+        are kept only when they are final.
+      </p>
+    );
+  }
+  if (season.defensesCapturedAt === null) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        The defence log was not captured for this weekend. Weekends from before it was added
+        fill in on the next raid sync, as long as the game still lists them.
+      </p>
+    );
+  }
+  if (summary.raids.length === 0) {
+    return <p className="text-muted-foreground text-sm">No clan raided our capital this weekend.</p>;
+  }
+
+  const weakest = summary.districts.find((d) => d.attacksToDestroy !== null);
+
+  return (
+    <div className="space-y-5">
+      {weakest && (
+        <p className="text-sm">
+          Weakest district: <span className="font-medium">{weakest.name ?? "Unknown"}</span>
+          {weakest.hallLevel !== null && ` (level ${weakest.hallLevel})`}, destroyed in{" "}
+          <span className="font-medium tabular-nums">{weakest.attacksToDestroy!.toFixed(1)}</span> attacks on
+          average. The one worth upgrading first.
+        </p>
+      )}
+
+      <div className="-mx-5 overflow-x-auto px-5">
+        <table className="w-full text-sm">
+          <caption className="text-muted-foreground pb-2 text-left text-xs">
+            Each district, fastest to fall first.
+          </caption>
+          <thead className="text-muted-foreground border-b text-left text-xs uppercase">
+            <tr>
+              <th className="py-2 pr-3 font-medium">District</th>
+              <th className="py-2 pr-3 text-right font-medium">Destroyed</th>
+              <th className="py-2 text-right font-medium">Attacks to destroy</th>
+            </tr>
+          </thead>
+          <tbody>
+            {summary.districts.map((d) => (
+              <tr key={d.districtId} className="border-b last:border-0">
+                <td className="py-2 pr-3">
+                  {d.name ?? "Unknown"}
+                  {d.hallLevel !== null && <span className="text-muted-foreground"> · level {d.hallLevel}</span>}
+                </td>
+                <td className="py-2 pr-3 text-right tabular-nums">
+                  {d.destroyed} of {d.raids}
+                </td>
+                <td className="py-2 text-right tabular-nums">
+                  {d.attacksToDestroy === null ? (
+                    <span className="text-success-ink">held</span>
+                  ) : (
+                    d.attacksToDestroy.toFixed(1)
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium">Clans that raided us</h3>
+        <ul className="divide-y">
+          {summary.raids.map((r) => (
+            <li key={r.raidNumber} className="flex flex-wrap items-center gap-3 py-2 text-sm">
+              <span className="min-w-0 flex-1 truncate">
+                {r.attackerName ?? "Unknown clan"}{" "}
+                <span className="text-muted-foreground font-mono text-xs">{r.attackerTag}</span>
+              </span>
+              <span className="tabular-nums">
+                {r.districtsDestroyed} of {r.districts} districts
+              </span>
+              <Badge variant="outline">{r.attacks} attacks</Badge>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+/** 065 — our capital as it stands now, from the clan sync: the hall and each district. */
+function OurCapital({ profile }: { profile: ClanProfile }) {
+  return (
+    <section className="cb-panel space-y-3 rounded-panel border p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 font-medium">
+          <Landmark aria-hidden className="text-muted-foreground size-4" />
+          Our capital
+        </h2>
+        {profile.capitalLeague && <Badge variant="secondary">{profile.capitalLeague}</Badge>}
+      </div>
+      <ul className="flex flex-wrap gap-2">
+        {profile.capitalDistricts.map((d) => (
+          <li key={d.id} className="cb-sunken rounded-chip px-2.5 py-1 text-xs">
+            {d.name ?? "District"} <span className="font-semibold tabular-nums">{d.level ?? "?"}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-muted-foreground text-xs">
+        District levels as of the last clan sync
+        {profile.capitalHallLevel !== null && ` · Capital Hall ${profile.capitalHallLevel}`}.
+      </p>
+    </section>
   );
 }

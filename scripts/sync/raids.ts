@@ -30,8 +30,8 @@
 // war.ts, which reads one row for one war, a clan has many raid seasons on one
 // response and the settled ones have to be filtered as a set.
 //
-// R11 — writes raid_seasons, raid_participants, and from 064 raid_opponents
-// and raid_attacks. All four are game facts.
+// R11 — writes raid_seasons, raid_participants, from 064 raid_opponents and
+// raid_attacks, and from 065 raid_defenses. All five are game facts.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // 064 — THE ATTACKS ARE ON THE LATEST WEEKEND ONLY
@@ -51,6 +51,11 @@
 // The enemy's capital league is not on the raid response. It is read from
 // `/clans/{tag}` once per enemy clan, the first time the clan is seen raided —
 // during the weekend, because leagues move when it closes.
+//
+// 065 — THE DEFENCE LOG IS THE OPPOSITE. `defenseLog` comes with every weekend
+// on the response, finished ones too, but while a weekend is live an enemy's
+// raid on us is still moving. So it is captured once, AFTER the weekend ends,
+// and an insert-once row never holds half a raid.
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // ─────────────────────────────────────────────────────────────────────────────
@@ -82,7 +87,7 @@ import { clanSchema, raidSeasonsSchema } from "@/integration/coc-schemas";
 import { CocNotFoundError } from "@/integration/errors";
 import { mapRaidSeasons } from "@/integration/mappers";
 import { normaliseTag } from "@/lib/tags";
-import type { RaidParticipant, RaidRaid, RaidSeason } from "@/types/domain";
+import type { RaidDefence, RaidParticipant, RaidRaid, RaidSeason } from "@/types/domain";
 // resolvePlayers is cwl.ts's, for the same reason war.ts imports it: a raider
 // who joined and left between two runs of sync:clans has no players row, and
 // dropping their participation is the outcome this project exists to prevent.
@@ -124,12 +129,14 @@ export function isOngoing(state: string | null | undefined): boolean {
 }
 
 /** A weekend already in raid_seasons, as the per-season decisions below need it. */
-interface RecordedSeason {
+export interface RecordedSeason {
   id: string;
   /** Recorded as finished — its totals are closed (R5). See isOngoing. */
   settled: boolean;
   /** 064 — its attacks have been captured. */
   captured: boolean;
+  /** 065 — its defence log has been captured. */
+  defended: boolean;
 }
 
 /**
@@ -145,7 +152,7 @@ async function recordedSeasons(
 ): Promise<Map<string, RecordedSeason>> {
   const { data, error } = await supabase
     .from("raid_seasons")
-    .select("id, start_time, state, attacks_captured_at")
+    .select("id, start_time, state, attacks_captured_at, defenses_captured_at")
     .eq("clan_id", clan.id) // R3
     .is("deleted_at", null);
 
@@ -157,6 +164,7 @@ async function recordedSeasons(
     start_time: string;
     state: string | null;
     attacks_captured_at: string | null;
+    defenses_captured_at: string | null;
   }>) {
     recorded.set(new Date(row.start_time).toISOString(), {
       id: row.id,
@@ -164,6 +172,7 @@ async function recordedSeasons(
       // left writable — the one case where "not ongoing" should not mean "done".
       settled: Boolean(row.state) && !isOngoing(row.state),
       captured: row.attacks_captured_at !== null && row.attacks_captured_at !== undefined,
+      defended: row.defenses_captured_at !== null && row.defenses_captured_at !== undefined,
     });
   }
   return recorded;
@@ -372,6 +381,66 @@ async function captureAttacks(
 }
 
 /**
+ * 065 — the defence log as rows. Pure — exported for the test.
+ *
+ * Totals per district per raid, exactly as the API sends them. The enemy's
+ * individual attackers are not kept: they are other clans' players, and what
+ * the page needs is how many attacks each of OUR districts cost them.
+ */
+export function defenceRows(seasonId: string, defences: RaidDefence[]) {
+  return defences.flatMap((raid) =>
+    raid.districts.map((d) => ({
+      raid_season_id: seasonId,
+      raid_number: raid.raidNumber,
+      attacker_tag: raid.attackerTag,
+      attacker_name: raid.attackerName ?? null,
+      attacker_level: raid.attackerLevel ?? null,
+      district_id: d.districtId,
+      district_name: d.districtName ?? null,
+      district_hall_level: d.districtHallLevel ?? null,
+      attack_count: d.attackCount,
+      destruction: Math.round(d.destruction),
+      stars: d.stars,
+      total_looted: d.totalLooted ?? null,
+    })),
+  );
+}
+
+/**
+ * raid_defenses for one FINISHED weekend, then defenses_captured_at. The
+ * caller decides it is finished; see the header. Insert-once (R5).
+ */
+async function captureDefences(
+  supabase: SupabaseClient,
+  clan: ClanRow,
+  seasonId: string,
+  defences: RaidDefence[],
+): Promise<number> {
+  const rows = defenceRows(seasonId, defences);
+  if (rows.length) {
+    const { error } = await supabase.from("raid_defenses").upsert(rows, {
+      onConflict: "raid_season_id,raid_number,district_id",
+      ignoreDuplicates: true,
+    });
+    if (error) throw new Error(`raid_defenses upsert failed for ${clan.tag}: ${error.message}`);
+  }
+
+  const { error: stampError } = await supabase
+    .from("raid_seasons")
+    .update({ defenses_captured_at: new Date().toISOString() })
+    .eq("clan_id", clan.id) // R3
+    .eq("id", seasonId);
+  if (stampError) throw new Error(`raid_seasons update failed for ${clan.tag}: ${stampError.message}`);
+
+  return rows.length;
+}
+
+/** 065 — is this weekend's defence log ready to keep? Finished, sent, and not yet kept. */
+export function defencesDue(season: RaidSeason, known: RecordedSeason | undefined): boolean {
+  return !isOngoing(season.state) && season.defences !== null && !known?.defended;
+}
+
+/**
  * Everyone a weekend names — its participants and every attacker — as the
  * players rows their participation and attacks are written under.
  *
@@ -443,11 +512,19 @@ export async function syncRaids(ctx: JobContext): Promise<void> {
 
         // R5. A finished weekend recorded once is never touched again, even
         // though the API will keep sending it on every run for weeks — except
-        // to add the attacks 064 captures, once, if they are still missing.
+        // to add the attacks 064 captures and the defence log 065 captures,
+        // once each, if they are still missing.
         if (known?.settled) {
-          if (known.captured || season.raids === null) continue;
-          const playerIds = await raidPlayers(supabase, clan, season);
-          ctx.recorded(await captureAttacks(supabase, clan, known.id, season.raids, playerIds));
+          const attacksDue = !known.captured && season.raids !== null;
+          const defended = defencesDue(season, known);
+          if (!attacksDue && !defended) continue;
+          if (attacksDue) {
+            const playerIds = await raidPlayers(supabase, clan, season);
+            ctx.recorded(await captureAttacks(supabase, clan, known.id, season.raids!, playerIds));
+          }
+          if (defended) {
+            ctx.recorded(await captureDefences(supabase, clan, known.id, season.defences!));
+          }
           seasonsWritten += 1;
           wrote += 1;
           continue;
@@ -466,6 +543,9 @@ export async function syncRaids(ctx: JobContext): Promise<void> {
         }
         if (season.raids !== null) {
           ctx.recorded(await captureAttacks(supabase, clan, seasonId, season.raids, playerIds));
+        }
+        if (defencesDue(season, known)) {
+          ctx.recorded(await captureDefences(supabase, clan, seasonId, season.defences!));
         }
       }
 

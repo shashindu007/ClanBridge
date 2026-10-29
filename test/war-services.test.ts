@@ -45,6 +45,8 @@ import {
   warsForClan,
 } from "@/repositories/war";
 import {
+  attackDuration,
+  defencesByTag,
   enemyBoard,
   isComparable,
   outstandingAttacks,
@@ -905,5 +907,40 @@ describe("repositories/war — against real Postgres", () => {
       await h.asUser(LEADER_A);
       expect(await lineupForWar(client, CLAN_A, WAR_A)).toBeNull();
     });
+  });
+});
+
+describe("065 — attack length and defence", () => {
+  it("shows an attack's length the way the game does", () => {
+    expect(attackDuration(161)).toBe("2m 41s");
+    expect(attackDuration(180)).toBe("3m 00s");
+    expect(attackDuration(45)).toBe("45s");
+    expect(attackDuration(0)).toBe("0s");
+  });
+
+  it("shows nothing for an attack recorded before 065", () => {
+    expect(attackDuration(null)).toBeNull();
+    expect(attackDuration(undefined)).toBeNull();
+  });
+
+  it("keeps the best attack on each base, and counts every one", () => {
+    const attack = (defenderTag: string | null, stars: number, destruction: number) => ({
+      attackerTag: "#ENEMY",
+      attackOrder: 1,
+      defenderTag,
+      stars,
+      destruction,
+      warOrder: null,
+    });
+    const defences = defencesByTag([
+      attack("#OURS1", 1, 60),
+      attack("#OURS1", 2, 71),
+      attack("#OURS1", 2, 55),
+      attack("#OURS2", 3, 100),
+      attack(null, 3, 100),
+    ]);
+    expect(defences.get("#OURS1")).toEqual({ stars: 2, destruction: 71, attacks: 3 });
+    expect(defences.get("#OURS2")).toEqual({ stars: 3, destruction: 100, attacks: 1 });
+    expect(defences.size).toBe(2);
   });
 });
