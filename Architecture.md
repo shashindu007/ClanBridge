@@ -221,53 +221,64 @@ This matters more than it sounds. When Supercell changes a field name, you edit 
 
 ### 4.1 Repository structure
 
+Updated 2026-10-29 to match the code. `IMPLEMENTATION.md` §5 has the same tree
+with every file's task id.
+
 ```
 clanbridge/
-├── .github/workflows/
-│   ├── sync-clans.yml
-│   ├── sync-war.yml
-│   ├── sync-cwl.yml
-│   ├── sync-raids.yml
-│   └── backup.yml
+├── .github/workflows/      ci, backup, and one sync-*.yml per job
+│                           (clans, war, cwl, raids, players, health)
 ├── src/
+│   ├── middleware.ts       session refresh, write limit, CSP nonce
 │   ├── app/
-│   │   ├── (auth)/login/
+│   │   ├── (auth)/         login, verify
 │   │   ├── (app)/
-│   │   │   ├── [clanTag]/
-│   │   │   │   ├── page.tsx           dashboard
-│   │   │   │   ├── cwl/
-│   │   │   │   ├── war/
-│   │   │   │   ├── raids/
-│   │   │   │   ├── layouts/
-│   │   │   │   └── notices/
-│   │   │   └── admin/
-│   │   └── api/
-│   │       ├── verify/route.ts        player tag verification
-│   │       ├── war/targets/route.ts   assignment writes
-│   │       ├── layouts/route.ts       uploads
-│   │       └── push/route.ts          subscriptions
-│   ├── integration/
-│   │   ├── coc-client.ts              fetch, retry, timeout
-│   │   ├── coc-schemas.ts             Zod schemas for responses
-│   │   └── mappers/                   API shape -> internal type
-│   ├── services/
-│   ├── repositories/
-│   ├── lib/
-│   │   ├── supabase/                  server, client, middleware
-│   │   ├── auth.ts
-│   │   └── tags.ts                    #ABC -> %23ABC
+│   │   │   ├── [clanTag]/  dashboard, members, player, cwl, war, raids,
+│   │   │   │               games, layouts, notices, polls
+│   │   │   ├── rating/     Player rating and its five sections
+│   │   │   ├── roster/     CWL roster across the family
+│   │   │   ├── account/    your villages and their reports
+│   │   │   ├── admin/      sync health, accounts, audit, feedback
+│   │   │   └── dashboard/, people/, search/, notifications/, settings/
+│   │   ├── api/            verify, auth/sign-in, push/subscribe, sync-status
+│   │   └── auth/           magic-link callback, sign-out
+│   ├── integration/        coc-client.ts, coc-schemas.ts, mappers/,
+│   │                       village-export.ts — raw API shapes stop here
+│   ├── services/           derived values, as pure functions where possible
+│   ├── repositories/       database reads and writes, every one clan-filtered
+│   ├── lib/                supabase/, auth, tags, coc-time, csp, rating, ...
+│   ├── components/         kit.tsx, game/, ui/ (shadcn copies)
+│   ├── data/game/          generated game data (caps per Town Hall)
 │   └── types/
-├── scripts/sync/                      run by GitHub Actions, not Vercel
-│   ├── clans.ts
-│   ├── war.ts
-│   ├── cwl.ts
-│   ├── raids.ts
-│   └── shared.ts
-├── supabase/migrations/               numbered SQL files
-└── fixtures/                          saved API responses for offline dev
+├── scripts/sync/           run by GitHub Actions, not Vercel
+│   ├── shared.ts  alerts.ts  health.ts
+│   └── clans.ts  war.ts  cwl.ts  cwl-scout.ts  cwl-reminders.ts
+│       raids.ts  clan-games.ts  players.ts
+├── supabase/migrations/    001–064, numbered, never edited once applied
+├── test/                   PGlite: the real migrations on real Postgres
+└── fixtures/               saved API responses for offline dev
 ```
 
 The `scripts/sync/` directory is important: it runs on GitHub Actions, not on Vercel. It imports from `integration/` and `repositories/` but never from `app/`.
+
+### 4.2 The ratings
+
+Five ratings, one shape. Each clan rule is a constant in one service file, and
+the page that explains a rating prints from those same constants, so the
+explanation cannot drift from the sums.
+
+```
+  services/*-rating.ts        the rules, as pure functions over plain rows
+        ^
+  lib/*-rating-data.ts        reads the rows (clan-filtered, R3) and calls them
+        ^
+  app/(app)/rating/*/page.tsx shows the ranking
+```
+
+Every rating gives a player a share of their clan's marks for a war, day,
+weekend or month, so a big clan and a small one rank on the same scale.
+`lib/rating.ts` lists the sections. The combined ranking at `/rating` still uses
+donations alone; how the five are weighed together has not been decided yet.
 
 ---
 

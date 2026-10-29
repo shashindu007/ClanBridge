@@ -11,16 +11,16 @@ import type { NextConfig } from "next";
  * clickjacked, and a referrer carrying `?next=/…` to another origin describes
  * the product's URL structure to whoever is listening.
  *
- * NO CONTENT-SECURITY-POLICY, deliberately, and it is the obvious omission.
- * Next's App Router emits inline bootstrap scripts, so a real CSP needs a nonce
- * generated per request in middleware and threaded through. That is its own
- * change with its own way of silently breaking the app, and a CSP with
- * 'unsafe-inline' in it is a header that looks like protection and is not. It is
- * recorded as outstanding rather than half-done.
+ * THE CONTENT-SECURITY-POLICY IS NOT HERE. It needs a fresh nonce on every
+ * request, so middleware builds it (src/lib/csp.ts). It is sent REPORT-ONLY for
+ * now: a source the policy forgot shows up as a console warning instead of a
+ * broken page. To enforce it, open the main pages on the live site, fix any
+ * warnings in lib/csp.ts, then change CSP_HEADER there to
+ * "Content-Security-Policy".
  */
 const securityHeaders = [
-  // Clickjacking. frame-ancestors would be the modern spelling, but that lives
-  // in a CSP, which is exactly what is not here yet.
+  // Clickjacking. The CSP's frame-ancestors says the same, but only once that
+  // policy is enforced rather than report-only, so this stays.
   { key: "X-Frame-Options", value: "DENY" },
 
   // Stops a browser guessing that a JSON error body or an uploaded base layout

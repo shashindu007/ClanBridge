@@ -14,6 +14,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { WRITE_LIMIT, sharedRateLimiter } from "@/lib/rate-limit";
 import { PATHNAME_HEADER, USER_ID_HEADER } from "@/lib/request-headers";
+import { CSP_HEADER } from "@/lib/csp";
 
 /**
  * Paths reachable without a session. Everything else redirects to /login.
@@ -104,7 +105,8 @@ async function hasWriteBudget(key: string): Promise<boolean> {
 }
 
 /**
- * A fresh header set carrying PATHNAME_HEADER and USER_ID_HEADER.
+ * A fresh header set carrying PATHNAME_HEADER and USER_ID_HEADER, and the
+ * request's Content-Security-Policy, which is where Next finds the nonce.
  *
  * Read from `request.headers` at call time rather than from a snapshot, because
  * `request.cookies.set()` mutates the request's cookie header — capturing the
@@ -115,9 +117,11 @@ function forwardedHeaders(
   request: NextRequest,
   pathname: string,
   userId: string | null,
+  csp: string | undefined,
 ): Headers {
   const headers = new Headers(request.headers);
   headers.set(PATHNAME_HEADER, pathname);
+  if (csp) headers.set(CSP_HEADER, csp);
   // set-or-delete, never "leave what arrived". See USER_ID_HEADER above.
   if (userId) headers.set(USER_ID_HEADER, userId);
   else headers.delete(USER_ID_HEADER);
@@ -152,12 +156,12 @@ function needsNoSession(pathname: string): boolean {
   return pathname === "/api/auth" || pathname.startsWith("/api/auth/");
 }
 
-export async function updateSession(request: NextRequest) {
+export async function updateSession(request: NextRequest, csp?: string) {
   const { pathname } = request.nextUrl;
 
   if (needsNoSession(pathname)) {
     return NextResponse.next({
-      request: { headers: forwardedHeaders(request, pathname, null) },
+      request: { headers: forwardedHeaders(request, pathname, null, csp) },
     });
   }
 
@@ -245,7 +249,7 @@ export async function updateSession(request: NextRequest) {
   // known: the refreshed cookies from setAll() above, and the validated user id
   // that saves the render a second getUser().
   const response = NextResponse.next({
-    request: { headers: forwardedHeaders(request, pathname, user?.id ?? null) },
+    request: { headers: forwardedHeaders(request, pathname, user?.id ?? null, csp) },
   });
   for (const { name, value, options } of refreshedCookies) {
     response.cookies.set(name, value, options);

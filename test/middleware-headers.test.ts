@@ -33,6 +33,8 @@ vi.mock("@supabase/ssr", () => ({
 
 const { updateSession } = await import("@/lib/supabase/middleware");
 const { USER_ID_HEADER, PATHNAME_HEADER } = await import("@/lib/request-headers");
+const { middleware } = await import("@/middleware");
+const { CSP_HEADER } = await import("@/lib/csp");
 
 /** What a Server Component would see for `name`, or null if it is not forwarded. */
 function forwarded(response: Response, name: string): string | null {
@@ -119,5 +121,44 @@ describe("the refreshed session survives the response being built last", () => {
 
     expect(response.cookies.get("sb-access-token")?.value).toBe("refreshed");
     expect(forwarded(response, USER_ID_HEADER)).toBe("real-user");
+  });
+});
+
+describe("the Content-Security-Policy", () => {
+  const nonceOf = (csp: string | null) => csp?.match(/'nonce-([^']+)'/)?.[1];
+
+  it("is sent on the response, report-only for now", async () => {
+    signedInAs("real-user");
+    const response = await middleware(requestFor("/roster"));
+    expect(CSP_HEADER).toBe("Content-Security-Policy-Report-Only");
+    expect(response.headers.get(CSP_HEADER)).toMatch(/script-src 'self' 'nonce-/);
+  });
+
+  it("is forwarded on the request too, with the same nonce, which is where Next reads it", async () => {
+    signedInAs("real-user");
+    const response = await middleware(requestFor("/roster"));
+    const sent = response.headers.get(CSP_HEADER);
+    const seen = forwarded(response, CSP_HEADER.toLowerCase());
+    expect(nonceOf(seen)).toBeTruthy();
+    expect(nonceOf(seen)).toBe(nonceOf(sent));
+  });
+
+  it("replaces a policy the browser supplied", async () => {
+    signedInAs("real-user");
+    const response = await middleware(
+      requestFor("/roster", { [CSP_HEADER]: "script-src 'nonce-chosen-by-the-browser'" }),
+    );
+    expect(nonceOf(forwarded(response, CSP_HEADER.toLowerCase()))).not.toBe(
+      "chosen-by-the-browser",
+    );
+  });
+
+  it("uses a new nonce on every request", async () => {
+    signedInAs("real-user");
+    const first = await middleware(requestFor("/roster"));
+    const second = await middleware(requestFor("/roster"));
+    expect(nonceOf(first.headers.get(CSP_HEADER))).not.toBe(
+      nonceOf(second.headers.get(CSP_HEADER)),
+    );
   });
 });

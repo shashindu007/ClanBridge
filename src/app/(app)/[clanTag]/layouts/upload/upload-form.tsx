@@ -28,6 +28,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { safeMessage } from "@/lib/errors";
 import {
   ImageRejected,
   TARGET_BYTES,
@@ -131,8 +132,14 @@ export function UploadForm({ clanId, clanTag, save }: UploadFormProps) {
 
       if (error) {
         setStatus("error");
+        // Not error.message: a Storage refusal names the policy and the table it
+        // guards (lib/errors.ts). The raw text goes to the console instead.
         setMessage(
-          `The screenshot could not be uploaded: ${error.message}. The layout was not saved.`,
+          safeMessage(
+            "layout-upload",
+            error,
+            "The screenshot could not be uploaded, so the layout was not saved. Try again.",
+          ),
         );
         return;
       }

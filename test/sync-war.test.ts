@@ -16,10 +16,11 @@
 //
 // None of the four produces an error at the time.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { useFixtureCopy, type FixtureDir } from "./fixture-dir";
 import { createHarness, type Harness } from "./pg-harness";
 import { createPgliteSupabase } from "./pglite-supabase";
 import { runSyncJob } from "../scripts/sync/shared";
@@ -48,14 +49,10 @@ const CLAN_A = "aaaaaaaa-0000-4000-8000-000000000001";
  *                 gives one. The captured war is a CWL war, so leaving this
  *                 alone would quietly assert the wrong denominator for T6.9.
  *
- * Written before each test and restored after, so the committed fixture on disk
- * is never left modified — the same pattern sync-clans.test.ts uses for its
- * private-war-log case.
+ * Written into a private copy of fixtures/ before each test (fixture-dir.ts),
+ * so the committed fixture is never touched.
  */
-const CURRENT_WAR_PATH = join(process.cwd(), "fixtures", "currentwar.json");
 const CWL_WAR_PATH = join(process.cwd(), "fixtures", "cwlwar.json");
-
-const REAL_CURRENT_WAR = readFileSync(CURRENT_WAR_PATH, "utf8");
 
 interface WarFixture {
   state: string;
@@ -125,6 +122,7 @@ describe("T6.1 — the clan war sync", () => {
   describe("against real Postgres, offline", () => {
     let h: Harness;
     let client: SupabaseClient;
+    let fixtures: FixtureDir;
 
     beforeAll(async () => {
       h = await createHarness();
@@ -135,9 +133,10 @@ describe("T6.1 — the clan war sync", () => {
     });
 
     beforeEach(async () => {
-      // See IN_WAR: the captured currentwar.json is notInWar, so it is swapped
-      // for a real war for the duration of each case and restored below.
-      writeFileSync(CURRENT_WAR_PATH, JSON.stringify(IN_WAR, null, 2), "utf8");
+      // See IN_WAR: the captured currentwar.json is notInWar, so the copy gets
+      // a real war for the duration of each case.
+      fixtures = useFixtureCopy();
+      fixtures.write("currentwar.json", IN_WAR);
 
       process.env.USE_FIXTURES = "true";
       delete process.env.COC_API_TOKEN;
@@ -159,9 +158,7 @@ describe("T6.1 — the clan war sync", () => {
     });
 
     afterEach(() => {
-      // Unconditional, and before anything else that could throw: a failing test
-      // must not leave a rewritten fixture committed to the repository.
-      writeFileSync(CURRENT_WAR_PATH, REAL_CURRENT_WAR, "utf8");
+      fixtures.cleanup();
       vi.unstubAllGlobals();
       vi.restoreAllMocks();
     });
@@ -423,8 +420,11 @@ describe("T6.1 — the clan war sync", () => {
       });
 
       it("writes them once: a second run adds nothing", async () => {
-        await runSyncJob("war", syncWar, { client });
+        // The first run is checked too: a failed first run writes nothing, and
+        // then "nothing changed" would compare an empty list with the second run.
+        expect(await runSyncJob("war", syncWar, { client })).toBe("success");
         const ids = await h.db.query<{ id: string }>(`select id from war_opponent_attacks order by id`);
+        expect(ids.rows).toHaveLength(OPPONENT_ATTACK_COUNT);
         await runSyncJob("war", syncWar, { client });
         const again = await h.db.query<{ id: string }>(`select id from war_opponent_attacks order by id`);
         expect(again.rows).toEqual(ids.rows);

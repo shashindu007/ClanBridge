@@ -7,10 +7,11 @@
 // The headline assertion is the spec's: running it twice produces no duplicate
 // rows (R5).
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { useFixtureCopy } from "./fixture-dir";
 import { createHarness, type Harness } from "./pg-harness";
 import { createPgliteSupabase } from "./pglite-supabase";
 import { runSyncJob } from "../scripts/sync/shared";
@@ -308,13 +309,10 @@ describe("T2.6 — sync:clans against real Postgres, offline", () => {
   describe("T0.1 — a private war log is detected automatically", () => {
     it("warns, naming the clan, when the war log is private", async () => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-      const path = join(process.cwd(), "fixtures", "clan.json");
-      const original = readFileSync(path, "utf8");
+      const fixtures = useFixtureCopy();
 
       try {
-        const fixture = JSON.parse(original);
-        fixture.isWarLogPublic = false;
-        writeFileSync(path, JSON.stringify(fixture, null, 2), "utf8");
+        fixtures.write("clan.json", { ...CLAN_FIXTURE, isWarLogPublic: false });
 
         const result = await runSyncJob("clans", syncClans, { client });
 
@@ -325,7 +323,7 @@ describe("T2.6 — sync:clans against real Postgres, offline", () => {
         expect(message).toMatch(/PRIVATE war log/i);
         expect(message).toContain("#2PP0JCCL");
       } finally {
-        writeFileSync(path, original, "utf8");
+        fixtures.cleanup();
       }
     });
 
