@@ -81,6 +81,15 @@ export function clanProfileRow(clanId: string, api: ReturnType<typeof mapClan>) 
     capital_league: api.capitalLeague ?? null,
     capital_hall_level: api.capitalHallLevel ?? null,
     capital_districts: api.capitalDistricts,
+    description: api.description ?? null,
+    clan_points: api.clanPoints ?? null,
+    clan_builder_base_points: api.clanBuilderBasePoints ?? null,
+    clan_capital_points: api.clanCapitalPoints ?? null,
+    war_frequency: api.warFrequency ?? null,
+    required_townhall_level: api.requiredTownhallLevel ?? null,
+    required_trophies: api.requiredTrophies ?? null,
+    location: api.location ?? null,
+    labels: api.labels,
   };
 }
 
@@ -118,6 +127,8 @@ async function syncMembers(
     name: m.name,
     th_level: m.thLevel ?? null,
     clan_role: m.role ?? null,
+    league_tier: m.leagueTier ?? null,
+    league_tier_id: m.leagueTierId ?? null,
     // A returning member is un-departed here rather than re-created, so their
     // whole history reattaches to the same row (T3.9).
     left_at: null,

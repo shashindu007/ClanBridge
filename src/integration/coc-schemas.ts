@@ -66,6 +66,12 @@ export const clanMemberSchema = z.looseObject({
   townHallLevel: z.number().optional(),
   expLevel: z.number().optional(),
   league: league,
+  /**
+   * 071 — the member's real rank. Ranked battles replaced the old leagues, so
+   * `league` above is "Unranked" for almost everyone and this is what the game
+   * shows. Ids rise with rank.
+   */
+  leagueTier: league,
   trophies: z.number().optional(),
   builderBaseTrophies: z.number().optional(),
   clanRank: z.number().optional(),
@@ -107,6 +113,16 @@ export const clanSchema = z.looseObject({
   // so all three stay optional.
   warTies: z.number().optional(),
   warLosses: z.number().optional(),
+  // 071 — the clan's own card, as a member sees it in game.
+  description: z.string().optional(),
+  clanPoints: z.number().optional(),
+  clanBuilderBasePoints: z.number().optional(),
+  clanCapitalPoints: z.number().optional(),
+  warFrequency: z.string().optional(),
+  requiredTownhallLevel: z.number().optional(),
+  requiredTrophies: z.number().optional(),
+  location: z.looseObject({ name: z.string().optional() }).optional(),
+  labels: z.array(z.looseObject({ name: z.string().optional() })).default([]),
   /** 065 — our own Clan Capital: the hall and each district's level. */
   clanCapital: z
     .looseObject({
@@ -320,6 +336,8 @@ export const raidSeasonSchema = z.looseObject({
   endTime: cocTimestamp,
   capitalTotalLoot: z.number().optional(),
   raidsCompleted: z.number().optional(),
+  /** 071 — not the same as raidsCompleted: 25 districts across 3 raids, say. */
+  enemyDistrictsDestroyed: z.number().optional(),
   totalAttacks: z.number().optional(),
   offensiveReward: z.number().optional(),
   defensiveReward: z.number().optional(),

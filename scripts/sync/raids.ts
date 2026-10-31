@@ -138,6 +138,8 @@ export interface RecordedSeason {
   captured: boolean;
   /** 065 — its defence log has been captured. */
   defended: boolean;
+  /** 071 — its district count has been stored. */
+  districtsKnown: boolean;
 }
 
 /**
@@ -153,7 +155,7 @@ async function recordedSeasons(
 ): Promise<Map<string, RecordedSeason>> {
   const { data, error } = await supabase
     .from("raid_seasons")
-    .select("id, start_time, state, attacks_captured_at, defenses_captured_at")
+    .select("id, start_time, state, attacks_captured_at, defenses_captured_at, enemy_districts_destroyed")
     .eq("clan_id", clan.id) // R3
     .is("deleted_at", null);
 
@@ -166,6 +168,7 @@ async function recordedSeasons(
     state: string | null;
     attacks_captured_at: string | null;
     defenses_captured_at: string | null;
+    enemy_districts_destroyed: number | null;
   }>) {
     recorded.set(new Date(row.start_time).toISOString(), {
       id: row.id,
@@ -174,6 +177,7 @@ async function recordedSeasons(
       settled: Boolean(row.state) && !isOngoing(row.state),
       captured: row.attacks_captured_at !== null && row.attacks_captured_at !== undefined,
       defended: row.defenses_captured_at !== null && row.defenses_captured_at !== undefined,
+      districtsKnown: row.enemy_districts_destroyed !== null && row.enemy_districts_destroyed !== undefined,
     });
   }
   return recorded;
@@ -208,6 +212,7 @@ async function upsertSeason(
         // 027. Every one of these was on the response and was being discarded.
         state: "ongoing",
         raids_completed: season.raidsCompleted ?? null,
+        enemy_districts_destroyed: season.enemyDistrictsDestroyed ?? null,
         total_attacks: season.totalAttacks ?? null,
         offensive_reward: season.offensiveReward ?? null,
         defensive_reward: season.defensiveReward ?? null,
@@ -229,6 +234,25 @@ async function upsertSeason(
   const id = (data as Array<{ id: string }> | null)?.[0]?.id;
   if (!id) throw new Error(`raid_seasons row vanished for ${clan.tag} at ${startIso}`);
   return id;
+}
+
+/**
+ * 071 — one number onto a settled weekend, and nothing else on the row (R5). The
+ * API serves the last ten weekends, so those arrive here on the first run; older
+ * ones stay null and the page shows a dash rather than a guess.
+ */
+async function addDistrictCount(
+  supabase: SupabaseClient,
+  clan: ClanRow,
+  seasonId: string,
+  season: RaidSeason,
+): Promise<void> {
+  const { error } = await supabase
+    .from("raid_seasons")
+    .update({ enemy_districts_destroyed: season.enemyDistrictsDestroyed })
+    .eq("id", seasonId)
+    .eq("clan_id", clan.id); // R3
+  if (error) throw new Error(`raid_seasons district count failed for ${clan.tag}: ${error.message}`);
 }
 
 /** Close the weekend, as the last write of the run that saw it end. */
@@ -535,12 +559,14 @@ export async function syncRaids(ctx: JobContext): Promise<void> {
 
         // R5. A finished weekend recorded once is never touched again, even
         // though the API will keep sending it on every run for weeks — except
-        // to add the attacks 064 captures and the defence log 065 captures,
-        // once each, if they are still missing.
+        // to add the attacks 064 captures, the defence log 065 captures and the
+        // district count 071 captures, once each, if they are still missing.
         if (known?.settled) {
           const attacksDue = !known.captured && season.raids !== null;
           const defended = defencesDue(season, known);
-          if (!attacksDue && !defended) continue;
+          const districtsDue = !known.districtsKnown && season.enemyDistrictsDestroyed !== undefined;
+          if (!attacksDue && !defended && !districtsDue) continue;
+          if (districtsDue) await addDistrictCount(supabase, clan, known.id, season);
           if (attacksDue) {
             const playerIds = await raidPlayers(supabase, clan, season);
             ctx.recorded(await captureAttacks(supabase, clan, known.id, season.raids!, playerIds));

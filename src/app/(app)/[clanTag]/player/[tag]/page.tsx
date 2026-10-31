@@ -69,7 +69,7 @@ export default async function PlayerProfilePage({
   // the same thing whether or not that member happens to be themselves.
   const { data } = await supabase
     .from("players")
-    .select("id, tag, name, th_level, verified, clan_role, left_at")
+    .select("id, tag, name, th_level, verified, clan_role, left_at, league_tier")
     .eq("clan_id", clan.id)
     .eq("tag", playerTag)
     .is("deleted_at", null);
@@ -83,6 +83,7 @@ export default async function PlayerProfilePage({
         verified: boolean;
         clan_role: string | null;
         left_at: string | null;
+        league_tier: string | null;
       }
     | undefined;
 
@@ -121,6 +122,7 @@ export default async function PlayerProfilePage({
           player.clan_role || player.verified || player.left_at ? (
             <>
               {player.clan_role && <Badge variant="secondary">{player.clan_role}</Badge>}
+              {player.league_tier && <Badge variant="outline">{player.league_tier}</Badge>}
               {player.verified && <Badge variant="outline">verified</Badge>}
               {player.left_at && <Badge variant="destructive">left the clan</Badge>}
             </>
@@ -156,7 +158,7 @@ export default async function PlayerProfilePage({
         clanNames={clanNames}
       />
 
-      <PlayerCareer profile={profile} />
+      <PlayerCareer profile={profile} departed={player.left_at !== null} />
     </main>
   );
 }

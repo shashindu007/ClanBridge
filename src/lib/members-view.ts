@@ -22,6 +22,7 @@ export const SORTS = {
   name: "Name",
   role: "Role",
   th: "TH",
+  league: "League",
   trophies: "Trophies",
   given: "Given",
   received: "Received",

@@ -176,6 +176,9 @@ export const PHASE1_MIGRATIONS = [
   // One reminder per war and raid weekend, and cwl_wars unique per season, so
   // two family clans in one group each keep their own war. Follows 002 and 027.
   "068_war_reminders_and_cwl_identity.sql",
+  // Raid district counts, the member's real league, and the clan's own card.
+  // Follows 027, 001 and 065.
+  "071_api_extras_more.sql",
 ] as const;
 
 /**

@@ -22,6 +22,7 @@ const PROFILE: PlayerProfileRow = {
     { name: "Bigger Coffers", stars: 3, value: 17, target: 10, info: "Upgrade a Gold Storage", village: "home" },
     { name: "Gold Grab", stars: 2, value: 400, target: 1000, village: "home" },
     { name: "Master Engineering", stars: 1, value: 4, target: 8, village: "builder" },
+    { name: "Aggressive Capitalism", stars: 2, value: 900, target: 2000, village: "capital" },
   ],
   capturedAt: "2026-10-29T06:11:00.000Z",
 };
@@ -46,11 +47,12 @@ describe("PlayerCareer", () => {
 
   it("counts achievements with three stars, and shows the next goal only for unfinished ones", () => {
     const html = render(PROFILE);
-    expect(html).toContain("1 of 3 with three stars");
+    expect(html).toContain("1 of 4 with three stars");
     expect(html).toContain("400 of 1,000");
     // Finished: the value alone, not "17 of 10".
     expect(html).not.toContain("17 of 10");
     expect(html).toContain("Builder Base");
+    expect(html).toContain("Clan Capital");
   });
 
   it("leaves the achievements out when the game sent none", () => {

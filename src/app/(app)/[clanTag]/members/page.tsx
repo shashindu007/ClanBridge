@@ -167,6 +167,8 @@ export default async function MemberDirectoryPage({
           return ROLE_ORDER[r.member.clanRole ?? ""] ?? 99;
         case "th":
           return r.member.thLevel;
+        case "league":
+          return r.member.leagueTierId ?? null;
         case "trophies":
           return r.activity.trophies;
         case "given":
@@ -378,6 +380,9 @@ export default async function MemberDirectoryPage({
                     </TableCell>
                     <TableCell data-label={SORTS.th} className="text-right">
                       <TownHall level={member.thLevel} />
+                    </TableCell>
+                    <TableCell data-label={SORTS.league} className="text-right text-sm whitespace-nowrap">
+                      {member.leagueTier ?? "—"}
                     </TableCell>
                     <TableCell data-label={SORTS.trophies} className="text-right tabular-nums">
                       {activity.trophies ?? "—"}

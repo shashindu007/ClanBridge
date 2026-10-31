@@ -48,6 +48,7 @@ import {
   PoolSearch,
   Step,
   TownHall,
+  WarPreferenceNote,
 } from "@/components/lineup-parts";
 import { PageHeader } from "@/components/page-header";
 import { currentUserId } from "@/lib/auth";
@@ -65,6 +66,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { membersForClan } from "@/repositories/members";
 import { countsForPoll, pollsForClan, responsesForPoll } from "@/repositories/polls";
+import { warPreferences } from "@/repositories/profiles";
 import {
   addToLineup,
   attachLineupToWar,
@@ -258,6 +260,13 @@ export default async function WarLineupPage({
     availabilityPoll ? responsesForPoll(supabase, availabilityPoll.id) : Promise.resolve([]),
     currentWar(supabase, clan.id),
   ]);
+  // 065 — set in game, and what actually decides whether they can be matched. A
+  // leader picking someone set to Out finds out in the war search, not here.
+  const preferences = await warPreferences(
+    supabase,
+    roster.map((m) => m.playerId),
+    [clan.id],
+  );
   const answerByPlayer = new Map(answers.map((a) => [a.playerId, a]));
   const optionLabel = new Map(counts.map((c) => [c.optionId, c.label]));
   const pickedIds = new Set(picked.map((m) => m.playerId));
@@ -533,6 +542,7 @@ export default async function WarLineupPage({
                         </td>
                         <td data-label="Availability" className="py-2.5 pr-3">
                           <AvailabilityBadge answer={m.answer} />
+                          <WarPreferenceNote answer={m.answer} preference={preferences.get(m.playerId)} />
                         </td>
                         <td data-cell="row" className="py-2.5 text-right">
                           {full ? (

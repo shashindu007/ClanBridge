@@ -135,7 +135,8 @@ export async function membersOfRoster(
     .select("id, roster_id, player_id, position, added_at")
     .eq("roster_id", rosterId)
     .is("deleted_at", null)
-    .order("position");
+    // The order they were picked. `position` has never been written.
+    .order("added_at");
 
   if (error || !data) return [];
   const rows = data as unknown as Array<Record<string, unknown>>;

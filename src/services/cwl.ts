@@ -218,33 +218,3 @@ export interface SeasonContribution {
   stars: number;
 }
 
-export function seasonContribution(
-  perWar: Array<{ roster: CwlRosterEntry[]; attacks: CwlAttack[] }>,
-): SeasonContribution[] {
-  const byPlayer = new Map<string, SeasonContribution>();
-
-  for (const war of perWar) {
-    for (const member of warRecord(war.roster, war.attacks)) {
-      const entry = byPlayer.get(member.playerId) ?? {
-        playerId: member.playerId,
-        tag: member.tag,
-        name: member.name,
-        warsRostered: 0,
-        attacksUsed: 0,
-        missed: 0,
-        stars: 0,
-      };
-
-      entry.warsRostered += 1;
-      entry.attacksUsed += member.attacks.length;
-      entry.stars += member.stars;
-      if (member.missed) entry.missed += 1;
-      byPlayer.set(member.playerId, entry);
-    }
-  }
-
-  // Most stars first, then fewest misses — the order a leader reads it in.
-  return [...byPlayer.values()].sort(
-    (a, b) => b.stars - a.stars || a.missed - b.missed || a.name.localeCompare(b.name),
-  );
-}

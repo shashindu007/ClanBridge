@@ -36,6 +36,7 @@ function season(over: Partial<RaidSeasonRow> = {}): RaidSeasonRow {
     totalLoot: 100_000,
     state: "ended",
     raidsCompleted: 4,
+    enemyDistrictsDestroyed: 28,
     totalAttacks: 42,
     offensiveReward: 180,
     defensiveReward: 95,
@@ -309,7 +310,19 @@ describe("065 — defenceSummary, our capital's defence", () => {
     attackCount: 4,
     destruction: 100,
     stars: 3,
+    attackerLevel: 12,
+    totalLooted: 5000,
     ...over,
+  });
+
+  // 065 stored these and nothing read them: how strong the clan raiding us was,
+  // and what it cost us.
+  it("adds up the stars and gold each raid took", () => {
+    const { raids } = defenceSummary([
+      row({ districtId: 1, stars: 3, totalLooted: 5000 }),
+      row({ districtId: 2, stars: 2, totalLooted: 1200 }),
+    ]);
+    expect(raids[0]).toMatchObject({ attackerLevel: 12, stars: 5, looted: 6200 });
   });
 
   it("totals each enemy raid", () => {
@@ -319,7 +332,14 @@ describe("065 — defenceSummary, our capital's defence", () => {
       row({ districtId: 70000002, districtName: "Wizard Valley", attackCount: 3, destruction: 64, stars: 1 }),
     ]);
     expect(raids).toEqual([
-      { raidNumber: 1, attackerTag: "#AAA", attackerName: "Raiders", attacks: 9, districtsDestroyed: 2, districts: 3 },
+      expect.objectContaining({
+        raidNumber: 1,
+        attackerTag: "#AAA",
+        attackerName: "Raiders",
+        attacks: 9,
+        districtsDestroyed: 2,
+        districts: 3,
+      }),
     ]);
   });
 

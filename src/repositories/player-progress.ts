@@ -25,6 +25,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { villageSnapshot, type StoredUnit, type VillageScore } from "@/services/progress";
+import { assertRead } from "@/lib/errors";
 
 export type ProgressScope = { clanId: string } | "owner";
 
@@ -126,6 +127,8 @@ export type { HeroLevel } from "@/services/progress";
 
 export interface VillageSnapshot extends VillageScore {
   thLevel: number | null;
+  /** 071 — the function now returns it. Null below Town Hall 12. */
+  thWeaponLevel: number | null;
   capturedAt: string;
 }
 
@@ -138,12 +141,14 @@ export async function latestProgressFor(
   if (!ids.length) return out;
 
   const { data, error } = await supabase.rpc("latest_player_progress", { p_player_ids: ids });
-  if (error || !data) return out;
+  assertRead(error, "latest_player_progress");
+  if (!data) return out;
 
   for (const row of data as Array<Record<string, unknown>>) {
     const reading = toReading(row);
     out.set(row.player_id as string, {
       thLevel: reading.thLevel,
+      thWeaponLevel: (row.th_weapon_level as number | null) ?? null,
       capturedAt: reading.capturedAt,
       ...villageSnapshot(reading.units),
     });

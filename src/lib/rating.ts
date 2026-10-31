@@ -23,6 +23,3 @@ export const RATING_SECTIONS: readonly RatingSection[] = [
   { kind: "raids", label: "Raids rating", href: "/rating/raids", ready: true },
 ];
 
-export function ratingSection(kind: string): RatingSection | undefined {
-  return RATING_SECTIONS.find((s) => s.kind === kind);
-}

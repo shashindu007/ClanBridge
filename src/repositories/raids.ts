@@ -35,6 +35,8 @@ export interface RaidSeasonRow {
   /** 'ongoing' | 'ended' | null. Null means the sync stored it before 027. */
   state: string | null;
   raidsCompleted: number | null;
+  /** 071 — districts across those raids. Null on weekends the API no longer serves. */
+  enemyDistrictsDestroyed: number | null;
   totalAttacks: number | null;
   /** Raid medals — the number members compare weekends by. */
   offensiveReward: number | null;
@@ -64,7 +66,7 @@ export interface RaidParticipantRow {
 }
 
 const SEASON_COLUMNS =
-  "id, start_time, end_time, total_loot, state, raids_completed, " +
+  "id, start_time, end_time, total_loot, state, raids_completed, enemy_districts_destroyed, " +
   "total_attacks, offensive_reward, defensive_reward, attacks_captured_at, defenses_captured_at";
 
 /** PostgREST sends an ISO string; the PGlite stand-in a Date. */
@@ -80,6 +82,7 @@ function toSeason(r: Record<string, unknown>): RaidSeasonRow {
     totalLoot: (r.total_loot as number | null) ?? null,
     state: (r.state as string | null) ?? null,
     raidsCompleted: (r.raids_completed as number | null) ?? null,
+    enemyDistrictsDestroyed: (r.enemy_districts_destroyed as number | null) ?? null,
     totalAttacks: (r.total_attacks as number | null) ?? null,
     offensiveReward: (r.offensive_reward as number | null) ?? null,
     defensiveReward: (r.defensive_reward as number | null) ?? null,
@@ -104,19 +107,6 @@ export async function seasonsForClan(
   if (!data) return [];
   // Newest first; the stand-in's .order() is ascending only.
   return (data as unknown as Array<Record<string, unknown>>).map(toSeason).reverse();
-}
-
-/**
- * The most recent weekend, or null.
- *
- * Null is the ordinary state for a clan that has never opened its Capital, and
- * the page has to say which of the two it is rather than rendering blank.
- */
-export async function latestSeason(
-  supabase: SupabaseClient,
-  clanId: string,
-): Promise<RaidSeasonRow | null> {
-  return (await seasonsForClan(supabase, clanId))[0] ?? null;
 }
 
 /**
@@ -345,6 +335,9 @@ export async function raidAttacksOfSeason(
     name: names.get(r.player_id as string)?.name ?? "Unknown player",
     destruction: Number(r.destruction),
     stars: Number(r.stars),
+    attackerLevel:
+      r.attacker_level === null || r.attacker_level === undefined ? null : Number(r.attacker_level),
+    totalLooted: Number(r.total_looted ?? 0),
   }));
 }
 
@@ -393,6 +386,9 @@ export interface RaidDefenceRow {
   attackCount: number;
   destruction: number;
   stars: number;
+  /** 071 reads these from what 065 stored. Null on the attacking clan's level if unknown. */
+  attackerLevel: number | null;
+  totalLooted: number;
 }
 
 /** Every enemy raid on our capital in one weekend. `seasonId` must already be clan-checked. */
@@ -403,8 +399,8 @@ export async function raidDefencesOfSeason(
   const { data, error } = await supabase
     .from("raid_defenses")
     .select(
-      "raid_number, attacker_tag, attacker_name, district_id, district_name, " +
-        "district_hall_level, attack_count, destruction, stars",
+      "raid_number, attacker_tag, attacker_name, attacker_level, district_id, district_name, " +
+        "district_hall_level, attack_count, destruction, stars, total_looted",
     )
     .eq("raid_season_id", seasonId)
     .is("deleted_at", null)
@@ -423,5 +419,8 @@ export async function raidDefencesOfSeason(
     attackCount: Number(r.attack_count),
     destruction: Number(r.destruction),
     stars: Number(r.stars),
+    attackerLevel:
+      r.attacker_level === null || r.attacker_level === undefined ? null : Number(r.attacker_level),
+    totalLooted: Number(r.total_looted ?? 0),
   }));
 }

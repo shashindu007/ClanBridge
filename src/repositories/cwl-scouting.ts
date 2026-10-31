@@ -60,9 +60,18 @@ export async function ourVillages(
   const { data, error } = await supabase.from("players").select("id, tag, name").in("tag", [...tags]);
   if (error || !data) return [];
   const players = data as Array<{ id: string; tag: string; name: string | null }>;
-  const progress = await latestProgressFor(
-    supabase,
-    players.map((p) => p.id),
+  const ids = players.map((p) => p.id);
+  const [progress, careers] = await Promise.all([
+    latestProgressFor(supabase, ids),
+    supabase.from("player_profiles").select("player_id, war_stars").in("player_id", ids),
+  ]);
+  // Lifetime war stars, from 065. Enemy villages have this from the scout; ours
+  // read as blank beside them without it. A failed read here costs one column.
+  const warStars = new Map(
+    ((careers.data ?? []) as Array<{ player_id: string; war_stars: number | null }>).map((c) => [
+      c.player_id,
+      c.war_stars,
+    ]),
   );
   return players.flatMap((p): ScoutVillage[] => {
     const snap = progress.get(p.id);
@@ -79,10 +88,8 @@ export async function ourVillages(
         equipmentPct: snap.equipmentPct,
         offencePct: snap.offencePct,
         maxPct: snap.maxPct,
-        // latest_player_progress (051) does not return it; our own villages'
-        // weapons are on their Base details page.
-        thWeaponLevel: null,
-        warStars: null,
+        thWeaponLevel: snap.thWeaponLevel,
+        warStars: warStars.get(p.id) ?? null,
         capturedAt: snap.capturedAt,
       },
     ];

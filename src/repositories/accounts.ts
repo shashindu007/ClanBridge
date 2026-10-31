@@ -61,11 +61,6 @@ export function clansLeftInGame(
   return account.memberships.filter((m) => !present.has(m.clanId));
 }
 
-/** Has this account left, in game, any clan it still holds a role in? */
-export function leftClanInGame(account: Pick<AdminAccount, "memberships" | "players">): boolean {
-  return clansLeftInGame(account).length > 0;
-}
-
 export interface AdminAccount {
   id: string;
   email: string;

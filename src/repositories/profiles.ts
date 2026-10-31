@@ -27,6 +27,16 @@ export interface ClanProfile {
   capitalLeague: string | null;
   capitalHallLevel: number | null;
   capitalDistricts: CapitalDistrict[];
+  /** 071 — the clan's card. */
+  description: string | null;
+  clanPoints: number | null;
+  clanBuilderBasePoints: number | null;
+  clanCapitalPoints: number | null;
+  warFrequency: string | null;
+  requiredTownhallLevel: number | null;
+  requiredTrophies: number | null;
+  location: string | null;
+  labels: string[];
   /** When the clan sync last wrote it, ISO. */
   updatedAt: string | null;
 }
@@ -68,7 +78,9 @@ export async function clanProfile(
     .from("clan_profiles")
     .select(
       "war_wins, war_ties, war_losses, war_win_streak, capital_league, " +
-        "capital_hall_level, capital_districts, updated_at, created_at",
+        "capital_hall_level, capital_districts, description, clan_points, " +
+        "clan_builder_base_points, clan_capital_points, war_frequency, " +
+        "required_townhall_level, required_trophies, location, labels, updated_at, created_at",
     )
     .eq("clan_id", clanId) // R3
     .is("deleted_at", null);
@@ -88,6 +100,15 @@ export async function clanProfile(
     capitalDistricts: Array.isArray(row.capital_districts)
       ? (row.capital_districts as CapitalDistrict[])
       : [],
+    description: (row.description as string | null) || null,
+    clanPoints: num(row.clan_points),
+    clanBuilderBasePoints: num(row.clan_builder_base_points),
+    clanCapitalPoints: num(row.clan_capital_points),
+    warFrequency: (row.war_frequency as string | null) ?? null,
+    requiredTownhallLevel: num(row.required_townhall_level),
+    requiredTrophies: num(row.required_trophies),
+    location: (row.location as string | null) ?? null,
+    labels: Array.isArray(row.labels) ? (row.labels as string[]) : [],
     // A row never updated since it was written has only created_at.
     updatedAt: iso(row.updated_at) ?? iso(row.created_at),
   };

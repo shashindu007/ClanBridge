@@ -70,6 +70,11 @@ function when(iso: string | null): string {
 }
 
 /** Big numbers, readably. Capital loot runs to seven figures. */
+/** A dash for a number the API never sent. 0 would claim a figure nobody read. */
+function compactOrDash(n: number | null | undefined): string {
+  return n === null || n === undefined ? "—" : compact(n);
+}
+
 function compact(n: number): string {
   return n.toLocaleString("en-GB");
 }
@@ -174,12 +179,13 @@ export default async function RaidsPage({
               items={[
                 {
                   label: "raid medals",
-                  value: compact(season.offensiveReward ?? 0),
+                  value: compactOrDash(season.offensiveReward),
                   icon: Medal,
-                  title: `${compact(season.defensiveReward ?? 0)} defensive`,
                 },
-                { label: "capital loot", value: compact(season.totalLoot ?? 0), icon: Coins },
-                { label: "districts cleared", value: season.raidsCompleted ?? "—", icon: Castle },
+                { label: "defence medals", value: compactOrDash(season.defensiveReward), icon: ShieldHalf },
+                { label: "capital loot", value: compactOrDash(season.totalLoot), icon: Coins },
+                { label: "raids completed", value: season.raidsCompleted ?? "—", icon: Swords },
+                { label: "districts destroyed", value: season.enemyDistrictsDestroyed ?? "—", icon: Castle },
                 {
                   label: totals!.attacksOffered > 0 ? `of ${totals!.attacksOffered} attacks used` : "attacks used",
                   value: totals!.attacksUsed,
@@ -282,7 +288,7 @@ export default async function RaidsPage({
                           )}
                         </td>
                         <td className="py-2 text-right tabular-nums">
-                          {compact(r.loot ?? 0)}
+                          {compactOrDash(r.loot)}
                         </td>
                       </tr>
                     ))}
@@ -340,10 +346,10 @@ export default async function RaidsPage({
                 )}
                 {s.id === season?.id && <Badge variant="info">showing</Badge>}
                 <span className="text-muted-foreground text-sm tabular-nums">
-                  {compact(s.offensiveReward ?? 0)} medals
+                  {compactOrDash(s.offensiveReward)} medals
                 </span>
                 <span className="text-muted-foreground text-sm tabular-nums">
-                  {compact(s.totalLoot ?? 0)} loot
+                  {compactOrDash(s.totalLoot)} loot
                 </span>
               </li>
             ))}
@@ -450,10 +456,15 @@ function CapitalDefenceBody({ season, summary }: { season: RaidSeasonRow; summar
               <span className="min-w-0 flex-1 truncate">
                 {r.attackerName ?? "Unknown clan"}{" "}
                 <span className="text-muted-foreground font-mono text-xs">{r.attackerTag}</span>
+                {r.attackerLevel !== null && (
+                  <span className="text-muted-foreground text-xs"> · level {r.attackerLevel}</span>
+                )}
               </span>
               <span className="tabular-nums">
                 {r.districtsDestroyed} of {r.districts} districts
               </span>
+              <span className="text-muted-foreground tabular-nums">{r.stars}★</span>
+              <span className="text-muted-foreground tabular-nums">{compact(r.looted)} gold taken</span>
               <Badge variant="outline">{r.attacks} attacks</Badge>
             </li>
           ))}

@@ -126,9 +126,20 @@ export default async function CwlGroupClanPage({
               <MaxPct pct={scout.avgHeroPct} label="of hero max, averaged" />
             </StatTile>
             <StatTile
+              label="Avg pets"
+              value={pct(scout.avgPetPct)}
+              sub={`equipment ${pct(scout.avgEquipmentPct)}`}
+            >
+              <MaxPct pct={scout.avgPetPct} label="of pet max, averaged" />
+            </StatTile>
+            <StatTile
               label="Three-star hits"
               value={pct(scout.threeStarRate)}
-              sub={scout.attacks ? `${scout.threeStars} of ${scout.attacks} · ${scout.avgStars?.toFixed(1)}★ avg` : "no attacks yet"}
+              sub={
+                scout.attacks
+                  ? `${scout.threeStars} of ${scout.attacks} · ${scout.avgStars?.toFixed(1)}★ avg · ${pct(scout.avgDestruction)}`
+                  : "no attacks yet"
+              }
             />
             <StatTile
               label="Missed attacks"
@@ -261,6 +272,9 @@ function PlayersTable({ players, days }: { players: ScoutedPlayer[]; days: numbe
             <th className="py-2 pr-3 font-medium">Hero %</th>
             <th className="py-2 pr-3 font-medium">Pets</th>
             <th className="py-2 pr-3 font-medium">Equipment</th>
+            <th className="py-2 pr-3 font-medium">Offence</th>
+            <th className="py-2 pr-3 font-medium">Whole base</th>
+            <th className="py-2 pr-3 text-right font-medium">War stars</th>
             {days.map((d) => (
               <th key={d} className="px-1 py-2 text-center font-medium">
                 D{d}
@@ -315,6 +329,15 @@ function PlayersTable({ players, days }: { players: ScoutedPlayer[]; days: numbe
               </td>
               <td data-label="Equipment" className="py-2 pr-3">
                 <MaxPct pct={p.equipmentPct} label="of equipment max" />
+              </td>
+              <td data-label="Offence" className="py-2 pr-3">
+                <MaxPct pct={p.offencePct} label="of offence max" />
+              </td>
+              <td data-label="Whole base" className="py-2 pr-3">
+                <MaxPct pct={p.maxPct} label="of everything maxed" />
+              </td>
+              <td data-label="War stars" className="py-2 pr-3 text-right tabular-nums">
+                {p.warStars === null ? "—" : p.warStars.toLocaleString("en-GB")}
               </td>
               {p.byDay.map((d) => (
                 <td data-cell="mini" data-label={`D${d.day}`} key={d.day} className="px-1 py-2 text-center tabular-nums">

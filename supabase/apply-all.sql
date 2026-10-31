@@ -7,7 +7,7 @@
 -- BEGIN/COMMIT means a failure anywhere rolls the entire thing back, so you
 -- cannot end up with a half-applied schema.
 --
--- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql, 054_half_hour_snapshots.sql, 055_last_activity.sql, 056_notification_and_push_hardening.sql, 057_cwl_scouting.sql, 058_purge_cwl_scouting.sql, 059_purge_other_clans_only.sql, 060_scout_th_weapon.sql, 061_purge_keeps_our_wars.sql, 062_cwl_attack_order.sql, 063_war_opponent_attacks.sql, 064_raid_attacks.sql, 065_api_extras.sql, 066_war_duplicates.sql, 067_security_hardening.sql, 068_war_reminders_and_cwl_identity.sql
+-- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql, 054_half_hour_snapshots.sql, 055_last_activity.sql, 056_notification_and_push_hardening.sql, 057_cwl_scouting.sql, 058_purge_cwl_scouting.sql, 059_purge_other_clans_only.sql, 060_scout_th_weapon.sql, 061_purge_keeps_our_wars.sql, 062_cwl_attack_order.sql, 063_war_opponent_attacks.sql, 064_raid_attacks.sql, 065_api_extras.sql, 066_war_duplicates.sql, 067_security_hardening.sql, 068_war_reminders_and_cwl_identity.sql, 071_api_extras_more.sql
 --
 -- Two numbers are absent, retired rather than reused so that apply order
 -- stays equal to numeric order: 009 (cwl_signups, superseded by Phase 4B)
@@ -11810,6 +11810,100 @@ comment on column raid_seasons.reminded_at is
 
 alter table cwl_wars drop constraint cwl_wars_war_tag_key;
 alter table cwl_wars add constraint cwl_wars_season_war_tag_key unique (season_id, war_tag);
+
+-- ========================================================================
+-- 071_api_extras_more.sql
+-- ========================================================================
+
+-- 071 — The rest of what the API sends and nothing kept.
+--
+-- 065 took the first pass at this. The October 2026 audit compared the live API
+-- with what is stored, and three things were worth more than they looked:
+--
+--   * enemy_districts_destroyed. The raid page labelled raids_completed "districts
+--     cleared". They are different numbers: a live weekend reported 3 raids and 25
+--     districts. The page was showing the wrong one because the right one was
+--     never read.
+--
+--   * league_tier. Ranked battles replaced the old leagues, and `league` now says
+--     "Unranked" for 46 of 50 members in a real clan, with 14 of them on 0
+--     trophies. A member's actual rank ("Electro League 33") is in leagueTier,
+--     which nothing parsed, so the directory's trophy column showed almost nothing.
+--     league_tier_id keeps the order: the higher the id, the higher the rank, and
+--     names do not sort.
+--
+--   * the clan's own card: description, points, how often it wars, what it takes
+--     to join. A member can see all of it in game, and none of it here.
+--
+-- All of it is a game fact (R11), written only by scripts/sync/. These columns
+-- join tables whose policies already say who may read them, so no policy changes.
+
+alter table raid_seasons add column enemy_districts_destroyed integer;
+
+alter table players
+  add column league_tier text,
+  add column league_tier_id integer;
+
+alter table clan_profiles
+  add column description text,
+  add column clan_points integer,
+  add column clan_builder_base_points integer,
+  add column clan_capital_points integer,
+  add column war_frequency text,
+  add column required_townhall_level smallint,
+  add column required_trophies integer,
+  add column location text,
+  add column labels jsonb not null default '[]'::jsonb;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- latest_player_progress also returns the Town Hall weapon.
+--
+-- Scouting shows it for every enemy village and showed nothing for our own,
+-- because this function did not return the column. 051's function otherwise,
+-- unchanged. Dropped first: a change of return type cannot be replaced in place.
+
+drop function latest_player_progress(uuid[]);
+
+create function latest_player_progress(p_player_ids uuid[])
+returns table (
+  player_id        uuid,
+  captured_at      timestamptz,
+  th_level         smallint,
+  th_weapon_level  smallint,
+  units            jsonb
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if coalesce(cardinality(p_player_ids), 0) > 500 then
+    raise exception 'latest_player_progress: at most 500 players per call, got %',
+      cardinality(p_player_ids)
+      using errcode = '22023';
+  end if;
+
+  return query
+  with allowed as (
+    select requested.id
+    from unnest(coalesce(p_player_ids, '{}'::uuid[])) as requested(id)
+    where exists (select 1 from public.auth_clan_ids())
+       or current_setting('role', true) = 'service_role'
+       or requested.id in (select public.auth_owned_player_ids())
+  )
+  select distinct on (pp.player_id)
+         pp.player_id, pp.captured_at, pp.th_level, pp.th_weapon_level, pp.units
+  from public.player_progress pp
+  where pp.player_id in (select id from allowed)
+    and pp.deleted_at is null
+  order by pp.player_id, pp.captured_at desc;
+end;
+$$;
+
+revoke execute on function latest_player_progress(uuid[]) from public;
+grant execute on function latest_player_progress(uuid[]) to authenticated, service_role;
 
 commit;
 

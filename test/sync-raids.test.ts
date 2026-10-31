@@ -411,7 +411,7 @@ describe("T7.1 — the capital raid sync", () => {
       expect(defencesDue({ ...season!, state: "ongoing" }, undefined)).toBe(false);
       expect(defencesDue({ ...season!, defences: null }, undefined)).toBe(false);
       expect(
-        defencesDue(season!, { id: "x", settled: true, captured: true, defended: true }),
+        defencesDue(season!, { id: "x", settled: true, captured: true, defended: true, districtsKnown: true }),
       ).toBe(false);
     });
 
@@ -433,6 +433,32 @@ describe("T7.1 — the capital raid sync", () => {
         "stars",
         "total_looted",
       ]);
+    });
+  });
+
+  // 071. The raid page called raidsCompleted "districts cleared". They are not the
+  // same number, and the right one was never read.
+  describe("071 — districts destroyed", () => {
+    it("stores the districts apart from the raids", async () => {
+      await runSyncJob("raids", syncRaids, { client });
+      const row = await h.db.query<{ raids_completed: number; enemy_districts_destroyed: number }>(
+        `select raids_completed, enemy_districts_destroyed from raid_seasons order by start_time desc limit 1`,
+      );
+      expect(row.rows[0]!.raids_completed).toBe(LATEST.raidsCompleted);
+      expect(row.rows[0]!.enemy_districts_destroyed).toBe(11); // fixtures/capitalraids.json
+    });
+
+    it("adds it to a weekend stored before 071, and touches nothing else", async () => {
+      await runSyncJob("raids", syncRaids, { client });
+      await h.db.exec(`update raid_seasons set enemy_districts_destroyed = null, total_loot = 1`);
+
+      await runSyncJob("raids", syncRaids, { client });
+
+      const row = await h.db.query<{ total_loot: number; enemy_districts_destroyed: number }>(
+        `select total_loot, enemy_districts_destroyed from raid_seasons order by start_time desc limit 1`,
+      );
+      expect(row.rows[0]!.enemy_districts_destroyed).toBe(11); // fixtures/capitalraids.json
+      expect(row.rows[0]!.total_loot).toBe(1); // R5
     });
   });
 

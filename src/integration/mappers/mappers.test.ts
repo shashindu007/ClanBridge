@@ -31,6 +31,7 @@ import {
   mapSnapshot,
   mapWar,
   normaliseCwlSeason,
+  mapPlayerProfile,
 } from "./index";
 
 function fixture(name: string): unknown {
@@ -490,6 +491,23 @@ describe("mapPlayer", () => {
       playerSchema.parse({ tag: "#2PP0JCCL", name: "x", achievements: [] }),
     );
     expect(bare.gamesChampionValue).toBeUndefined();
+  });
+
+  // 54 achievements in a real profile, and two belong to the Capital. They were
+  // being filed under the home village.
+  it("keeps Clan Capital achievements apart from the home village", () => {
+    const profile = mapPlayerProfile(
+      playerSchema.parse({
+        tag: "#2PP0JCCL",
+        name: "x",
+        achievements: [
+          { name: "Aggressive Capitalism", stars: 1, value: 5, target: 10, village: "clanCapital" },
+          { name: "Bigger Coffers", stars: 1, value: 5, target: 10, village: "home" },
+          { name: "Master Engineering", stars: 1, value: 5, target: 10, village: "builderBase" },
+        ],
+      }),
+    );
+    expect(profile.achievements.map((a) => a.village)).toEqual(["capital", "home", "builder"]);
   });
 
   it("exposes no achievements array above the boundary (R7)", () => {

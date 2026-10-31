@@ -22,6 +22,10 @@ export interface MemberRow {
   verified: boolean;
   /** Set when the player is in none of the three clans (T3.9). */
   leftAt: string | null;
+  /** 071 — the real rank. Optional, because only the directory reads it. */
+  leagueTier?: string | null;
+  /** 071 — what sorts it: names do not. */
+  leagueTierId?: number | null;
 }
 
 /**
@@ -107,7 +111,7 @@ export async function membersForClan(
 ): Promise<MemberRow[]> {
   const query = supabase
     .from("players")
-    .select("id, tag, name, th_level, clan_role, verified, left_at")
+    .select("id, tag, name, th_level, clan_role, verified, left_at, league_tier, league_tier_id")
     .eq("clan_id", clanId) // R3
     .is("deleted_at", null);
 
@@ -127,6 +131,8 @@ export async function membersForClan(
     clanRole: (r.clan_role as ClanRole | null) ?? null,
     verified: r.verified === true,
     leftAt: (r.left_at as string | null) ?? null,
+    leagueTier: (r.league_tier as string | null) ?? null,
+    leagueTierId: (r.league_tier_id as number | null) ?? null,
   }));
 }
 
