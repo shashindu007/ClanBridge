@@ -87,14 +87,8 @@ export function createPgliteSupabase(db: PGlite): SupabaseClient {
           return builder;
         },
         /**
-         * NOT chainable, matching the original: `.order()` runs the query.
-         *
-         * supabase-js returns a builder here and lets you keep chaining. The
-         * stand-in ran it instead, and every existing caller relies on that —
-         * repositories/cwl.ts and sync-log.ts both end their chains on
-         * `.order()`. Changing it now would be a silent behaviour change in
-         * tested code, so `.limit()` goes BEFORE `.order()` instead, which is
-         * legal in supabase-js too.
+         * Chainable, like supabase-js: several calls sort by each in turn, and
+         * awaiting the builder is what runs the query.
          *
          * Descending is new. `latestRun()` (sync-log.ts:65) works around its
          * absence by taking the last element of an ascending array, and says so.
@@ -104,11 +98,16 @@ export function createPgliteSupabase(db: PGlite): SupabaseClient {
          */
         order(column: string, options?: { ascending?: boolean }) {
           const direction = options?.ascending === false ? " desc" : "";
-          orderBy = ` order by ${column}${direction}`;
-          return builder.run();
+          orderBy += `${orderBy ? "," : " order by"} ${column}${direction}`;
+          return builder;
         },
         limit(count: number) {
           limitTo = ` limit ${Number(count)}`;
+          return builder;
+        },
+        // Paging past PostgREST's 1,000 rows (repositories/season-donations.ts).
+        range(from: number, to: number) {
+          limitTo = ` limit ${Number(to) - Number(from) + 1} offset ${Number(from)}`;
           return builder;
         },
         single() {
@@ -276,8 +275,25 @@ export function createPgliteSupabase(db: PGlite): SupabaseClient {
    *   reads like the migration never ran. The declared types are read from
    *   pg_proc rather than guessed, so a signature change cannot silently
    *   reintroduce that.
+   *
+   * Thenable, with `.range()`: donation_segments is read a page at a time.
    */
-  const rpc = async (fn: string, args: Record<string, unknown> = {}) => {
+  const rpc = (fn: string, args: Record<string, unknown> = {}) => {
+    let page = "";
+    const run = () => callRpc(fn, args, page);
+    const call = {
+      range(from: number, to: number) {
+        page = ` limit ${Number(to) - Number(from) + 1} offset ${Number(from)}`;
+        return call;
+      },
+      then(resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) {
+        return run().then(resolve, reject);
+      },
+    };
+    return call;
+  };
+
+  const callRpc = async (fn: string, args: Record<string, unknown>, page: string) => {
     try {
       const meta = await db.query<{ name: string; type: string; retset: boolean }>(
         `select a.name, format_type(a.oid, null) as type, p.proretset as retset
@@ -323,7 +339,7 @@ export function createPgliteSupabase(db: PGlite): SupabaseClient {
         .join(", ");
 
       if (returnsSet) {
-        const res = await db.query<Row>(`select * from ${fn}(${named})`);
+        const res = await db.query<Row>(`select * from ${fn}(${named})${page}`);
         return { data: res.rows, error: null };
       }
 

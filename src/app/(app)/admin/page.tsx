@@ -496,6 +496,7 @@ const JOB_LABELS: Record<string, { label: string; schedule: string }> = {
   raids: { label: "Raids and Clan Games", schedule: "Daily" },
   "clan-games": { label: "Clan Games", schedule: "Daily, with raids" },
   players: { label: "Base progress", schedule: "Daily" },
+  ratings: { label: "Player rating", schedule: "Every 6 hours, with clan members" },
   backup: { label: "Backup", schedule: "Weekly" },
 };
 
@@ -512,6 +513,7 @@ const SKIP_REASONS: Record<string, string> = {
   nothingToSnapshot: "Nothing to record",
   noPlayers: "No players to read yet",
   scoutFresh: "Every enemy read in the last 20 hours",
+  ratingsFresh: "Already worked out in the last 6 hours",
 };
 
 function jobLabel(jobType: string): string {

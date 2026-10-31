@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import {
   chooseFormula,
   seasonDonations,
+  seasonForMonth,
   seasonKey,
   seasonResets,
   seasonsFrom,
@@ -188,6 +189,36 @@ describe("seasonResets", () => {
 
     expect(seasonResets(stays)).toEqual(["2026-09-29T05:00:00.000Z"]);
   });
+
+  // Live data, October 2026: 195 players seen in the window, about 100 present,
+  // and the 45 who dropped on 5 Oct fell short of a quarter of the 195. The reset
+  // was missed, and that month's donations were added to the next.
+  it("takes the share of who was present, not of everyone the window has seen", () => {
+    const stays: DonationSegment[] = [];
+    for (let p = 0; p < 100; p += 1) {
+      stays.push(stay(X, "2026-08-20T05:00:00Z", "2026-10-30T05:00:00Z", 10, "first", `here${p}`));
+    }
+    for (let p = 0; p < 95; p += 1) {
+      stays.push(stay(X, "2026-08-20T05:00:00Z", "2026-08-25T05:00:00Z", 10, "first", `gone${p}`));
+    }
+    for (let p = 0; p < 45; p += 1) {
+      stays.push(stay(X, "2026-10-05T05:17:00Z", "2026-10-30T05:17:00Z", 10, "drop", `here${p}`));
+    }
+
+    expect(seasonResets(stays)).toEqual(["2026-10-05T05:00:00.000Z"]);
+  });
+
+  it("still ignores an hour a few players happen to leave and rejoin", () => {
+    const stays: DonationSegment[] = [];
+    for (let p = 0; p < 100; p += 1) {
+      stays.push(stay(X, "2026-08-20T05:00:00Z", "2026-10-30T05:00:00Z", 10, "first", `p${p}`));
+    }
+    for (let p = 0; p < 8; p += 1) {
+      stays.push(stay(X, "2026-10-01T13:17:00Z", "2026-10-30T05:17:00Z", 10, "drop", `p${p}`));
+    }
+
+    expect(seasonResets(stays)).toEqual([]);
+  });
 });
 
 describe("seasonsFrom", () => {
@@ -206,5 +237,47 @@ describe("seasonsFrom", () => {
 
   it("offers everything as one stretch until a reset has been seen", () => {
     expect(seasonsFrom([])).toEqual([{ start: null, end: null }]);
+  });
+});
+
+// Wars and raids are filed by calendar month, and seasons reset partway through
+// one, so a month has to be paired with one season. Wrong here is silent: a month's
+// donations would be another month's, and every number still looks fine.
+describe("seasonForMonth", () => {
+  // The resets live data shows: 7 Sep and 5 Oct 2026.
+  const seasons: Season[] = [
+    { start: "2026-10-05T05:00:00.000Z", end: null },
+    { start: "2026-09-07T10:00:00.000Z", end: "2026-10-05T05:00:00.000Z" },
+    { start: null, end: "2026-09-07T10:00:00.000Z" },
+  ];
+  const now = new Date("2026-10-31T19:00:00Z");
+
+  it("picks the season nearly all of the month fell in", () => {
+    expect(seasonForMonth(seasons, "2026-10", now)).toBe(seasons[0]);
+    expect(seasonForMonth(seasons, "2026-09", now)).toBe(seasons[1]);
+  });
+
+  it("does not give the new month the season that belongs to the old one", () => {
+    expect(seasonForMonth(seasons, "2026-11", new Date("2026-11-01T12:00:00Z"))).toBeNull();
+  });
+
+  it("gives the new month its season once the reset has been seen", () => {
+    const later: Season[] = [
+      { start: "2026-11-02T05:00:00.000Z", end: null },
+      { start: "2026-10-05T05:00:00.000Z", end: "2026-11-02T05:00:00.000Z" },
+      ...seasons.slice(1),
+    ];
+    const at = new Date("2026-11-03T12:00:00Z");
+    expect(seasonForMonth(later, "2026-11", at)).toBe(later[0]);
+    expect(seasonForMonth(later, "2026-10", at)).toBe(later[1]);
+  });
+
+  it("finds the season that began before our readings, for the caller to refuse", () => {
+    expect(seasonForMonth(seasons, "2026-08", now)).toBe(seasons[2]);
+  });
+
+  it("returns null for a month no season reaches", () => {
+    expect(seasonForMonth(seasons, "2026-12", now)).toBeNull();
+    expect(seasonForMonth([], "2026-10", now)).toBeNull();
   });
 });

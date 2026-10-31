@@ -379,15 +379,18 @@ export async function groupForSeason(
       .order("day_number"),
   ]);
 
+  assertRead(clans.error, "cwl_group_clans");
+  assertRead(wars.error, "cwl_group_wars");
+
   const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
   return {
-    clans: ((clans.error ? [] : clans.data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    clans: ((clans.data ?? []) as Array<Record<string, unknown>>).map((r) => ({
       tag: r.clan_tag as string,
       name: (r.name as string | null) ?? null,
       badgeUrl: (r.badge_url as string | null) ?? null,
       clanLevel: num(r.clan_level),
     })),
-    wars: ((wars.error ? [] : wars.data ?? []) as unknown as Array<Record<string, unknown>>).map((r) => ({
+    wars: ((wars.data ?? []) as unknown as Array<Record<string, unknown>>).map((r) => ({
       warTag: r.war_tag as string,
       dayNumber: num(r.day_number),
       state: (r.state as string | null) ?? null,

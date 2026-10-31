@@ -90,7 +90,8 @@ export async function gamesBySeason(
     .eq("season", season)
     .is("deleted_at", null);
 
-  if (error || !data?.length) return null;
+  assertRead(error, "clan_games");
+  if (!data?.length) return null;
   return toGames((data as unknown as Array<Record<string, unknown>>)[0]!);
 }
 

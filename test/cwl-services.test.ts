@@ -174,7 +174,7 @@ describe("freshness — T4.8", () => {
   describe("every watched job has a threshold matched to its schedule", () => {
     // Mirrors scripts/sync/health.ts's WATCHED. Not imported: that module
     // builds an admin Supabase client at import time and needs the service key.
-    const WATCHED = ["clans", "cwl", "war", "raids", "clan-games", "players"] as const;
+    const WATCHED = ["clans", "cwl", "war", "raids", "clan-games", "players", "ratings"] as const;
 
     it.each(WATCHED)("%s has an explicit entry, not the default", (jobType) => {
       expect(STALE_AFTER_MS[jobType]).toBeDefined();
@@ -192,6 +192,7 @@ describe("freshness — T4.8", () => {
       // 29th 10:41 to the next 22nd 08:31 — the longest Clan Games gap.
       ["clan-games", 24 * 24 * 60],
       ["players", 24 * 60],
+      ["ratings", 6 * 60],
     ])("%s allows more than its %i-minute interval", (jobType, intervalMinutes) => {
       expect(STALE_AFTER_MS[jobType]!).toBeGreaterThan(intervalMinutes * 60 * 1000);
     });

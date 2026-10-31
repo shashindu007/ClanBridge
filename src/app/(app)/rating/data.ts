@@ -1,7 +1,5 @@
-// The reads behind Player rating and Season donations, in one place.
-//
-// Both pages rank or list the same members over the same season, so they load
-// through here and cannot disagree about who is in it or what they gave.
+// The reads behind Season donations, over the viewer's own clans. Player rating
+// is family-wide and stored: see lib/player-rating-data.ts.
 //
 // R3 — every read is per clan, over the list visibleClans() returned. RLS on
 // member_snapshots is auth_clan_ids(), so a member sees their own clans' members
@@ -53,7 +51,7 @@ export interface RatingData {
 }
 
 /**
- * Everything both pages need, or null when the account is in no clan.
+ * Everything the page needs, or null when the account is in no clan.
  *
  * `seasonParam` is the ?season= key; unknown or absent means the running
  * season, never an error.

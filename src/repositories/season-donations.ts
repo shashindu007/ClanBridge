@@ -37,7 +37,9 @@ export async function donationSegments(
     const { data, error } = await supabase
       .rpc("donation_segments", { p_clan_ids: [...clanIds], p_since: since.toISOString() })
       .range(page * PAGE, page * PAGE + PAGE - 1);
-    if (error || !data) break;
+    // Thrown, not a break: a season cut short here would be stored as a rating.
+    assertRead(error, "donation_segments");
+    if (!data) break;
 
     const rows = data as Array<Record<string, unknown>>;
     for (const r of rows) {

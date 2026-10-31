@@ -20,6 +20,7 @@ Expected files as their tasks come up:
 | `rosters.ts` | T4B.8 | Slot counts, and the cross-clan double-booking check |
 | `selection.ts` | T4B.11, T6.10 | Plan vs reality (R12) |
 | `contribution.ts` | T4B.12, T4B.13 | Per-season contribution and bonus ranking |
+| `player-rating.ts` | T13.10 | Donation marks, each section's % of the family, the weighted rating |
 
 Two things the calculations depend on and that are easy to get wrong:
 

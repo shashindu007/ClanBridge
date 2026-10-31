@@ -225,8 +225,7 @@ export default async function AppLayout({
           {/* ── Cross-clan destinations ──────────────────────────────────
               Cross-clan, so they live here rather than under a clan tag: a CWL
               season is picked across every clan a leader runs (T4B.7), and
-              /rating ranks every member of every clan the viewer is in, with
-              the reasons they were flagged (T9.1, objective O3). CWL lineups is
+              /rating ranks every player in the family (T13.10). CWL lineups is
               leadership only; Player rating is open to every member.
 
               These two are DESTINATIONS, not settings, which is why they stay
@@ -254,7 +253,7 @@ export default async function AppLayout({
               <Link
                 href="/rating"
                 className="hover:text-rail-ink flex items-center gap-1.5 rounded-control px-2 py-1 transition-colors hover:bg-white/8"
-                title="Members ranked across all your clans"
+                title="Every player in the family, ranked"
               >
                 <Trophy aria-hidden className="size-4" />
                 Player rating

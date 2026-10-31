@@ -20,6 +20,9 @@
 //     clan_games, clan_games_scores
 //     sync_log
 //
+//   MAY WRITE (derived from the above, by scripts/sync/ratings.ts alone):
+//     player_ratings
+//
 //   MUST NEVER WRITE (human decisions, entered by people):
 //     polls, poll_options, poll_responses
 //     cwl_rosters, cwl_roster_members
@@ -46,6 +49,7 @@ export type JobType =
   | "raids"
   | "clan-games"
   | "players"
+  | "ratings"
   | "backup";
 
 /**
