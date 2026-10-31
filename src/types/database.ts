@@ -2,7 +2,7 @@
 // DO NOT EDIT. Regenerate after every migration — a stale file type-checks
 // against a schema that no longer exists, which is worse than having none.
 //
-// 51 tables, generated 2026-10-29.
+// 52 tables, generated 2026-10-31.
 
 export type Json =
   | string
@@ -280,6 +280,15 @@ export interface Database {
           created_at: string;
           updated_at: string | null;
           deleted_at: string | null;
+          description: string | null;
+          clan_points: number | null;
+          clan_builder_base_points: number | null;
+          clan_capital_points: number | null;
+          war_frequency: string | null;
+          required_townhall_level: number | null;
+          required_trophies: number | null;
+          location: string | null;
+          labels: Json;
         };
         Insert: {
           id?: string;
@@ -294,6 +303,15 @@ export interface Database {
           created_at?: string;
           updated_at?: string | null;
           deleted_at?: string | null;
+          description?: string | null;
+          clan_points?: number | null;
+          clan_builder_base_points?: number | null;
+          clan_capital_points?: number | null;
+          war_frequency?: string | null;
+          required_townhall_level?: number | null;
+          required_trophies?: number | null;
+          location?: string | null;
+          labels?: Json;
         };
         Update: {
           id?: string;
@@ -308,6 +326,15 @@ export interface Database {
           created_at?: string;
           updated_at?: string | null;
           deleted_at?: string | null;
+          description?: string | null;
+          clan_points?: number | null;
+          clan_builder_base_points?: number | null;
+          clan_capital_points?: number | null;
+          war_frequency?: string | null;
+          required_townhall_level?: number | null;
+          required_trophies?: number | null;
+          location?: string | null;
+          labels?: Json;
         };
       };
       clan_roles: {
@@ -1272,6 +1299,62 @@ export interface Database {
           deleted_at?: string | null;
         };
       };
+      player_ratings: {
+        Row: {
+          id: string;
+          month: string;
+          player_id: string;
+          clan_id: string;
+          donation_marks: number;
+          war_marks: number;
+          cwl_marks: number;
+          games_marks: number;
+          raid_marks: number;
+          donation_share: number;
+          war_share: number;
+          cwl_share: number;
+          games_share: number;
+          raid_share: number;
+          rating: number;
+          computed_at: string;
+        };
+        Insert: {
+          id?: string;
+          month: string;
+          player_id: string;
+          clan_id: string;
+          donation_marks: number;
+          war_marks: number;
+          cwl_marks: number;
+          games_marks: number;
+          raid_marks: number;
+          donation_share: number;
+          war_share: number;
+          cwl_share: number;
+          games_share: number;
+          raid_share: number;
+          rating: number;
+          computed_at: string;
+        };
+        Update: {
+          id?: string;
+          month?: string;
+          player_id?: string;
+          clan_id?: string;
+          donation_marks?: number;
+          war_marks?: number;
+          cwl_marks?: number;
+          games_marks?: number;
+          raid_marks?: number;
+          donation_share?: number;
+          war_share?: number;
+          cwl_share?: number;
+          games_share?: number;
+          raid_share?: number;
+          rating?: number;
+          computed_at?: string;
+        };
+      };
       players: {
         Row: {
           id: string;
@@ -1286,6 +1369,8 @@ export interface Database {
           updated_at: string | null;
           deleted_at: string | null;
           left_at: string | null;
+          league_tier: string | null;
+          league_tier_id: number | null;
         };
         Insert: {
           id?: string;
@@ -1300,6 +1385,8 @@ export interface Database {
           updated_at?: string | null;
           deleted_at?: string | null;
           left_at?: string | null;
+          league_tier?: string | null;
+          league_tier_id?: number | null;
         };
         Update: {
           id?: string;
@@ -1314,6 +1401,8 @@ export interface Database {
           updated_at?: string | null;
           deleted_at?: string | null;
           left_at?: string | null;
+          league_tier?: string | null;
+          league_tier_id?: number | null;
         };
       };
       poll_options: {
@@ -1649,6 +1738,8 @@ export interface Database {
           defensive_reward: number | null;
           attacks_captured_at: string | null;
           defenses_captured_at: string | null;
+          reminded_at: string | null;
+          enemy_districts_destroyed: number | null;
         };
         Insert: {
           id?: string;
@@ -1666,6 +1757,8 @@ export interface Database {
           defensive_reward?: number | null;
           attacks_captured_at?: string | null;
           defenses_captured_at?: string | null;
+          reminded_at?: string | null;
+          enemy_districts_destroyed?: number | null;
         };
         Update: {
           id?: string;
@@ -1683,6 +1776,8 @@ export interface Database {
           defensive_reward?: number | null;
           attacks_captured_at?: string | null;
           defenses_captured_at?: string | null;
+          reminded_at?: string | null;
+          enemy_districts_destroyed?: number | null;
         };
       };
       sync_log: {
@@ -2059,6 +2154,7 @@ export interface Database {
           deleted_at: string | null;
           opponent_badge_url: string | null;
           opponent_attacks_captured_at: string | null;
+          reminded_at: string | null;
         };
         Insert: {
           id?: string;
@@ -2079,6 +2175,7 @@ export interface Database {
           deleted_at?: string | null;
           opponent_badge_url?: string | null;
           opponent_attacks_captured_at?: string | null;
+          reminded_at?: string | null;
         };
         Update: {
           id?: string;
@@ -2099,6 +2196,7 @@ export interface Database {
           deleted_at?: string | null;
           opponent_badge_url?: string | null;
           opponent_attacks_captured_at?: string | null;
+          reminded_at?: string | null;
         };
       };
     };
@@ -2137,6 +2235,7 @@ export type NotificationsRow = Database["public"]["Tables"]["notifications"]["Ro
 export type PlayerNicknamesRow = Database["public"]["Tables"]["player_nicknames"]["Row"];
 export type PlayerProfilesRow = Database["public"]["Tables"]["player_profiles"]["Row"];
 export type PlayerProgressRow = Database["public"]["Tables"]["player_progress"]["Row"];
+export type PlayerRatingsRow = Database["public"]["Tables"]["player_ratings"]["Row"];
 export type PlayersRow = Database["public"]["Tables"]["players"]["Row"];
 export type PollOptionsRow = Database["public"]["Tables"]["poll_options"]["Row"];
 export type PollResponsesRow = Database["public"]["Tables"]["poll_responses"]["Row"];
