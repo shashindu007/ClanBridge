@@ -35,11 +35,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
  *   raids       T7.2   daily
  *   clan-games  T7.4   daily, as a step of sync-raids.yml
  *   players     T11B.5 daily, sync-players.yml
+ *   ratings     T13.10 every 6 hours, as a step of sync-clans.yml
  *
  * The staleness thresholds these are judged against live in
  * src/services/freshness.ts and must be kept in step with the crons above.
  */
-const WATCHED = ["clans", "cwl", "war", "raids", "clan-games", "players"] as const;
+const WATCHED = ["clans", "cwl", "war", "raids", "clan-games", "players", "ratings"] as const;
 
 async function main(): Promise<void> {
   const supabase = createAdminClient();

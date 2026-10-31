@@ -31,9 +31,9 @@ four auth-adjacent security findings ·
 view-only paste of the in-game village export ·
 **Phase 11C entire** — a base's CWL record from every clan in the family ·
 **Phase 12 entire** — family directory, account admin, notification feed, home ·
-**Phase 13 entire except T13.10** — CWL lineups, scouting and images, the
-war, CWL, raids and Clan Games ratings, the phone layout, and the API data the
-syncs used to drop (T13.12).
+**Phase 13 entire** — CWL lineups, scouting and images, the war, CWL, raids and
+Clan Games ratings, the combined Player rating (T13.10), the phone layout, and
+the API data the syncs used to drop (T13.12).
 
 ### Status as of 2026-10-29
 
@@ -43,9 +43,6 @@ than planned ahead, so they are shorter than the phases before them.
 
 **Left to build:**
 
-- **T13.10 — the combined Player rating.** `/rating` still ranks by season
-  donations alone. The four other ratings each have a page and none is weighed
-  into the main ranking yet. The formula is still being decided.
 - **Building counts per Town Hall** ("7 of 7 cannons"). See the known gaps in
   `src/data/game/README.md`.
 - **Enforcing the CSP.** It ships report-only (`src/lib/csp.ts`). Open the main
@@ -2895,14 +2892,23 @@ and migrations; this is the first time they are in the ledger.*
   | Raids | `services/raid-rating.ts` (`RAID_MARKS`) — needs 064 | `lib/raid-rating-data.ts` | `/rating/raids` |
   | Clan Games | `services/games-rating.ts` (`GAMES_MARKS`) | `lib/games-rating-data.ts` | `/rating/games` |
 
-  `lib/rating.ts` lists the sections; the nav and the `[kind]` placeholder
-  route both read it.
+  `lib/rating.ts` lists the sections.
 - [x] **T13.9 — The CWL results image** — `/rating/cwl/share`, leaders only: a
   1080×1350 image of each clan's group and top three, shared straight to apps
   on a phone.
-- [ ] **T13.10 — The combined Player rating.** `/rating` still ranks by
-  donations alone. The formula that weighs the five ratings together is still
-  being decided, so nothing is built yet.
+- [x] **T13.10 — The combined Player rating** (073). One number per player per
+  month, the same for every viewer.
+  - Donation marks: +1 per 1,000 given in the family, −1 per 2,000 received, +1
+    per 2,000 given in other clans, in proportion.
+  - Each section's % is a share of the whole family's plus marks. The rating is
+    20% donations, 20% war, 30% CWL, 10% Clan Games and 20% raids.
+  - Stored, because no viewer can read every clan: `scripts/sync/ratings.ts`
+    runs every 6 hours as a step of `sync-clans.yml`, and `/rating` reads
+    `family_player_ratings()`, the third deliberate R3 exception.
+  - Four reads that hid failures now throw, since a stored wrong number does not
+    fix itself on the next page load.
+  - Deviation: a step rather than its own workflow, because the repository is
+    private and each extra checkout costs Actions minutes.
 - [x] **T13.11 — Phone layout** — every page fits a 390px screen.
 - [x] **T13.13 — Full QA audit, October 2026** (066 to 071). Checked against the
   live database as well as the code, which is what found the worst of it.

@@ -46,6 +46,9 @@ const CLAN_SCOPED = [
   "announcements",
   "base_layouts",
   "member_snapshots",
+  // 073. The family-wide read is a definer function; the table itself stays
+  // clan-scoped, and test/family-ratings.test.ts holds the other half.
+  "player_ratings",
 ] as const;
 
 async function rows(h: Harness, sql: string): Promise<number> {
@@ -141,6 +144,12 @@ describe("T3.7 — cross-clan authorisation", () => {
       insert into member_snapshots (clan_id, player_id, trophies) values
         ('${CLAN_A}', 'cccccccc-0000-4000-8000-0000000000a1', 5000),
         ('${CLAN_B}', 'cccccccc-0000-4000-8000-0000000000b1', 5000);
+
+      insert into player_ratings (month, player_id, clan_id, donation_marks, war_marks, cwl_marks,
+                                  games_marks, raid_marks, donation_share, war_share, cwl_share,
+                                  games_share, raid_share, rating, computed_at) values
+        ('2026-10', 'cccccccc-0000-4000-8000-0000000000a1', '${CLAN_A}', 1, 1, 1, 1, 1, 50, 50, 50, 50, 50, 50, now()),
+        ('2026-10', 'cccccccc-0000-4000-8000-0000000000b1', '${CLAN_B}', 1, 1, 1, 1, 1, 50, 50, 50, 50, 50, 50, now());
 
       insert into sync_log (job_type, clan_id, status) values
         ('clans', '${CLAN_A}', 'success'),

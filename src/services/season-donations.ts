@@ -28,7 +28,8 @@
 // began within an hour or two of p ending, the player was never anywhere else
 // and that is p's missed tail — credited to p's clan in full. If there was a gap,
 // it is their tail plus whatever they gave elsewhere, which cannot be told apart,
-// and is reported as `other` — the part a ranking gives a small weight.
+// and is reported as `other` — worth half as much in the Player rating
+// (services/player-rating.ts).
 //
 // IF K IS NOT CONSTANT, the achievements and the clan counter are not counting
 // the same thing, and B is not used for that stay rather than used wrongly.
@@ -121,12 +122,28 @@ function inSeason(iso: string, season: Season): boolean {
  * and a hardcoded "last Monday, 05:00 UTC" would split every month wrongly the
  * day it changes again, with nothing to say so. Returns the first hour after
  * each reset, ascending: the season boundary.
+ *
+ * "A good share" is of the players PRESENT that hour, not of everyone in the
+ * window. Seventy-five days of a family that moves people about holds nearly
+ * twice its members: live data had 195 players seen and about 100 present, so
+ * the 45 who dropped on 5 Oct 2026 fell short of 49 and a month's reset was
+ * missed, adding that month to the next.
  */
 export function seasonResets(segments: readonly DonationSegment[]): string[] {
   const players = new Set(segments.map((s) => s.playerId)).size;
+
+  const presentAt = (hour: number) =>
+    new Set(
+      segments
+        .filter((s) => ms(s.startedAt) < hour + HOUR && ms(s.endedAt) >= hour)
+        .map((s) => s.playerId),
+    ).size;
+
   // A tiny clan cannot supply "a quarter of the family"; half of it will do.
-  const threshold =
-    players >= 12 ? Math.max(3, Math.ceil(players * 0.25)) : Math.max(1, Math.ceil(players * 0.5));
+  const thresholdAt = (hour: number) =>
+    players >= 12
+      ? Math.max(3, Math.ceil(presentAt(hour) * 0.25))
+      : Math.max(1, Math.ceil(players * 0.5));
 
   const byHour = new Map<number, number>();
   for (const s of segments) {
@@ -140,7 +157,7 @@ export function seasonResets(segments: readonly DonationSegment[]): string[] {
   let last = 0;
   let count = 0;
   const flush = () => {
-    if (first !== null && count >= threshold) resets.push(new Date(first).toISOString());
+    if (first !== null && count >= thresholdAt(first)) resets.push(new Date(first).toISOString());
   };
 
   for (const hour of [...byHour.keys()].sort((a, b) => a - b)) {
@@ -175,6 +192,48 @@ export function seasonsFrom(resets: readonly string[]): Season[] {
   }
   seasons.push({ start: null, end: resets[0]! });
   return seasons;
+}
+
+/**
+ * The season a calendar month ('YYYY-MM', UTC) counts donations from: the one
+ * overlapping it most. Null when there is none, or when that season belongs to a
+ * neighbouring month instead.
+ *
+ * Wars, raids and Clan Games are filed by calendar month and seasons reset partway
+ * through one, so the two never line up. Most-overlap gives each month the season
+ * nearly all of it fell in: 5 Oct – 2 Nov is October's.
+ *
+ * A SEASON COUNTS TOWARDS ONE MONTH. On 1 Nov the only season reaching November is
+ * still October's, and taking it would count the same donations twice. November
+ * has no season until the next reset gives it one.
+ */
+export function seasonForMonth(
+  seasons: readonly Season[],
+  month: string,
+  now: Date,
+): Season | null {
+  const [year, monthNumber] = month.split("-").map(Number) as [number, number];
+
+  /** How much of the month `offset` months from this one a season covers. */
+  const overlap = (season: Season, offset: number) => {
+    const from = Date.UTC(year, monthNumber - 1 + offset, 1);
+    const to = Date.UTC(year, monthNumber + offset, 1);
+    const start = season.start ? ms(season.start) : -Infinity;
+    const end = season.end ? ms(season.end) : now.getTime();
+    return Math.min(end, to) - Math.max(start, from);
+  };
+
+  let best: Season | null = null;
+  let most = 0;
+  for (const season of seasons) {
+    if (overlap(season, 0) > most) {
+      best = season;
+      most = overlap(season, 0);
+    }
+  }
+
+  if (best && (overlap(best, -1) > most || overlap(best, 1) > most)) return null;
+  return best;
 }
 
 /** A stable key for a season, for the ?season= link. */

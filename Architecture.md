@@ -253,8 +253,8 @@ clanbridge/
 ├── scripts/sync/           run by GitHub Actions, not Vercel
 │   ├── shared.ts  alerts.ts  health.ts
 │   └── clans.ts  war.ts  cwl.ts  cwl-scout.ts  cwl-reminders.ts
-│       raids.ts  clan-games.ts  players.ts
-├── supabase/migrations/    001–064, numbered, never edited once applied
+│       raids.ts  clan-games.ts  players.ts  ratings.ts
+├── supabase/migrations/    001–073, numbered, never edited once applied
 ├── test/                   PGlite: the real migrations on real Postgres
 └── fixtures/               saved API responses for offline dev
 ```
@@ -275,10 +275,32 @@ explanation cannot drift from the sums.
   app/(app)/rating/*/page.tsx shows the ranking
 ```
 
-Every rating gives a player a share of their clan's marks for a war, day,
-weekend or month, so a big clan and a small one rank on the same scale.
-`lib/rating.ts` lists the sections. The combined ranking at `/rating` still uses
-donations alone; how the five are weighed together has not been decided yet.
+The war, CWL, raid and Clan Games ratings each give a player a share of their
+clan's marks for a war, day, weekend or month. `lib/rating.ts` lists the sections.
+Season donations has no rating of its own, only marks for the combined one.
+
+**The combined Player rating at `/rating` is the one rating that is stored.** Each
+section's marks become a % of the plus marks of every player in the family, and
+those are weighed 20% donations, 20% war, 30% CWL, 10% Clan Games and 20% raids
+(`services/player-rating.ts`). It uses marks rather than the sections' ratings
+because a share of a small lineup is worth more than a share of a large one, and
+this ranking has to compare across clans.
+
+```
+  scripts/sync/ratings.ts            every 6 hours, a step of sync-clans.yml
+        ^
+  lib/player-rating-data.ts          every clan's month, through the same loaders
+        v
+  player_ratings (073)               one number per player per month
+        v
+  family_player_ratings()            read by /rating, for any member
+```
+
+It cannot be derived on read: a viewer may read only their own clans, and the key
+that reads them all never reaches Vercel (R6). A failed read fails the job rather
+than storing a wrong number. The running month is recalculated, and last month
+until the 10th; after that a month's ranking stays as it is, so a player's number
+for it is fixed.
 
 ---
 
@@ -407,7 +429,11 @@ using (
 
 Every table carrying clan data gets an equivalent policy. Sync jobs use the service role key, which bypasses RLS by design — that is correct, because jobs are not acting on behalf of any user.
 
-**The one deliberate exception is CWL history (Phase 11C).** Members of this family move between its clans and play CWL in whichever one fields a roster, so a village's CWL record has to follow the village. It does so through `family_cwl_history()` (037), a definer function returning per-player season TOTALS and the clan's name to anyone holding a role in any platform clan. The CWL tables' own policies are unchanged — a member still reads none of another clan's seasons, wars or attacks directly — and nothing else in the schema is family-wide. Widen that function's output, not the tables' policies, if more is ever needed.
+**There are three deliberate exceptions, each a definer function rather than a wider policy.** Widen a function's output, not a table's policies, if more is ever needed.
+
+- **CWL history (037, Phase 11C).** Members of this family move between its clans and play CWL in whichever one fields a roster, so a village's CWL record has to follow the village. `family_cwl_history()` returns per-player season TOTALS and the clan's name to anyone holding a role in any platform clan. The CWL tables' own policies are unchanged: a member still reads none of another clan's seasons, wars or attacks directly.
+- **The family directory (038, T12.1).** `family_clans()` and `family_clan_roster()` return every clan's overview and roster, and nothing else about it.
+- **The Player rating (073, T13.10).** A player has one number whoever is looking, so `family_player_ratings()` returns every family player's marks, percentages and rating. No raw donation counts, attacks or account links. `player_ratings` itself stays clan-scoped.
 
 **Test this deliberately.** Sign in as an ordinary member of clan one, then request clan two's data by editing the URL directly. If anything comes back, there is a hole. Repeat this test after every phase.
 

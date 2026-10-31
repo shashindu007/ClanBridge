@@ -9,6 +9,7 @@
 // first 1,000 and say nothing — a clan's last days would simply be missing.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertRead } from "@/lib/errors";
 import { latestProgressFor } from "@/repositories/player-progress";
 import type { HeroLevel } from "@/services/progress";
 import type {
@@ -158,7 +159,8 @@ export async function lineupsForWars(
     .eq("season_id", seasonId)
     .in("war_tag", [...warTags])
     .is("deleted_at", null);
-  if (error || !data) return [];
+  assertRead(error, "cwl_group_war_members");
+  if (!data) return [];
   return (data as unknown as Array<Record<string, unknown>>).map(toWarMember);
 }
 

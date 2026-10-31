@@ -2,8 +2,7 @@
 // (T9.1); /report now redirects here.
 //
 // Outside [clanTag] because it spans clans, the same reason /search is (T3B.6).
-// The reads live in ../data.ts, shared with the Player rating page, so the two
-// cannot disagree about who is in the season or what they gave.
+// The reads live in ../data.ts.
 //
 // R3 — SPANNING CLANS IS NOT THE SAME AS NOT FILTERING BY CLAN. Every read is
 // per clan, over the list visibleClans() returned (see data.ts). RLS on
@@ -30,6 +29,8 @@ import {
 import { currentUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { clanSummaries, type ParticipationRow } from "@/services/cross-clan";
+import { DONATION_MARKS } from "@/services/player-rating";
+import { signed2 } from "@/services/raid-rating";
 import { seasonKey, type Season, type SeasonDonationReport } from "@/services/season-donations";
 import { Activity, Eye, HandHeart, Users } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
@@ -169,7 +170,11 @@ export default async function SeasonDonationsPage({
  * Current members only, like the rest of the page. "Other clans" is everything
  * the achievements saw that no clan counter HERE accounts for — a clan outside
  * the family, a family clan this viewer is not in, or the hour before leaving —
- * and it is shown apart because a ranking weighs it differently.
+ * and it is shown apart because the Player rating weighs it differently.
+ *
+ * Marks are not shown per player here. That rating is worked out over the whole
+ * family, where a family clan this viewer is not in is not "other" at all, so a
+ * figure from this report could disagree with /rating.
  */
 function SeasonDonations({
   report,
@@ -291,6 +296,19 @@ function SeasonDonations({
           {check.checked === 0
             ? "Lifetime counters are still being collected — the first check needs two daily readings in the same clan."
             : `Counter check: ${check.consistent} of ${check.checked} stays matched exactly (${check.formula}).`}
+        </p>
+
+        <p className="text-muted-foreground text-xs">
+          In the{" "}
+          <Link href="/rating" className="underline">
+            Player rating
+          </Link>
+          , every {DONATION_MARKS.given.per.toLocaleString("en-GB")} donated in the family is{" "}
+          {signed2(DONATION_MARKS.given.marks)} mark, every{" "}
+          {DONATION_MARKS.received.per.toLocaleString("en-GB")} received is{" "}
+          {signed2(DONATION_MARKS.received.marks)}, and every{" "}
+          {DONATION_MARKS.other.per.toLocaleString("en-GB")} donated in other clans is{" "}
+          {signed2(DONATION_MARKS.other.marks)}.
         </p>
       </div>
     </Disclosure>

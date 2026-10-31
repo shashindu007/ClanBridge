@@ -111,3 +111,15 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           USE_FIXTURES: "false"
+
+      # T13.10 — the Player rating, every 6 hours. Here rather than in its own
+      # workflow for the reason the war step gives: the checkout is already paid
+      # for. Most runs end in one sync_log read and record a skip; the job itself
+      # keeps the pace, not this file. No game API, so no COC_API_TOKEN.
+      - name: Work out the Player rating
+        if: always()
+        run: npm run sync:ratings
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          USE_FIXTURES: "false"

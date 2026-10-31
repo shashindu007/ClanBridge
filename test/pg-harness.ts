@@ -182,6 +182,10 @@ export const PHASE1_MIGRATIONS = [
   // Drops cwl_wars' global tag constraint. Second half of 068, and it waits until
   // the code using 068 is on main: see the file.
   "072_cwl_wars_drop_global_tag.sql",
+  // T13.10 the stored Player rating, family_player_ratings() as the third
+  // deliberate R3 exception after 037 and 038, and 'ratings' in sync_log's job
+  // types. Must follow 046 (auth_clan_ids) and 057 (the last job_type check).
+  "073_player_ratings.sql",
 ] as const;
 
 /**
@@ -392,6 +396,7 @@ export const PHASE1_TABLES = [
   "player_nicknames",
   "player_profiles",
   "player_progress",
+  "player_ratings",
   "players",
   "poll_options",
   "poll_responses",

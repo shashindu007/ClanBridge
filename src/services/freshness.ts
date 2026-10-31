@@ -49,6 +49,9 @@ export const STALE_AFTER_MS: Record<string, number> = {
   "clan-games": 25 * 24 * 60 * 60 * 1000,
   // T11B.6 — daily, its own workflow (sync-players.yml). Same window as raids.
   players: 36 * 60 * 60 * 1000,
+  // T13.10 — every 6 hours, as a step of sync-clans.yml. Fourteen, because that
+  // workflow has gone over seven hours between runs (069): two missed runs, not one.
+  ratings: 14 * 60 * 60 * 1000,
 };
 
 const DEFAULT_STALE_AFTER_MS = 3 * 60 * 60 * 1000;

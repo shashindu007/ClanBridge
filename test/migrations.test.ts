@@ -259,6 +259,13 @@ async function seedFixtures(h: Harness) {
       ('${PLAYER_A}', '${CLAN_A}', 15, '[]'),
       ('${PLAYER_B}', '${CLAN_B}', 14, '[]');
 
+    -- 073. One per clan, for the same reason.
+    insert into player_ratings (month, player_id, clan_id, donation_marks, war_marks, cwl_marks,
+                                games_marks, raid_marks, donation_share, war_share, cwl_share,
+                                games_share, raid_share, rating, computed_at) values
+      ('2026-10', '${PLAYER_A}', '${CLAN_A}', 1, 1, 1, 1, 1, 50, 50, 50, 50, 50, 50, now()),
+      ('2026-10', '${PLAYER_B}', '${CLAN_B}', 1, 1, 1, 1, 1, 50, 50, 50, 50, 50, 50, now());
+
     -- 052. Same shape again: one per clan.
     insert into donation_counters (player_id, clan_id, troops_donated, spells_donated,
                                    sieges_donated, clan_donations, clan_donations_received) values
@@ -557,6 +564,7 @@ describe("T3.7 — a member of clan A cannot read clan B", () => {
     "sync_log",
     "member_snapshots",
     "player_progress",
+    "player_ratings",
     "donation_counters",
     // 065 — clan_id directly on the first two, the raid_seasons join on the third.
     "clan_profiles",
@@ -848,6 +856,7 @@ describe("check constraints reject bad data", () => {
   it("accepts the players job type 036 added, and still rejects an unknown one", async () => {
     await h.db.exec(`insert into sync_log (job_type, status) values ('players', 'success')`);
     await h.db.exec(`insert into sync_log (job_type, status) values ('clan-games', 'success')`);
+    await h.db.exec(`insert into sync_log (job_type, status) values ('ratings', 'success')`);
     await expect(
       h.db.exec(`insert into sync_log (job_type, status) values ('buildings', 'success')`),
     ).rejects.toThrow(/sync_log_job_type_check/);

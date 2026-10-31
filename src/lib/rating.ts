@@ -1,9 +1,7 @@
 // Player rating — its sections, in one list.
 //
-// The nav buttons and the [kind] route both read this, so a section cannot be
-// linked without a page or have a page without a link. `ready: false` sections
-// are placeholders until their part of the rating formula is built, phase by
-// phase.
+// The nav buttons and the rules on /rating read this. `ready: false` marks a
+// section whose page is not built yet.
 
 export type RatingKind = "donations" | "war" | "cwl" | "games" | "raids";
 
