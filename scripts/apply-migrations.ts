@@ -138,6 +138,10 @@ async function main(): Promise<void> {
     // through the dashboard before this script existed.
     const listOnly = process.argv.includes("--list");
 
+    // --until=071 stops after that number. For a change in two steps, where the
+    // second must wait for the code that needs it to reach main (072).
+    const until = process.argv.find((a) => a.startsWith("--until="))?.slice("--until=".length);
+
     // Files applied by hand before the ledger existed are unknown to it. Detect
     // that by asking the database whether the tables are already there.
     const { rows: existing } = await client.query<{ n: string }>(
@@ -150,6 +154,7 @@ async function main(): Promise<void> {
 
     let pending = 0;
     for (const file of TO_APPLY) {
+      if (until && file.slice(0, 3) > until) continue;
       const liveOnly = (LIVE_ONLY_MIGRATIONS as readonly string[]).includes(file);
       const sql = readFileSync(join(DIR, file), "utf8");
       const sum = checksum(sql);

@@ -45,6 +45,9 @@ outstanding:
   until a fine-grained GitHub token with Actions read and write on this repository
   is stored: `select vault.create_secret('<token>', 'github_dispatch_token');`
 
+- **Migration 072 waits for this code to reach main.** Run `npm run migrations:apply`
+  after merging, not before: its header says why.
+
 What is worth knowing before you touch anything:
 
 - **The application has run against real data since 2026-08-09**, and the

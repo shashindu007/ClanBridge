@@ -54,9 +54,9 @@ than planned ahead, so they are shorter than the phases before them.
 
 **Needs something outside the repo:**
 
-- **Apply migrations 066 to 071 to the live database BEFORE deploying T13.13**,
-  then `npm run types:db`. The pages select 068's and 071's new columns, and a
-  failed read now reaches the error page instead of looking empty.
+- **After T13.13 reaches main, run `npm run migrations:apply`.** It applies 072,
+  the second half of 068, which drops `cwl_wars`' global tag constraint. Do not
+  run it before: main's CWL sync upserts on that constraint until then.
 - **Store the GitHub token for the sync heartbeat** (069):
   `select vault.create_secret('<token>', 'github_dispatch_token');` Until then
   the half-hourly dispatch does nothing, and GitHub's own schedule, which ran 5

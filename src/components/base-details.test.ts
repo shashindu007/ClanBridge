@@ -41,10 +41,10 @@ function render(progress: BaseProgress, village: Village = "home"): string {
 }
 
 describe("BaseDetails", () => {
-  it("names the sync job when the village has never been read", () => {
+  it("says when a village that has never been read will fill in", () => {
     const html = render({ latest: null, baseline: null });
     expect(html).toContain("No details for this base yet");
-    expect(html).toContain("sync:players");
+    expect(html).toContain("read once a day");
   });
 
   it("shows the Town Hall, weapon and overall figure for the home village", () => {

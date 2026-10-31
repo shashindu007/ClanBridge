@@ -86,9 +86,9 @@ describe("empty states say what is missing and which clan", () => {
   });
 
   it("names the sync that fills the donations in", () => {
-    // Every empty state in this component names the job responsible, so a member
-    // reading it can tell "not yet" from "broken".
-    expect(html).toContain("sync:clans");
+    // Every empty state in this component says what fills it, so a member reading
+    // it can tell "not yet" from "broken".
+    expect(html).toContain("the clan sync");
   });
 
   it("renders no numbers it does not have", () => {

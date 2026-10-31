@@ -179,6 +179,9 @@ export const PHASE1_MIGRATIONS = [
   // Raid district counts, the member's real league, and the clan's own card.
   // Follows 027, 001 and 065.
   "071_api_extras_more.sql",
+  // Drops cwl_wars' global tag constraint. Second half of 068, and it waits until
+  // the code using 068 is on main: see the file.
+  "072_cwl_wars_drop_global_tag.sql",
 ] as const;
 
 /**
