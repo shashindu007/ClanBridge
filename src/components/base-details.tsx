@@ -67,9 +67,8 @@ export function BaseDetails({ progress, village, path }: BaseDetailsProps) {
       <section className="cb-panel space-y-2 rounded-panel border p-5">
         <h2 className="text-lg font-semibold">No details for this base yet</h2>
         <p className="text-muted-foreground text-sm">
-          Hero, troop and spell levels are read once a day by the{" "}
-          <code className="text-xs">sync:players</code> job. This village has not
-          been read yet, so check back after the next run.
+          Hero, troop and spell levels are read once a day. This village has not been read
+          yet, so check back tomorrow.
         </p>
       </section>
     );

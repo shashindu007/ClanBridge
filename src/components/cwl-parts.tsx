@@ -65,7 +65,7 @@ export function DayStrip({
               "inline-flex items-center justify-center rounded-chip font-bold tabular-nums",
               box,
               war ? DAY_TONE_CLASS[tone].solid : "border border-dashed text-muted-foreground",
-              tone === "live" && "animate-pulse",
+              tone === "live" && "motion-safe:animate-pulse",
             )}
           >
             {day}
@@ -369,7 +369,7 @@ export function LiveDayPanel({
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="bg-warning text-gold-ink inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold tracking-wide uppercase">
-          <span aria-hidden className="size-2 animate-pulse rounded-full bg-current" />
+          <span aria-hidden className="size-2 rounded-full bg-current motion-safe:animate-pulse" />
           Ongoing · Day {war.dayNumber ?? "?"}
         </span>
         <span className="text-warning-ink text-sm font-semibold">

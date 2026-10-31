@@ -193,7 +193,7 @@ export default async function CrossClanSearchPage({
 
       <p className="text-muted-foreground text-xs">
         Former members are included, marked. Their history is kept — nothing in
-        this system is ever deleted (R4).
+        this system is ever deleted.
       </p>
     </main>
   );

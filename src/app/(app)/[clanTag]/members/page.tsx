@@ -348,6 +348,7 @@ export default async function MemberDirectoryPage({
                   {(Object.keys(SORTS) as SortKey[]).map((key) => (
                     <TableHead
                       key={key}
+                      aria-sort={sort === key ? (descending ? "descending" : "ascending") : undefined}
                       className={key === "name" || key === "role" ? "" : "text-right"}
                     >
                       <Link

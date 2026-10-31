@@ -104,7 +104,7 @@ export default async function AdminAuditPage({
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <PageHeader
         title="Audit log"
-        description="Who changed what, and when. Nothing here can be edited or removed — an audit log entries can be taken out of is not one (R4)."
+        description="Who changed what, and when. Nothing here can be edited or removed."
       />
       <AdminNav current="audit" showFeedback={admin} />
 

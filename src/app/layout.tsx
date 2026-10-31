@@ -93,7 +93,15 @@ export default function RootLayout({
         {/* flex-1 so the footer sits at the bottom of the viewport on a short
             page instead of half way up it, which is where a page with one
             sentence on it used to leave the fan content notice. */}
-        <div className="flex-1">{children}</div>
+        <a
+          href="#content"
+          className="bg-card sr-only z-[70] rounded-control p-3 focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+        >
+          Skip to content
+        </a>
+        <div id="content" tabIndex={-1} className="flex-1 outline-none">
+          {children}
+        </div>
 
         <footer className="mt-8 border-t px-4 py-4 text-center print:hidden">
           {/* T9.8 — the exact notice named in Supercell's Fan Content Policy

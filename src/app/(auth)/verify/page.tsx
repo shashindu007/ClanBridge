@@ -147,6 +147,8 @@ function VerifyForm() {
             id="tag"
             required
             autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
             placeholder="#2PP0JCCL"
             value={tag}
             onChange={(e) => setTag(e.target.value)}

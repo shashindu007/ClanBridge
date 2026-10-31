@@ -40,7 +40,9 @@ function Alert({
   return (
     <div
       data-slot="alert"
-      role="alert"
+      // A live region is for what just went wrong. Most of these are page copy, and
+      // announcing them all on load drowns out the one that matters.
+      role={variant === "destructive" ? "alert" : undefined}
       className={cn(alertVariants({ variant }), className)}
       {...props}
     />
@@ -52,7 +54,7 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="alert-title"
       className={cn(
-        "col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight",
+        "col-start-2 min-h-4 font-medium tracking-tight",
         className
       )}
       {...props}

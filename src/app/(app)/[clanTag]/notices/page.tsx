@@ -174,7 +174,7 @@ export default async function NoticesPage({
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
       <PageHeader
         eyebrow={clan.name}
-        title="Announcements"
+        title="Notices"
         description={
           mayPost
             ? "You can post here; everyone in the clan can read."
@@ -208,7 +208,7 @@ export default async function NoticesPage({
             />
             <p className="text-muted-foreground text-xs">
               Plain text. Line breaks are kept; nothing else is formatted, and no
-              HTML is ever rendered (T5.2).
+              HTML is ever rendered.
             </p>
           </div>
 
@@ -290,7 +290,7 @@ export default async function NoticesPage({
 
       {mayPost && (
         <p className="text-muted-foreground text-xs">
-          Removing hides an announcement; it is never deleted (R4), and who
+          Removing hides an announcement; it is never deleted, and who
           removed it is recorded in the audit log.
         </p>
       )}
