@@ -471,6 +471,11 @@
      `overscroll-behavior-x: contain` is the one that is not cosmetic. Without
      it, swiping past the end of the tab strip is handed to the browser as a
      horizontal overscroll, which an installed PWA reads as a back gesture. */
+  /* Anchor jumps stop below the sticky rail and its tabs, not under them. */
+  html {
+    scroll-padding-top: 8.5rem;
+  }
+
   .cb-scroll-x {
     overflow-x: auto;
     overscroll-behavior-x: contain;

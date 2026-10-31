@@ -119,6 +119,16 @@ export async function pushTargets(
 }
 
 /**
+ * How long one push service gets.
+ *
+ * web-push sets no timeout of its own, so this is what the header above promises.
+ * Without it a single endpoint that never answers held the whole allSettled open:
+ * past the function's ten seconds in a Server Action, and until the workflow's
+ * timeout in a sync. Five leaves the write it accompanies time to finish.
+ */
+const SEND_TIMEOUT_MS = 5000;
+
+/**
  * Encrypt and deliver one payload to many subscriptions.
  *
  * `web-push` is imported lazily. It pulls in Node crypto and an HTTP stack that
@@ -160,7 +170,7 @@ export async function sendPush(
           keys: { p256dh: target.p256dh, auth: target.auth_key },
         },
         body,
-        { TTL: 60 * 60 * 12 },
+        { TTL: 60 * 60 * 12, timeout: SEND_TIMEOUT_MS },
       ),
     ),
   );

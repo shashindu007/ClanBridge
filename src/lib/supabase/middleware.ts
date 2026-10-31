@@ -73,8 +73,14 @@ export function isPublicPath(pathname: string): boolean {
  * practice cannot reach an action anyway, since this function redirects those
  * requests to /login a few lines below.
  */
-function isServerAction(request: NextRequest): boolean {
-  return request.method === "POST" && request.headers.has("next-action");
+export function isServerAction(request: Pick<NextRequest, "method" | "headers">): boolean {
+  if (request.method !== "POST") return false;
+  if (request.headers.has("next-action")) return true;
+  // The header is only what the client router sends. Next also runs an action
+  // from a plain form post, which sends none, so checking the header alone left
+  // the limit one missing header away.
+  const type = request.headers.get("content-type") ?? "";
+  return type.startsWith("multipart/form-data") || type.startsWith("application/x-www-form-urlencoded");
 }
 
 /**
@@ -229,7 +235,10 @@ export async function updateSession(request: NextRequest, csp?: string) {
         status: 429,
         headers: {
           "Retry-After": String(Math.ceil(WRITE_LIMIT.windowMs / 1000)),
-          "Content-Type": "text/plain; charset=utf-8",
+          // Exactly this. The client router shows the body only on an exact match
+          // (server-action-reducer.js), and with a charset the member never saw
+          // this sentence, just a generic failure.
+          "Content-Type": "text/plain",
         },
       });
     }

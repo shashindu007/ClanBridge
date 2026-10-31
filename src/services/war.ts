@@ -38,6 +38,33 @@ import type {
   WarTargetRow,
 } from "@/repositories/war";
 
+/**
+ * Stars in the war's final score that no recorded attack explains.
+ *
+ * Above zero means the last attacks were never seen. The score can come from the
+ * war log after the war has gone from /currentwar, and the log carries totals,
+ * not attacks. So a member with an unused attack in such a war may simply have
+ * used it unseen, and nothing here may call that a miss.
+ *
+ * The score counts each enemy base once, at its best result, so this does too.
+ * Zero is not proof the war is complete: a late attack that added no star leaves
+ * no trace. It is the most the stored data can say, and it errs towards charging,
+ * as the rating always did. Null score: nothing to compare, so nothing is missing.
+ */
+export function starsNotCaptured(
+  ourStars: number | null | undefined,
+  attacks: ReadonlyArray<{ defenderTag: string | null; stars: number }>,
+): number {
+  if (ourStars === null || ourStars === undefined) return 0;
+  const best = new Map<string, number>();
+  for (const attack of attacks) {
+    if (!attack.defenderTag) continue;
+    best.set(attack.defenderTag, Math.max(best.get(attack.defenderTag) ?? 0, attack.stars));
+  }
+  const captured = [...best.values()].reduce((total, stars) => total + stars, 0);
+  return Math.max(0, ourStars - captured);
+}
+
 export interface MemberWarRecord {
   playerId: string;
   tag: string;
@@ -478,12 +505,19 @@ export function warContribution(
      * the next lineup was reordered by attacks nobody had had time to make.
      */
     state?: string | null;
+    /**
+     * The war's final score. Where it shows attacks went unseen (see
+     * starsNotCaptured) an unused attack is unknown rather than missed, so that
+     * war adds what was seen and no misses.
+     */
+    ourStars?: number | null;
   }>,
 ): WarContribution[] {
   const byPlayer = new Map<string, WarContribution>();
 
   for (const war of perWar) {
     if (war.state !== undefined && war.state !== "warEnded") continue;
+    const incomplete = starsNotCaptured(war.ourStars, war.attacks) > 0;
     for (const member of warRecord(war.members, war.attacks, war.targets ?? [])) {
       const entry = byPlayer.get(member.playerId) ?? {
         playerId: member.playerId,
@@ -501,12 +535,12 @@ export function warContribution(
       };
 
       entry.warsPlayed += 1;
-      entry.attacksAvailable += member.attacksAllowed;
+      entry.attacksAvailable += incomplete ? member.attacksUsed : member.attacksAllowed;
       entry.attacksUsed += member.attacksUsed;
-      entry.attacksMissed += member.attacksRemaining;
+      if (!incomplete) entry.attacksMissed += member.attacksRemaining;
       entry.stars += member.stars;
       entry.destruction += member.destruction;
-      if (member.missedEntirely) entry.warsMissedEntirely += 1;
+      if (member.missedEntirely && !incomplete) entry.warsMissedEntirely += 1;
       if (member.followedTarget !== null) {
         entry.targetsJudged += 1;
         if (member.followedTarget) entry.targetsFollowed += 1;

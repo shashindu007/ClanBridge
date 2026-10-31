@@ -24,6 +24,19 @@ function rawMessage(error: MessageLike): string {
 }
 
 /**
+ * Stop here if a read failed.
+ *
+ * A failed read and an empty result are different answers. Handing back [] for
+ * both is how a database hiccup told members "No raid weekends recorded", showed
+ * every attack as unused, and sent an approved member to "Finish your account".
+ * Thrown, it reaches (app)/error.tsx, which says something went wrong and offers
+ * a retry. Next keeps the text out of the browser; it is for the server log.
+ */
+export function assertRead(error: MessageLike, what: string): void {
+  if (error) throw new Error(`${what} could not be read: ${rawMessage(error)}`);
+}
+
+/**
  * A Postgres unique-violation, by constraint name.
  *
  * Checked by name rather than by SQLSTATE because PostgREST does not always

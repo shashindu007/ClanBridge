@@ -58,7 +58,13 @@ export const config = {
   // x-user-id that lib/auth.ts believes. The exclusions below are the files
   // public/ actually serves plus the two a browser asks for unprompted; every
   // other path runs the middleware, which is the safe default.
+  //
+  // WHOLE FOLDERS, BY THEIR REAL NAMES (QA, 2026-10). The same hole a third time:
+  // `game/` as a bare prefix skipped `/game/war`, which routes to [clanTag]/war
+  // with the clan "game" and its Server Actions intact. So each folder is named
+  // down to the level the files live at, and nothing here may ever match a segment
+  // under [clanTag]. test/public-paths.test.ts holds the list of those.
   matcher: [
-    "/((?!_next/static|_next/image|icons/|game/|scenes/|favicon\\.ico$|manifest\\.json$|sw\\.js$|robots\\.txt$|apple-touch-icon[^/]*\\.png$).*)",
+    "/((?!_next/static|_next/image|icons/[^/]+\\.png$|scenes/[^/]+\\.webp$|game/(?:builder-troops|equipment|heroes|leagues|pets|sieges|spells|townhall|troops)/|favicon\\.ico$|manifest\\.json$|offline\\.html$|sw\\.js$|robots\\.txt$|apple-touch-icon[^/]*\\.png$).*)",
   ],
 };

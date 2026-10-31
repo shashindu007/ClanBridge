@@ -49,6 +49,7 @@ export async function loadWarMonth(
         opponentAttacks,
         defenceKnown: war.opponentAttacksCapturedAt !== null,
         teamSize: war.teamSize,
+        ourStars: war.ourStars,
       });
     }),
   );

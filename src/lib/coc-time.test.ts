@@ -194,11 +194,17 @@ describe("clanGamesPhase", () => {
     expect(clanGamesPhase(at("2026-08-23T08:01:00Z"))).toBeNull();
   });
 
-  // Not before the period opens. A run on the 21st would read a value that
-  // belongs to last month's state and is indistinguishable from this month's.
-  it("does not take a start snapshot before the period opens", () => {
+  // Before the games open, because the score is the end minus the start: a reading
+  // taken after 08:00 loses whatever was scored since. Nothing moves the
+  // achievement between periods, so an early reading is the true opening value.
+  it("takes the start snapshot in the hours before the period opens", () => {
+    expect(clanGamesPhase(at("2026-08-21T20:00:00Z"))).toBe("start");
+    expect(clanGamesPhase(at("2026-08-22T07:59:00Z"))).toBe("start");
+  });
+
+  it("does not open the start window any earlier than that", () => {
     expect(clanGamesPhase(at("2026-08-21T12:00:00Z"))).toBeNull();
-    expect(clanGamesPhase(at("2026-08-22T07:59:00Z"))).toBeNull();
+    expect(clanGamesPhase(at("2026-08-21T19:59:00Z"))).toBeNull();
   });
 
   it("says nothing at all mid-period", () => {

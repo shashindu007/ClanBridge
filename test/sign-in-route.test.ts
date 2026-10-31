@@ -52,10 +52,59 @@ describe("POST /api/auth/sign-in", () => {
   describe("refusals that cost nothing", () => {
     it("400s on a body that is not JSON, without asking Supabase", async () => {
       const res = await POST(
-        new Request("http://localhost/api/auth/sign-in", { method: "POST", body: "{" }),
+        new Request("http://localhost/api/auth/sign-in", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{",
+        }),
       );
       expect(res.status).toBe(400);
       expect(signInWithPassword).not.toHaveBeenCalled();
+    });
+
+    // Login CSRF: a plain form on another site can post here, but cannot send
+    // JSON, and a browser cannot lie about where a cross-site request came from.
+    it("403s on a form post, which is what another site can send", async () => {
+      const res = await POST(
+        new Request("http://localhost/api/auth/sign-in", {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
+        }),
+      );
+      expect(res.status).toBe(403);
+      expect(signInWithPassword).not.toHaveBeenCalled();
+    });
+
+    it("403s on a request from another origin", async () => {
+      const res = await POST(
+        new Request("http://localhost/api/auth/sign-in", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Origin: "https://evil.example",
+            Host: "localhost",
+          },
+          body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
+        }),
+      );
+      expect(res.status).toBe(403);
+      expect(signInWithPassword).not.toHaveBeenCalled();
+    });
+
+    it("accepts this site's own origin", async () => {
+      const res = await POST(
+        new Request("http://localhost/api/auth/sign-in", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Origin: "https://clans.example",
+            "x-forwarded-host": "clans.example",
+          },
+          body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
+        }),
+      );
+      expect(res.status).toBe(200);
     });
 
     it("400s on a missing password", async () => {
@@ -235,9 +284,10 @@ describe("POST /api/auth/sign-in", () => {
       expect(signInWithPassword).toHaveBeenCalledTimes(SIGN_IN_LIMIT.max);
     });
 
-    // Two keys, because they stop different attacks. Exhausting one address must
-    // not lock out a different member who happens to share an office.
-    it("counts per email as well as per host", async () => {
+    // Three keys, because they stop different attacks. The per-address limit used
+    // to be the narrow one, so anybody could lock a member out of signing in by
+    // failing ten times with their address, from anywhere.
+    it("does not let one host lock an address out for everybody else", async () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
       signInWithPassword.mockResolvedValue({
         data: { user: null },
@@ -248,9 +298,37 @@ describe("POST /api/auth/sign-in", () => {
         await POST(post({ email: EMAIL, password: "guess" }, "198.51.100.1"));
       }
 
-      // Same address from a different host: still out of budget.
-      const sameEmail = await POST(post({ email: EMAIL, password: "guess" }, "198.51.100.2"));
-      expect(sameEmail.status).toBe(429);
+      const member = await POST(post({ email: EMAIL, password: "guess" }, "198.51.100.2"));
+      expect(member.status).toBe(401);
+    });
+
+    it("still stops one address being ground down from many hosts", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      signInWithPassword.mockResolvedValue({
+        data: { user: null },
+        error: { message: "Invalid login credentials" },
+      });
+
+      for (let i = 0; i < SIGN_IN_LIMIT.max * 5; i++) {
+        await POST(post({ email: EMAIL, password: "guess" }, `198.51.100.${i}`));
+      }
+
+      const next = await POST(post({ email: EMAIL, password: "guess" }, "203.0.113.200"));
+      expect(next.status).toBe(429);
+    });
+
+    // Exhausting one address must not lock out a different member who happens to
+    // share an office.
+    it("counts per email as well as per host", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      signInWithPassword.mockResolvedValue({
+        data: { user: null },
+        error: { message: "Invalid login credentials" },
+      });
+
+      for (let i = 0; i < SIGN_IN_LIMIT.max; i++) {
+        await POST(post({ email: EMAIL, password: "guess" }, "198.51.100.1"));
+      }
 
       // Different address from a fresh host: unaffected.
       const otherEmail = await POST(

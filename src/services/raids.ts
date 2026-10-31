@@ -229,6 +229,11 @@ export interface DefenceRaid {
   attacks: number;
   districtsDestroyed: number;
   districts: number;
+  /** The attacking clan's level, when the API sent it. */
+  attackerLevel: number | null;
+  stars: number;
+  /** Capital Gold they took from us across this raid. */
+  looted: number;
 }
 
 /** One of our districts across every raid on it in the weekend. */
@@ -263,12 +268,17 @@ export function defenceSummary(rows: RaidDefenceRow[]): DefenceSummary {
       raidNumber: row.raidNumber,
       attackerTag: row.attackerTag,
       attackerName: row.attackerName,
+      attackerLevel: row.attackerLevel ?? null,
       attacks: 0,
       districtsDestroyed: 0,
       districts: 0,
+      stars: 0,
+      looted: 0,
     };
     raid.attacks += row.attackCount;
     raid.districts += 1;
+    raid.stars += row.stars;
+    raid.looted += row.totalLooted ?? 0;
     if (row.destruction >= 100) raid.districtsDestroyed += 1;
     raids.set(row.raidNumber, raid);
 

@@ -17,14 +17,22 @@ function number(value: number | null): string {
   return value === null ? "—" : value.toLocaleString("en-GB");
 }
 
-export function PlayerCareer({ profile }: { profile: PlayerProfileRow | null }) {
+export function PlayerCareer({
+  profile,
+  departed = false,
+}: {
+  profile: PlayerProfileRow | null;
+  /** They have left this clan. The daily sync reads current members and linked villages only. */
+  departed?: boolean;
+}) {
   if (!profile) {
     return (
       <section className="cb-panel space-y-2 rounded-panel border p-5">
         <h2 className="text-lg font-semibold">Career</h2>
         <p className="text-muted-foreground text-sm">
-          Not read yet. Lifetime war stars, Capital Gold and achievements arrive with the
-          daily player sync, so this fills in by itself within a day.
+          {departed
+            ? "Not read. Lifetime war stars, Capital Gold and achievements are read for current members, and this player has left the clan."
+            : "Not read yet. Lifetime war stars, Capital Gold and achievements arrive with the daily player sync, so this fills in by itself within a day."}
         </p>
       </section>
     );
@@ -69,10 +77,21 @@ export function PlayerCareer({ profile }: { profile: PlayerProfileRow | null }) 
           />
         </div>
 
-        {profile.expLevel !== null && (
-          <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
-            <Medal aria-hidden className="size-4" />
-            Experience level <span className="text-foreground font-medium tabular-nums">{profile.expLevel}</span>
+        {(profile.expLevel !== null || profile.warPreference !== null) && (
+          <p className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            {profile.expLevel !== null && (
+              <span className="flex items-center gap-1.5">
+                <Medal aria-hidden className="size-4" />
+                Experience level <span className="text-foreground font-medium tabular-nums">{profile.expLevel}</span>
+              </span>
+            )}
+            {profile.warPreference !== null && (
+              <span className="flex items-center gap-1.5">
+                <Swords aria-hidden className="size-4" />
+                War preference{" "}
+                <span className="text-foreground font-medium capitalize">{profile.warPreference}</span>
+              </span>
+            )}
           </p>
         )}
       </section>
@@ -82,7 +101,7 @@ export function PlayerCareer({ profile }: { profile: PlayerProfileRow | null }) 
   );
 }
 
-/** Home village first, then the Builder Base — the order the game lists them. */
+/** Home village first, then the Builder Base and the Clan Capital — the game's order. */
 function Achievements({ achievements }: { achievements: Achievement[] }) {
   if (!achievements.length) return null;
 
@@ -90,6 +109,7 @@ function Achievements({ achievements }: { achievements: Achievement[] }) {
   const groups: Array<[string, Achievement[]]> = [
     ["Home village", achievements.filter((a) => a.village === "home")],
     ["Builder Base", achievements.filter((a) => a.village === "builder")],
+    ["Clan Capital", achievements.filter((a) => a.village === "capital")],
   ];
 
   return (

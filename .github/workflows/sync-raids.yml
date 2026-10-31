@@ -62,7 +62,9 @@ name: sync-raids
 # CLAN GAMES — 22nd to 28th, 08:00 UTC (src/lib/coc-time.ts). The score is the
 # "Games Champion" achievement at the end minus at the start, and a missed START
 # is a lost month (clan-games.ts). So each boundary gets a run and a backup:
-#   22nd 08:31, 22nd 10:31   start snapshot (the start phase lasts a day)
+#   21st 20:31, 22nd 02:31, 22nd 06:31   start snapshot, BEFORE the games open:
+#                            points scored before this reading are lost
+#   22nd 08:31, 22nd 10:31   start snapshot, late but better than nothing
 #   28th 08:41, 29th 10:41   end snapshot (any time after the close is fine)
 # A second run on the same boundary writes nothing: the start is written once,
 # and a settled month is never rewritten (027's settled_at).
@@ -76,8 +78,11 @@ on:
   schedule:
     - cron: "41 8 * * 5,6,0,1" # raids: Friday to Monday
     - cron: "31 6 * * 1"       # raids: Monday, before the weekend closes
-    - cron: "31 8 22 * *"      # clan games: start
-    - cron: "31 10 22 * *"     # clan games: start, backup
+    - cron: "31 20 21 * *"     # clan games: start, before the games open
+    - cron: "31 2 22 * *"      # clan games: start, before the games open
+    - cron: "31 6 22 * *"      # clan games: start, before the games open
+    - cron: "31 8 22 * *"      # clan games: start, late
+    - cron: "31 10 22 * *"     # clan games: start, late backup
     - cron: "41 8 28 * *"      # clan games: end
     - cron: "41 10 29 * *"     # clan games: end, backup
   workflow_dispatch: # for a manual catch-up after a missed period boundary
@@ -85,6 +90,11 @@ on:
 concurrency:
   group: sync-raids
   cancel-in-progress: false
+
+# Read the repository and nothing else. A step that is compromised gets a token
+# that cannot push, open issues or touch another workflow.
+permissions:
+  contents: read
 
 jobs:
   sync:
@@ -95,9 +105,9 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: "22"
           cache: npm

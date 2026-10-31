@@ -41,6 +41,17 @@ export interface Clan {
   capitalHallLevel?: number;
   /** 065 — every district of our capital, in the API's order. */
   capitalDistricts: CapitalDistrict[];
+  /** 071 — the clan's card, as a member sees it in game. */
+  description?: string;
+  clanPoints?: number;
+  clanBuilderBasePoints?: number;
+  clanCapitalPoints?: number;
+  /** The API's word: 'always', 'moreThanOncePerWeek', 'oncePerWeek', 'never'... */
+  warFrequency?: string;
+  requiredTownhallLevel?: number;
+  requiredTrophies?: number;
+  location?: string;
+  labels: string[];
 }
 
 export interface CapitalDistrict {
@@ -60,6 +71,10 @@ export interface Player {
   warStars?: number;
   expLevel?: number;
   league?: string;
+  /** 071 — the real rank, e.g. "Electro League 33". See coc-schemas.ts. */
+  leagueTier?: string;
+  /** 071 — sorts the rank: names do not. */
+  leagueTierId?: number;
   /** The clan the API currently reports them in, if any. */
   clanTag?: string;
 }
@@ -147,6 +162,8 @@ export interface RaidSeason {
   /** 'ongoing' | 'ended'. R10 — an ongoing weekend is not a failed sync. */
   state?: string;
   raidsCompleted?: number;
+  /** 071 — districts destroyed across all those raids. */
+  enemyDistrictsDestroyed?: number;
   totalAttacks?: number;
   /** Raid medals. The offensive one is what every member is paid. */
   offensiveReward?: number;
@@ -265,11 +282,14 @@ export interface Achievement {
   target?: number;
   /** What the achievement asks for, in the game's words. */
   info?: string;
-  village: Village;
+  village: AchievementVillage;
 }
 
 /** Which village a unit belongs to. Supercell spells the second one "builderBase". */
 export type Village = "home" | "builder";
+
+/** Achievements can also belong to the Clan Capital, which has no units. */
+export type AchievementVillage = Village | "capital";
 
 /**
  * One hero, piece of equipment, troop, pet, siege machine or spell (T11B.2).

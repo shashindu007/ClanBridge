@@ -17,6 +17,7 @@
 // in the approval queue. The wording on this page says so, because a button
 // labelled Delete that does not delete is worse than either.
 
+import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect, notFound } from "next/navigation";
 import { Castle, Crown, Mail, ShieldAlert, Undo2 } from "lucide-react";
@@ -34,6 +35,7 @@ import {
   type AdminAccount,
 } from "@/repositories/accounts";
 import { sentTo } from "@/repositories/notifications";
+import { ActionForm, type ActionResult } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +48,7 @@ export const dynamic = "force-dynamic";
 /** The longest body 039's check constraint accepts. Restated so the form can say so first. */
 const BODY_LIMIT = 2000;
 
-async function sendMessage(formData: FormData) {
+async function sendMessage(formData: FormData): Promise<ActionResult> {
   "use server";
 
   const supabase = await createClient();
@@ -56,12 +58,12 @@ async function sendMessage(formData: FormData) {
   const back = `/admin/members/${target}`;
 
   if (!target) redirect("/admin/members?error=bad-request");
-  if (!subject) redirect(`${back}?error=no-subject`);
-  if (!body) redirect(`${back}?error=no-body`);
-  if (body.length > BODY_LIMIT) redirect(`${back}?error=message-too-long`);
+  if (!subject) return { error: "no-subject" };
+  if (!body) return { error: "no-body" };
+  if (body.length > BODY_LIMIT) return { error: "message-too-long" };
 
   const id = await sendAccountMessage(supabase, target, subject, body);
-  if (!id) redirect(`${back}?error=send-failed`);
+  if (!id) return { error: "send-failed" };
 
   // The doorbell, after the message is safely written. A push is an HTTPS round
   // trip to a third party and lib/push.ts swallows every failure by design —
@@ -87,7 +89,7 @@ async function sendMessage(formData: FormData) {
 
   revalidatePath(back);
   revalidatePath("/notifications");
-  redirect(`${back}?ok=message-sent`);
+  return { ok: "message-sent" };
 }
 
 async function removeAccess(formData: FormData) {
@@ -215,7 +217,6 @@ export default async function AdminAccountPage({
   const sent = await sentTo(supabase, userId, target);
 
   const isSelf = account.id === userId;
-  const removable = !isSelf && !account.isPlatformAdmin && !account.removedAt;
 
   // T12.9 — which clans this caller may set roles in. The platform admin, every
   // clan on the platform (015's "platform admin reads all clans"); a leader,
@@ -232,6 +233,12 @@ export default async function AdminAccountPage({
     ? ((allClanRows ?? []) as Array<{ id: string; tag: string; name: string }>)
     : callerClans.filter((c) => c.role === "leader").map(({ id, tag, name }) => ({ id, tag, name }));
   const roleIn = new Map(account.memberships.map((m) => [m.clanId, m.role as Role]));
+  // 067 says the same in the database. This decides what to draw: a leader's reach
+  // ends at their own clans, and only the platform owner removes a leader.
+  const reachable = new Set(manageable.map((c) => c.id));
+  const outOfReach =
+    !admin && account.memberships.some((m) => m.role === "leader" || !reachable.has(m.clanId));
+  const removable = !isSelf && !account.isPlatformAdmin && !account.removedAt && !outOfReach;
   const rolesEditable =
     !isSelf &&
     !account.removedAt &&
@@ -360,8 +367,12 @@ export default async function AdminAccountPage({
           </p>
         ) : account.status !== "approved" ? (
           <p className="text-muted-foreground text-sm">
-            Approve this account first. Approving makes them a member of the clan they
-            verified in, and you can change the role from here after that.
+            Approve this account on the{" "}
+            <Link className="underline underline-offset-2" href="/admin/members">
+              members list
+            </Link>{" "}
+            first. Approving makes them a member of the clan they verified in, and you can
+            change the role from here after that.
           </p>
         ) : !rolesEditable ? (
           <p className="text-muted-foreground text-sm">
@@ -423,9 +434,9 @@ export default async function AdminAccountPage({
         )}
 
         <dl className="text-muted-foreground grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
-          <div><dt className="text-foreground inline font-medium">Member</dt> <dd className="inline">— war board, polls, notices and layouts; claims war targets.</dd></div>
-          <div><dt className="text-foreground inline font-medium">Elder</dt> <dd className="inline">— plus CWL history, raids, Clan Games and the war contribution report.</dd></div>
-          <div><dt className="text-foreground inline font-medium">Co-leader</dt> <dd className="inline">— plus lineups, CWL rosters, targets, polls, notices and medals.</dd></div>
+          <div><dt className="text-foreground inline font-medium">Member</dt> <dd className="inline">— every clan page: war board, CWL, raids, Clan Games, the war report, polls, notices and layouts; claims war targets.</dd></div>
+          <div><dt className="text-foreground inline font-medium">Elder</dt> <dd className="inline">— plus the &ldquo;Worth a look&rdquo; panel on the members page.</dd></div>
+          <div><dt className="text-foreground inline font-medium">Co-leader</dt> <dd className="inline">— plus lineups, CWL rosters, targets, polls, notices and other members&rsquo; base details.</dd></div>
           <div><dt className="text-foreground inline font-medium">Leader</dt> <dd className="inline">— plus admin, the audit log, and approving and managing accounts.</dd></div>
         </dl>
       </section>
@@ -447,7 +458,7 @@ export default async function AdminAccountPage({
             This is your own account, so there is nobody to write to.
           </p>
         ) : (
-          <form action={sendMessage} className="space-y-3">
+          <ActionForm action={sendMessage} className="space-y-3">
             <input type="hidden" name="userId" value={account.id} />
             <div className="space-y-1.5">
               <Label htmlFor="subject">Subject</Label>
@@ -475,7 +486,7 @@ export default async function AdminAccountPage({
               <Mail aria-hidden />
               Send message
             </SubmitButton>
-          </form>
+          </ActionForm>
         )}
 
         {sent.length > 0 && (
@@ -528,7 +539,9 @@ export default async function AdminAccountPage({
           <p className="text-muted-foreground text-sm">
             {isSelf
               ? "You cannot remove your own account — that would lock you out of this page."
-              : "The platform owner's account can never be removed."}
+              : account.isPlatformAdmin
+                ? "The platform owner's account can never be removed."
+                : "Only the platform owner can remove this account: it is a leader, or belongs to a clan you do not lead."}
           </p>
         ) : (
           <form action={removeAccess} className="space-y-3">

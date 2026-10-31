@@ -135,8 +135,8 @@ describe("T3.7 — cross-clan authorisation", () => {
         ('${CLAN_B}', '${MEMBER_B}', 'B notice', 'body');
 
       insert into base_layouts (clan_id, uploaded_by, th_level, layout_type, copy_link) values
-        ('${CLAN_A}', '${MEMBER_A}', 15, 'war', 'https://example.com/a'),
-        ('${CLAN_B}', '${MEMBER_B}', 15, 'war', 'https://example.com/b');
+        ('${CLAN_A}', '${MEMBER_A}', 15, 'war', 'https://link.clashofclans.com/a'),
+        ('${CLAN_B}', '${MEMBER_B}', 15, 'war', 'https://link.clashofclans.com/b');
 
       insert into member_snapshots (clan_id, player_id, trophies) values
         ('${CLAN_A}', 'cccccccc-0000-4000-8000-0000000000a1', 5000),

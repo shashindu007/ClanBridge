@@ -15,6 +15,7 @@
 // leader of clan A is handed a working link into clan B (T3.7).
 
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -36,6 +37,7 @@ import {
   type RailClan,
 } from "@/components/clan-nav-rail";
 import { PATHNAME_HEADER } from "@/lib/request-headers";
+import { pageTitle } from "@/lib/page-title";
 
 // The exempt list and its reasoning live in lib/gate.ts, so they can be tested
 // without rendering this layout. Its absence of "/admin" was a bootstrap
@@ -45,6 +47,12 @@ import { PATHNAME_HEADER } from "@/lib/request-headers";
 // nav's own active state cannot come from it: a layout is not re-rendered on a
 // client-side navigation, so this value is stale from the second page onwards.
 // See components/clan-nav-rail.tsx, which subscribes to the router instead.
+
+/** See lib/page-title.ts. The forwarded path is the middleware's, set on every request. */
+export async function generateMetadata(): Promise<Metadata> {
+  const title = pageTitle((await headers()).get(PATHNAME_HEADER));
+  return title ? { title } : {};
+}
 
 export default async function AppLayout({
   children,
@@ -288,6 +296,7 @@ export default async function AppLayout({
             </Link>
           )}
 
+          {approved && (
           <Link
             href="/notifications"
             aria-label={
@@ -305,6 +314,7 @@ export default async function AppLayout({
                 for contrast in both themes (globals.css). */}
             {approved && unread > 0 && <Badge variant="info">{unread}</Badge>}
           </Link>
+          )}
 
           {/* T12.3 — how many people are actually here.
 
@@ -352,7 +362,8 @@ export default async function AppLayout({
               showAdmin={showAdminLink}
               showLeadership={showLeadershipLinks}
               showRating={showRatingLink}
-              hasAvatar={Boolean(profile?.avatarPath)}
+              avatarPath={profile?.avatarPath ?? null}
+              approved={approved}
             />
           </div>
           </div>

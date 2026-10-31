@@ -99,7 +99,7 @@ async function claimOwnership() {
   }
 
   revalidatePath("/admin");
-  redirect("/admin?ok=clan-added");
+  redirect("/admin?ok=ownership-claimed");
 }
 
 async function addClan(formData: FormData) {
@@ -135,7 +135,7 @@ async function addClan(formData: FormData) {
   }
 
   revalidatePath("/admin");
-  redirect("/admin");
+  redirect("/admin?ok=clan-added");
 }
 
 async function grantSelfLeader(formData: FormData) {
@@ -587,15 +587,13 @@ export default async function AdminPage({
   const clanRows = (allClans ?? []) as Array<{ id: string; tag: string; name: string }>;
   const myClanIds = new Set(clans.map((c) => c.id));
 
-  // Whether the platform has an owner at all. The claim itself is guarded by the
-  // function and OWNER_EMAIL rather than by this.
-  const { count: adminCount } = await supabase
-    .from("users")
-    .select("id", { count: "exact", head: true })
-    .eq("is_platform_admin", true)
-    .is("deleted_at", null);
-
-  const unclaimed = !admin && (adminCount ?? 0) === 0;
+  // Whether the platform has an owner at all, through 067's function: RLS hides
+  // the admin's row, so a count here was 0 for everybody but the admin, and every
+  // account was let through as though the platform were unclaimed. A failed read
+  // is treated as owned, which is the closed answer. The claim itself is guarded
+  // by the function and OWNER_EMAIL rather than by this.
+  const { data: hasOwner } = await supabase.rpc("platform_has_owner");
+  const unclaimed = !admin && hasOwner === false;
 
   // T9.2 — read once and derive the failed list from it, so the "failed jobs"
   // panel cannot contradict the history table below it.

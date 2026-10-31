@@ -7,7 +7,7 @@
 -- BEGIN/COMMIT means a failure anywhere rolls the entire thing back, so you
 -- cannot end up with a half-applied schema.
 --
--- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql, 054_half_hour_snapshots.sql, 055_last_activity.sql, 056_notification_and_push_hardening.sql, 057_cwl_scouting.sql, 058_purge_cwl_scouting.sql, 059_purge_other_clans_only.sql, 060_scout_th_weapon.sql, 061_purge_keeps_our_wars.sql, 062_cwl_attack_order.sql, 063_war_opponent_attacks.sql, 064_raid_attacks.sql, 065_api_extras.sql
+-- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql, 054_half_hour_snapshots.sql, 055_last_activity.sql, 056_notification_and_push_hardening.sql, 057_cwl_scouting.sql, 058_purge_cwl_scouting.sql, 059_purge_other_clans_only.sql, 060_scout_th_weapon.sql, 061_purge_keeps_our_wars.sql, 062_cwl_attack_order.sql, 063_war_opponent_attacks.sql, 064_raid_attacks.sql, 065_api_extras.sql, 066_war_duplicates.sql, 067_security_hardening.sql, 068_war_reminders_and_cwl_identity.sql, 071_api_extras_more.sql, 072_cwl_wars_drop_global_tag.sql
 --
 -- Two numbers are absent, retired rather than reused so that apply order
 -- stays equal to numeric order: 009 (cwl_signups, superseded by Phase 4B)
@@ -11399,6 +11399,621 @@ grant select, insert, update on clan_profiles, player_profiles, raid_defenses to
 --   -- and cannot change one (R11 — no update policy, no grant):
 --   update clan_profiles set war_wins = 9999;   -- denied
 -- ---------------------------------------------------------------------------
+
+-- ========================================================================
+-- 066_war_duplicates.sql
+-- ========================================================================
+
+-- 066 — Wars recorded twice, and two sync rows that never closed.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 1. ONE WAR, TWO ROWS.
+--
+-- The API moved a war's startTime by 20 to 36 minutes during preparation, and
+-- `wars` has no identity but (clan_id, start_time), so the next sync inserted a
+-- second row. The first kept its roster and no attacks. closeStaleWars() then
+-- closed it with the real final score from the war log, so it looked like a
+-- finished war: it showed twice in history, and everyone in it was charged for two
+-- unused attacks. Four wars in October 2026, 110 member entries.
+--
+-- scripts/sync/war.ts now moves the row instead. This clears what is already there.
+--
+-- A row is removed only when ALL of these hold, so it cannot take a real war:
+--   * another row has the same clan and opponent, starting within six hours. A
+--     rematch cannot start that soon: the first war's battle day has to end.
+--   * this row has no attacks at all, and the other row has some.
+--   * no leader assigned anything on this row.
+--
+-- Soft deleted (R4). The roster rows stay, and nothing reads them once the war is
+-- gone. The month's rating is derived, never stored, so it corrects itself.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 2. TWO SYNC ROWS STILL 'running'.
+--
+-- Two cwl runs from 3 October died without closing their rows. Nothing is blocked
+-- by them, since runningSince() ignores anything older than 15 minutes, but a row
+-- that says a job is running a month later is a lie in the log the admin page shows.
+-- finished_at is the start, not now, so they do not read as a run from today.
+
+update public.wars stale
+set deleted_at = now()
+from public.wars live
+where stale.clan_id = live.clan_id
+  and stale.opponent_tag = live.opponent_tag
+  and stale.id <> live.id
+  and stale.deleted_at is null
+  and live.deleted_at is null
+  and abs(extract(epoch from (live.start_time - stale.start_time))) <= 6 * 60 * 60
+  and not exists (select 1 from public.war_attacks a where a.war_id = stale.id)
+  and exists (select 1 from public.war_attacks a where a.war_id = live.id)
+  and not exists (
+    select 1 from public.war_targets t
+    where t.war_id = stale.id and t.deleted_at is null
+  );
+
+update public.sync_log
+set status = 'failed',
+    finished_at = started_at,
+    error = 'Died without closing its row. Closed by migration 066.'
+where status = 'running'
+  and finished_at is null
+  and started_at < now() - interval '1 day';
+
+-- ========================================================================
+-- 067_security_hardening.sql
+-- ========================================================================
+
+-- 067 — Security findings from the QA audit of October 2026.
+--
+-- Six separate things, each small, none depending on the others. Replaces
+-- remove_account (039), claim_push_subscription (056) and approve_account (046).
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 1. TRUNCATE, TRIGGER AND REFERENCES.
+--
+-- Supabase's default privileges grant everything on a new table, and 006 and its
+-- successors only ever took back what they named. Production showed anon and
+-- authenticated still holding all three on every table in public. TRUNCATE
+-- matters most: RLS does not apply to it, and R4 is why 014 withholds DELETE even
+-- from service_role. PostgREST exposes no TRUNCATE, so this was a latent hole
+-- rather than an open door, but nothing in this project truncates anything, so
+-- nothing should be able to. The default-privileges half covers tables to come.
+
+revoke truncate, trigger, references on all tables in schema public from anon, authenticated, service_role;
+
+alter default privileges in schema public
+  revoke truncate, trigger, references on tables from anon, authenticated, service_role;
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 2. remove_account — a leader's reach ends at their own clan.
+--
+-- auth_may_administer_account() answers "is this person in a clan I lead", and
+-- 039 took that as enough to remove the whole account: status, every clan role,
+-- everywhere. So the leader of clan A could remove a fellow leader of A, and could
+-- strip someone's leadership of clan B by way of a membership in A. 044 says only
+-- the platform admin removes a leader; this makes removal say the same.
+--
+-- Raised by name rather than returned as false, as 039 does for the platform
+-- admin: reaching this line already required authority over the account, so
+-- nothing leaks, and a silent false would read as a permissions fault.
+--
+-- The rest of the function is 039's, unchanged.
+
+create or replace function remove_account(p_target uuid, p_reason text default null)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  authority   uuid;
+  target_row  record;
+begin
+  if auth.uid() is null or p_target is null or p_target = auth.uid() then
+    return false;
+  end if;
+
+  -- Authority first: see 039. A caller with none learns nothing except false.
+  if not public.auth_may_administer_account(p_target) then
+    return false;
+  end if;
+
+  select id, is_platform_admin, deleted_at
+    into target_row
+  from public.users
+  where id = p_target;
+
+  if not found or target_row.deleted_at is not null then
+    return false;
+  end if;
+
+  if target_row.is_platform_admin then
+    raise exception 'the platform admin account cannot be removed';
+  end if;
+
+  if not public.auth_is_platform_admin() then
+    if exists (
+      select 1 from public.clan_roles cr
+      where cr.user_id = p_target and cr.deleted_at is null and cr.role = 'leader'
+    ) then
+      raise exception 'only the platform admin can remove a clan leader';
+    end if;
+
+    if exists (
+      select 1 from public.clan_roles cr
+      where cr.user_id = p_target
+        and cr.deleted_at is null
+        and cr.clan_id not in (select public.auth_leader_clan_ids())
+    ) then
+      raise exception 'this account also belongs to a clan you do not lead';
+    end if;
+  end if;
+
+  -- Resolved BEFORE the roles are retired, or the audit row lands with no clan
+  -- and becomes invisible to every leader of the clan it concerns.
+  select cr.clan_id into authority
+  from public.clan_roles cr
+  where cr.user_id = p_target
+    and cr.deleted_at is null
+    and cr.clan_id in (select public.auth_leader_clan_ids())
+  order by cr.clan_id
+  limit 1;
+
+  perform set_config('clanbridge.bootstrap', 'on', true);
+
+  update public.users
+  set status     = 'rejected',
+      deleted_at = now()
+  where id = p_target;
+
+  update public.clan_roles
+  set deleted_at = now()
+  where user_id = p_target
+    and deleted_at is null;
+
+  insert into public.audit_log (user_id, clan_id, action, entity, entity_id, after)
+  values (auth.uid(), authority, 'remove', 'users', p_target,
+          jsonb_build_object(
+            'status', 'rejected',
+            'removed', true,
+            'reason', nullif(btrim(coalesce(p_reason, '')), '')));
+
+  return true;
+end;
+$$;
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 3. platform_has_owner — whether anyone holds the platform.
+--
+-- /admin asked by counting users where is_platform_admin. RLS hides that row from
+-- everyone but the admin, so the count was always 0 for the people the check was
+-- for: every account looked at an unclaimed platform and was shown the panel. One
+-- boolean, definer because the answer depends on a row the caller cannot read.
+
+create or replace function platform_has_owner()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.users
+    where is_platform_admin and deleted_at is null
+  )
+$$;
+
+revoke execute on function platform_has_owner() from public, anon;
+grant execute on function platform_has_owner() to authenticated;
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 4. PUSH ENDPOINTS GO TO PUSH SERVICES.
+--
+-- This server POSTs to every stored endpoint, so "any https URL" let a member
+-- point it at anything: a blind request forger, and with no timeout a way to hang
+-- every notice. The hosts below are the push services of Chrome and every browser
+-- built on it, Firefox, Safari and Edge. Every endpoint in production is
+-- fcm.googleapis.com.
+--
+-- The grants matter as much as the check: 023 left a direct insert open, which
+-- went straight round this function. Registering now happens only here, and the
+-- one direct write left is a member retiring their own row (R4).
+
+create or replace function is_push_endpoint(p_endpoint text)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(
+    p_endpoint ~ '^https://(fcm\.googleapis\.com|updates\.push\.services\.mozilla\.com|web\.push\.apple\.com|[a-z0-9-]+\.notify\.windows\.com)/',
+    false
+  )
+$$;
+
+create or replace function claim_push_subscription(
+  p_endpoint text,
+  p_p256dh   text,
+  p_auth     text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null
+     or not public.is_push_endpoint(p_endpoint) or char_length(p_endpoint) > 1000
+     or coalesce(char_length(p_p256dh), 0) not between 16 and 256
+     or coalesce(char_length(p_auth), 0)   not between 8 and 256 then
+    return false;
+  end if;
+
+  insert into public.push_subscriptions (user_id, endpoint, p256dh, auth)
+  values (auth.uid(), p_endpoint, p_p256dh, p_auth)
+  on conflict (endpoint) do update
+    set user_id    = excluded.user_id,
+        p256dh     = excluded.p256dh,
+        auth       = excluded.auth,
+        deleted_at = null;
+
+  return true;
+end;
+$$;
+
+revoke insert, update on push_subscriptions from authenticated;
+grant update (deleted_at) on push_subscriptions to authenticated;
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 5. base_layouts — what the upload form promises, in the database.
+--
+-- isCopyLink() and the vote functions were the only limits, and a member calling
+-- PostgREST directly meets neither: any URL as a "copy link" under the clan's
+-- name, which a member taps expecting the game, and any vote count. The column
+-- grants are the ones the application uses and no more. Votes change only through
+-- 028's definer functions, and the one update the app makes is the soft delete.
+
+alter table base_layouts
+  add constraint base_layouts_copy_link_is_the_game
+  check (copy_link ~* '^https://link\.clashofclans\.com/') not valid;
+alter table base_layouts validate constraint base_layouts_copy_link_is_the_game;
+
+revoke insert, update on base_layouts from authenticated;
+grant insert (clan_id, uploaded_by, th_level, layout_type, copy_link, image_url, description)
+  on base_layouts to authenticated;
+grant update (deleted_at) on base_layouts to authenticated;
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 6. approve_account — a restored account gets its seat back.
+--
+-- clan_roles is unique on (user_id, clan_id), and removal retires the row rather
+-- than deleting it. So after remove, restore and approve, 046's `on conflict do
+-- nothing` hit the retired row: approved, with no live role, and gone from the
+-- leader's directory. Reviving it as 'member' keeps the rule that approval never
+-- grants more, and a row that is still live is left alone, so a re-approval still
+-- cannot downgrade a leader.
+--
+-- The rest of the function is 046's, unchanged.
+
+create or replace function approve_account(target uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target_clan   uuid;
+  target_status text;
+  is_admin      boolean;
+  allowed       boolean;
+begin
+  if auth.uid() is null or target is null then
+    return false;
+  end if;
+
+  select requested_clan_id, status into target_clan, target_status
+  from public.users
+  where id = target and deleted_at is null;
+
+  if not found or target_status <> 'pending' then
+    return false;
+  end if;
+
+  -- Nobody approves themselves, regardless of rank.
+  if target = auth.uid() then
+    raise exception 'accounts cannot approve themselves';
+  end if;
+
+  is_admin := public.auth_is_platform_admin();
+
+  allowed := is_admin
+    or (target_clan is not null
+        and target_clan in (select public.auth_leader_clan_ids()));
+
+  if not allowed then
+    return false;
+  end if;
+
+  -- 017's guarantee, narrowed to the case it was actually about. A leader
+  -- approving a clanless account would leave them past the /pending redirect
+  -- with nothing to see and no role the leader could grant.
+  if target_clan is null and not is_admin then
+    return false;
+  end if;
+
+  perform set_config('clanbridge.bootstrap', 'on', true);
+
+  update public.users
+  set status      = 'approved',
+      approved_by = auth.uid(),
+      approved_at = now()
+  where id = target;
+
+  -- 'member' always, never the player's in-game rank (R11).
+  if target_clan is not null then
+    insert into public.clan_roles (user_id, clan_id, role)
+    values (target, target_clan, 'member')
+    on conflict (user_id, clan_id) do update
+      set role = 'member', deleted_at = null
+      where public.clan_roles.deleted_at is not null;
+  end if;
+
+  insert into public.audit_log (user_id, clan_id, action, entity, entity_id, after)
+  values (auth.uid(), target_clan, 'approve', 'users', target,
+          jsonb_build_object(
+            'status', 'approved',
+            'role', case when target_clan is null then null else 'member' end));
+
+  return true;
+end;
+$$;
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 7. reopen_account — Decline can be undone.
+--
+-- Decline was one tap beside Approve, and the only way back was removing the
+-- account, restoring it, then approving it. This puts a declined applicant back in
+-- the queue, for whoever could have decided in the first place, and nothing else:
+-- it grants no access, and the account still needs approving.
+--
+-- auth_may_administer_account() changes with it, or the leader who declined someone
+-- could never see them again to change their mind. Only for an account verified
+-- into a clan the caller leads, which is the audience they already had.
+
+create or replace function auth_may_administer_account(p_target uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    p_target is not null
+    and auth.uid() is not null
+    and (
+      public.auth_is_platform_admin()
+
+      -- A member of a clan this caller leads.
+      or exists (
+        select 1
+        from public.clan_roles cr
+        join public.users u on u.id = cr.user_id
+        where cr.user_id = p_target
+          and cr.clan_id in (select public.auth_leader_clan_ids())
+          and (cr.deleted_at is null or u.deleted_at is not null)
+      )
+
+      -- An applicant who verified into one, waiting or declined.
+      or exists (
+        select 1
+        from public.users u
+        where u.id = p_target
+          and u.status in ('pending', 'rejected')
+          and u.requested_clan_id in (select public.auth_leader_clan_ids())
+      )
+    )
+$$;
+
+create or replace function reopen_account(target uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target_clan uuid;
+begin
+  if auth.uid() is null or target is null or target = auth.uid() then
+    return false;
+  end if;
+
+  select requested_clan_id into target_clan
+  from public.users
+  where id = target and deleted_at is null and status = 'rejected';
+
+  if not found then
+    return false;
+  end if;
+
+  if not public.auth_is_platform_admin()
+     and (target_clan is null or target_clan not in (select public.auth_leader_clan_ids())) then
+    return false;
+  end if;
+
+  perform set_config('clanbridge.bootstrap', 'on', true);
+
+  update public.users set status = 'pending' where id = target;
+
+  insert into public.audit_log (user_id, clan_id, action, entity, entity_id, after)
+  values (auth.uid(), target_clan, 'reopen', 'users', target,
+          jsonb_build_object('status', 'pending'));
+
+  return true;
+end;
+$$;
+
+revoke execute on function reopen_account(uuid) from public, anon;
+grant execute on function reopen_account(uuid) to authenticated;
+
+-- ========================================================================
+-- 068_war_reminders_and_cwl_identity.sql
+-- ========================================================================
+
+-- 068 — One reminder per war and weekend, and a CWL war per season.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 1. reminded_at.
+--
+-- Settings has offered War reminders and Raid reminders since T5.9, and nothing
+-- ever sent either. scripts/sync/attack-reminders.ts does now. A war sync runs
+-- every 30 minutes, so without a record of having asked, one war would nag a
+-- member eight times, and T5.6 is clear about what that teaches a clan.
+--
+-- A stamp on the row, not a row per person. It is sent once, to everyone who still
+-- owes an attack at that moment, and it is a game-fact table only the sync writes.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 2. cwl_wars is one row per war PER SEASON ROW. First of two steps.
+--
+-- 002 made war_tag unique across the table. A season row belongs to one clan, and
+-- two family clans can land in one CWL group (cwl-scout.ts allows for it), which
+-- puts one war tag in two seasons. Each run's upsert then took the row from the
+-- other clan's season, the sides flipped, and reconcileRoster retired the other
+-- clan's members. 048 already got this right for cwl_group_wars. No clans in
+-- production have shared a group yet, so nothing needs repairing.
+--
+-- This adds the new constraint and leaves the old one, because the live sync runs
+-- from main and upserts on war_tag until this code is merged. 072 drops the old
+-- one, and must wait for that.
+
+alter table wars add column reminded_at timestamptz;
+alter table raid_seasons add column reminded_at timestamptz;
+
+comment on column wars.reminded_at is
+  'When attack reminders went out for this war. Null until then; sent once.';
+comment on column raid_seasons.reminded_at is
+  'When attack reminders went out for this weekend. Null until then; sent once.';
+
+alter table cwl_wars add constraint cwl_wars_season_war_tag_key unique (season_id, war_tag);
+
+-- ========================================================================
+-- 071_api_extras_more.sql
+-- ========================================================================
+
+-- 071 — The rest of what the API sends and nothing kept.
+--
+-- 065 took the first pass at this. The October 2026 audit compared the live API
+-- with what is stored, and three things were worth more than they looked:
+--
+--   * enemy_districts_destroyed. The raid page labelled raids_completed "districts
+--     cleared". They are different numbers: a live weekend reported 3 raids and 25
+--     districts. The page was showing the wrong one because the right one was
+--     never read.
+--
+--   * league_tier. Ranked battles replaced the old leagues, and `league` now says
+--     "Unranked" for 46 of 50 members in a real clan, with 14 of them on 0
+--     trophies. A member's actual rank ("Electro League 33") is in leagueTier,
+--     which nothing parsed, so the directory's trophy column showed almost nothing.
+--     league_tier_id keeps the order: the higher the id, the higher the rank, and
+--     names do not sort.
+--
+--   * the clan's own card: description, points, how often it wars, what it takes
+--     to join. A member can see all of it in game, and none of it here.
+--
+-- All of it is a game fact (R11), written only by scripts/sync/. These columns
+-- join tables whose policies already say who may read them, so no policy changes.
+
+alter table raid_seasons add column enemy_districts_destroyed integer;
+
+alter table players
+  add column league_tier text,
+  add column league_tier_id integer;
+
+alter table clan_profiles
+  add column description text,
+  add column clan_points integer,
+  add column clan_builder_base_points integer,
+  add column clan_capital_points integer,
+  add column war_frequency text,
+  add column required_townhall_level smallint,
+  add column required_trophies integer,
+  add column location text,
+  add column labels jsonb not null default '[]'::jsonb;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- latest_player_progress also returns the Town Hall weapon.
+--
+-- Scouting shows it for every enemy village and showed nothing for our own,
+-- because this function did not return the column. 051's function otherwise,
+-- unchanged. Dropped first: a change of return type cannot be replaced in place.
+
+drop function latest_player_progress(uuid[]);
+
+create function latest_player_progress(p_player_ids uuid[])
+returns table (
+  player_id        uuid,
+  captured_at      timestamptz,
+  th_level         smallint,
+  th_weapon_level  smallint,
+  units            jsonb
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if coalesce(cardinality(p_player_ids), 0) > 500 then
+    raise exception 'latest_player_progress: at most 500 players per call, got %',
+      cardinality(p_player_ids)
+      using errcode = '22023';
+  end if;
+
+  return query
+  with allowed as (
+    select requested.id
+    from unnest(coalesce(p_player_ids, '{}'::uuid[])) as requested(id)
+    where exists (select 1 from public.auth_clan_ids())
+       or current_setting('role', true) = 'service_role'
+       or requested.id in (select public.auth_owned_player_ids())
+  )
+  select distinct on (pp.player_id)
+         pp.player_id, pp.captured_at, pp.th_level, pp.th_weapon_level, pp.units
+  from public.player_progress pp
+  where pp.player_id in (select id from allowed)
+    and pp.deleted_at is null
+  order by pp.player_id, pp.captured_at desc;
+end;
+$$;
+
+revoke execute on function latest_player_progress(uuid[]) from public;
+grant execute on function latest_player_progress(uuid[]) to authenticated, service_role;
+
+-- ========================================================================
+-- 072_cwl_wars_drop_global_tag.sql
+-- ========================================================================
+
+-- 072 — The second half of 068: a war tag may now repeat across seasons.
+--
+-- APPLY THIS ONLY AFTER THE CODE THAT USES 068 IS ON main.
+--
+-- The sync jobs run from main, and until that code arrives there they upsert on
+-- war_tag alone, which needs this constraint. Dropping it first would fail every
+-- CWL sync, and a season missed is a season gone. So the change is in two steps:
+-- 068 added the per-season constraint beside this one, and both old and new code
+-- work with both in place. This removes the old one, which is what actually lets
+-- two family clans in one group each keep their own row.
+--
+-- `npm run migrations:apply -- --until=071` stops before this file.
+
+alter table cwl_wars drop constraint cwl_wars_war_tag_key;
 
 commit;
 

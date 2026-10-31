@@ -515,15 +515,6 @@ export function clanStatus(
   return { kind: "idle", tone: "neutral", label: "NO WAR", mine: null, href: `${base}/war` };
 }
 
-/** How many items belong to each clan — the badge on each clan tab. */
-export function countsByClan(items: NeedItem[]): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const item of items) {
-    for (const clan of item.clans) counts.set(clan.id, (counts.get(clan.id) ?? 0) + 1);
-  }
-  return counts;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // "Your main base" — the one village Home shows up front.
 //

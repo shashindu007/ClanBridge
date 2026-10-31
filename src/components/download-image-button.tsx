@@ -90,7 +90,10 @@ export function DownloadImageButton({
     setFailed(false);
     try {
       const blob = await render();
+      // Null is a capture that produced nothing, and it used to stop the spinner
+      // with no word to anyone.
       if (blob) await action(blob);
+      else setFailed(true);
     } catch (error) {
       if (!quiet(error)) {
         console.error("PNG export failed", error);

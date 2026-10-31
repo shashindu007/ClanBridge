@@ -294,23 +294,27 @@ export function cwlPhase(now: Date): "signup" | "wars" | null {
 /**
  * Which snapshot, if any, today's run should take.
  *
- * `"start"` on the day the period opens, `"end"` once it has closed, and null
- * for the three weeks in between when there is nothing to do.
+ * `"start"` around the moment the period opens, `"end"` once it has closed, and
+ * null for the three weeks in between when there is nothing to do.
  *
- * BOTH WINDOWS ARE A DAY WIDE, NOT AN INSTANT, because the job runs once a day
- * and GitHub delays scheduled runs by up to twenty minutes — an exact-time check
- * would miss the boundary on any day the runner was busy, and missing the start
- * boundary costs the month. The sync's own settled_at guard is what stops the
- * width turning into repeated writes.
+ * BOTH WINDOWS ARE WIDE, NOT AN INSTANT, because GitHub's schedule is best-effort
+ * and missing the start boundary costs the month. The sync's own guards are what
+ * stop the width turning into repeated writes: the first opening reading stands,
+ * and a settled month is never rewritten.
+ *
+ * THE START OPENS BEFORE THE GAMES DO. The score is the end reading minus the
+ * start, and the games open at 08:00, so a reading at 08:31 lost every point
+ * scored in that half hour, every month. The achievement cannot move between
+ * periods, so a reading before the opening is exactly the opening value.
  */
 export function clanGamesPhase(now: Date): "start" | "end" | null {
   const { start, end } = clanGamesWindow(now);
   const DAY = 24 * 60 * 60 * 1000;
+  const HOUR = 60 * 60 * 1000;
 
-  // The opening day. Note the lower bound is the start itself, not start-minus-
-  // a-day: snapshotting early is harmless, but a run BEFORE the period opens
-  // would be indistinguishable from last month's leftover state.
-  if (now >= start && now < new Date(start.getTime() + DAY)) return "start";
+  if (now >= new Date(start.getTime() - 12 * HOUR) && now < new Date(start.getTime() + DAY)) {
+    return "start";
+  }
 
   // Any time after the period closes, until the next month's window opens. Wide
   // on purpose — the end snapshot can be taken late without losing anything,

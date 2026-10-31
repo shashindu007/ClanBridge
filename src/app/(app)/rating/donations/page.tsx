@@ -97,7 +97,7 @@ export default async function SeasonDonationsPage({
           <EmptyState
             icon={Users}
             title="No members synced yet"
-            body="Once sync:clans has run, everybody appears here."
+            body="Everybody appears here after the next sync."
           />
         </Panel>
       ) : (

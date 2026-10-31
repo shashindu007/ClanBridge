@@ -11,6 +11,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ClanRole } from "@/types/domain";
+import { assertRead } from "@/lib/errors";
 
 export interface MemberRow {
   playerId: string;
@@ -21,6 +22,10 @@ export interface MemberRow {
   verified: boolean;
   /** Set when the player is in none of the three clans (T3.9). */
   leftAt: string | null;
+  /** 071 — the real rank. Optional, because only the directory reads it. */
+  leagueTier?: string | null;
+  /** 071 — what sorts it: names do not. */
+  leagueTierId?: number | null;
 }
 
 /**
@@ -79,7 +84,8 @@ export async function userIdsForPlayers(
     .is("deleted_at", null)
     .not("user_id", "is", null);
 
-  if (error || !data) return [];
+  assertRead(error, "players");
+  if (!data) return [];
 
   return [
     ...new Set(
@@ -105,7 +111,7 @@ export async function membersForClan(
 ): Promise<MemberRow[]> {
   const query = supabase
     .from("players")
-    .select("id, tag, name, th_level, clan_role, verified, left_at")
+    .select("id, tag, name, th_level, clan_role, verified, left_at, league_tier, league_tier_id")
     .eq("clan_id", clanId) // R3
     .is("deleted_at", null);
 
@@ -114,7 +120,8 @@ export async function membersForClan(
   if (!options.includeDeparted) query.is("left_at", null);
 
   const { data, error } = await query.order("name");
-  if (error || !data) return [];
+  assertRead(error, "players");
+  if (!data) return [];
 
   return (data as Array<Record<string, unknown>>).map((r) => ({
     playerId: r.id as string,
@@ -124,6 +131,8 @@ export async function membersForClan(
     clanRole: (r.clan_role as ClanRole | null) ?? null,
     verified: r.verified === true,
     leftAt: (r.left_at as string | null) ?? null,
+    leagueTier: (r.league_tier as string | null) ?? null,
+    leagueTierId: (r.league_tier_id as number | null) ?? null,
   }));
 }
 
@@ -157,7 +166,8 @@ export async function latestSnapshots(
     .limit(Math.max(200, memberCount * 4))
     .order("captured_at", { ascending: false });
 
-  if (error || !data) return new Map();
+  assertRead(error, "member_snapshots");
+  if (!data) return new Map();
 
   const latest = new Map<string, SnapshotPoint>();
   for (const row of data as Array<Record<string, unknown>>) {
@@ -214,7 +224,8 @@ export async function searchPlayers(
       else query.ilike("name", `%${escaped}%`);
 
       const { data, error } = await query.order("name");
-      if (error || !data) return [];
+      assertRead(error, "players");
+      if (!data) return [];
 
       return (data as Array<Record<string, unknown>>).map((r) => ({
         clanId,
@@ -270,7 +281,8 @@ export async function lastActivity(
     p_since: since.toISOString(),
   });
 
-  if (error || !data) return { byPlayer: new Map(), coveredFrom: null };
+  assertRead(error, "last_activity");
+  if (!data) return { byPlayer: new Map(), coveredFrom: null };
 
   const byPlayer = new Map<string, string | null>();
   let coveredFrom: string | null = null;

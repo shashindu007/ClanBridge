@@ -167,6 +167,21 @@ export const PHASE1_MIGRATIONS = [
   // What the API sends and the syncs dropped: clan war record and capital,
   // player profiles, attack durations, the raid defence log.
   "065_api_extras.sql",
+  // One war recorded twice when the API moved its start time, and two sync rows
+  // that never closed. Follows 003 and 024.
+  "066_war_duplicates.sql",
+  // Table privileges, removal and approval rules, push hosts, layout writes, and
+  // who owns the platform. Replaces functions from 039, 046 and 056.
+  "067_security_hardening.sql",
+  // One reminder per war and raid weekend, and cwl_wars unique per season, so
+  // two family clans in one group each keep their own war. Follows 002 and 027.
+  "068_war_reminders_and_cwl_identity.sql",
+  // Raid district counts, the member's real league, and the clan's own card.
+  // Follows 027, 001 and 065.
+  "071_api_extras_more.sql",
+  // Drops cwl_wars' global tag constraint. Second half of 068, and it waits until
+  // the code using 068 is on main: see the file.
+  "072_cwl_wars_drop_global_tag.sql",
 ] as const;
 
 /**
@@ -196,6 +211,11 @@ export const LIVE_ONLY_MIGRATIONS = [
   // T12.7 the 15 KB avatar ceiling and the owner-scoped delete policy that lets
   // a replaced picture be removed instead of orphaned.
   "043_avatar_storage_limits.sql",
+  // The half-hourly dispatch of sync-clans. pg_cron, pg_net and Vault exist on
+  // Supabase only. See the migration for the one secret it needs.
+  "069_sync_heartbeat.sql",
+  // Drops 029's policy letting any clan member replace any layout image.
+  "070_layout_storage_no_overwrite.sql",
 ] as const;
 
 /**

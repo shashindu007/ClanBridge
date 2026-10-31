@@ -2,7 +2,7 @@
 // what order. The order is the design, so it is what most of these pin.
 
 import { describe, expect, it } from "vitest";
-import { clanStatus, countsByClan, needsYou, timeUntil, type HomeClan } from "@/services/home";
+import { clanStatus, needsYou, timeUntil, type HomeClan } from "@/services/home";
 
 const NOW = new Date("2026-09-22T12:00:00Z");
 const IN_5H = "2026-09-22T17:00:00Z";
@@ -250,11 +250,6 @@ describe("needsYou", () => {
       expect(items[0]!.href).toBe("/%23CCC/polls/cwl-oct");
     });
 
-    it("badges every clan tab the row concerns", () => {
-      const items = needsYou({ clans: three(), myPlayers: villages, unread: 0, waitingAccounts: 0, now: NOW });
-      const counts = countsByClan(items);
-      expect([counts.get("c1"), counts.get("c2"), counts.get("c3")]).toEqual([1, 1, 1]);
-    });
   });
 
   it("says nothing about a war that has ended", () => {
@@ -272,25 +267,6 @@ describe("needsYou", () => {
       now: NOW,
     });
     expect(items).toEqual([]);
-  });
-});
-
-describe("countsByClan", () => {
-  it("counts clan items and ignores platform-wide ones", () => {
-    const items = needsYou({
-      clans: [
-        clan({ openPolls: [{ id: "p", title: "A", closesAt: null, responders: [] }] }),
-        clan({ id: "c2", tag: "#8QUCLJY0", openPolls: [] }),
-      ],
-      myPlayers: [{ id: ME, clanId: "c1" }],
-      unread: 3,
-      waitingAccounts: 1,
-      now: NOW,
-    });
-    const counts = countsByClan(items);
-    expect(counts.get("c1")).toBe(1);
-    expect(counts.has("c2")).toBe(false);
-    expect([...counts.values()].reduce((a, b) => a + b, 0)).toBe(1);
   });
 });
 

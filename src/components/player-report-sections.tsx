@@ -191,8 +191,7 @@ export function PlayerReportSections({
 
         {donationRows.length === 0 ? (
           <p className="text-muted-foreground text-sm">
-            No donation readings for this member yet. They arrive hourly with{" "}
-            <code className="text-xs">sync:clans</code>, so this fills in on its
+            No donation readings for this member yet. They arrive with the clan sync, so this fills in on its
             own — and only ever covers months the sync was running for, because
             the game keeps no history of its own.
           </p>
@@ -265,7 +264,7 @@ export function PlayerReportSections({
             </TableBody>
           </Table>
           <p className="text-muted-foreground text-xs">
-            History follows the player, not the clan (T3.9) — moving between our
+            History follows the player, not the clan — moving between our
             clans never detaches what they did before.
           </p>
         </section>

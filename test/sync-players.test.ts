@@ -178,6 +178,46 @@ describe("T11B.5 — players sync", () => {
   });
 
   // Risk 5 — the whole reason src/data/game/ exists.
+  // One 5xx used to throw away every reading already taken, and a daily reading
+  // missed is a day that cannot be fetched again.
+  it("writes what it read when one village fails, then reports the failure", async () => {
+    respondFor([TAGS[MEMBER]!, TAGS[OWNED_MEMBER]!, TAGS[OWNED_GONE]!]);
+    const answer = globalThis.fetch;
+    vi.stubGlobal("fetch", (url: string) =>
+      decodeURIComponent(String(url)).includes(TAGS[MEMBER]!)
+        ? Promise.resolve(new Response("{}", { status: 500 }))
+        : answer(url),
+    );
+
+    const result = await runSyncJob("players", syncPlayers, { client });
+
+    expect(result).toBe("failed");
+    expect(await count(h, "player_progress")).toBe(2);
+    const log = await h.db.query<{ error: string }>(
+      `select error from sync_log where job_type = 'players' order by started_at desc limit 1`,
+    );
+    expect(log.rows[0]!.error).toContain(TAGS[MEMBER]);
+  });
+
+  it("stops asking once the API is plainly down", async () => {
+    const calls: string[] = [];
+    await h.db.exec(`
+      insert into players (clan_id, tag, name)
+      select '${CLAN_A}', '#' || t, 'Extra ' || t
+      from unnest(array['2PP02', '2PP08', '2PP0Y', '2PP0L', '2PP0Q', '2PP0G']) as t;
+    `);
+    respondFor([], calls);
+    vi.stubGlobal("fetch", (url: string) => {
+      calls.push(String(url));
+      return Promise.resolve(new Response("{}", { status: 500 }));
+    });
+
+    expect(await runSyncJob("players", syncPlayers, { client })).toBe("failed");
+
+    const asked = new Set(calls.map((url) => url.split("/players/")[1]));
+    expect(asked.size).toBeLessThan(8);
+  });
+
   it("stores the Town Hall cap alongside the game maximum", async () => {
     respondFor(allKnown);
     await run();

@@ -133,7 +133,7 @@ export function describeRemaining(endTime: Date, now: Date): string {
  * failure. Counted by the caller so "reminded 0" can be told apart from
  * "nobody has an account yet", which look identical from the outside.
  */
-async function accountsForPlayers(
+export async function accountsForPlayers(
   supabase: SupabaseClient,
   playerIds: readonly string[],
 ): Promise<string[]> {

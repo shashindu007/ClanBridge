@@ -177,10 +177,10 @@ export default async function MemberGuidePage() {
           <AlertDescription>
             The four steps above happen once. From then on you sign in with your
             email and the password you chose in step 2 — no inbox needed.{" "}
-            <strong>Forgotten it?</strong> Press <strong>Sign up</strong> again to
-            get a link, sign in with that, then set a new password under{" "}
-            <strong>Sign-in and password</strong> in the account menu. There is no
-            separate reset page — the link is the reset.
+            <strong>Forgotten it?</strong> Press{" "}
+            <strong>Forgotten your password?</strong> on the sign-in page to get a
+            link, sign in with that, then set a new password under{" "}
+            <strong>Sign-in and password</strong> in the account menu.
           </AlertDescription>
         </Alert>
 
@@ -264,9 +264,10 @@ export default async function MemberGuidePage() {
           browser&rsquo;s site settings.
         </p>
         <p className="text-muted-foreground text-sm">
-          You get a reminder when a war day is ending and you still have an attack,
-          when a poll needs your answer, and when a leader posts a notice. Each of
-          those can be switched off separately on the same page.
+          You get a reminder when a CWL day or a war is ending and you still have an
+          attack, when a raid weekend is ending and you have raids left, when a poll
+          needs your answer, and when a leader posts a notice. Each of those can be
+          switched off separately on the same page.
         </p>
         <p className="text-muted-foreground text-sm">
           Notifications are per device. Turning them on on your phone does not turn

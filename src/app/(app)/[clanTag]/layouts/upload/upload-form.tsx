@@ -145,6 +145,8 @@ export function UploadForm({ clanId, clanTag, save }: UploadFormProps) {
       }
     }
 
+    // A dropped connection rejects rather than returning an error, and left the
+    // button on "Working…" for good.
     const result = await save({
       clanId,
       thLevel,
@@ -152,7 +154,7 @@ export function UploadForm({ clanId, clanTag, save }: UploadFormProps) {
       copyLink: copyLink.trim(),
       description: description.trim() || null,
       imagePath,
-    });
+    }).catch(() => ({ error: "The connection dropped, so the layout was not saved. Try again." }));
 
     if (result.error) {
       setStatus("error");

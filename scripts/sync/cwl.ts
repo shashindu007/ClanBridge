@@ -288,7 +288,14 @@ export function tagsToFetch(
   return rounds;
 }
 
-/** Insert or refresh the war row, and return its id. */
+/**
+ * Insert or refresh the war row, and return its id.
+ *
+ * NEVER WRITES warEnded. That is finishWar()'s, after the roster and attacks: a
+ * war marked ended is never fetched again (tagsToFetch), so a failure between the
+ * two would lose that day's last attacks for good, and CWL cannot be re-fetched
+ * once the season closes.
+ */
 async function upsertWar(
   supabase: SupabaseClient,
   seasonId: string,
@@ -313,19 +320,19 @@ async function upsertWar(
         opponent_name: theirs.name ?? null,
         opponent_badge_url: theirs.badgeUrl ?? null,
         team_size: war.teamSize ?? null,
-        state: storedState(war.state),
+        state: storedState(war.state) === "warEnded" ? "inWar" : storedState(war.state),
         our_stars: ours.stars ?? null,
         their_stars: theirs.stars ?? null,
         our_destruction: ours.destruction ?? null,
         their_destruction: theirs.destruction ?? null,
-        // Only once the day is over: a running day's "result" was the stars so
-        // far, and read as won or lost before anyone had finished attacking.
-        result: storedState(war.state) === "warEnded" ? warResult(ours, theirs) : null,
+        result: null,
         start_time: war.startTime?.toISOString() ?? null,
         end_time: war.endTime?.toISOString() ?? null,
       },
     ],
-    { onConflict: "war_tag", ignoreDuplicates: false },
+    // Per season (068), not per tag: two family clans in one group share a war tag,
+    // and each is owed its own row, oriented to its own side.
+    { onConflict: "season_id,war_tag", ignoreDuplicates: false },
   );
 
   if (error) throw new Error(`cwl_wars upsert failed for ${warTag}: ${error.message}`);
@@ -333,6 +340,7 @@ async function upsertWar(
   const { data, error: readError } = await supabase
     .from("cwl_wars")
     .select("id")
+    .eq("season_id", seasonId)
     .eq("war_tag", warTag)
     .is("deleted_at", null);
 
@@ -340,6 +348,20 @@ async function upsertWar(
   const id = (data as Array<{ id: string }> | null)?.[0]?.id;
   if (!id) throw new Error(`cwl_wars row vanished for ${warTag}`);
   return id;
+}
+
+/**
+ * Mark a war finished, as the last write of the run that saw it end.
+ *
+ * The result waits for this too: a running day's "result" was the stars so far,
+ * and read as won or lost before anyone had finished attacking.
+ */
+async function finishWar(supabase: SupabaseClient, warId: string, warTag: string, sides: Sides): Promise<void> {
+  const { error } = await supabase
+    .from("cwl_wars")
+    .update({ state: "warEnded", result: warResult(sides.ours, sides.theirs) })
+    .eq("id", warId);
+  if (error) throw new Error(`cwl_wars could not be closed for ${warTag}: ${error.message}`);
 }
 
 /**
@@ -1066,7 +1088,19 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
         for (const requestedTag of round) {
           if (settled.has(requestedTag)) continue;
 
-          const war = mapWar(await request(cwlWarEndpoint(requestedTag), warSchema));
+          // One war the API cannot give us is recorded and passed over, not the end
+          // of this clan's run. A round holds other clans' wars too, so a single
+          // bad tag used to stop every later day being captured, every run, until
+          // Supercell deleted them. The retry is the next run.
+          let war: War;
+          try {
+            war = mapWar(await request(cwlWarEndpoint(requestedTag), warSchema));
+          } catch (error) {
+            problems.push(
+              `${clan.tag}: war ${requestedTag} — ${error instanceof Error ? error.message : String(error)}`,
+            );
+            continue;
+          }
           fetched.add(requestedTag);
           if (groupOk && groupStored.get(requestedTag) !== "warEnded") {
             await upsertGroupWar(supabase, seasonId, requestedTag, war, days.get(requestedTag)).catch(
@@ -1093,9 +1127,6 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
             sides,
             days.get(requestedTag) ?? days.get(warTag),
           );
-          // Settled within this run too, so a later round listing the same war
-          // cannot rewrite a result already recorded a moment ago.
-          if (storedState(war.state) === "warEnded") settled.add(warTag);
 
           const playerIds = await resolvePlayers(supabase, clan, sides.ours.members);
 
@@ -1108,6 +1139,12 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
           ctx.recorded(
             await upsertAttacks(supabase, warId, sides.ours.members, playerIds, defenderPositions),
           );
+          if (storedState(war.state) === "warEnded") {
+            await finishWar(supabase, warId, warTag, sides);
+            // Settled within this run too, so a later round listing the same war
+            // cannot rewrite a result already recorded a moment ago.
+            settled.add(warTag);
+          }
           // After the attacks, so a member who played is seen to have played.
           // Never allowed to cost the capture above: it warns and tries again
           // next run.
@@ -1163,6 +1200,16 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
     }
   }
 
+  // T5.6 — after the capture, never before it. The reminder reads the rows this
+  // run just wrote, and the capture is the part that cannot be repeated: a war
+  // that ends before the next run takes its attacks with it permanently. Nothing
+  // in here throws, so a push service having a bad day cannot fail a sync that
+  // already did the irreplaceable half of its job.
+  //
+  // And before the failure below. A private war log is a standing setting: one
+  // clan's used to throw first, every run, and silenced this for every clan.
+  if (clansInCwl > 0) await remindUnusedAttacks(supabase, clans);
+
   if (problems.length) throw new Error(problems.join("; "));
 
   // Only a clean skip when NO clan is in CWL. One clan in CWL and two out is a
@@ -1170,13 +1217,6 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
   if (clansInCwl === 0) {
     skip("noCwlGroup", `none of the ${clans.length} clan(s) are in CWL`);
   }
-
-  // T5.6 — after the capture, never before it. The reminder reads the rows this
-  // run just wrote, and the capture is the part that cannot be repeated: a war
-  // that ends before the next run takes its attacks with it permanently. Nothing
-  // in here throws, so a push service having a bad day cannot fail a sync that
-  // already did the irreplaceable half of its job.
-  await remindUnusedAttacks(supabase, clans);
 }
 
 // The file name exactly, as players.ts does: cwl-scout.ts also contains "cwl",

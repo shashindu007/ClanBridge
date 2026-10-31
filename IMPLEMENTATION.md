@@ -54,9 +54,13 @@ than planned ahead, so they are shorter than the phases before them.
 
 **Needs something outside the repo:**
 
-- **Apply migration 065 to the live database BEFORE deploying T13.12**, then
-  `npm run types:db`. The war and raids pages select 065's new columns, and
-  until they exist those reads return nothing.
+- **After T13.13 reaches main, run `npm run migrations:apply`.** It applies 072,
+  the second half of 068, which drops `cwl_wars`' global tag constraint. Do not
+  run it before: main's CWL sync upserts on that constraint until then.
+- **Store the GitHub token for the sync heartbeat** (069):
+  `select vault.create_secret('<token>', 'github_dispatch_token');` Until then
+  the half-hourly dispatch does nothing, and GitHub's own schedule, which ran 5
+  to 15 times a day against 48, is all there is.
 - **Supabase dashboard:** minimum password length 10, leaked-password protection
   on, and the `avatars` bucket checked (Phase 10 and 11 lists below).
 - **T9.4** — run `npm run restore:verify` against a scratch project.
@@ -708,7 +712,13 @@ clanbridge/
 │       ├── 062_cwl_attack_order.sql   T13.4  the order of attacks in a CWL war
 │       ├── 063_war_opponent_attacks.sql T13.5 the enemy's attacks in a regular war
 │       ├── 064_raid_attacks.sql       T13.8  every raid attack, and the raided league
-│       └── 065_api_extras.sql         T13.12 war record, profiles, durations, raid defence
+│       ├── 065_api_extras.sql         T13.12 war record, profiles, durations, raid defence
+│       ├── 066_war_duplicates.sql     T13.13 clears wars recorded twice, closes dead sync rows
+│       ├── 067_security_hardening.sql T13.13 privileges, removal, push hosts, layouts, re-open
+│       ├── 068_war_reminders_and_cwl_identity.sql  T13.13 reminded_at, cwl_wars per season
+│       ├── 069_sync_heartbeat.sql     T13.13 live-only: dispatches sync-clans every 30 minutes
+│       ├── 070_layout_storage_no_overwrite.sql  T13.13 live-only: nobody overwrites an image
+│       └── 071_api_extras_more.sql    T13.13 raid districts, league tier, the clan's card
 │
 ├── test/                    QA — runs the migrations against real Postgres (PGlite)
 │   ├── pg-harness.ts        boots PGlite
@@ -2894,6 +2904,23 @@ and migrations; this is the first time they are in the ledger.*
   donations alone. The formula that weighs the five ratings together is still
   being decided, so nothing is built yet.
 - [x] **T13.11 — Phone layout** — every page fits a 390px screen.
+- [x] **T13.13 — Full QA audit, October 2026** (066 to 071). Checked against the
+  live database as well as the code, which is what found the worst of it.
+  - War data: the API moves a war's start time, which made 4 of 36 wars into two
+    rows, one with no attacks. `upsertWar` now moves the row. 6 more wars lost
+    their last attacks to gaps in GitHub's schedule (60 stars); `starsNotCaptured`
+    stops those counting as unused attacks, and 069 is the fix for the cause.
+  - Every sync writes attacks before marking a war or weekend finished.
+  - Security: table privileges, `remove_account` limits, push host allowlist,
+    middleware on routes that look like asset folders, login CSRF, others signed
+    out on a password change, workflows read-only and pinned.
+  - War and raid reminders are sent; the toggles had nothing behind them.
+  - A failed read reaches the error page instead of looking empty (`assertRead`).
+  - Data the API sent and nothing kept: raid districts, member league, clan card.
+  - UI: player pages survive a clan move, forms keep what was typed, destructive
+    actions confirm, phone layout, exports, page titles, offline page.
+  - Not done: only the first header row sticking on phones, keeping ticks across
+    picker filters, a monochrome notification badge, the Home install prompt.
 - [x] **T13.12 — What the API sent and the syncs dropped** (065). All of it
   was already on responses the syncs fetch; no new API calls.
   - Clan home: the war record (won · lost · tied) and win streak.

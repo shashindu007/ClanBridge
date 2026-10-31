@@ -263,7 +263,7 @@ describe("T7.1 — the capital raid sync", () => {
       insert into users (id, email, status)
       values ('dddddddd-0000-4000-8000-00000000d001', 'l@example.com', 'approved');
       insert into base_layouts (clan_id, uploaded_by, th_level, layout_type, copy_link)
-      values ('${CLAN_A}', 'dddddddd-0000-4000-8000-00000000d001', 16, 'war', 'https://x');
+      values ('${CLAN_A}', 'dddddddd-0000-4000-8000-00000000d001', 16, 'war', 'https://link.clashofclans.com/x');
     `);
 
     await runSyncJob("raids", syncRaids, { client });
@@ -411,7 +411,7 @@ describe("T7.1 — the capital raid sync", () => {
       expect(defencesDue({ ...season!, state: "ongoing" }, undefined)).toBe(false);
       expect(defencesDue({ ...season!, defences: null }, undefined)).toBe(false);
       expect(
-        defencesDue(season!, { id: "x", settled: true, captured: true, defended: true }),
+        defencesDue(season!, { id: "x", settled: true, captured: true, defended: true, districtsKnown: true }),
       ).toBe(false);
     });
 
@@ -433,6 +433,32 @@ describe("T7.1 — the capital raid sync", () => {
         "stars",
         "total_looted",
       ]);
+    });
+  });
+
+  // 071. The raid page called raidsCompleted "districts cleared". They are not the
+  // same number, and the right one was never read.
+  describe("071 — districts destroyed", () => {
+    it("stores the districts apart from the raids", async () => {
+      await runSyncJob("raids", syncRaids, { client });
+      const row = await h.db.query<{ raids_completed: number; enemy_districts_destroyed: number }>(
+        `select raids_completed, enemy_districts_destroyed from raid_seasons order by start_time desc limit 1`,
+      );
+      expect(row.rows[0]!.raids_completed).toBe(LATEST.raidsCompleted);
+      expect(row.rows[0]!.enemy_districts_destroyed).toBe(11); // fixtures/capitalraids.json
+    });
+
+    it("adds it to a weekend stored before 071, and touches nothing else", async () => {
+      await runSyncJob("raids", syncRaids, { client });
+      await h.db.exec(`update raid_seasons set enemy_districts_destroyed = null, total_loot = 1`);
+
+      await runSyncJob("raids", syncRaids, { client });
+
+      const row = await h.db.query<{ total_loot: number; enemy_districts_destroyed: number }>(
+        `select total_loot, enemy_districts_destroyed from raid_seasons order by start_time desc limit 1`,
+      );
+      expect(row.rows[0]!.enemy_districts_destroyed).toBe(11); // fixtures/capitalraids.json
+      expect(row.rows[0]!.total_loot).toBe(1); // R5
     });
   });
 
@@ -486,6 +512,22 @@ describe("T7.1 — the capital raid sync", () => {
       );
       expect(row.rows[0]!.offensive_reward).toBe(9999);
       expect(row.rows[0]!.total_loot).toBe(1);
+    });
+
+    // The weekend used to be closed first. A failure after it left a settled row
+    // R5 protects, with its final totals never written.
+    it("leaves a weekend open to be retried when its raiders could not be written", async () => {
+      await h.db.exec(`alter table raid_participants rename to raid_participants_hidden`);
+      try {
+        expect(await runSyncJob("raids", syncRaids, { client })).toBe("failed");
+      } finally {
+        await h.db.exec(`alter table raid_participants_hidden rename to raid_participants`);
+      }
+      expect(await count(h, "raid_seasons", "state = 'ended'")).toBe(0);
+
+      expect(await runSyncJob("raids", syncRaids, { client })).toBe("success");
+      expect(await count(h, "raid_seasons", "state = 'ended'")).toBeGreaterThan(0);
+      expect(await count(h, "raid_participants")).toBeGreaterThan(0);
     });
 
     // Risk 4. Every weekend settled and nothing new is the ordinary midweek

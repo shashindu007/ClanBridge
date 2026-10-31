@@ -27,8 +27,9 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Search, UserCheck, UserX } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { currentUserId } from "@/lib/auth";
+import { currentUserId, isPlatformAdmin } from "@/lib/auth";
 import { safeMessage } from "@/lib/errors";
+import { ConfirmSubmit } from "@/components/confirm-submit";
 import { adminAccounts, clansLeftInGame, type AdminAccount } from "@/repositories/accounts";
 import { SubmitButton } from "@/components/submit-button";
 import { PageHeader } from "@/components/page-header";
@@ -47,14 +48,17 @@ async function decide(formData: FormData) {
   const target = String(formData.get("userId") ?? "");
   const action = String(formData.get("action") ?? "");
 
-  if (!target || (action !== "approve" && action !== "reject")) {
+  const FUNCTIONS: Record<string, string> = {
+    approve: "approve_account",
+    reject: "reject_account",
+    reopen: "reopen_account",
+  };
+  const fn = Object.hasOwn(FUNCTIONS, action) ? FUNCTIONS[action] : undefined;
+  if (!target || !fn) {
     redirect("/admin/members?error=bad-request");
   }
 
-  const { data, error } = await supabase.rpc(
-    action === "approve" ? "approve_account" : "reject_account",
-    { target },
-  );
+  const { data, error } = await supabase.rpc(fn, { target });
 
   // T10.8d — a code, not the raw text. approve_account() raises by name for
   // "accounts cannot approve themselves", and the rest are Postgres internals
@@ -130,7 +134,7 @@ export default async function AdminAccountsPage({
       />
       <AdminNav
         current="accounts"
-        showFeedback={accounts.some((a) => a.id === userId && a.isPlatformAdmin)}
+        showFeedback={await isPlatformAdmin(supabase, userId)}
       />
 
       {/* Errors and confirmations come through the shared toast
@@ -249,11 +253,24 @@ export default async function AdminAccountsPage({
                     <form action={decide}>
                       <input type="hidden" name="userId" value={account.id} />
                       <input type="hidden" name="action" value="reject" />
-                      <SubmitButton size="sm" variant="outline">
+                      <ConfirmSubmit
+                        title="Decline this applicant?"
+                        body="They will be told a leader declined their account. You can re-open it from this list if it was a mistake."
+                        confirmLabel="Decline"
+                      >
                         Decline
-                      </SubmitButton>
+                      </ConfirmSubmit>
                     </form>
                   </>
+                )}
+                {account.status === "rejected" && !account.removedAt && (
+                  <form action={decide}>
+                    <input type="hidden" name="userId" value={account.id} />
+                    <input type="hidden" name="action" value="reopen" />
+                    <SubmitButton size="sm" variant="outline" pendingLabel="Re-opening">
+                      Re-open
+                    </SubmitButton>
+                  </form>
                 )}
                 {/* No "Open" button: the name is the link, and a second link to
                     the same account on every row was one more thing to read. */}

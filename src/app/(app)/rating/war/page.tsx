@@ -153,6 +153,7 @@ export default async function WarRatingPage({
   const fighting = shown.some((p) => p.view.rating.wars.some((w) => w.status === "provisional"));
   const counted = shown.flatMap((p) => p.view.rating.wars.filter((w) => w.status === "counted"));
   const attackOnly = counted.filter((w) => w.attackOnly).length;
+  const incomplete = counted.filter((w) => w.starsNotCaptured > 0).length;
   const rows = shown
     .flatMap((p) => rankedOf(p).map((player) => ({ clan: p.clan, player })))
     .sort(
@@ -196,7 +197,7 @@ export default async function WarRatingPage({
         </div>
 
         {/* The month, then all clans in one ranking or one clan's own. */}
-        <nav aria-label="Month" className="flex flex-wrap gap-2">
+        <nav aria-label="Month" className="cb-scroll-x flex gap-2 [&>*]:shrink-0">
           {months.slice(0, 12).map((m) => (
             <Choice key={m} href={here({ month: m })} active={m === month} label={seasonLabel(m)} />
           ))}
@@ -324,6 +325,8 @@ export default async function WarRatingPage({
           {only ? "the link above" : "follow a clan's name"}.
           {attackOnly > 0 &&
             ` ${attackOnly} of the ${counted.length} finished wars ${attackOnly === 1 ? "is" : "are"} rated on attack only: the enemy's attacks were not recorded for wars before this was added.`}
+          {incomplete > 0 &&
+            ` In ${incomplete} the last attacks were not captured, so nobody lost marks for an unused attack there.`}
         </p>
       </Panel>
     </Shell>

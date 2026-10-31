@@ -53,7 +53,7 @@ async function count(h: Harness, table: string, where = "true"): Promise<number>
  * A `fetch` that answers `/players/{tag}` with that tag's own Games Champion
  * value. The whole point: two readings, taken days apart, that differ.
  */
-function respondWithValues(values: Record<string, number | null>) {
+function respondWithValues(values: Record<string, number | null>, failing: string[] = []) {
   process.env.USE_FIXTURES = "false";
   process.env.COC_API_TOKEN = "not-a-real-token";
   process.env.COC_THROTTLE_MS = "0";
@@ -62,6 +62,7 @@ function respondWithValues(values: Record<string, number | null>) {
   vi.stubGlobal("fetch", (url: string) => {
     // `/players/%23P1` — the tag is percent-encoded by lib/tags.ts.
     const tag = decodeURIComponent(String(url).split("/players/")[1] ?? "");
+    if (failing.includes(tag)) return Promise.resolve(new Response("{}", { status: 500 }));
     if (!(tag in values)) {
       return Promise.resolve(
         new Response(JSON.stringify({ reason: "notFound" }), {
@@ -221,6 +222,34 @@ describe("T7.4 — Clan Games scoring", () => {
     // One member who left the game must not cost the other forty-nine their
     // opening reading — and their reading is the one thing that cannot be
     // taken later.
+    // The score is the end minus the start, and the games open at 08:00. A reading
+    // taken after that loses whatever was scored since, so the job runs before.
+    it("takes the reading in the hours before the games open", async () => {
+      respondWithValues({ "#PY0LQGRJ": 21_000, "#PY0LQGRC": 15_000 });
+
+      expect(await run(new Date("2026-08-21T20:31:00Z"))).toBe("success");
+
+      expect(await count(h, "clan_games", "season = '2026-08'")).toBe(1);
+      expect(await count(h, "clan_games_scores")).toBe(2);
+    });
+
+    // A lost reading is a lost month, so the ones in hand are kept, and the
+    // failure is reported so the backup run can fill the gap.
+    it("keeps the readings it took when one member fails, and fills the gap next run", async () => {
+      respondWithValues({ "#PY0LQGRJ": 21_000, "#PY0LQGRC": 15_000 }, ["#PY0LQGRC"]);
+      expect(await run(START_DAY)).toBe("failed");
+      expect(await count(h, "clan_games_scores")).toBe(1);
+
+      respondWithValues({ "#PY0LQGRJ": 21_500, "#PY0LQGRC": 15_000 });
+      expect(await run(START_DAY)).toBe("success");
+
+      expect(await count(h, "clan_games_scores")).toBe(2);
+      const first = await h.db.query<{ start_value: number }>(
+        `select start_value from clan_games_scores where player_id = '${P1}'`,
+      );
+      expect(first.rows[0]!.start_value).toBe(21_000); // the first reading stands
+    });
+
     it("carries past a member the API has never heard of", async () => {
       respondWithValues({ "#PY0LQGRJ": 21_000 }); // #PY0LQGRC → 404
       const result = await run(START_DAY);
@@ -251,6 +280,54 @@ describe("T7.4 — Clan Games scoring", () => {
       // Someone who scored nothing is a zero, not an absence — the distinction
       // the page needs to say "did not participate" rather than showing a gap.
       expect(rows.rows[1]).toMatchObject({ player_id: P2, points: 0 });
+    });
+
+    // Settling is final (R5), so it cannot happen on a partial reading: whoever
+    // failed would be left with no score, for good.
+    it("does not settle on a partial reading, and finishes on the next run", async () => {
+      await withStart({ "#PY0LQGRJ": 21_000, "#PY0LQGRC": 15_000 });
+
+      respondWithValues({ "#PY0LQGRJ": 23_500, "#PY0LQGRC": 15_700 }, ["#PY0LQGRC"]);
+      expect(await run(END_DAY)).toBe("failed");
+      expect(await count(h, "clan_games", "settled_at is not null")).toBe(0);
+      expect(await count(h, "clan_games_scores", "points is not null")).toBe(1);
+
+      respondWithValues({ "#PY0LQGRJ": 23_500, "#PY0LQGRC": 15_700 });
+      expect(await run(END_DAY)).toBe("success");
+      expect(await count(h, "clan_games", "settled_at is not null")).toBe(1);
+      expect(await count(h, "clan_games_scores", "points is not null")).toBe(2);
+    });
+
+    // Their points were scored for this clan. Reading only current members left
+    // them with an opening value and no score.
+    it("still scores a member who moved clan during the games", async () => {
+      const CLAN_B = "aaaaaaaa-0000-4000-8000-000000000002";
+      await withStart({ "#PY0LQGRJ": 21_000, "#PY0LQGRC": 15_000 });
+      await h.db.exec(`
+        insert into clans (id, tag, name) values ('${CLAN_B}', '#8QUCLJY0', 'Other');
+        update players set clan_id = '${CLAN_B}' where id = '${P2}';
+      `);
+
+      respondWithValues({ "#PY0LQGRJ": 23_500, "#PY0LQGRC": 16_000 });
+      await run(END_DAY);
+
+      const row = await h.db.query<{ points: number }>(
+        `select points from clan_games_scores where player_id = '${P2}'`,
+      );
+      expect(row.rows[0]!.points).toBe(1_000);
+    });
+
+    it("still scores a member who left", async () => {
+      await withStart({ "#PY0LQGRJ": 21_000, "#PY0LQGRC": 15_000 });
+      await h.db.exec(`update players set left_at = now() where id = '${P2}'`);
+
+      respondWithValues({ "#PY0LQGRJ": 23_500, "#PY0LQGRC": 15_400 });
+      await run(END_DAY);
+
+      const row = await h.db.query<{ points: number }>(
+        `select points from clan_games_scores where player_id = '${P2}'`,
+      );
+      expect(row.rows[0]!.points).toBe(400);
     });
 
     it("settles the season", async () => {

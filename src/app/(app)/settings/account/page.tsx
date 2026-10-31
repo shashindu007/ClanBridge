@@ -113,8 +113,15 @@ export default async function AccountSettingsPage() {
       safeMessage("settings password flag", flagError, "");
     }
 
+    // Someone changing a password after a compromise needs the other session gone,
+    // and leaving it signed in would make the change look like it had worked. This
+    // device keeps its session. A failure is logged and not shown: the password
+    // itself has changed.
+    const { error: signOutError } = await supabase.auth.signOut({ scope: "others" });
+    if (signOutError) safeMessage("settings sign out others", signOutError, "");
+
     revalidatePath("/", "layout");
-    done("Password changed. Your other devices stay signed in.");
+    done("Password changed. Your other devices have been signed out.");
   }
 
   return (

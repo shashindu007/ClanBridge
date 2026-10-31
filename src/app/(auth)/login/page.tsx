@@ -22,6 +22,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { loginError } from "@/lib/login-errors";
 import { createClient } from "@/lib/supabase/client";
 import { safeNext } from "@/lib/safe-next";
 import { Button } from "@/components/ui/button";
@@ -45,7 +46,7 @@ function LoginForm() {
   // /auth/callback bounces back here with ?error= when a link is expired, reused
   // or malformed. Without surfacing it the member sees the plain form again and
   // reasonably concludes the link did nothing.
-  const callbackError = params.get("error");
+  const callbackError = loginError(params.get("error"));
 
   // T10.3 — sign-out lands here. Saying so matters: an unannounced return to the
   // login form is indistinguishable from a session that expired by itself, which
@@ -72,17 +73,12 @@ function LoginForm() {
 
   // Supabase usually puts a rejected link's reason in the #fragment, which the
   // callback cannot see. The redirect carries the fragment through to here, so
-  // it is read on the client — it is more specific than the callback's guess.
+  // it is read on the client. Only that there WAS a reason is used: its text is
+  // part of the URL, and this page does not print what a URL says (lib/login-errors).
   useEffect(() => {
     const hash = new URLSearchParams(window.location.hash.slice(1));
-    const reason = hash.get("error_description");
-    if (!reason) return;
-    const code = hash.get("error_code");
-    setMessage(
-      code === "otp_expired"
-        ? `Supabase: "${reason}". This also happens when the link was already opened once (by you or your email app's link scanner) or a newer link was sent after it. Send yourself a new one and open only the newest email.`
-        : `Supabase: "${reason}"${code ? ` (${code})` : ""}.`,
-    );
+    if (!hash.get("error_description") && !hash.get("error_code")) return;
+    setMessage(loginError("expired") ?? "");
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
   }, []);
 

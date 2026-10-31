@@ -70,6 +70,16 @@ describe("T5.6 — sendPush", () => {
     expect(result).toEqual({ sent: 3, expired: [], failed: 0 });
   });
 
+  // web-push has no timeout of its own. One endpoint that never answers held the
+  // whole send open, past the ten seconds a Server Action gets.
+  it("gives every send a timeout", async () => {
+    sendNotification.mockResolvedValue({});
+
+    await sendPush([target(1)], PAYLOAD);
+
+    expect(sendNotification.mock.calls[0]![2]).toMatchObject({ timeout: 5000 });
+  });
+
   it("does nothing, and does not throw, with no targets", async () => {
     const result = await sendPush([], PAYLOAD);
     expect(sendNotification).not.toHaveBeenCalled();

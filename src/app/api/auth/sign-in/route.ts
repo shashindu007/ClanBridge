@@ -76,7 +76,28 @@ const REFUSED = "Wrong email or password.";
  */
 const UNREACHABLE = "Could not reach the server. Check your connection and try again.";
 
+/**
+ * Login CSRF. A page elsewhere can post a plain form here with an attacker's
+ * details, signing the victim into the attacker's account, and a village verified
+ * afterwards would land on that account. A plain form cannot send JSON, and a
+ * browser always says where a cross-site POST came from. No Origin at all is a
+ * script, which has no victim's cookies to abuse.
+ */
+function fromThisSite(request: Request): boolean {
+  if (!request.headers.get("content-type")?.startsWith("application/json")) return false;
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  try {
+    return new URL(origin).host === host;
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: Request): Promise<Response> {
+  if (!fromThisSite(request)) return json({ error: "Sign in from the sign-in page." }, 403);
+
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return json({ error: "Send an email address and a password." }, 400);
@@ -86,21 +107,27 @@ export async function POST(request: Request): Promise<Response> {
   // rate-limit budget and the per-address limit counts for nothing.
   const email = parsed.data.email.toLowerCase();
 
-  // Two keys, because they stop different attacks. Per email, so one account
-  // cannot be ground down from a thousand hosts; per IP, so one host cannot walk
-  // a list of addresses trying "password123" against each. Either being out of
-  // budget refuses the attempt.
+  // Three keys, because they stop different attacks. Per IP, so one host cannot
+  // walk a list of addresses trying "password123" against each. Per email and IP
+  // at the same limit, so one host cannot grind one account. And per email alone,
+  // five times wider, so one account cannot be ground down from a thousand hosts.
+  //
+  // That last one used to be the narrow one, and it let anybody lock a member out
+  // of signing in by failing ten times with their address. Wide enough now that
+  // doing so takes many machines, while a real distributed attack still stops.
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
 
   let limited;
   try {
     const limiter = await sharedRateLimiter(SIGN_IN_LIMIT);
-    const [byEmail, byIp] = await Promise.all([
-      limiter.limit(`signin:${email}`),
+    const accountLimiter = await sharedRateLimiter({ ...SIGN_IN_LIMIT, max: SIGN_IN_LIMIT.max * 5 });
+    const results = await Promise.all([
+      accountLimiter.limit(`signin:${email}`),
+      limiter.limit(`signin:${email}:${ip}`),
       limiter.limit(`signin-ip:${ip}`),
     ]);
-    limited = byEmail.success ? byIp : byEmail;
+    limited = results.find((r) => !r.success) ?? results[2];
   } catch (error) {
     // FAILS OPEN, and this is a deliberate disagreement with /api/verify, which
     // fails closed on the same condition.

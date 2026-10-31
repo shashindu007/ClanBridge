@@ -74,6 +74,7 @@ export const OK_MESSAGES: Record<string, string> = {
   // Admin.
   "clan-added": "Clan added. The next sync fills in its details.",
   "member-updated": "Account updated.",
+  "ownership-claimed": "You now own this platform.",
 
   // Managing accounts after approval (T12.2) and the notification feed (T12.3).
   "message-sent": "Message sent. It is in their notifications now.",
@@ -167,6 +168,9 @@ export const ERROR_MESSAGES: Record<string, string> = {
 
   // Clan roles (T12.9). One sentence for every refusal, naming the rules
   // rather than which one said no.
+  failed: "That did not go through. Try again.",
+  "no-clan": "Choose a clan first.",
+  refused: "That was refused. The account may already have been decided, or it is not yours to decide.",
   "role-refused":
     "That role was not saved. You can only change roles in a clan you lead, never your own, and only the platform owner can make or unmake a leader.",
 

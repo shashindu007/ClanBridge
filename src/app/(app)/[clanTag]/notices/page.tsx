@@ -20,6 +20,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmSubmit } from "@/components/confirm-submit";
+import { ActionForm, type ActionResult } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,7 +82,7 @@ export default async function NoticesPage({
   // The server actions below decide what to RENDER and nothing more. Every one
   // of them calls a function that re-checks authority in the database, so a
   // member who reaches the action directly is refused there (R3, 021).
-  async function createNotice(formData: FormData) {
+  async function createNotice(formData: FormData): Promise<ActionResult> {
     "use server";
 
     const supabase = await createClient();
@@ -96,7 +98,7 @@ export default async function NoticesPage({
     });
 
     if (error) {
-      redirect(`${base}?error=${encodeURIComponent(noticeError("post-notice", error))}`);
+      return { error: noticeError("post-notice", error) };
     }
 
     // T5.6 — the notice is posted; now tell people it exists.
@@ -124,7 +126,7 @@ export default async function NoticesPage({
 
     revalidatePath(base);
     revalidatePath(`/${encodeURIComponent(clan.tag)}`); // the dashboard shows the latest
-    redirect(`${base}?ok=notice-posted`);
+    return { ok: "notice-posted" };
   }
 
   async function removeNotice(formData: FormData) {
@@ -172,7 +174,7 @@ export default async function NoticesPage({
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
       <PageHeader
         eyebrow={clan.name}
-        title="Announcements"
+        title="Notices"
         description={
           mayPost
             ? "You can post here; everyone in the clan can read."
@@ -187,7 +189,7 @@ export default async function NoticesPage({
           them below the fold on the page whose whole point is reading them. */}
       {mayPost && (
         <Disclosure title="Post an announcement" icon={Megaphone}>
-        <form action={createNotice} className="space-y-3">
+        <ActionForm action={createNotice} className="space-y-3">
 
           <div className="space-y-1">
             <Label htmlFor="title">Title</Label>
@@ -206,7 +208,7 @@ export default async function NoticesPage({
             />
             <p className="text-muted-foreground text-xs">
               Plain text. Line breaks are kept; nothing else is formatted, and no
-              HTML is ever rendered (T5.2).
+              HTML is ever rendered.
             </p>
           </div>
 
@@ -216,7 +218,7 @@ export default async function NoticesPage({
           </label>
 
           <SubmitButton variant="gold">Post</SubmitButton>
-        </form>
+        </ActionForm>
         </Disclosure>
       )}
 
@@ -270,9 +272,13 @@ export default async function NoticesPage({
 
                     <form action={removeNotice}>
                       <input type="hidden" name="id" value={notice.id} />
-                      <SubmitButton variant="outline" size="sm">
+                      <ConfirmSubmit
+                        title="Remove this notice?"
+                        body="Members will no longer see it, and it cannot be brought back here."
+                        confirmLabel="Remove"
+                      >
                         Remove
-                      </SubmitButton>
+                      </ConfirmSubmit>
                     </form>
                   </>
                 )}
@@ -284,7 +290,7 @@ export default async function NoticesPage({
 
       {mayPost && (
         <p className="text-muted-foreground text-xs">
-          Removing hides an announcement; it is never deleted (R4), and who
+          Removing hides an announcement; it is never deleted, and who
           removed it is recorded in the audit log.
         </p>
       )}

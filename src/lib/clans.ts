@@ -14,6 +14,7 @@ import { cache } from "react";
 import { clanRoles, currentUserId } from "@/lib/auth";
 import { decodeTag, InvalidTagError } from "@/lib/tags";
 import type { ClanRole } from "@/types/domain";
+import { assertRead } from "@/lib/errors";
 
 export interface VisibleClan {
   id: string;
@@ -60,7 +61,8 @@ export const visibleClans = cache(async function visibleClans(
       .order("tag"),
   ]);
 
-  if (error || !data || roles.size === 0) return [];
+  assertRead(error, "clans");
+  if (!data || roles.size === 0) return [];
 
   return (data as Array<{ id: string; tag: string; name: string; badge_url: string | null }>)
     .filter((c) => roles.has(c.id))

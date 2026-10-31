@@ -103,6 +103,7 @@ import {
   outstandingAttacks,
   parseBasePosition,
   warRecord,
+  starsNotCaptured,
   warSummary,
   type Defence,
   type MemberWarRecord,
@@ -274,9 +275,12 @@ export default async function WarBoardPage({
                 : "This board fills in by itself within an hour of a war being declared in game."
             }
             action={
-              <Button asChild variant="gold">
-                <Link href={`${base}/war/lineup`}>Plan the next lineup</Link>
-              </Button>
+              // Leadership only: for anyone else this opens a read-only page.
+              isLeadership(clan.role) ? (
+                <Button asChild variant="gold">
+                  <Link href={`${base}/war/lineup`}>Plan the next lineup</Link>
+                </Button>
+              ) : undefined
             }
           />
         </Tile>
@@ -313,6 +317,8 @@ export default async function WarBoardPage({
   const myRecord = record.filter((r) => myPlayerIds.has(r.playerId));
   const summary = warSummary(record, board);
   const { attacksAllowed, attacksUsed, attacksLeft } = summary;
+  // Only a finished war has a final score to check the attacks against.
+  const uncaptured = ended ? starsNotCaptured(war.ourStars, attacks) : 0;
   const freeBases = board.filter((b) => b.free);
   const noAttacks = outstanding.filter((m) => m.attacksUsed === 0);
   const oneLeft = outstanding.filter((m) => m.attacksUsed > 0);
@@ -626,6 +632,12 @@ export default async function WarBoardPage({
           }
         >
 
+          {uncaptured > 0 && (
+            <p className="text-muted-foreground mb-4 text-sm">
+              {uncaptured} of the final stars have no recorded attack, so the last attacks of this war
+              were not captured. Someone listed here may have used theirs.
+            </p>
+          )}
           {outstanding.length === 0 ? (
             <p className="text-muted-foreground text-sm">Every member has used all their attacks.</p>
           ) : (

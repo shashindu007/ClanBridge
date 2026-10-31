@@ -11,7 +11,6 @@ import type { CwlAttack, CwlRosterEntry, CwlWar } from "@/repositories/cwl";
 import type { SyncRun } from "@/repositories/sync-log";
 import {
   missedAttacks,
-  seasonContribution,
   seasonSpan,
   seasonTotals,
   warRecord,
@@ -115,18 +114,6 @@ describe("seasonTotals", () => {
     const totals = seasonTotals([war({ result: null, state: "preparation" })]);
     expect(totals.warsPlayed).toBe(0);
     expect(totals.stars).toBe(0);
-  });
-});
-
-describe("seasonContribution", () => {
-  it("accumulates across wars and ranks by stars then misses", () => {
-    const ranked = seasonContribution([
-      { roster: [member(1), member(2)], attacks: [attack("p1", 3)] },
-      { roster: [member(1), member(2)], attacks: [attack("p1", 2), attack("p2", 3)] },
-    ]);
-
-    expect(ranked[0]).toMatchObject({ playerId: "p1", warsRostered: 2, attacksUsed: 2, stars: 5, missed: 0 });
-    expect(ranked[1]).toMatchObject({ playerId: "p2", warsRostered: 2, attacksUsed: 1, stars: 3, missed: 1 });
   });
 });
 

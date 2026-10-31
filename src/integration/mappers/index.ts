@@ -25,6 +25,7 @@ import type {
   RaidRaid,
   RaidSeason,
   Village,
+  AchievementVillage,
   War,
   WarAttack,
   WarMember,
@@ -87,6 +88,15 @@ export function mapClan(api: ApiClan): Clan {
       name: d.name,
       level: d.districtHallLevel,
     })),
+    description: api.description,
+    clanPoints: api.clanPoints,
+    clanBuilderBasePoints: api.clanBuilderBasePoints,
+    clanCapitalPoints: api.clanCapitalPoints,
+    warFrequency: api.warFrequency,
+    requiredTownhallLevel: api.requiredTownhallLevel,
+    requiredTrophies: api.requiredTrophies,
+    location: api.location?.name,
+    labels: api.labels.flatMap((l) => (l.name ? [l.name] : [])),
   };
 }
 
@@ -101,6 +111,8 @@ export function mapClanMember(api: ApiClanMember, clanTag?: string): Player {
     donationsReceived: api.donationsReceived,
     expLevel: api.expLevel,
     league: api.league?.name,
+    leagueTier: api.leagueTier?.name,
+    leagueTierId: api.leagueTier?.id,
     clanTag: clanTag ? normaliseTag(clanTag) : undefined,
   };
 }
@@ -152,6 +164,15 @@ export function mapPlayer(api: ApiPlayer): PlayerDetail {
  */
 function mapVillage(village: string | undefined): Village {
   return village === "builderBase" ? "builder" : "home";
+}
+
+/**
+ * Achievements have a third home that units do not: "clanCapital". Through
+ * mapVillage() those came out as home village, so "Aggressive Capitalism" was
+ * listed with the Town Hall achievements.
+ */
+function mapAchievementVillage(village: string | undefined): AchievementVillage {
+  return village === "clanCapital" ? "capital" : mapVillage(village);
 }
 
 function mapUnit(api: Pick<ApiUnit, "name" | "level" | "maxLevel" | "village">): ProgressUnit {
@@ -219,7 +240,7 @@ export function mapPlayerProfile(api: ApiPlayer): PlayerProfile {
       value: a.value,
       target: a.target,
       info: a.info,
-      village: mapVillage(a.village),
+      village: mapAchievementVillage(a.village),
     })),
   };
 }
@@ -379,6 +400,7 @@ export function mapRaidSeasons(api: ApiRaidSeasons): RaidSeason[] {
     totalLoot: season.capitalTotalLoot,
     state: season.state,
     raidsCompleted: season.raidsCompleted,
+    enemyDistrictsDestroyed: season.enemyDistrictsDestroyed,
     totalAttacks: season.totalAttacks,
     offensiveReward: season.offensiveReward,
     defensiveReward: season.defensiveReward,

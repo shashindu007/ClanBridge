@@ -94,6 +94,7 @@ import type { RaidDefence, RaidParticipant, RaidRaid, RaidSeason } from "@/types
 // Safe to import — cwl.ts's run-me guard tests argv for "cwl", which this
 // file's path does not contain.
 import { resolvePlayers, type ClanRow } from "./cwl";
+import { remindRaidAttacks } from "./attack-reminders";
 import { activeClans, main, skip, type JobContext } from "./shared";
 
 /**
@@ -137,6 +138,8 @@ export interface RecordedSeason {
   captured: boolean;
   /** 065 — its defence log has been captured. */
   defended: boolean;
+  /** 071 — its district count has been stored. */
+  districtsKnown: boolean;
 }
 
 /**
@@ -152,7 +155,7 @@ async function recordedSeasons(
 ): Promise<Map<string, RecordedSeason>> {
   const { data, error } = await supabase
     .from("raid_seasons")
-    .select("id, start_time, state, attacks_captured_at, defenses_captured_at")
+    .select("id, start_time, state, attacks_captured_at, defenses_captured_at, enemy_districts_destroyed")
     .eq("clan_id", clan.id) // R3
     .is("deleted_at", null);
 
@@ -165,6 +168,7 @@ async function recordedSeasons(
     state: string | null;
     attacks_captured_at: string | null;
     defenses_captured_at: string | null;
+    enemy_districts_destroyed: number | null;
   }>) {
     recorded.set(new Date(row.start_time).toISOString(), {
       id: row.id,
@@ -173,12 +177,20 @@ async function recordedSeasons(
       settled: Boolean(row.state) && !isOngoing(row.state),
       captured: row.attacks_captured_at !== null && row.attacks_captured_at !== undefined,
       defended: row.defenses_captured_at !== null && row.defenses_captured_at !== undefined,
+      districtsKnown: row.enemy_districts_destroyed !== null && row.enemy_districts_destroyed !== undefined,
     });
   }
   return recorded;
 }
 
-/** The season row, returning its id. Upsert on the natural key (clan_id, start_time). */
+/**
+ * The season row, returning its id. Upsert on the natural key (clan_id, start_time).
+ *
+ * NEVER CLOSES THE WEEKEND. recordedSeasons() treats a closed one as settled and
+ * nothing rewrites it (R5), so closing it here and failing a moment later would
+ * lose the final participant totals and the last attacks. A weekend the API has
+ * closed stays 'ongoing' until closeSeason() runs, after everything else.
+ */
 async function upsertSeason(
   supabase: SupabaseClient,
   clan: ClanRow,
@@ -198,8 +210,9 @@ async function upsertSeason(
         end_time: season.endTime.toISOString(),
         total_loot: season.totalLoot ?? null,
         // 027. Every one of these was on the response and was being discarded.
-        state: season.state ?? null,
+        state: "ongoing",
         raids_completed: season.raidsCompleted ?? null,
+        enemy_districts_destroyed: season.enemyDistrictsDestroyed ?? null,
         total_attacks: season.totalAttacks ?? null,
         offensive_reward: season.offensiveReward ?? null,
         defensive_reward: season.defensiveReward ?? null,
@@ -221,6 +234,40 @@ async function upsertSeason(
   const id = (data as Array<{ id: string }> | null)?.[0]?.id;
   if (!id) throw new Error(`raid_seasons row vanished for ${clan.tag} at ${startIso}`);
   return id;
+}
+
+/**
+ * 071 — one number onto a settled weekend, and nothing else on the row (R5). The
+ * API serves the last ten weekends, so those arrive here on the first run; older
+ * ones stay null and the page shows a dash rather than a guess.
+ */
+async function addDistrictCount(
+  supabase: SupabaseClient,
+  clan: ClanRow,
+  seasonId: string,
+  season: RaidSeason,
+): Promise<void> {
+  const { error } = await supabase
+    .from("raid_seasons")
+    .update({ enemy_districts_destroyed: season.enemyDistrictsDestroyed })
+    .eq("id", seasonId)
+    .eq("clan_id", clan.id); // R3
+  if (error) throw new Error(`raid_seasons district count failed for ${clan.tag}: ${error.message}`);
+}
+
+/** Close the weekend, as the last write of the run that saw it end. */
+async function closeSeason(
+  supabase: SupabaseClient,
+  clan: ClanRow,
+  seasonId: string,
+  season: RaidSeason,
+): Promise<void> {
+  const { error } = await supabase
+    .from("raid_seasons")
+    .update({ state: season.state ?? null })
+    .eq("id", seasonId)
+    .eq("clan_id", clan.id); // R3
+  if (error) throw new Error(`raid_seasons could not be closed for ${clan.tag}: ${error.message}`);
 }
 
 /**
@@ -512,12 +559,14 @@ export async function syncRaids(ctx: JobContext): Promise<void> {
 
         // R5. A finished weekend recorded once is never touched again, even
         // though the API will keep sending it on every run for weeks — except
-        // to add the attacks 064 captures and the defence log 065 captures,
-        // once each, if they are still missing.
+        // to add the attacks 064 captures, the defence log 065 captures and the
+        // district count 071 captures, once each, if they are still missing.
         if (known?.settled) {
           const attacksDue = !known.captured && season.raids !== null;
           const defended = defencesDue(season, known);
-          if (!attacksDue && !defended) continue;
+          const districtsDue = !known.districtsKnown && season.enemyDistrictsDestroyed !== undefined;
+          if (!attacksDue && !defended && !districtsDue) continue;
+          if (districtsDue) await addDistrictCount(supabase, clan, known.id, season);
           if (attacksDue) {
             const playerIds = await raidPlayers(supabase, clan, season);
             ctx.recorded(await captureAttacks(supabase, clan, known.id, season.raids!, playerIds));
@@ -547,6 +596,7 @@ export async function syncRaids(ctx: JobContext): Promise<void> {
         if (defencesDue(season, known)) {
           ctx.recorded(await captureDefences(supabase, clan, seasonId, season.defences!));
         }
+        if (!isOngoing(season.state)) await closeSeason(supabase, clan, seasonId, season);
       }
 
       console.log(
@@ -557,6 +607,10 @@ export async function syncRaids(ctx: JobContext): Promise<void> {
       problems.push(`${clan.tag}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+
+  // Before either exit below: a midweek skip reminds nobody anyway, and one clan's
+  // failure must not cost another's members. Never throws (attack-reminders.ts).
+  await remindRaidAttacks(supabase, clans);
 
   if (problems.length) throw new Error(problems.join("; "));
 

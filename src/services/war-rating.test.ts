@@ -56,7 +56,12 @@ function hit(by: number, on: number, stars: number, destruction?: number): WarOp
 function board(
   size: number,
   attacks: WarRatingAttackRow[],
-  options: { hits?: WarOpponentAttackRow[]; defenceKnown?: boolean; members?: WarMemberRow[] } = {},
+  options: {
+    hits?: WarOpponentAttackRow[];
+    defenceKnown?: boolean;
+    members?: WarMemberRow[];
+    ourStars?: number | null;
+  } = {},
 ): WarBoard {
   const numbers = Array.from({ length: size }, (_, i) => i + 1);
   return warBoard({
@@ -66,6 +71,7 @@ function board(
     opponentAttacks: options.hits ?? [],
     defenceKnown: options.defenceKnown ?? true,
     teamSize: size,
+    ourStars: options.ourStars ?? null,
   });
 }
 
@@ -119,6 +125,41 @@ describe("two attacks", () => {
     const rated = warRating(board(3, [], { members, hits: mirrored(3) }), "warEnded");
     expect(player(rated, 1).missed).toEqual({ label: "1 attack not used", marks: -4 });
     expect(player(rated, 2).missed).toEqual({ label: "2 attacks not used", marks: -8 });
+  });
+});
+
+// The war log's score can arrive when the last attacks never did: 6 of 36 wars in
+// production, 60 stars with no attack behind them. A member can't be charged for
+// "not using" an attack that may simply not have been seen.
+describe("a war whose last attacks were not captured", () => {
+  const one = [attack(5, 1, 5, 3)];
+
+  it("counts the stars no recorded attack explains", () => {
+    expect(board(10, one, { ourStars: 30 }).starsNotCaptured).toBe(27);
+    expect(board(10, one, { ourStars: 3 }).starsNotCaptured).toBe(0);
+  });
+
+  it("counts each enemy base once, at its best result", () => {
+    const twice = [attack(5, 1, 5, 2), attack(6, 1, 5, 3)];
+    expect(board(10, twice, { ourStars: 3 }).starsNotCaptured).toBe(0);
+  });
+
+  it("cannot tell without a score, so assumes nothing is missing", () => {
+    expect(board(10, one, { ourStars: null }).starsNotCaptured).toBe(0);
+  });
+
+  it("charges nobody for unused attacks, and says the war is incomplete", () => {
+    const rated = warRating(board(10, one, { hits: mirrored(10), ourStars: 30 }), "warEnded");
+    expect(rated.starsNotCaptured).toBe(27);
+    expect(player(rated, 5).missed).toBeNull();
+    expect(player(rated, 6).missed).toBeNull();
+    expect(player(rated, 6).marks).toBe(0);
+  });
+
+  it("still charges them when every star is accounted for", () => {
+    const rated = warRating(board(10, one, { hits: mirrored(10), ourStars: 3 }), "warEnded");
+    expect(rated.starsNotCaptured).toBe(0);
+    expect(player(rated, 6).missed).toEqual({ label: "2 attacks not used", marks: -8 });
   });
 });
 

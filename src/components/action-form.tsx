@@ -18,10 +18,14 @@
 // no history entry. This component shows the result as a toast (showToast) and
 // lets React 19 reset the form, which clears ticked boxes after a bulk add.
 //
+// React resets it after a FAILED action too, which threw away whatever was typed:
+// a long announcement, a poll's options. So a failure puts the values back. The
+// reset runs when the action settles and this runs in the effect after it.
+//
 // useFormStatus still works inside, so SubmitButton shows its pending state.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { showToast } from "@/components/toaster";
 
 export interface ActionResult {
@@ -31,6 +35,27 @@ export interface ActionResult {
 }
 
 export type ResultAction = (formData: FormData) => Promise<ActionResult>;
+
+/** Put a submitted form's values back after React's reset. Hidden and file inputs need nothing. */
+function restore(form: HTMLFormElement, data: FormData): void {
+  for (const element of Array.from(form.elements)) {
+    if (
+      !(element instanceof HTMLInputElement) &&
+      !(element instanceof HTMLTextAreaElement) &&
+      !(element instanceof HTMLSelectElement)
+    ) {
+      continue;
+    }
+    if (!element.name || element.type === "hidden" || element.type === "file") continue;
+
+    const values = data.getAll(element.name).map(String);
+    if (element instanceof HTMLInputElement && (element.type === "checkbox" || element.type === "radio")) {
+      element.checked = values.includes(element.value);
+    } else if (values.length) {
+      element.value = values[0]!;
+    }
+  }
+}
 
 export function ActionForm({
   action,
@@ -47,7 +72,11 @@ export function ActionForm({
   onChange?: React.FormEventHandler<HTMLFormElement>;
   children: React.ReactNode;
 }) {
-  const [, formAction] = useActionState<ActionResult | null, FormData>(async (_previous, formData) => {
+  const form = useRef<HTMLFormElement>(null);
+  const submitted = useRef<FormData | null>(null);
+
+  const [state, formAction] = useActionState<ActionResult | null, FormData>(async (_previous, formData) => {
+    submitted.current = formData;
     try {
       const result = await action(formData);
       if (result.error) showToast("error", result.error);
@@ -62,8 +91,12 @@ export function ActionForm({
     }
   }, null);
 
+  useEffect(() => {
+    if (state?.error && form.current && submitted.current) restore(form.current, submitted.current);
+  }, [state]);
+
   return (
-    <form action={formAction} className={className} id={id} onChange={onChange}>
+    <form ref={form} action={formAction} className={className} id={id} onChange={onChange}>
       {Object.entries(hidden).map(([name, value]) => (
         <input key={name} type="hidden" name={name} value={value} />
       ))}

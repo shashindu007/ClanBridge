@@ -11,12 +11,29 @@
 // are database reads; a cache-first service worker would show a member yesterday's
 // missed-attack list, which is the one thing it must never do.
 //
+// The one thing kept is offline.html, a static page with no data in it, shown only
+// when a navigation fails. Without it an installed app opened with no signal shows
+// the browser's own error page, and looks broken.
+//
 // The payload shape is PushPayload in src/lib/push.ts: { title, body, url, tag }.
 // Keep the two in step by hand — this file is served raw to the browser and never
 // passes through the compiler, so nothing checks that boundary for you.
 
-self.addEventListener("install", () => {
-  self.skipWaiting();
+const OFFLINE_CACHE = "offline-v1";
+const OFFLINE_PAGE = "/offline.html";
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches
+      .open(OFFLINE_CACHE)
+      .then((cache) => cache.add(OFFLINE_PAGE))
+      .then(() => self.skipWaiting()),
+  );
+});
+
+self.addEventListener("fetch", (event) => {
+  if (event.request.mode !== "navigate") return;
+  event.respondWith(fetch(event.request).catch(() => caches.match(OFFLINE_PAGE)));
 });
 
 self.addEventListener("activate", (event) => {

@@ -112,7 +112,11 @@ export function AvatarForm({ userId, save }: AvatarFormProps) {
       return;
     }
 
-    const result = await save({ avatarPath: path });
+    // A dropped connection rejects rather than returning an error, and left the
+    // button on "Working…" for good.
+    const result = await save({ avatarPath: path }).catch(() => ({
+      error: "The connection dropped, so your picture was not changed. Try again.",
+    }));
 
     if (result.error) {
       setStatus("error");

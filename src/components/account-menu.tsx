@@ -35,6 +35,7 @@ import {
   ChevronDown,
   CircleUser,
   ClipboardList,
+  BellRing,
   KeyRound,
   LogOut,
   MessageSquare,
@@ -52,15 +53,20 @@ export interface AccountMenuProps {
   showLeadership: boolean;
   /** Any member of at least one clan — Player rating is not leadership only. */
   showRating: boolean;
+  /** False for pending and removed accounts: most of the menu just bounces them to /pending. */
+  approved?: boolean;
   /**
-   * T11.10 — whether to render the picture at all.
+   * T11.10 — the stored picture's path, or null with none.
    *
-   * A boolean rather than a URL, deliberately. The shell must not mint a signed
-   * URL on every navigation (see /account/avatar/route.ts), so the src is a fixed
-   * path and this only decides whether to ask for it. Asking unconditionally
-   * would put a 404 in the console of every member who has not set a picture.
+   * Not a URL, deliberately. The shell must not mint a signed URL on every
+   * navigation (see /account/avatar/route.ts), so the src stays one path. This
+   * decides whether to ask at all, since asking unconditionally would put a 404
+   * in the console of every member with no picture, and it versions the request.
+   * That route's redirect is cached by the browser for 59 minutes with nothing
+   * saying whose it is, so the next account on a shared phone saw the last one's
+   * picture, and a new picture did not show for up to an hour.
    */
-  hasAvatar?: boolean;
+  avatarPath?: string | null;
 }
 
 const ITEM =
@@ -112,7 +118,8 @@ export function AccountMenu({
   showAdmin,
   showLeadership,
   showRating,
-  hasAvatar = false,
+  approved = true,
+  avatarPath = null,
 }: AccountMenuProps) {
   const ref = useRef<HTMLDetailsElement>(null);
   // Close on navigation, Escape and click-outside — see the hook.
@@ -138,10 +145,10 @@ export function AccountMenu({
 
             A raw img: the src is this app's own route, which 302s to a signed
             URL, and next/image cannot optimise a redirect to an expiring URL. */}
-        {hasAvatar ? (
+        {avatarPath ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src="/account/avatar"
+            src={`/account/avatar?v=${encodeURIComponent(avatarPath)}`}
             alt=""
             aria-hidden
             className="size-5 shrink-0 rounded-full object-cover"
@@ -178,11 +185,12 @@ export function AccountMenu({
         <Group label="You">
           {/* T11.8 — the member's own villages and their picture. */}
           <MenuLink href="/account" Icon={CircleUser} label="Profile" />
-          <MenuLink href="/settings/account" Icon={KeyRound} label="Sign-in & password" />
+          {approved && <MenuLink href="/settings/account" Icon={KeyRound} label="Sign-in & password" />}
+          {approved && <MenuLink href="/settings/notifications" Icon={BellRing} label="Notifications" />}
         </Group>
 
         <Group label="ClanBridge">
-          <MenuLink href="/people" Icon={Users} label="People" />
+          {approved && <MenuLink href="/people" Icon={Users} label="People" />}
           {/* Cross-clan destinations. On the rail itself from `md` up, so these
               are the narrow-screen path to the same pages — here rather than
               hidden, so the menu is always the COMPLETE list. */}
@@ -196,7 +204,7 @@ export function AccountMenu({
           <MenuLink href="/guide" Icon={BookOpen} label="Guide" />
           {/* Home's "Go to" panel was the only way here; that panel is gone,
               and a member with something to say should not have to hunt. */}
-          <MenuLink href="/feedback" Icon={MessageSquare} label="Feedback" />
+          {approved && <MenuLink href="/feedback" Icon={MessageSquare} label="Feedback" />}
         </Group>
 
         {/* T12.4 — NOTIFICATIONS IS NOT HERE, AND THAT IS THE POINT. The bell

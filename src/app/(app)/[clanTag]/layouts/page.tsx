@@ -24,6 +24,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmSubmit } from "@/components/confirm-submit";
+import { ActionForm, type ActionResult } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { currentUserId } from "@/lib/auth";
 import { requireClanByTag } from "@/lib/clans";
@@ -64,7 +66,7 @@ function isType(value: string | undefined): value is LayoutType {
  * re-check that: a second opinion here could disagree with the first, and the
  * first is the one that counts.
  */
-async function act(formData: FormData) {
+async function act(formData: FormData): Promise<ActionResult> {
   "use server";
 
   const supabase = await createClient();
@@ -90,13 +92,15 @@ async function act(formData: FormData) {
     result = await removeLayout(supabase, clan.id, layoutId);
     done = "layout-removed";
   } else {
-    redirect(`${here}?error=unknown-action`);
+    return { error: "unknown-action" };
   }
 
-  if (result.error) redirect(`${here}?error=${encodeURIComponent(result.error)}`);
+  if (result.error) return { error: result.error };
 
+  // Returned, not redirected: a redirect dropped the filters and the scroll position
+  // on every vote.
   revalidatePath(here);
-  redirect(`${here}?ok=${done}`);
+  return { ok: done };
 }
 
 function LayoutCard({
@@ -153,24 +157,29 @@ function LayoutCard({
           </a>
         </Button>
 
-        <form action={act}>
+        <ActionForm action={act}>
           <input type="hidden" name="clanTag" value={clanTag} />
           <input type="hidden" name="layoutId" value={layout.id} />
           <input type="hidden" name="action" value={layout.votedByMe ? "unvote" : "vote"} />
           <SubmitButton size="sm" variant={layout.votedByMe ? "secondary" : "outline"}>
             {layout.votedByMe ? "Voted" : "Vote"}
           </SubmitButton>
-        </form>
+        </ActionForm>
 
         {canRemove && (
-          <form action={act} className="ml-auto">
+          <ActionForm action={act} className="ml-auto">
             <input type="hidden" name="clanTag" value={clanTag} />
             <input type="hidden" name="layoutId" value={layout.id} />
             <input type="hidden" name="action" value="remove" />
-            <SubmitButton size="sm" variant="ghost">
+            <ConfirmSubmit
+              variant="ghost"
+              title="Remove this layout?"
+              body="It leaves the clan's library, along with its votes, and cannot be brought back here."
+              confirmLabel="Remove"
+            >
               Remove
-            </SubmitButton>
-          </form>
+            </ConfirmSubmit>
+          </ActionForm>
         )}
       </div>
     </article>

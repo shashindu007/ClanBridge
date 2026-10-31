@@ -28,6 +28,7 @@
 // rather than the mechanism.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertRead } from "@/lib/errors";
 
 export type WarStateRow = "preparation" | "inWar" | "warEnded";
 export type LineupStatus = "draft" | "published";
@@ -184,7 +185,8 @@ export async function warsForClan(
     .limit(limit)
     .order("start_time", { ascending: false });
 
-  if (error || !data) return [];
+  assertRead(error, "wars");
+  if (!data) return [];
   return (data as unknown as Array<Record<string, unknown>>).map(toWar);
 }
 
@@ -223,7 +225,8 @@ export async function warById(
     .eq("id", warId)
     .is("deleted_at", null);
 
-  if (error || !data) return null;
+  assertRead(error, "wars");
+  if (!data) return null;
   const rows = data as unknown as Array<Record<string, unknown>>;
   return rows.length ? toWar(rows[0]!) : null;
 }
@@ -244,7 +247,8 @@ async function playerDetails(
     .select("id, tag, name, th_level")
     .in("id", [...new Set(playerIds)]);
 
-  if (error || !data) return new Map();
+  assertRead(error, "players");
+  if (!data) return new Map();
   return new Map(
     (data as unknown as Array<Record<string, unknown>>).map((p) => [
       p.id as string,
@@ -269,7 +273,8 @@ export async function membersOfWar(
     .is("deleted_at", null)
     .order("map_position");
 
-  if (error || !data) return [];
+  assertRead(error, "war_members");
+  if (!data) return [];
   const rows = data as unknown as Array<Record<string, unknown>>;
   if (!rows.length) return [];
 
@@ -305,7 +310,8 @@ export async function attacksForWar(
     .is("deleted_at", null)
     .order("attack_order");
 
-  if (error || !data) return [];
+  assertRead(error, "war_attacks");
+  if (!data) return [];
   return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
     playerId: r.player_id as string,
     attackOrder: r.attack_order as number,
@@ -330,7 +336,8 @@ export async function opponentsOfWar(
     .is("deleted_at", null)
     .order("map_position");
 
-  if (error || !data) return [];
+  assertRead(error, "war_opponent_members");
+  if (!data) return [];
   return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
     tag: r.tag as string,
     name: (r.name as string | null) ?? null,
@@ -351,7 +358,8 @@ export async function targetsForWar(
     .is("deleted_at", null)
     .order("target_position");
 
-  if (error || !data) return [];
+  assertRead(error, "war_targets");
+  if (!data) return [];
   return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
     playerId: r.player_id as string,
     targetPosition: r.target_position as number,
@@ -451,6 +459,11 @@ export async function warRostersFor(
       .in("war_id", ids)
       .is("deleted_at", null),
   ]);
+
+  // Attacks above all: empty here reads as every member having missed theirs.
+  assertRead(memberRes.error, "war_members");
+  assertRead(attackRes.error, "war_attacks");
+  assertRead(targetRes.error, "war_targets");
 
   const memberRows = (memberRes.data ?? []) as unknown as Array<Record<string, unknown>>;
   const attackRows = (attackRes.data ?? []) as unknown as Array<Record<string, unknown>>;
@@ -628,7 +641,8 @@ export async function lineupsForClan(
     .limit(limit)
     .order("planned_for", { ascending: false });
 
-  if (error || !data) return [];
+  assertRead(error, "war_lineups");
+  if (!data) return [];
   return (data as unknown as Array<Record<string, unknown>>).map(toLineup);
 }
 
@@ -645,7 +659,8 @@ export async function lineupById(
     .eq("id", lineupId)
     .is("deleted_at", null);
 
-  if (error || !data) return null;
+  assertRead(error, "war_lineups");
+  if (!data) return null;
   const rows = data as unknown as Array<Record<string, unknown>>;
   return rows.length ? toLineup(rows[0]!) : null;
 }
@@ -659,9 +674,11 @@ export async function membersOfLineup(
     .select("lineup_id, player_id, position, added_at")
     .eq("lineup_id", lineupId)
     .is("deleted_at", null)
-    .order("position");
+    // The order they were picked. `position` has never been written.
+    .order("added_at");
 
-  if (error || !data) return [];
+  assertRead(error, "war_lineup_members");
+  if (!data) return [];
   const rows = data as unknown as Array<Record<string, unknown>>;
   if (!rows.length) return [];
 
@@ -704,7 +721,8 @@ export async function createLineup(
     .select()
     .single();
 
-  if (error || !data) return { error: error?.message ?? "could not start the lineup" };
+  assertRead(error, "war_lineups");
+  if (!data) return { error: error?.message ?? "could not start the lineup" };
   return { id: (data as { id: string }).id };
 }
 
@@ -819,7 +837,8 @@ export async function lineupForWar(
     .eq("war_id", warId)
     .is("deleted_at", null);
 
-  if (error || !data) return null;
+  assertRead(error, "war_lineups");
+  if (!data) return null;
   const rows = data as unknown as Array<Record<string, unknown>>;
   return rows.length ? toLineup(rows[0]!) : null;
 }
@@ -886,7 +905,8 @@ export async function warsInMonth(
     .lt("start_time", to.toISOString())
     .order("start_time");
 
-  if (error || !data) return [];
+  assertRead(error, "wars");
+  if (!data) return [];
   return (data as unknown as Array<Record<string, unknown>>).map((r) => {
     const captured = r.opponent_attacks_captured_at;
     return {
@@ -909,7 +929,8 @@ export async function warMonthsForClan(supabase: SupabaseClient, clanId: string)
     .limit(1000)
     .order("start_time", { ascending: false });
 
-  if (error || !data) return [];
+  assertRead(error, "wars");
+  if (!data) return [];
   const months = (data as unknown as Array<{ start_time: string | Date }>).map((r) =>
     new Date(r.start_time).toISOString().slice(0, 7),
   );
@@ -928,7 +949,8 @@ export async function ratingAttacksForWar(
     .is("deleted_at", null)
     .order("attack_order");
 
-  if (error || !data) return [];
+  assertRead(error, "war_attacks");
+  if (!data) return [];
   return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
     playerId: r.player_id as string,
     attackOrder: r.attack_order as number,
@@ -960,7 +982,8 @@ export async function opponentAttacksOfWar(
     .is("deleted_at", null)
     .order("attack_order");
 
-  if (error || !data) return [];
+  assertRead(error, "war_opponent_attacks");
+  if (!data) return [];
   return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
     attackerTag: r.attacker_tag as string,
     attackOrder: r.attack_order as number,

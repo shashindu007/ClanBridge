@@ -42,6 +42,7 @@ import { headers } from "next/headers";
 import { cache } from "react";
 import { USER_ID_HEADER } from "@/lib/request-headers";
 import type { ClanRole } from "@/types/domain";
+import { assertRead } from "@/lib/errors";
 
 /** Thrown when the caller is authenticated but not permitted. Maps to HTTP 403. */
 export class ForbiddenError extends Error {
@@ -166,7 +167,8 @@ export async function clanRole(
     .eq("clan_id", clanId)
     .is("deleted_at", null);
 
-  if (error || !data?.length) return null;
+  assertRead(error, "clan_roles");
+  if (!data?.length) return null;
   return (data[0] as { role: ClanRole }).role;
 }
 
@@ -187,7 +189,9 @@ export const clanRoles = cache(async function clanRoles(
     .eq("user_id", userId)
     .is("deleted_at", null);
 
-  if (error || !data) return new Map();
+  // Thrown, not empty: "You are not in a clan yet" is a claim about the account.
+  assertRead(error, "clan_roles");
+  if (!data) return new Map();
   return new Map(
     (data as Array<{ clan_id: string; role: ClanRole }>).map((r) => [r.clan_id, r.role]),
   );
@@ -238,7 +242,7 @@ export interface AccountProfile {
  *
  * Returns null when there is no row, which is a real state: /auth/callback
  * creates the profile and it can fail. The caller must treat null as "not
- * approved and not set up" rather than as an error.
+ * approved and not set up". A read that failed throws: that is a different answer.
  */
 export const accountProfile = cache(async function accountProfile(
   supabase: SupabaseClient,
@@ -258,7 +262,10 @@ export const accountProfile = cache(async function accountProfile(
     .select("status, email, username, password_set_at, is_platform_admin, avatar_path, deleted_at")
     .eq("id", userId);
 
-  if (error || !data?.length) return null;
+  // Thrown, not null. Null means no row, which sends the member to /account/setup,
+  // and a database hiccup is not a reason to ask an approved member to start over.
+  assertRead(error, "users");
+  if (!data?.length) return null;
 
   const row = data[0] as {
     status: string;

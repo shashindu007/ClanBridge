@@ -39,13 +39,21 @@ outstanding:
 - **T0.9 — Upstash functional verification.** See the note at the end of this
   section; the limiter fails open, so a misconfiguration is invisible.
 
+- **The sync heartbeat needs one secret** (migration 069). GitHub ran the
+  half-hourly schedule 5 to 15 times a day, and war attacks were lost in the gaps.
+  069 dispatches the workflow from Supabase every 30 minutes, and does nothing
+  until a fine-grained GitHub token with Actions read and write on this repository
+  is stored: `select vault.create_secret('<token>', 'github_dispatch_token');`
+
+- **Migration 072 waits for this code to reach main.** Run `npm run migrations:apply`
+  after merging, not before: its header says why.
+
 What is worth knowing before you touch anything:
 
 - **The application has run against real data since 2026-08-09**, and the
   fixtures in `fixtures/` are real captures rather than the synthetic shapes they
   started as (T2.1).
-- **Four clans are active** (as of 2026-10): `Dark Heaven™`, `Dark Hell`,
-  `DH CWL ONLY` and `DH v2` — the last is a test clan. Clans are added at
+- **Five clans are active** (as of 2026-10-31). Clans are added at
   `/admin`. Anywhere the docs say "three clans", read it as intent rather than
   state; the database is the list, and `select tag, name from clans where
   deleted_at is null` is the only answer that cannot go stale.

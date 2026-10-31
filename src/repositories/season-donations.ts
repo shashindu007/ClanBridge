@@ -6,6 +6,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CounterReading, DonationSegment } from "@/services/season-donations";
+import { assertRead } from "@/lib/errors";
 
 /**
  * How far back stays are read: the running season, the complete one before it,
@@ -77,7 +78,9 @@ export async function donationReadings(
           .order("captured_at", { ascending: false })
           .order("id")
           .range(page * PAGE, page * PAGE + PAGE - 1);
-        if (error || !data) break;
+        // Thrown, not a break: stopping here would total a partial month as a whole one.
+        assertRead(error, "donation_counters");
+        if (!data) break;
 
         const rows = data as Array<Record<string, unknown>>;
         for (const r of rows) {

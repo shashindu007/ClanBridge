@@ -62,11 +62,11 @@ import { Button } from "@/components/ui/button";
 import { clanAccent } from "@/lib/clan-accent";
 import { artKeyForLeague } from "@/lib/game-art";
 import { requireClanByTag } from "@/lib/clans";
-import { isLeader } from "@/lib/visibility";
+import { isLeader, isLeadership } from "@/lib/visibility";
 import { cwlPhase, nextCwlWindow } from "@/lib/coc-time";
 import { createClient } from "@/lib/supabase/server";
 import { clanDetail, currentMemberCount, latestAnnouncement } from "@/repositories/clans";
-import { clanProfile } from "@/repositories/profiles";
+import { clanProfile, type ClanProfile } from "@/repositories/profiles";
 import { seasonsForClan, warsInSeason, type CwlWar } from "@/repositories/cwl";
 import { countsForPoll, pollsForClan } from "@/repositories/polls";
 import { latestRun } from "@/repositories/sync-log";
@@ -356,6 +356,8 @@ export default async function ClanDashboardPage({
         </div>
       </section>
 
+      {profile && <ClanCard profile={profile} />}
+
       {neverSynced && (
         <Panel>
           <EmptyState
@@ -363,13 +365,19 @@ export default async function ClanDashboardPage({
             title="This clan has never been synced"
             body={
               <>
-                The clan row exists, but no sync job has read it from the game yet. Level,
-                member count and war league fill in on the next run of{" "}
-                <code className="text-xs">sync:clans</code>. If this is still here tomorrow,
-                the job is not running — check{" "}
-                <Link className="underline" href="/admin">
-                  Admin
-                </Link>
+                Nothing has been read from the game for this clan yet. Level, member count
+                and war league fill in by themselves on the next sync. If this is still here
+                tomorrow,{" "}
+                {isLeader(clan.role) ? (
+                  <>
+                    the sync is not running — check{" "}
+                    <Link className="underline" href="/admin">
+                      Admin
+                    </Link>
+                  </>
+                ) : (
+                  "let a leader know"
+                )}
                 .
               </>
             }
@@ -442,9 +450,11 @@ export default async function ClanDashboardPage({
                 No war on right now. The board fills in within the hour of a war
                 being declared in game.
               </p>
-              <Button asChild variant="outline">
-                <Link href={`${href}/war/lineup`}>Plan the next lineup</Link>
-              </Button>
+              {isLeadership(clan.role) && (
+                <Button asChild variant="outline">
+                  <Link href={`${href}/war/lineup`}>Plan the next lineup</Link>
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
@@ -617,5 +627,55 @@ export default async function ClanDashboardPage({
         )}
       </Panel>
     </main>
+  );
+}
+
+const WAR_FREQUENCY: Record<string, string> = {
+  always: "Always",
+  moreThanOncePerWeek: "Twice a week",
+  oncePerWeek: "Once a week",
+  lessThanOncePerWeek: "Rarely",
+  never: "Never",
+  unknown: "Not set",
+};
+
+/** 071 — the clan's own card, as a member sees it in game. Hides what the clan left blank. */
+function ClanCard({ profile }: { profile: ClanProfile }) {
+  const facts: Array<[string, string]> = [
+    ["Clan points", profile.clanPoints?.toLocaleString("en-GB")],
+    ["Builder Base points", profile.clanBuilderBasePoints?.toLocaleString("en-GB")],
+    ["Capital points", profile.clanCapitalPoints?.toLocaleString("en-GB")],
+    ["War frequency", profile.warFrequency ? (WAR_FREQUENCY[profile.warFrequency] ?? profile.warFrequency) : undefined],
+    ["Required Town Hall", profile.requiredTownhallLevel ? String(profile.requiredTownhallLevel) : undefined],
+    ["Required trophies", profile.requiredTrophies ? profile.requiredTrophies.toLocaleString("en-GB") : undefined],
+    ["Location", profile.location ?? undefined],
+  ].filter((fact): fact is [string, string] => Boolean(fact[1]));
+
+  if (!profile.description && facts.length === 0 && profile.labels.length === 0) return null;
+
+  return (
+    <section className="cb-panel space-y-3 rounded-panel border p-5">
+      <h2 className="text-lg font-semibold">About this clan</h2>
+      {profile.description && <p className="text-sm whitespace-pre-line">{profile.description}</p>}
+      {facts.length > 0 && (
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+          {facts.map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-muted-foreground text-xs">{label}</dt>
+              <dd className="font-medium tabular-nums">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {profile.labels.length > 0 && (
+        <p className="flex flex-wrap gap-1.5">
+          {profile.labels.map((label) => (
+            <Badge key={label} variant="outline">
+              {label}
+            </Badge>
+          ))}
+        </p>
+      )}
+    </section>
   );
 }

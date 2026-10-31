@@ -51,6 +51,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { ConfirmSubmit } from "@/components/confirm-submit";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -636,9 +637,13 @@ export default async function PollDetailPage({
           <form action={submitClose}>
             <input type="hidden" name="clanTag" value={clanTag} />
             <input type="hidden" name="pollId" value={poll.id} />
-            <SubmitButton variant="outline" size="sm" pendingLabel="Closing">
+            <ConfirmSubmit
+              title="Close this poll?"
+              body="Every answer is locked, and a closed poll cannot be opened again."
+              confirmLabel="Close poll"
+            >
               Close this poll now
-            </SubmitButton>
+            </ConfirmSubmit>
           </form>
         </section>
       )}

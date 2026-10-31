@@ -160,7 +160,7 @@ export function Toaster() {
     <div
       aria-live={kind === "error" && visible ? "assertive" : "polite"}
       aria-atomic="true"
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] flex justify-center p-4 sm:inset-x-auto sm:right-0 sm:justify-end"
+      className="pointer-events-none fixed inset-x-0 top-0 z-[60] flex justify-center p-4 sm:inset-x-auto sm:top-auto sm:right-0 sm:bottom-0 sm:justify-end"
     >
       {visible && (
         <div
@@ -192,7 +192,7 @@ export function Toaster() {
             type="button"
             onClick={dismiss}
             aria-label="Dismiss"
-            className="-mt-1 -mr-1 shrink-0 rounded-md p-1 opacity-70 transition-opacity hover:opacity-100"
+            className="-mt-2 -mr-2 shrink-0 rounded-md p-2.5 opacity-70 transition-opacity hover:opacity-100"
           >
             <X aria-hidden className="size-4" />
           </button>

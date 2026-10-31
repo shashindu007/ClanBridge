@@ -1,13 +1,12 @@
 {
   "name": "ClanBridge",
   "short_name": "ClanBridge",
-  "description": "Clan management for three Clash of Clans clans.",
-  "start_url": "/",
+  "description": "Clan management for our Clash of Clans clans.",
+  "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
   "background_color": "#050d22",
   "theme_color": "#0a142f",
-  "orientation": "portrait",
   "icons": [
     {
       "src": "/icons/icon-192.png",

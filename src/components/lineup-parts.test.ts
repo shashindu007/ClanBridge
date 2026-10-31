@@ -43,7 +43,7 @@ const member = (n: number, th = 17): RosterMember => ({
   thLevel: th,
 });
 
-const noop = async () => {};
+const noop = async () => ({});
 
 const panel = {
   title: "Dark Hell",
