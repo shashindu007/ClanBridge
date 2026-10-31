@@ -125,6 +125,7 @@ export default async function ClanWarRatingPage({
 
   const counted = rating.wars.filter((w) => w.status === "counted");
   const attackOnly = counted.filter((w) => w.attackOnly).length;
+  const incomplete = counted.filter((w) => w.starsNotCaptured > 0).length;
   const fighting = rating.wars.some((w) => w.status === "provisional");
   const ranked = rating.players.filter((p) => rating.started || p.provisional);
 
@@ -232,6 +233,8 @@ export default async function ClanWarRatingPage({
               is the fair comparison between someone in ten wars and someone in four.
               {attackOnly > 0 &&
                 ` ${attackOnly} of the ${counted.length} finished wars ${attackOnly === 1 ? "is" : "are"} rated on attack only: the enemy's attacks were not recorded for wars before this was added, and cannot be fetched now.`}
+              {incomplete > 0 &&
+                ` In ${incomplete} of them the last attacks were not captured, so nobody lost marks for an unused attack there.`}
             </p>
           </section>
 
@@ -269,6 +272,8 @@ export default async function ClanWarRatingPage({
                 {shown.war.status === "provisional"
                   ? "Still being fought: these marks move with every attack, and nobody has lost marks for an unused attack yet."
                   : `The clan's plus marks came to ${signed(shown.war.total)}; each share is a player's marks out of that. Minus marks are not taken off it.`}
+                {shown.war.starsNotCaptured > 0 &&
+                  ` ${shown.war.starsNotCaptured} of the final stars have no recorded attack: the last attacks of this war were not captured, so nobody lost marks for an unused attack.`}
                 {shown.war.orderMissing &&
                   " On some bases hit by more than one of ours, which attack came first could not be told (they were recorded together); those are scored as if neither had seen the other."}
               </p>

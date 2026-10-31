@@ -383,6 +383,36 @@ describe("services/war — the derivations", () => {
       expect(b.attacksMissed).toBe(2);
     });
 
+    // Production: 6 of 36 wars have stars no recorded attack explains. An unused
+    // attack there is unknown, and the sort that picks the next lineup reads it.
+    it("calls nothing missed in a war whose last attacks were not captured", () => {
+      const incomplete = warContribution([
+        {
+          members: [member("a"), member("b")],
+          attacks: [attack("a", 1)],
+          state: "warEnded",
+          ourStars: 30,
+        },
+      ]);
+      const a = incomplete.find((c) => c.playerId === "a")!;
+      const b = incomplete.find((c) => c.playerId === "b")!;
+
+      expect(a).toMatchObject({ warsPlayed: 1, attacksUsed: 1, attacksAvailable: 1, attacksMissed: 0 });
+      expect(b).toMatchObject({ warsPlayed: 1, attacksUsed: 0, attacksAvailable: 0, attacksMissed: 0, warsMissedEntirely: 0 });
+    });
+
+    it("still counts misses when the score is fully explained", () => {
+      const [, b] = warContribution([
+        {
+          members: [member("a"), member("b")],
+          attacks: [attack("a", 1)],
+          state: "warEnded",
+          ourStars: attack("a", 1).stars,
+        },
+      ]);
+      expect(b).toMatchObject({ playerId: "b", attacksMissed: 2, warsMissedEntirely: 1 });
+    });
+
     // The war being fought right now is not a record yet: its unused attacks
     // are attacks nobody has had time to make, not misses.
     it("leaves a war still in preparation or battle out of the record", () => {

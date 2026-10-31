@@ -1,4 +1,4 @@
-// T6.1 — Clan war sync. Runs hourly, as a step of sync-clans (see T6.2).
+// T6.1 — Clan war sync. A step of sync-clans, every 30 minutes at best (see T6.2).
 //
 // R10 — handle each state explicitly, and treat none of them as a failure:
 //   notInWar      the normal state most of the time
@@ -77,11 +77,40 @@ export function isLeagueWar(war: War): boolean {
 }
 
 /**
+ * How far apart two start times can be and still be one war.
+ *
+ * THE API MOVES A WAR'S START TIME. Four wars in October 2026 came back 20 to 36
+ * minutes later than they were first reported, with their end moved too, while
+ * still in preparation. Why is not known, and wars has no other identity: it is
+ * keyed on (clan_id, start_time), so each became two rows. The first kept the
+ * roster and no attacks, closed with the real score from the war log, and charged
+ * everyone in it for two unused attacks in a war that never happened.
+ *
+ * Six hours is well past anything seen and well short of a rematch, which cannot
+ * start until the previous war's 24 hours of battle are over.
+ */
+const START_SHIFT_WINDOW_MS = 6 * 60 * 60 * 1000;
+
+/** This stored row and the war the API describes are one war. */
+function isSameWar(
+  row: { opponent_tag: string | null; start_time: string | Date },
+  opponentTag: string | undefined,
+  startTime: Date,
+): boolean {
+  if (!row.opponent_tag || !opponentTag || !sameTag(row.opponent_tag, opponentTag)) return false;
+  return Math.abs(new Date(row.start_time).getTime() - startTime.getTime()) <= START_SHIFT_WINDOW_MS;
+}
+
+/**
  * The war row, or null when this war is already recorded as finished.
  *
  * R5 — a warEnded row is never written again. Unlike CWL there is no separate
  * settled-tags query to run first: a clan is in at most one regular war at a
- * time, so the check is a single read of the row this run is about to touch.
+ * time, so the check is a single read of the rows this run could touch.
+ *
+ * NEVER WRITES warEnded. That is finishWar()'s, after the roster and attacks are
+ * safely in: a row marked finished here and a failure a moment later would leave
+ * a war every later run skips, with its last attacks gone.
  */
 async function upsertWar(
   supabase: SupabaseClient,
@@ -93,17 +122,37 @@ async function upsertWar(
   const { ours, theirs } = sides;
   const startIso = startTime.toISOString();
 
-  const { data: existing, error: readError } = await supabase
+  const { data: nearby, error: readError } = await supabase
     .from("wars")
-    .select("id, state")
+    .select("id, state, opponent_tag, start_time")
     .eq("clan_id", clan.id) // R3
-    .eq("start_time", startIso)
+    .gte("start_time", new Date(startTime.getTime() - START_SHIFT_WINDOW_MS).toISOString())
+    .lte("start_time", new Date(startTime.getTime() + START_SHIFT_WINDOW_MS).toISOString())
     .is("deleted_at", null);
 
   if (readError) throw new Error(`wars read failed for ${clan.tag}: ${readError.message}`);
 
-  const settled = (existing as Array<{ id: string; state: string | null }> | null)?.[0];
+  const rows = (nearby ?? []) as Array<{
+    id: string;
+    state: string | null;
+    opponent_tag: string | null;
+    start_time: string;
+  }>;
+  const exact = rows.find((r) => new Date(r.start_time).getTime() === startTime.getTime());
+  const settled = exact ?? rows.find((r) => isSameWar(r, theirs.tag, startTime));
   if (settled?.state === "warEnded") return null;
+
+  // Moved, not inserted: the row keeps its id, and with it the targets and the
+  // lineup a leader has already attached.
+  if (settled && !exact) {
+    const { error: moveError } = await supabase
+      .from("wars")
+      .update({ start_time: startIso })
+      .eq("id", settled.id)
+      .eq("clan_id", clan.id);
+    if (moveError) throw new Error(`wars move failed for ${clan.tag}: ${moveError.message}`);
+    console.log(`  ${clan.tag}: the API moved this war's start from ${settled.start_time} to ${startIso}`);
+  }
 
   // Not ignoreDuplicates: a war moves preparation -> inWar -> warEnded and its
   // stars climb as attacks land. That is a live row being updated, not the
@@ -119,18 +168,14 @@ async function upsertWar(
         team_size: war.teamSize ?? null,
         // 003_war.sql:19 has no 'notInWar' in its CHECK, and mapWar collapses
         // any unrecognised state to exactly that string. Passed straight through
-        // it is a constraint violation.
-        state: storedState(war.state),
+        // it is a constraint violation. A war that has ended stays inWar until
+        // finishWar() has seen its attacks written.
+        state: war.state === "warEnded" ? "inWar" : storedState(war.state),
         our_stars: ours.stars ?? null,
         their_stars: theirs.stars ?? null,
         our_destruction: ours.destruction ?? null,
         their_destruction: theirs.destruction ?? null,
-        // The API reports no winner for a regular war either, so it is computed
-        // from stars then destruction, exactly as CWL's is — but only once the
-        // war is OVER. Computed live it stored "tie" for every 0–0 preparation
-        // day and "lose" for a war we were behind in at lunchtime, and a war
-        // closed without its final score (closeStaleWars) kept that guess.
-        result: war.state === "warEnded" ? warResult(ours, theirs) : null,
+        result: null,
         start_time: startIso,
         end_time: war.endTime?.toISOString() ?? null,
       },
@@ -153,6 +198,33 @@ async function upsertWar(
   const id = (data as Array<{ id: string }> | null)?.[0]?.id;
   if (!id) throw new Error(`wars row vanished for ${clan.tag} at ${startIso}`);
   return id;
+}
+
+/**
+ * Mark a war finished, as the LAST write of the run that saw it end.
+ *
+ * R5 stops every later run touching a warEnded row, and the API's war is gone
+ * once the next one starts. So this waits for the roster and attacks: if any of
+ * them fails, the row stays open and the next run tries the whole war again.
+ *
+ * The API reports no winner for a regular war, so it is computed from stars then
+ * destruction, exactly as CWL's is — but only once the war is OVER. Computed live
+ * it stored "tie" for every 0–0 preparation day and "lose" for a war we were
+ * behind in at lunchtime, and a war closed without its final score
+ * (closeStaleWars) kept that guess.
+ */
+async function finishWar(
+  supabase: SupabaseClient,
+  clan: ClanRow,
+  warId: string,
+  sides: Sides,
+): Promise<void> {
+  const { error } = await supabase
+    .from("wars")
+    .update({ state: "warEnded", result: warResult(sides.ours, sides.theirs) })
+    .eq("id", warId)
+    .eq("clan_id", clan.id); // R3
+  if (error) throw new Error(`wars could not be closed for ${clan.tag}: ${error.message}`);
 }
 
 /**
@@ -365,8 +437,11 @@ async function upsertOpponentAttacks(
  * one. That is not rewriting history (R5): it is the history arriving. Only
  * the score and result change; the roster and attacks are untouched.
  *
- * What cannot be recovered: attacks landed in that last hour. The log carries
- * totals, not attacks, and Supercell keeps no other copy.
+ * What cannot be recovered: attacks landed since the last run that saw this war.
+ * The log carries totals, not attacks, and Supercell keeps no other copy. How
+ * long that is depends on GitHub, which ran the half-hourly schedule 5 to 15 times
+ * a day: 6 of 36 wars lost their last hours, 60 stars in all. Those wars are
+ * marked by starsNotCaptured (services/war.ts), and 069 is the fix for the cause.
  *
  * Never throws for the API's sake: a private log, a fixture run with no warlog
  * file, or a timeout all fall back to closing the row on its last-known totals,
@@ -455,7 +530,7 @@ function differs(row: StoredWarRow, patch: Record<string, unknown>): boolean {
 export async function closeStaleWars(
   supabase: SupabaseClient,
   clan: ClanRow,
-  currentStart: Date | undefined,
+  current: { startTime?: Date; opponentTag?: string } | undefined,
   now: Date = new Date(),
 ): Promise<number> {
   const columns =
@@ -485,7 +560,16 @@ export async function closeStaleWars(
   }
   const rows = [...(open.data ?? []), ...(ended.data ?? [])] as unknown as StoredWarRow[];
 
-  const isCurrent = (row: StoredWarRow) => new Date(row.start_time).getTime() === currentStart?.getTime();
+  // By opponent as well as start time: a war whose start the API has moved is
+  // still the war it is describing, and closing it here would leave upsertWar
+  // nothing to move and a duplicate to insert.
+  const isCurrent = (row: StoredWarRow) => {
+    if (!current?.startTime) return false;
+    return (
+      new Date(row.start_time).getTime() === current.startTime.getTime() ||
+      isSameWar(row, current.opponentTag, current.startTime)
+    );
+  };
   const stale = rows.filter(
     (row) =>
       (row.state === "preparation" || row.state === "inWar") &&
@@ -628,7 +712,12 @@ export async function syncWar(ctx: JobContext): Promise<void> {
       // Before anything else can `continue`: a war that ended between two runs
       // is finished whatever the API is describing now — notInWar, a league
       // war, or the next war's preparation.
-      ctx.recorded(await closeStaleWars(supabase, clan, war.startTime));
+      ctx.recorded(
+        await closeStaleWars(supabase, clan, {
+          startTime: war.startTime,
+          opponentTag: chooseSides(war, clanTag)?.theirs.tag,
+        }),
+      );
 
       // R10. Most of the time this is every clan, and it is a success.
       if (war.state === "notInWar") {
@@ -695,6 +784,8 @@ export async function syncWar(ctx: JobContext): Promise<void> {
           `  ${clan.tag}: enemy attacks not captured — ${error instanceof Error ? error.message : String(error)}`,
         ),
       );
+
+      if (war.state === "warEnded") await finishWar(supabase, clan, warId, sides);
 
       console.log(
         `  ${clan.tag} ${clan.name}: ${war.state} vs ${sides.theirs.name ?? "unknown"}, ` +

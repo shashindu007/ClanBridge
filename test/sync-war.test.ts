@@ -842,6 +842,94 @@ describe("T6.1 — the clan war sync", () => {
         expect(await count(h, "wars", "state = 'inWar'")).toBe(1);
       });
 
+      // Production, October 2026: four wars each became two rows. The API moved
+      // the war's startTime by 20-36 minutes during preparation, wars is keyed on
+      // (clan_id, start_time), so the next run inserted a second row and left the
+      // first with no attacks. It closed with the real score, and every member
+      // was charged for two unused attacks in a war that did not exist.
+      describe("a war whose start time moves", () => {
+        const liveWar = (startTime: string, endTime: string, state = "preparation") => ({
+          state,
+          teamSize: 1,
+          startTime,
+          endTime,
+          clan: { tag: OUR_TAG, name: "Synthetic Clan", stars: 0, members: [] },
+          opponent: { tag: THEIR_TAG, name: "Opponent", stars: 0, members: [] },
+        });
+
+        it("keeps one row and moves it, rather than inserting a second", async () => {
+          respondByPath([["/currentwar", liveWar("20301020T195500.000Z", "20301021T195500.000Z")]]);
+          await runSyncJob("war", syncWar, { client });
+
+          respondByPath([["/currentwar", liveWar("20301020T203000.000Z", "20301021T205400.000Z", "inWar")]]);
+          await runSyncJob("war", syncWar, { client });
+
+          expect(await count(h, "wars")).toBe(1);
+          const row = await h.db.query<{ state: string; start_time: Date; end_time: Date }>(
+            `select state, start_time, end_time from wars`,
+          );
+          expect(row.rows[0]!.state).toBe("inWar");
+          expect(new Date(row.rows[0]!.start_time).toISOString()).toBe("2030-10-20T20:30:00.000Z");
+          expect(new Date(row.rows[0]!.end_time).toISOString()).toBe("2030-10-21T20:54:00.000Z");
+        });
+
+        it("keeps what a leader attached to the war", async () => {
+          respondByPath([["/currentwar", liveWar("20301020T195500.000Z", "20301021T195500.000Z")]]);
+          await runSyncJob("war", syncWar, { client });
+          const before = await h.db.query<{ id: string }>(`select id from wars`);
+
+          respondByPath([["/currentwar", liveWar("20301020T203000.000Z", "20301021T205400.000Z", "inWar")]]);
+          await runSyncJob("war", syncWar, { client });
+
+          const after = await h.db.query<{ id: string }>(`select id from wars`);
+          expect(after.rows).toEqual(before.rows);
+        });
+
+        // closeStaleWars runs first. Seen only after the old end had passed, the
+        // old row looked finished and would be closed before upsertWar could move
+        // it, and the live war would then be inserted beside it.
+        it("does not close the row as stale while the API is still describing that war", async () => {
+          await seedStaleWar();
+          respondByPath([["/currentwar", liveWar("20260701T063500.000Z", "20260702T063500.000Z", "inWar")]]);
+
+          await runSyncJob("war", syncWar, { client });
+
+          expect(await count(h, "wars")).toBe(1);
+          expect(await count(h, "wars", "state = 'inWar'")).toBe(1);
+        });
+
+        it("still records a rematch as a new war", async () => {
+          respondByPath([["/currentwar", liveWar("20301020T195500.000Z", "20301021T195500.000Z", "warEnded")]]);
+          await runSyncJob("war", syncWar, { client });
+
+          // Next war, same opponent: a day of preparation later at the earliest.
+          respondByPath([["/currentwar", liveWar("20301022T195500.000Z", "20301023T195500.000Z")]]);
+          await runSyncJob("war", syncWar, { client });
+
+          expect(await count(h, "wars")).toBe(2);
+        });
+      });
+
+      // warEnded used to be written first. A failure after it left a row every
+      // later run skips (R5), and the attacks since the last run were gone.
+      it("leaves a war open to be retried when its attacks could not be written", async () => {
+        process.env.USE_FIXTURES = "true";
+        fixtures.write("currentwar.json", { ...IN_WAR, state: "warEnded" });
+        await h.db.exec(`alter table war_attacks rename to war_attacks_hidden`);
+        try {
+          expect(await runSyncJob("war", syncWar, { client })).toBe("failed");
+        } finally {
+          await h.db.exec(`alter table war_attacks_hidden rename to war_attacks`);
+        }
+        expect(await count(h, "wars", "state = 'warEnded'")).toBe(0);
+
+        expect(await runSyncJob("war", syncWar, { client })).toBe("success");
+        expect(await count(h, "wars", "state = 'warEnded'")).toBe(1);
+        expect(await count(h, "war_attacks")).toBe(ATTACK_COUNT);
+        const row = await h.db.query<{ result: string | null }>(`select result from wars`);
+        expect(row.rows[0]!.result).not.toBeNull();
+      });
+
       // One clan's bad hour used to throw out of the loop, and every clan after
       // it in tag order lost its war for the run.
       it("captures the other clans when one clan's call fails", async () => {

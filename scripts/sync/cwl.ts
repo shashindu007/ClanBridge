@@ -288,7 +288,14 @@ export function tagsToFetch(
   return rounds;
 }
 
-/** Insert or refresh the war row, and return its id. */
+/**
+ * Insert or refresh the war row, and return its id.
+ *
+ * NEVER WRITES warEnded. That is finishWar()'s, after the roster and attacks: a
+ * war marked ended is never fetched again (tagsToFetch), so a failure between the
+ * two would lose that day's last attacks for good, and CWL cannot be re-fetched
+ * once the season closes.
+ */
 async function upsertWar(
   supabase: SupabaseClient,
   seasonId: string,
@@ -313,14 +320,12 @@ async function upsertWar(
         opponent_name: theirs.name ?? null,
         opponent_badge_url: theirs.badgeUrl ?? null,
         team_size: war.teamSize ?? null,
-        state: storedState(war.state),
+        state: storedState(war.state) === "warEnded" ? "inWar" : storedState(war.state),
         our_stars: ours.stars ?? null,
         their_stars: theirs.stars ?? null,
         our_destruction: ours.destruction ?? null,
         their_destruction: theirs.destruction ?? null,
-        // Only once the day is over: a running day's "result" was the stars so
-        // far, and read as won or lost before anyone had finished attacking.
-        result: storedState(war.state) === "warEnded" ? warResult(ours, theirs) : null,
+        result: null,
         start_time: war.startTime?.toISOString() ?? null,
         end_time: war.endTime?.toISOString() ?? null,
       },
@@ -340,6 +345,20 @@ async function upsertWar(
   const id = (data as Array<{ id: string }> | null)?.[0]?.id;
   if (!id) throw new Error(`cwl_wars row vanished for ${warTag}`);
   return id;
+}
+
+/**
+ * Mark a war finished, as the last write of the run that saw it end.
+ *
+ * The result waits for this too: a running day's "result" was the stars so far,
+ * and read as won or lost before anyone had finished attacking.
+ */
+async function finishWar(supabase: SupabaseClient, warId: string, warTag: string, sides: Sides): Promise<void> {
+  const { error } = await supabase
+    .from("cwl_wars")
+    .update({ state: "warEnded", result: warResult(sides.ours, sides.theirs) })
+    .eq("id", warId);
+  if (error) throw new Error(`cwl_wars could not be closed for ${warTag}: ${error.message}`);
 }
 
 /**
@@ -1093,9 +1112,6 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
             sides,
             days.get(requestedTag) ?? days.get(warTag),
           );
-          // Settled within this run too, so a later round listing the same war
-          // cannot rewrite a result already recorded a moment ago.
-          if (storedState(war.state) === "warEnded") settled.add(warTag);
 
           const playerIds = await resolvePlayers(supabase, clan, sides.ours.members);
 
@@ -1108,6 +1124,12 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
           ctx.recorded(
             await upsertAttacks(supabase, warId, sides.ours.members, playerIds, defenderPositions),
           );
+          if (storedState(war.state) === "warEnded") {
+            await finishWar(supabase, warId, warTag, sides);
+            // Settled within this run too, so a later round listing the same war
+            // cannot rewrite a result already recorded a moment ago.
+            settled.add(warTag);
+          }
           // After the attacks, so a member who played is seen to have played.
           // Never allowed to cost the capture above: it warns and tries again
           // next run.

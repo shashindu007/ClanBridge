@@ -493,6 +493,23 @@ describe("T4.1 — the CWL sync", () => {
         expect(second.rows).toEqual(first.rows);
       });
 
+      // warEnded used to be written first, and an ended war is never fetched again.
+      // A failure in between lost the day's last attacks, for good.
+      it("leaves a war open to be retried when its attacks could not be written", async () => {
+        await h.db.exec(`alter table cwl_attacks rename to cwl_attacks_hidden`);
+        try {
+          expect(await runSyncJob("cwl", syncCwl, { client })).toBe("failed");
+        } finally {
+          await h.db.exec(`alter table cwl_attacks_hidden rename to cwl_attacks`);
+        }
+        expect(await count(h, "cwl_wars", "state = 'warEnded'")).toBe(0);
+
+        expect(await runSyncJob("cwl", syncCwl, { client })).toBe("success");
+        expect(await count(h, "cwl_wars", "state = 'warEnded'")).toBe(WAR_COUNT);
+        expect(await count(h, "cwl_attacks")).toBeGreaterThan(0);
+        expect(await count(h, "cwl_wars", "result is null")).toBe(0);
+      });
+
       it("does not re-fetch a war it has already recorded as ended", async () => {
         await runSyncJob("cwl", syncCwl, { client });
 

@@ -167,6 +167,9 @@ export const PHASE1_MIGRATIONS = [
   // What the API sends and the syncs dropped: clan war record and capital,
   // player profiles, attack durations, the raid defence log.
   "065_api_extras.sql",
+  // One war recorded twice when the API moved its start time, and two sync rows
+  // that never closed. Follows 003 and 024.
+  "066_war_duplicates.sql",
 ] as const;
 
 /**
@@ -196,6 +199,9 @@ export const LIVE_ONLY_MIGRATIONS = [
   // T12.7 the 15 KB avatar ceiling and the owner-scoped delete policy that lets
   // a replaced picture be removed instead of orphaned.
   "043_avatar_storage_limits.sql",
+  // The half-hourly dispatch of sync-clans. pg_cron, pg_net and Vault exist on
+  // Supabase only. See the migration for the one secret it needs.
+  "069_sync_heartbeat.sql",
 ] as const;
 
 /**

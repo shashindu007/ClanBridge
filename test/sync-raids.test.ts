@@ -488,6 +488,22 @@ describe("T7.1 — the capital raid sync", () => {
       expect(row.rows[0]!.total_loot).toBe(1);
     });
 
+    // The weekend used to be closed first. A failure after it left a settled row
+    // R5 protects, with its final totals never written.
+    it("leaves a weekend open to be retried when its raiders could not be written", async () => {
+      await h.db.exec(`alter table raid_participants rename to raid_participants_hidden`);
+      try {
+        expect(await runSyncJob("raids", syncRaids, { client })).toBe("failed");
+      } finally {
+        await h.db.exec(`alter table raid_participants_hidden rename to raid_participants`);
+      }
+      expect(await count(h, "raid_seasons", "state = 'ended'")).toBe(0);
+
+      expect(await runSyncJob("raids", syncRaids, { client })).toBe("success");
+      expect(await count(h, "raid_seasons", "state = 'ended'")).toBeGreaterThan(0);
+      expect(await count(h, "raid_participants")).toBeGreaterThan(0);
+    });
+
     // Risk 4. Every weekend settled and nothing new is the ordinary midweek
     // state, and R10 says that is a success recorded as `skipped` — not a
     // failure. A job that reports failure four days in seven trains you to

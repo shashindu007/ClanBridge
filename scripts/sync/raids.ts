@@ -178,7 +178,14 @@ async function recordedSeasons(
   return recorded;
 }
 
-/** The season row, returning its id. Upsert on the natural key (clan_id, start_time). */
+/**
+ * The season row, returning its id. Upsert on the natural key (clan_id, start_time).
+ *
+ * NEVER CLOSES THE WEEKEND. recordedSeasons() treats a closed one as settled and
+ * nothing rewrites it (R5), so closing it here and failing a moment later would
+ * lose the final participant totals and the last attacks. A weekend the API has
+ * closed stays 'ongoing' until closeSeason() runs, after everything else.
+ */
 async function upsertSeason(
   supabase: SupabaseClient,
   clan: ClanRow,
@@ -198,7 +205,7 @@ async function upsertSeason(
         end_time: season.endTime.toISOString(),
         total_loot: season.totalLoot ?? null,
         // 027. Every one of these was on the response and was being discarded.
-        state: season.state ?? null,
+        state: "ongoing",
         raids_completed: season.raidsCompleted ?? null,
         total_attacks: season.totalAttacks ?? null,
         offensive_reward: season.offensiveReward ?? null,
@@ -221,6 +228,21 @@ async function upsertSeason(
   const id = (data as Array<{ id: string }> | null)?.[0]?.id;
   if (!id) throw new Error(`raid_seasons row vanished for ${clan.tag} at ${startIso}`);
   return id;
+}
+
+/** Close the weekend, as the last write of the run that saw it end. */
+async function closeSeason(
+  supabase: SupabaseClient,
+  clan: ClanRow,
+  seasonId: string,
+  season: RaidSeason,
+): Promise<void> {
+  const { error } = await supabase
+    .from("raid_seasons")
+    .update({ state: season.state ?? null })
+    .eq("id", seasonId)
+    .eq("clan_id", clan.id); // R3
+  if (error) throw new Error(`raid_seasons could not be closed for ${clan.tag}: ${error.message}`);
 }
 
 /**
@@ -547,6 +569,7 @@ export async function syncRaids(ctx: JobContext): Promise<void> {
         if (defencesDue(season, known)) {
           ctx.recorded(await captureDefences(supabase, clan, seasonId, season.defences!));
         }
+        if (!isOngoing(season.state)) await closeSeason(supabase, clan, seasonId, season);
       }
 
       console.log(

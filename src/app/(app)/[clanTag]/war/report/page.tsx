@@ -106,6 +106,8 @@ export default async function WarReportPage({
   // section below rather than fetched twice.
   const loaded: Array<{
     war: WarRow;
+    state: WarRow["state"];
+    ourStars: number | null;
     members: WarMemberRow[];
     attacks: WarAttackRow[];
     targets: WarTargetRow[];
@@ -136,6 +138,7 @@ export default async function WarReportPage({
       war,
       // warContribution() counts finished wars only; the live one is not a record yet.
       state: war.state,
+      ourStars: war.ourStars,
       ...(rosters.get(war.id) ?? { members: [], attacks: [], targets: [] }),
     })),
   );

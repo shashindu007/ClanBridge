@@ -160,6 +160,7 @@ export async function playerReport(
   const perWar = recentWars.map((war) => ({
     // Finished wars only — see warContribution()'s note on `state`.
     state: war.state,
+    ourStars: war.ourStars,
     ...(rosters.get(war.id) ?? { members: [], attacks: [], targets: [] }),
   }));
 

@@ -51,6 +51,7 @@ import type {
 } from "@/repositories/war";
 import { baseNumbers } from "@/services/cwl";
 import type { BaseRef, DayAttack, DayBase, DayDefence } from "@/services/cwl-day";
+import { starsNotCaptured } from "@/services/war";
 import {
   attackLines,
   CWL_MARKS,
@@ -109,6 +110,8 @@ export interface WarBoard {
    * first could not be told for all of them — see WHO WAS FIRST above.
    */
   orderKnown: boolean;
+  /** Stars in the final score with no recorded attack behind them. See starsNotCaptured. */
+  starsNotCaptured: number;
 }
 
 /**
@@ -131,8 +134,10 @@ export function warBoard(input: {
   /** wars.opponent_attacks_captured_at is set — see 063. */
   defenceKnown: boolean;
   teamSize: number | null;
+  /** wars.our_stars — what the attacks are checked against. */
+  ourStars: number | null;
 }): WarBoard {
-  const { members, attacks, opponents, opponentAttacks, defenceKnown, teamSize } = input;
+  const { members, attacks, opponents, opponentAttacks, defenceKnown, teamSize, ourStars } = input;
 
   // A regular war's map positions already run 1 to N. Ranked all the same: it
   // costs nothing, and CWL is what assuming otherwise looked like.
@@ -221,7 +226,13 @@ export function warBoard(input: {
     }))
     .sort((a, b) => (a.base ?? 999) - (b.base ?? 999) || a.name.localeCompare(b.name));
 
-  return { bases, enemyBases: opponents.length || teamSize, defenceKnown, orderKnown };
+  return {
+    bases,
+    enemyBases: opponents.length || teamSize,
+    defenceKnown,
+    orderKnown,
+    starsNotCaptured: starsNotCaptured(ourStars, attacks),
+  };
 }
 
 /** One attack of a player's, scored. */
@@ -272,6 +283,8 @@ export interface WarRating {
   attackOnly: boolean;
   /** Which of several attacks on a base came first could not be told for all of them. */
   orderMissing: boolean;
+  /** Above zero: the war's last attacks were not captured, so nobody lost marks for unused ones. */
+  starsNotCaptured: number;
   /** The marks of everyone above zero, added up — what a share is a share of. */
   total: number;
   players: PlayerWarRating[];
@@ -295,7 +308,14 @@ function asDayBase(base: WarBase, attack: DayAttack | null): DayBase {
 /** One war's marks and shares. `state` is the war's stored state. */
 export function warRating(board: WarBoard, state: string | null): WarRating {
   if (state === "preparation") {
-    return { status: "notStarted", attackOnly: !board.defenceKnown, orderMissing: false, total: 0, players: [] };
+    return {
+      status: "notStarted",
+      attackOnly: !board.defenceKnown,
+      orderMissing: false,
+      starsNotCaptured: 0,
+      total: 0,
+      players: [],
+    };
   }
   const over = state === "warEnded";
 
@@ -335,7 +355,7 @@ export function warRating(board: WarBoard, state: string | null): WarRating {
 
     const unused = Math.max(0, base.attacksAllowed - base.attacks.length);
     const missed: MarkLine | null =
-      over && unused > 0
+      over && unused > 0 && board.starsNotCaptured === 0
         ? { label: unused === 1 ? "1 attack not used" : `${unused} attacks not used`, marks: unused * WAR_MARKS.missed }
         : null;
 
@@ -371,6 +391,7 @@ export function warRating(board: WarBoard, state: string | null): WarRating {
     status: over ? "counted" : "provisional",
     attackOnly: !board.defenceKnown,
     orderMissing: !board.orderKnown,
+    starsNotCaptured: board.starsNotCaptured,
     total,
     players: rows.map((r) => ({
       ...r,
@@ -387,6 +408,7 @@ export interface RatedWar {
   status: WarRatingStatus;
   attackOnly: boolean;
   orderMissing: boolean;
+  starsNotCaptured: number;
   total: number;
 }
 
@@ -476,6 +498,7 @@ export function monthWarRating(
       status: war.status,
       attackOnly: war.attackOnly,
       orderMissing: war.orderMissing,
+      starsNotCaptured: war.starsNotCaptured,
       total: war.total,
     })),
     players: players.sort(

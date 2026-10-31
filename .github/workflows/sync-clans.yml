@@ -19,7 +19,13 @@ name: sync-clans
 
 on:
   schedule:
-    # Every 30 minutes, at :17 and :47. Was hourly; halved because a member's
+    # Every 30 minutes on paper, at :17 and :47. GITHUB DOES NOT KEEP TO THIS: a
+    # public repository's schedule is best-effort, and October 2026 measured 5 to
+    # 15 runs a day against 48, median gap 165 minutes, worst 429. Migration 069
+    # dispatches this workflow from Supabase every 30 minutes and is what actually
+    # keeps the pace; this cron stays as the backup if that ever stops.
+    #
+    # Was hourly; halved because a member's
     # clan donation counter is wiped when they leave, and whatever they gave
     # after our last reading is lost from that clan's figure (migration 052).
     # Needs migration 054, whose 30-minute snapshot key lets the second run of
@@ -74,11 +80,12 @@ jobs:
       # to reality, not replaced by it (R12), so the deviation is recorded here
       # and in IMPLEMENTATION.md §0 rather than the task text being edited.
       #
-      # Hourly loses no data. Unlike CWL — where a missed tick during league week
-      # is a season gone permanently — `/clans/{tag}/currentwar` reports the FULL
-      # CUMULATIVE state of the war on every call, so a skipped tick costs
-      # freshness on the board and nothing else. A war lasts 24h of preparation
-      # plus 24h of battle; hourly gives it roughly 48 chances to be captured.
+      # `/clans/{tag}/currentwar` reports the FULL CUMULATIVE state of the war on
+      # every call, so a missed tick mid-war costs only freshness. THE END OF A WAR
+      # IS THE EXCEPTION: once the clan's next war starts, the ended one is gone
+      # from this endpoint, and the war log has totals but no attacks. Whatever
+      # landed after the last run we saw is lost for good, which happened to 6 of
+      # 36 wars when GitHub left gaps of hours. See migration 069.
       #
       # As a step rather than a workflow because ~90% of a run's wall time is
       # checkout, setup-node and `npm ci`. Those are already paid for by the time

@@ -7,7 +7,7 @@
 -- BEGIN/COMMIT means a failure anywhere rolls the entire thing back, so you
 -- cannot end up with a half-applied schema.
 --
--- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql, 054_half_hour_snapshots.sql, 055_last_activity.sql, 056_notification_and_push_hardening.sql, 057_cwl_scouting.sql, 058_purge_cwl_scouting.sql, 059_purge_other_clans_only.sql, 060_scout_th_weapon.sql, 061_purge_keeps_our_wars.sql, 062_cwl_attack_order.sql, 063_war_opponent_attacks.sql, 064_raid_attacks.sql, 065_api_extras.sql
+-- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql, 054_half_hour_snapshots.sql, 055_last_activity.sql, 056_notification_and_push_hardening.sql, 057_cwl_scouting.sql, 058_purge_cwl_scouting.sql, 059_purge_other_clans_only.sql, 060_scout_th_weapon.sql, 061_purge_keeps_our_wars.sql, 062_cwl_attack_order.sql, 063_war_opponent_attacks.sql, 064_raid_attacks.sql, 065_api_extras.sql, 066_war_duplicates.sql
 --
 -- Two numbers are absent, retired rather than reused so that apply order
 -- stays equal to numeric order: 009 (cwl_signups, superseded by Phase 4B)
@@ -11399,6 +11399,65 @@ grant select, insert, update on clan_profiles, player_profiles, raid_defenses to
 --   -- and cannot change one (R11 — no update policy, no grant):
 --   update clan_profiles set war_wins = 9999;   -- denied
 -- ---------------------------------------------------------------------------
+
+-- ========================================================================
+-- 066_war_duplicates.sql
+-- ========================================================================
+
+-- 066 — Wars recorded twice, and two sync rows that never closed.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 1. ONE WAR, TWO ROWS.
+--
+-- The API moved a war's startTime by 20 to 36 minutes during preparation, and
+-- `wars` has no identity but (clan_id, start_time), so the next sync inserted a
+-- second row. The first kept its roster and no attacks. closeStaleWars() then
+-- closed it with the real final score from the war log, so it looked like a
+-- finished war: it showed twice in history, and everyone in it was charged for two
+-- unused attacks. Four wars in October 2026, 110 member entries.
+--
+-- scripts/sync/war.ts now moves the row instead. This clears what is already there.
+--
+-- A row is removed only when ALL of these hold, so it cannot take a real war:
+--   * another row has the same clan and opponent, starting within six hours. A
+--     rematch cannot start that soon: the first war's battle day has to end.
+--   * this row has no attacks at all, and the other row has some.
+--   * no leader assigned anything on this row.
+--
+-- Soft deleted (R4). The roster rows stay, and nothing reads them once the war is
+-- gone. The month's rating is derived, never stored, so it corrects itself.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 2. TWO SYNC ROWS STILL 'running'.
+--
+-- Two cwl runs from 3 October died without closing their rows. Nothing is blocked
+-- by them, since runningSince() ignores anything older than 15 minutes, but a row
+-- that says a job is running a month later is a lie in the log the admin page shows.
+-- finished_at is the start, not now, so they do not read as a run from today.
+
+update public.wars stale
+set deleted_at = now()
+from public.wars live
+where stale.clan_id = live.clan_id
+  and stale.opponent_tag = live.opponent_tag
+  and stale.id <> live.id
+  and stale.deleted_at is null
+  and live.deleted_at is null
+  and abs(extract(epoch from (live.start_time - stale.start_time))) <= 6 * 60 * 60
+  and not exists (select 1 from public.war_attacks a where a.war_id = stale.id)
+  and exists (select 1 from public.war_attacks a where a.war_id = live.id)
+  and not exists (
+    select 1 from public.war_targets t
+    where t.war_id = stale.id and t.deleted_at is null
+  );
+
+update public.sync_log
+set status = 'failed',
+    finished_at = started_at,
+    error = 'Died without closing its row. Closed by migration 066.'
+where status = 'running'
+  and finished_at is null
+  and started_at < now() - interval '1 day';
 
 commit;
 
