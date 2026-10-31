@@ -15,7 +15,7 @@
 
 import { describe, expect, it } from "vitest";
 import { config } from "@/middleware";
-import { isPublicPath, PUBLIC_EXACT_PATHS, PUBLIC_PATHS } from "@/lib/supabase/middleware";
+import { isPublicPath, isServerAction, PUBLIC_EXACT_PATHS, PUBLIC_PATHS } from "@/lib/supabase/middleware";
 
 describe("PUBLIC_PATHS", () => {
   // The regression. If this fails, the Sign in button does nothing.
@@ -82,6 +82,29 @@ describe("PUBLIC_PATHS", () => {
 // and competing with it.
 //
 // Nothing failed. Every page worked. It just did twice the work per navigation.
+// The write limit keyed on the next-action header, which only the client router
+// sends. Next also runs an action from a plain form post, with no header at all.
+describe("isServerAction", () => {
+  const request = (method: string, headers: Record<string, string> = {}) =>
+    ({ method, headers: new Headers(headers) }) as Parameters<typeof isServerAction>[0];
+
+  it("sees the client router's action", () => {
+    expect(isServerAction(request("POST", { "next-action": "abc" }))).toBe(true);
+  });
+
+  it.each(["multipart/form-data; boundary=x", "application/x-www-form-urlencoded"])(
+    "sees a plain form post with no header: %s",
+    (type) => {
+      expect(isServerAction(request("POST", { "content-type": type }))).toBe(true);
+    },
+  );
+
+  it("leaves reads and JSON route handlers alone", () => {
+    expect(isServerAction(request("GET", { "next-action": "abc" }))).toBe(false);
+    expect(isServerAction(request("POST", { "content-type": "application/json" }))).toBe(false);
+  });
+});
+
 describe("the middleware matcher", () => {
   const matcher = new RegExp(`^${config.matcher[0]}$`);
   const runsOn = (pathname: string) => matcher.test(pathname);
@@ -102,6 +125,21 @@ describe("the middleware matcher", () => {
     "/_next/image",
   ])("does not run on %s", (path) => {
     expect(runsOn(path)).toBe(false);
+  });
+
+  // The bare `game/` prefix skipped this: [clanTag] is "game", so it routes to
+  // [clanTag]/war, Server Actions and all, with no write limit and a client-sent
+  // x-user-id believed. Every segment that can follow [clanTag] is listed, and
+  // none of them may ever be the name of a folder in public/game.
+  it.each(
+    ["cwl", "games", "layouts", "members", "notices", "player", "polls", "raids", "war"].flatMap((segment) => [
+      `/game/${segment}`,
+      `/icons/${segment}`,
+      `/scenes/${segment}`,
+      `/game/${segment}/x.png`,
+    ]),
+  )("runs on a route that only starts like an asset folder: %s", (path) => {
+    expect(runsOn(path)).toBe(true);
   });
 
   // A dot is not an extension. Skipping the middleware for any dotted path let

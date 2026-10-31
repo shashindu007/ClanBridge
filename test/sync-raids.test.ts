@@ -263,7 +263,7 @@ describe("T7.1 — the capital raid sync", () => {
       insert into users (id, email, status)
       values ('dddddddd-0000-4000-8000-00000000d001', 'l@example.com', 'approved');
       insert into base_layouts (clan_id, uploaded_by, th_level, layout_type, copy_link)
-      values ('${CLAN_A}', 'dddddddd-0000-4000-8000-00000000d001', 16, 'war', 'https://x');
+      values ('${CLAN_A}', 'dddddddd-0000-4000-8000-00000000d001', 16, 'war', 'https://link.clashofclans.com/x');
     `);
 
     await runSyncJob("raids", syncRaids, { client });

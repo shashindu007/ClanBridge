@@ -38,6 +38,11 @@ concurrency:
   group: backup
   cancel-in-progress: false
 
+# Read the repository and nothing else. A step that is compromised gets a token
+# that cannot push, open issues or touch another workflow.
+permissions:
+  contents: read
+
 jobs:
   dump:
     # Pinned rather than ubuntu-latest: the pgdg apt line below is keyed on the
@@ -55,7 +60,7 @@ jobs:
         env:
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install a matching pg_dump
         # The runner ships an older client than Supabase runs. A version mismatch
@@ -88,7 +93,7 @@ jobs:
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
 
       - name: Upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: clanbridge-backup
           # Only the encrypted file. Never widen this to the whole directory.

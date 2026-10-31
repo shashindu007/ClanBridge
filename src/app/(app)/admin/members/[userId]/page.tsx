@@ -215,7 +215,6 @@ export default async function AdminAccountPage({
   const sent = await sentTo(supabase, userId, target);
 
   const isSelf = account.id === userId;
-  const removable = !isSelf && !account.isPlatformAdmin && !account.removedAt;
 
   // T12.9 — which clans this caller may set roles in. The platform admin, every
   // clan on the platform (015's "platform admin reads all clans"); a leader,
@@ -232,6 +231,12 @@ export default async function AdminAccountPage({
     ? ((allClanRows ?? []) as Array<{ id: string; tag: string; name: string }>)
     : callerClans.filter((c) => c.role === "leader").map(({ id, tag, name }) => ({ id, tag, name }));
   const roleIn = new Map(account.memberships.map((m) => [m.clanId, m.role as Role]));
+  // 067 says the same in the database. This decides what to draw: a leader's reach
+  // ends at their own clans, and only the platform owner removes a leader.
+  const reachable = new Set(manageable.map((c) => c.id));
+  const outOfReach =
+    !admin && account.memberships.some((m) => m.role === "leader" || !reachable.has(m.clanId));
+  const removable = !isSelf && !account.isPlatformAdmin && !account.removedAt && !outOfReach;
   const rolesEditable =
     !isSelf &&
     !account.removedAt &&
@@ -528,7 +533,9 @@ export default async function AdminAccountPage({
           <p className="text-muted-foreground text-sm">
             {isSelf
               ? "You cannot remove your own account — that would lock you out of this page."
-              : "The platform owner's account can never be removed."}
+              : account.isPlatformAdmin
+                ? "The platform owner's account can never be removed."
+                : "Only the platform owner can remove this account: it is a leader, or belongs to a clan you do not lead."}
           </p>
         ) : (
           <form action={removeAccess} className="space-y-3">

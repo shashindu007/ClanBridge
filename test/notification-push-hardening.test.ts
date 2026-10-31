@@ -127,7 +127,7 @@ describe("056 — notification and push hardening", () => {
 
   // ── 3. one browser, two accounts ──────────────────────────────────────────
   describe("claim_push_subscription", () => {
-    const ENDPOINT = "https://push.example/shared-device";
+    const ENDPOINT = "https://fcm.googleapis.com/fcm/send/shared-device";
 
     async function owner(): Promise<{ user_id: string; deleted_at: string | null }> {
       await h.asSuperuser();

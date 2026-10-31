@@ -27,13 +27,15 @@ import { rateLimitHeaders, sharedRateLimiter, WRITE_LIMIT } from "@/lib/rate-lim
  * The browser's PushSubscription.toJSON() shape.
  *
  * `endpoint` must be https and bounded: this server will later POST to that URL,
- * so accepting an arbitrary scheme would turn the send path into a request
- * forger aimed at whatever a caller stored. The key bounds are generous enough
- * not to reject a push service that pads its base64 differently.
+ * so accepting an arbitrary one would turn the send path into a request forger.
+ * Which hosts is the database's to say, in is_push_endpoint() (067), because a
+ * session can reach claim_push_subscription() without coming through here. The
+ * key bounds are generous enough not to reject a push service that pads its
+ * base64 differently.
  */
 const bodySchema = z.object({
   subscription: z.object({
-    endpoint: z.string().url().max(1000).startsWith("https://"),
+    endpoint: z.string().url().max(1000).startsWith("https://"), // hosts: is_push_endpoint() (067)
     keys: z.object({
       p256dh: z.string().min(16).max(256),
       auth: z.string().min(8).max(256),

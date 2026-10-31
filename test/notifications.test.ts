@@ -95,18 +95,21 @@ describe("T5 — notification schema", () => {
   describe("push_subscriptions write policies (T5.5)", () => {
     it("lets a member register their own device", async () => {
       await h.asUser(MEMBER_A);
-      await h.db.exec(`
-        insert into push_subscriptions (user_id, endpoint, p256dh, auth)
-        values ('${MEMBER_A}', 'https://push.example/member-a-2', 'k', 'k');
-      `);
+      const key = "k".repeat(40);
+      await h.db.query("select claim_push_subscription($1, $2, $3)", [
+        "https://fcm.googleapis.com/fcm/send/member-a-2",
+        key,
+        key,
+      ]);
       expect(
         await count(h, `select 1 from push_subscriptions where deleted_at is null`),
       ).toBe(2); // their original plus the new one; the others are invisible
     });
 
-    // The reason the insert policy pins user_id rather than merely requiring a
-    // session: without it, a member registers a device against someone else's
-    // account and quietly receives that person's notifications from then on.
+    // Without this a member registers a device against someone else's account
+    // and quietly receives that person's notifications from then on. 067 closed
+    // direct inserts altogether: claim_push_subscription() takes the caller's id
+    // from the session, so there is no user_id to supply.
     it("refuses a device registered against another account", async () => {
       await h.asUser(MEMBER_A);
       await expect(
@@ -114,7 +117,7 @@ describe("T5 — notification schema", () => {
           insert into push_subscriptions (user_id, endpoint, p256dh, auth)
           values ('${LEADER_A}', 'https://push.example/stolen', 'k', 'k');
         `),
-      ).rejects.toThrow(/row-level security/i);
+      ).rejects.toThrow(/permission denied/i);
     });
 
     it("lets a member soft delete their own subscription (R4)", async () => {
@@ -128,8 +131,7 @@ describe("T5 — notification schema", () => {
       ).toBe(0);
     });
 
-    // `using` alone would allow this: the row is theirs when targeted, and only
-    // the with check clause stops it becoming somebody else's on the way out.
+    // 067 — only deleted_at is granted, so this never reaches the policy.
     it("refuses reassigning your own subscription to another account", async () => {
       await h.asUser(MEMBER_A);
       await expect(
@@ -137,7 +139,7 @@ describe("T5 — notification schema", () => {
           `update push_subscriptions set user_id = '${LEADER_A}'
            where endpoint = 'https://push.example/member-a';`,
         ),
-      ).rejects.toThrow(/row-level security/i);
+      ).rejects.toThrow(/permission denied/i);
     });
 
     it("keeps another member's subscription unreadable", async () => {

@@ -170,6 +170,9 @@ export const PHASE1_MIGRATIONS = [
   // One war recorded twice when the API moved its start time, and two sync rows
   // that never closed. Follows 003 and 024.
   "066_war_duplicates.sql",
+  // Table privileges, removal and approval rules, push hosts, layout writes, and
+  // who owns the platform. Replaces functions from 039, 046 and 056.
+  "067_security_hardening.sql",
 ] as const;
 
 /**
@@ -202,6 +205,8 @@ export const LIVE_ONLY_MIGRATIONS = [
   // The half-hourly dispatch of sync-clans. pg_cron, pg_net and Vault exist on
   // Supabase only. See the migration for the one secret it needs.
   "069_sync_heartbeat.sql",
+  // Drops 029's policy letting any clan member replace any layout image.
+  "070_layout_storage_no_overwrite.sql",
 ] as const;
 
 /**

@@ -289,7 +289,7 @@ describe("Phase 8 — the layout library (028)", () => {
       await expect(
         h.db.query(
           `insert into base_layouts (clan_id, uploaded_by, th_level, layout_type, copy_link)
-           values ('${CLAN_A}', '${MEMBER_A}', 16, 'trophy', 'https://x')`,
+           values ('${CLAN_A}', '${MEMBER_A}', 16, 'trophy', 'https://link.clashofclans.com/x')`,
         ),
       ).rejects.toThrow(/row-level security/i);
     });
@@ -299,7 +299,7 @@ describe("Phase 8 — the layout library (028)", () => {
       await expect(
         h.db.query(
           `insert into base_layouts (clan_id, uploaded_by, th_level, layout_type, copy_link)
-           values ('${CLAN_B}', '${MEMBER_A}', 16, 'trophy', 'https://x')`,
+           values ('${CLAN_B}', '${MEMBER_A}', 16, 'trophy', 'https://link.clashofclans.com/x')`,
         ),
       ).rejects.toThrow(/row-level security/i);
     });
@@ -317,17 +317,26 @@ describe("Phase 8 — the layout library (028)", () => {
       expect(res.rows[0]!.deleted_at).not.toBeNull();
     });
 
-    it("does not let one member edit another's layout", async () => {
+    it("does not let one member remove another's layout", async () => {
       await h.asUser(OTHER_A);
-      await h.db.query(`update base_layouts set description = 'x' where id = '${LAYOUT_A}'`);
+      await h.db.query(`update base_layouts set deleted_at = now() where id = '${LAYOUT_A}'`);
 
       // No error — the policy filters the row out rather than raising, which is
       // how UPDATE works under RLS. The assertion is that nothing changed.
       await h.asSuperuser();
-      const res = await h.db.query<{ description: string | null }>(
-        `select description from base_layouts where id = '${LAYOUT_A}'`,
+      const res = await h.db.query<{ deleted_at: string | null }>(
+        `select deleted_at from base_layouts where id = '${LAYOUT_A}'`,
       );
-      expect(res.rows[0]!.description).toBeNull();
+      expect(res.rows[0]!.deleted_at).toBeNull();
+    });
+
+    // 067. The soft delete is the only update the app makes, so it is the only
+    // one a session is granted, for anybody's layout including their own.
+    it("does not let anyone edit a layout's content", async () => {
+      await h.asUser(OTHER_A);
+      await expect(
+        h.db.query(`update base_layouts set description = 'x' where id = '${LAYOUT_A}'`),
+      ).rejects.toThrow(/permission denied/i);
     });
   });
 });

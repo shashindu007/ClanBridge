@@ -352,7 +352,7 @@ export default async function AppLayout({
               showAdmin={showAdminLink}
               showLeadership={showLeadershipLinks}
               showRating={showRatingLink}
-              hasAvatar={Boolean(profile?.avatarPath)}
+              avatarPath={profile?.avatarPath ?? null}
             />
           </div>
           </div>

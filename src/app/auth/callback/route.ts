@@ -22,25 +22,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import type { LoginErrorCode } from "@/lib/login-errors";
 import { safeNext } from "@/lib/safe-next";
 
 // safeNext used to live here. It moved to lib/ when T10.4 added a second route
 // that establishes a session and needs the identical guard — see the note in
 // that file on why there must be exactly one copy.
 
-// Supabase's otp_expired covers more than age: it is also what a link gets once
-// a newer one was requested, or once anything — the member, or a mail app's
-// link scanner — has opened it.
-const EXPIRED_LINK =
-  "Supabase rejected this link (expired, already opened once, or replaced by a newer link). Send yourself a new one and open only the newest email.";
-
-// Kept distinct from EXPIRED_LINK on purpose: when the #fragment carries a
-// reason, the login page replaces this with it, so seeing THIS text means the
-// link really arrived with nothing at all.
-const NO_CODE =
-  "That link arrived without a sign-in code. Send yourself a new one.";
-
-function errorRedirect(request: NextRequest, reason: string): NextResponse {
+function errorRedirect(request: NextRequest, reason: LoginErrorCode): NextResponse {
   const url = request.nextUrl.clone();
   url.pathname = "/login";
   url.search = `?error=${encodeURIComponent(reason)}`;
@@ -74,16 +63,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) return errorRedirect(request, error.message);
+    if (error) return errorRedirect(request, "expired");
   } else if (tokenHash) {
     const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
-    if (error) return errorRedirect(request, error.message);
-  } else if (linkError === "otp_expired") {
-    return errorRedirect(request, EXPIRED_LINK);
+    if (error) return errorRedirect(request, "expired");
   } else if (linkError) {
-    return errorRedirect(request, params.get("error_description") ?? EXPIRED_LINK);
+    return errorRedirect(request, "expired");
   } else {
-    return errorRedirect(request, NO_CODE);
+    return errorRedirect(request, "no-code");
   }
 
   // getUser(), not getSession() — the session was just written from a token this
@@ -93,7 +80,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return errorRedirect(request, "Sign-in did not complete. Try again.");
+  if (!user) return errorRedirect(request, "incomplete");
 
   // upsert, not insert: the second and every later sign-in hits an existing row.
   // ignoreDuplicates leaves it untouched — re-writing `email` on every sign-in
