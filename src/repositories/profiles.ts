@@ -17,6 +17,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ProgressScope } from "@/repositories/player-progress";
 import type { Achievement, CapitalDistrict } from "@/types/domain";
+import { assertRead } from "@/lib/errors";
 
 export interface ClanProfile {
   warWins: number | null;
@@ -72,7 +73,8 @@ export async function clanProfile(
     .eq("clan_id", clanId) // R3
     .is("deleted_at", null);
 
-  if (error || !data) return null;
+  assertRead(error, "clan_profiles");
+  if (!data) return null;
   const row = (data as unknown as Array<Record<string, unknown>>)[0];
   if (!row) return null;
 
@@ -109,7 +111,8 @@ export async function playerProfile(
   if (scope !== "owner") query = query.eq("clan_id", scope.clanId); // R3
 
   const { data, error } = await query;
-  if (error || !data) return null;
+  assertRead(error, "player_profiles");
+  if (!data) return null;
   const row = (data as unknown as Array<Record<string, unknown>>)[0];
   if (!row) return null;
 
@@ -148,7 +151,8 @@ export async function warPreferences(
     .in("player_id", [...new Set(playerIds)])
     .is("deleted_at", null);
 
-  if (error || !data) return out;
+  assertRead(error, "player_profiles");
+  if (!data) return out;
   for (const row of data as unknown as Array<Record<string, unknown>>) {
     const value = preference(row.war_preference);
     if (value) out.set(row.player_id as string, value);

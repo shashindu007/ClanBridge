@@ -25,6 +25,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { playerNames } from "@/repositories/cwl";
+import { assertRead } from "@/lib/errors";
 
 export interface RaidSeasonRow {
   id: string;
@@ -99,7 +100,8 @@ export async function seasonsForClan(
     .is("deleted_at", null)
     .order("start_time");
 
-  if (error || !data) return [];
+  assertRead(error, "raid_seasons");
+  if (!data) return [];
   // Newest first; the stand-in's .order() is ascending only.
   return (data as unknown as Array<Record<string, unknown>>).map(toSeason).reverse();
 }
@@ -158,7 +160,8 @@ export async function participantsOfSeason(
     .eq("raid_season_id", seasonId)
     .is("deleted_at", null);
 
-  if (error || !data) return [];
+  assertRead(error, "raid_participants");
+  if (!data) return [];
 
   const rows = (data as unknown as Array<Record<string, unknown>>).map((r) => ({
     playerId: r.player_id as string,
@@ -263,7 +266,8 @@ export async function raidSeasonsInMonth(
     .lt("start_time", to.toISOString())
     .order("start_time");
 
-  if (error || !data) return [];
+  assertRead(error, "raid_seasons");
+  if (!data) return [];
   return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
     ...toSeason(r),
     startTime: isoOrNull(r.start_time) as string,
@@ -283,7 +287,8 @@ export async function raidMonthsForClan(
     .limit(1000)
     .order("start_time", { ascending: false });
 
-  if (error || !data) return [];
+  assertRead(error, "raid_seasons");
+  if (!data) return [];
   const months = (data as unknown as Array<{ start_time: string | Date }>).map((r) =>
     new Date(r.start_time).toISOString().slice(0, 7),
   );
@@ -320,7 +325,8 @@ export async function raidAttacksOfSeason(
     .is("deleted_at", null)
     .order("attack_number");
 
-  if (error || !data) return [];
+  assertRead(error, "raid_attacks");
+  if (!data) return [];
   const rows = data as unknown as Array<Record<string, unknown>>;
   const names = await playerNames(
     supabase,
@@ -363,7 +369,8 @@ export async function raidOpponentsOfSeason(
     .is("deleted_at", null)
     .order("raid_number");
 
-  if (error || !data) return [];
+  assertRead(error, "raid_opponents");
+  if (!data) return [];
   return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
     raidNumber: Number(r.raid_number),
     defenderTag: r.defender_tag as string,
@@ -403,7 +410,8 @@ export async function raidDefencesOfSeason(
     .is("deleted_at", null)
     .order("raid_number");
 
-  if (error || !data) return [];
+  assertRead(error, "raid_defenses");
+  if (!data) return [];
   return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
     raidNumber: Number(r.raid_number),
     attackerTag: r.attacker_tag as string,

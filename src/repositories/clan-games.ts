@@ -15,6 +15,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { playerNames } from "@/repositories/cwl";
+import { assertRead } from "@/lib/errors";
 
 export interface ClanGamesRow {
   id: string;
@@ -66,7 +67,8 @@ export async function gamesForClan(
     .is("deleted_at", null)
     .order("season");
 
-  if (error || !data) return [];
+  assertRead(error, "clan_games");
+  if (!data) return [];
   return (data as unknown as Array<Record<string, unknown>>).map(toGames).reverse();
 }
 
@@ -103,7 +105,8 @@ export async function scoresForGames(
     .eq("clan_games_id", gamesId)
     .is("deleted_at", null);
 
-  if (error || !data) return [];
+  assertRead(error, "clan_games_scores");
+  if (!data) return [];
 
   const rows = (data as unknown as Array<Record<string, unknown>>).map((r) => ({
     playerId: r.player_id as string,

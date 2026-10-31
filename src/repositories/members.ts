@@ -11,6 +11,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ClanRole } from "@/types/domain";
+import { assertRead } from "@/lib/errors";
 
 export interface MemberRow {
   playerId: string;
@@ -79,7 +80,8 @@ export async function userIdsForPlayers(
     .is("deleted_at", null)
     .not("user_id", "is", null);
 
-  if (error || !data) return [];
+  assertRead(error, "players");
+  if (!data) return [];
 
   return [
     ...new Set(
@@ -114,7 +116,8 @@ export async function membersForClan(
   if (!options.includeDeparted) query.is("left_at", null);
 
   const { data, error } = await query.order("name");
-  if (error || !data) return [];
+  assertRead(error, "players");
+  if (!data) return [];
 
   return (data as Array<Record<string, unknown>>).map((r) => ({
     playerId: r.id as string,
@@ -157,7 +160,8 @@ export async function latestSnapshots(
     .limit(Math.max(200, memberCount * 4))
     .order("captured_at", { ascending: false });
 
-  if (error || !data) return new Map();
+  assertRead(error, "member_snapshots");
+  if (!data) return new Map();
 
   const latest = new Map<string, SnapshotPoint>();
   for (const row of data as Array<Record<string, unknown>>) {
@@ -214,7 +218,8 @@ export async function searchPlayers(
       else query.ilike("name", `%${escaped}%`);
 
       const { data, error } = await query.order("name");
-      if (error || !data) return [];
+      assertRead(error, "players");
+      if (!data) return [];
 
       return (data as Array<Record<string, unknown>>).map((r) => ({
         clanId,
@@ -270,7 +275,8 @@ export async function lastActivity(
     p_since: since.toISOString(),
   });
 
-  if (error || !data) return { byPlayer: new Map(), coveredFrom: null };
+  assertRead(error, "last_activity");
+  if (!data) return { byPlayer: new Map(), coveredFrom: null };
 
   const byPlayer = new Map<string, string | null>();
   let coveredFrom: string | null = null;

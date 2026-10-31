@@ -24,6 +24,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cache } from "react";
+import { assertRead } from "@/lib/errors";
 
 export interface CwlSeason {
   id: string;
@@ -88,7 +89,8 @@ export async function seasonsForClan(
     .is("deleted_at", null)
     .order("season");
 
-  if (error || !data) return [];
+  assertRead(error, "cwl_seasons");
+  if (!data) return [];
   // Newest first. `.order()` in the PGlite stand-in has no descending option, so
   // the reversal happens here and behaves identically in both.
   return (data as CwlSeason[]).slice().reverse();
@@ -113,7 +115,8 @@ export async function seasonByName(
     .eq("season", season)
     .is("deleted_at", null);
 
-  if (error || !data) return null;
+  assertRead(error, "cwl_seasons");
+  if (!data) return null;
   return (data as CwlSeason[])[0] ?? null;
 }
 
@@ -133,7 +136,8 @@ export async function warsInSeason(
     .is("deleted_at", null)
     .order("day_number");
 
-  if (error || !data) return [];
+  assertRead(error, "cwl_wars");
+  if (!data) return [];
   return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
     id: r.id as string,
     warTag: r.war_tag as string,
@@ -171,7 +175,8 @@ export async function rosterForWar(
     .is("deleted_at", null)
     .order("map_position");
 
-  if (error || !data) return [];
+  assertRead(error, "cwl_war_members");
+  if (!data) return [];
   const rows = data as Array<{
     player_id: string;
     map_position: number | null;
@@ -204,7 +209,8 @@ export async function attacksForWar(
     .eq("war_id", warId)
     .is("deleted_at", null);
 
-  if (error || !data) return [];
+  assertRead(error, "cwl_attacks");
+  if (!data) return [];
   return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
     playerId: r.player_id as string,
     attackOrder: r.attack_order as number,
@@ -227,7 +233,8 @@ export async function playerNames(
     .select("id, tag, name")
     .in("id", [...new Set(playerIds)]);
 
-  if (error || !data) return new Map();
+  assertRead(error, "players");
+  if (!data) return new Map();
   return new Map(
     (data as Array<{ id: string; tag: string; name: string }>).map((p) => [
       p.id,
@@ -302,7 +309,8 @@ export const familyCwlHistory = cache(async function familyCwlHistory(
   if (!ids.length) return result;
 
   const { data, error } = await supabase.rpc("family_cwl_history", { p_player_ids: ids });
-  if (error || !data) return result;
+  assertRead(error, "family_cwl_history");
+  if (!data) return result;
 
   // The function orders season desc, then clan name; appending preserves that.
   for (const row of data as Array<Record<string, unknown>>) {
