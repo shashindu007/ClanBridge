@@ -330,7 +330,9 @@ async function upsertWar(
         end_time: war.endTime?.toISOString() ?? null,
       },
     ],
-    { onConflict: "war_tag", ignoreDuplicates: false },
+    // Per season (068), not per tag: two family clans in one group share a war tag,
+    // and each is owed its own row, oriented to its own side.
+    { onConflict: "season_id,war_tag", ignoreDuplicates: false },
   );
 
   if (error) throw new Error(`cwl_wars upsert failed for ${warTag}: ${error.message}`);
@@ -338,6 +340,7 @@ async function upsertWar(
   const { data, error: readError } = await supabase
     .from("cwl_wars")
     .select("id")
+    .eq("season_id", seasonId)
     .eq("war_tag", warTag)
     .is("deleted_at", null);
 
@@ -1085,7 +1088,19 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
         for (const requestedTag of round) {
           if (settled.has(requestedTag)) continue;
 
-          const war = mapWar(await request(cwlWarEndpoint(requestedTag), warSchema));
+          // One war the API cannot give us is recorded and passed over, not the end
+          // of this clan's run. A round holds other clans' wars too, so a single
+          // bad tag used to stop every later day being captured, every run, until
+          // Supercell deleted them. The retry is the next run.
+          let war: War;
+          try {
+            war = mapWar(await request(cwlWarEndpoint(requestedTag), warSchema));
+          } catch (error) {
+            problems.push(
+              `${clan.tag}: war ${requestedTag} — ${error instanceof Error ? error.message : String(error)}`,
+            );
+            continue;
+          }
           fetched.add(requestedTag);
           if (groupOk && groupStored.get(requestedTag) !== "warEnded") {
             await upsertGroupWar(supabase, seasonId, requestedTag, war, days.get(requestedTag)).catch(
@@ -1185,6 +1200,16 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
     }
   }
 
+  // T5.6 — after the capture, never before it. The reminder reads the rows this
+  // run just wrote, and the capture is the part that cannot be repeated: a war
+  // that ends before the next run takes its attacks with it permanently. Nothing
+  // in here throws, so a push service having a bad day cannot fail a sync that
+  // already did the irreplaceable half of its job.
+  //
+  // And before the failure below. A private war log is a standing setting: one
+  // clan's used to throw first, every run, and silenced this for every clan.
+  if (clansInCwl > 0) await remindUnusedAttacks(supabase, clans);
+
   if (problems.length) throw new Error(problems.join("; "));
 
   // Only a clean skip when NO clan is in CWL. One clan in CWL and two out is a
@@ -1192,13 +1217,6 @@ export async function syncCwl(ctx: JobContext): Promise<void> {
   if (clansInCwl === 0) {
     skip("noCwlGroup", `none of the ${clans.length} clan(s) are in CWL`);
   }
-
-  // T5.6 — after the capture, never before it. The reminder reads the rows this
-  // run just wrote, and the capture is the part that cannot be repeated: a war
-  // that ends before the next run takes its attacks with it permanently. Nothing
-  // in here throws, so a push service having a bad day cannot fail a sync that
-  // already did the irreplaceable half of its job.
-  await remindUnusedAttacks(supabase, clans);
 }
 
 // The file name exactly, as players.ts does: cwl-scout.ts also contains "cwl",

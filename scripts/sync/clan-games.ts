@@ -18,9 +18,9 @@
 // no historical endpoint to backfill from, the achievement only ever goes up,
 // and by the time anyone notices, the value has already moved. That is the same
 // permanence that makes CWL this project's reason to exist, and it is why
-// lib/coc-time.ts's window is deliberately a day early rather than risk a day
-// late: snapshotting before anyone has scored costs nothing, and snapshotting
-// after they have started costs the difference.
+// lib/coc-time.ts's window deliberately opens before the games do: snapshotting
+// before anyone has scored costs nothing, and snapshotting after they have started
+// costs the difference.
 //
 // WHY THIS IS EXPENSIVE, AND WHY THAT IS ACCEPTED
 //
@@ -63,9 +63,9 @@ interface PlayerRow {
  * The clan's current members, from the database rather than the API.
  *
  * sync:clans owns membership (T3.9) and has run within the hour; asking the API
- * again would be a second opinion that can disagree with the first. It also
- * means a member who left mid-period still has their row and their start_value,
- * so their partial score survives rather than vanishing.
+ * again would be a second opinion that can disagree with the first.
+ *
+ * For the opening reading only. The closing one is playersWithOpening().
  */
 async function membersOf(
   supabase: SupabaseClient,
@@ -80,6 +80,38 @@ async function membersOf(
 
   if (error) throw new Error(`players read failed for ${clan.tag}: ${error.message}`);
   return (data ?? []) as PlayerRow[];
+}
+
+/**
+ * Everyone with an opening reading this month, wherever they are now.
+ *
+ * Not the clan's current members. Their points were scored for this clan, and the
+ * achievement is theirs wherever they went, so a member who moved or left during
+ * the games still gets a closing reading. Filtering on the current clan used to
+ * leave them with a start_value and no score.
+ */
+async function playersWithOpening(
+  supabase: SupabaseClient,
+  gamesId: string,
+): Promise<PlayerRow[]> {
+  const { data, error } = await supabase
+    .from("clan_games_scores")
+    .select("player_id")
+    .eq("clan_games_id", gamesId)
+    .is("deleted_at", null);
+
+  if (error) throw new Error(`clan_games_scores read failed: ${error.message}`);
+  const ids = ((data ?? []) as Array<{ player_id: string }>).map((r) => r.player_id);
+  if (!ids.length) return [];
+
+  const { data: players, error: playersError } = await supabase
+    .from("players")
+    .select("id, tag, name")
+    .in("id", ids)
+    .is("deleted_at", null);
+
+  if (playersError) throw new Error(`players read failed: ${playersError.message}`);
+  return (players ?? []) as PlayerRow[];
 }
 
 /**
@@ -149,12 +181,17 @@ async function openSeason(
  * achievement at all is likewise skipped — mapPlayer leaves it undefined rather
  * than defaulting to 0, and a 0 here would read as a real value and produce a
  * negative score at the end.
+ *
+ * Any other failure is kept in `failed` and the rest are still read. One bad
+ * response used to throw away the forty-nine readings already in hand, and a
+ * reading not taken in time is a month's score gone.
  */
 async function snapshotValues(
   members: PlayerRow[],
   clan: ClanRow,
-): Promise<Map<string, number>> {
+): Promise<{ values: Map<string, number>; failed: string[] }> {
   const values = new Map<string, number>();
+  const failed: string[] = [];
 
   for (const member of members) {
     try {
@@ -167,11 +204,11 @@ async function snapshotValues(
         console.warn(`  ${clan.tag}: ${member.tag} not found, skipped`);
         continue;
       }
-      throw error;
+      failed.push(`${member.tag}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  return values;
+  return { values, failed };
 }
 
 /**
@@ -205,7 +242,10 @@ async function writeStart(
 }
 
 /**
- * Write the closing reading and the difference, then settle the season.
+ * Write the closing reading and the difference, then settle the season — unless
+ * `settle` is false, because some readings failed. Settling is final (R5), so it
+ * waits for a run that read everybody; the end phase stays open for that, and the
+ * value it reads cannot move once the games have closed.
  *
  * Only for players who HAVE a start_value. Someone who joined mid-period has no
  * opening reading, so their difference is unknowable — and defaulting it to
@@ -217,6 +257,7 @@ async function writeEnd(
   supabase: SupabaseClient,
   gamesId: string,
   values: Map<string, number>,
+  settle: boolean,
 ): Promise<number> {
   const { data, error: readError } = await supabase
     .from("clan_games_scores")
@@ -258,6 +299,8 @@ async function writeEnd(
     if (error) throw new Error(`clan_games_scores update failed: ${error.message}`);
   }
 
+  if (!settle) return rows.length;
+
   // Settle it LAST, after the scores are safely written. Settling first would
   // close the season against a write that then failed, and R5 means the row
   // could never be corrected.
@@ -285,34 +328,50 @@ export async function syncClanGames(ctx: JobContext, now = new Date()): Promise<
   const clans = await activeClans(supabase);
   const window = clanGamesWindow(now);
   let touched = 0;
+  const problems: string[] = [];
 
   for (const clan of clans) {
-    const gamesId = await openSeason(supabase, clan, window.season, window);
-    if (!gamesId) {
-      console.log(`  ${clan.tag}: ${window.season} already settled, left untouched (R5)`);
-      continue;
+    // One clan's bad run must not cost the others theirs, as in every other job.
+    // This one needs it most: a clan skipped here has no second month.
+    try {
+      const gamesId = await openSeason(supabase, clan, window.season, window);
+      if (!gamesId) {
+        console.log(`  ${clan.tag}: ${window.season} already settled, left untouched (R5)`);
+        continue;
+      }
+
+      const members =
+        phase === "start"
+          ? await membersOf(supabase, clan)
+          : await playersWithOpening(supabase, gamesId);
+      if (!members.length && phase === "start") {
+        console.log(`  ${clan.tag}: no members held — has sync:clans run?`);
+        continue;
+      }
+
+      const { values, failed } = await snapshotValues(members, clan);
+      const written =
+        phase === "start"
+          ? await writeStart(supabase, gamesId, values)
+          : await writeEnd(supabase, gamesId, values, failed.length === 0);
+
+      ctx.recorded(written);
+      touched += written;
+      if (failed.length) problems.push(`${clan.tag}: ${failed.join("; ")}`);
+
+      console.log(
+        `  ${clan.tag} ${clan.name}: ${phase} snapshot, ${values.size} of ` +
+          `${members.length} member(s) read, ${written} row(s) written`,
+      );
+    } catch (error) {
+      problems.push(`${clan.tag}: ${error instanceof Error ? error.message : String(error)}`);
     }
-
-    const members = await membersOf(supabase, clan);
-    if (!members.length) {
-      console.log(`  ${clan.tag}: no members held — has sync:clans run?`);
-      continue;
-    }
-
-    const values = await snapshotValues(members, clan);
-    const written =
-      phase === "start"
-        ? await writeStart(supabase, gamesId, values)
-        : await writeEnd(supabase, gamesId, values);
-
-    ctx.recorded(written);
-    touched += written;
-
-    console.log(
-      `  ${clan.tag} ${clan.name}: ${phase} snapshot, ${values.size} of ` +
-        `${members.length} member(s) read, ${written} row(s) written`,
-    );
   }
+
+  // Thrown after everything written, so the failure is reported and nothing that
+  // was read is lost. The same day's backup run fills the gaps: writeStart leaves
+  // what is already there, and an unsettled end phase simply reads again.
+  if (problems.length) throw new Error(problems.join("; "));
 
   // In the period, but nothing to record — every clan settled already, or no
   // members held. A success with zero rows, not a failure.

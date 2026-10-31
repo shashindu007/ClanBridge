@@ -173,6 +173,9 @@ export const PHASE1_MIGRATIONS = [
   // Table privileges, removal and approval rules, push hosts, layout writes, and
   // who owns the platform. Replaces functions from 039, 046 and 056.
   "067_security_hardening.sql",
+  // One reminder per war and raid weekend, and cwl_wars unique per season, so
+  // two family clans in one group each keep their own war. Follows 002 and 027.
+  "068_war_reminders_and_cwl_identity.sql",
 ] as const;
 
 /**

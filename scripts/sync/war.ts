@@ -25,11 +25,11 @@
 //    report, with no constraint anywhere to catch it. scripts/sync/cwl.ts owns
 //    league wars; this job declines them.
 //
-// 2. THERE IS NO WAR TAG TO KEY ON. cwl_wars has `unique (war_tag)`; wars has
+// 2. THERE IS NO WAR TAG TO KEY ON. cwl_wars is keyed on its war tag; wars has
 //    `unique (clan_id, start_time)` (003_war.sql:31), because the API gives a
 //    regular war no identifier at all. A war with no startTime therefore cannot
 //    be stored — and preparation already carries one, so in practice only
-//    notInWar lacks it.
+//    notInWar lacks it. The start time is not fixed either: see upsertWar().
 //
 // 3. TWO ATTACKS PER MEMBER, NOT ONE. Recorded on war_members.attacks_allowed
 //    from the API's own attacksPerMember rather than assumed, so a future game
@@ -64,6 +64,7 @@ import {
   type ClanRow,
   type Sides,
 } from "./cwl";
+import { remindWarAttacks } from "./attack-reminders";
 import { activeClans, main, skip, type JobContext } from "./shared";
 
 /**
@@ -795,6 +796,10 @@ export async function syncWar(ctx: JobContext): Promise<void> {
       problems.push(`${clan.tag}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+
+  // Before a failure is thrown: one clan's bad hour must not cost another clan's
+  // members their reminder. Never throws (attack-reminders.ts).
+  await remindWarAttacks(supabase, clans);
 
   if (problems.length) throw new Error(problems.join("; "));
 

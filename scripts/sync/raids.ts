@@ -94,6 +94,7 @@ import type { RaidDefence, RaidParticipant, RaidRaid, RaidSeason } from "@/types
 // Safe to import — cwl.ts's run-me guard tests argv for "cwl", which this
 // file's path does not contain.
 import { resolvePlayers, type ClanRow } from "./cwl";
+import { remindRaidAttacks } from "./attack-reminders";
 import { activeClans, main, skip, type JobContext } from "./shared";
 
 /**
@@ -580,6 +581,10 @@ export async function syncRaids(ctx: JobContext): Promise<void> {
       problems.push(`${clan.tag}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+
+  // Before either exit below: a midweek skip reminds nobody anyway, and one clan's
+  // failure must not cost another's members. Never throws (attack-reminders.ts).
+  await remindRaidAttacks(supabase, clans);
 
   if (problems.length) throw new Error(problems.join("; "));
 

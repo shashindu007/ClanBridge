@@ -7,7 +7,7 @@
 -- BEGIN/COMMIT means a failure anywhere rolls the entire thing back, so you
 -- cannot end up with a half-applied schema.
 --
--- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql, 054_half_hour_snapshots.sql, 055_last_activity.sql, 056_notification_and_push_hardening.sql, 057_cwl_scouting.sql, 058_purge_cwl_scouting.sql, 059_purge_other_clans_only.sql, 060_scout_th_weapon.sql, 061_purge_keeps_our_wars.sql, 062_cwl_attack_order.sql, 063_war_opponent_attacks.sql, 064_raid_attacks.sql, 065_api_extras.sql, 066_war_duplicates.sql, 067_security_hardening.sql
+-- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql, 054_half_hour_snapshots.sql, 055_last_activity.sql, 056_notification_and_push_hardening.sql, 057_cwl_scouting.sql, 058_purge_cwl_scouting.sql, 059_purge_other_clans_only.sql, 060_scout_th_weapon.sql, 061_purge_keeps_our_wars.sql, 062_cwl_attack_order.sql, 063_war_opponent_attacks.sql, 064_raid_attacks.sql, 065_api_extras.sql, 066_war_duplicates.sql, 067_security_hardening.sql, 068_war_reminders_and_cwl_identity.sql
 --
 -- Two numbers are absent, retired rather than reused so that apply order
 -- stays equal to numeric order: 009 (cwl_signups, superseded by Phase 4B)
@@ -11772,6 +11772,44 @@ begin
   return true;
 end;
 $$;
+
+-- ========================================================================
+-- 068_war_reminders_and_cwl_identity.sql
+-- ========================================================================
+
+-- 068 — One reminder per war and weekend, and a CWL war per season.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 1. reminded_at.
+--
+-- Settings has offered War reminders and Raid reminders since T5.9, and nothing
+-- ever sent either. scripts/sync/attack-reminders.ts does now. A war sync runs
+-- every 30 minutes, so without a record of having asked, one war would nag a
+-- member eight times, and T5.6 is clear about what that teaches a clan.
+--
+-- A stamp on the row, not a row per person. It is sent once, to everyone who still
+-- owes an attack at that moment, and it is a game-fact table only the sync writes.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 2. cwl_wars is one row per war PER SEASON ROW.
+--
+-- 002 made war_tag unique across the table. A season row belongs to one clan, and
+-- two family clans can land in one CWL group (cwl-scout.ts allows for it), which
+-- puts one war tag in two seasons. Each run's upsert then took the row from the
+-- other clan's season, the sides flipped, and reconcileRoster retired the other
+-- clan's members. 048 already got this right for cwl_group_wars. No clans in
+-- production have shared a group yet, so nothing needs repairing.
+
+alter table wars add column reminded_at timestamptz;
+alter table raid_seasons add column reminded_at timestamptz;
+
+comment on column wars.reminded_at is
+  'When attack reminders went out for this war. Null until then; sent once.';
+comment on column raid_seasons.reminded_at is
+  'When attack reminders went out for this weekend. Null until then; sent once.';
+
+alter table cwl_wars drop constraint cwl_wars_war_tag_key;
+alter table cwl_wars add constraint cwl_wars_season_war_tag_key unique (season_id, war_tag);
 
 commit;
 

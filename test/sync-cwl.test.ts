@@ -510,6 +510,68 @@ describe("T4.1 — the CWL sync", () => {
         expect(await count(h, "cwl_wars", "result is null")).toBe(0);
       });
 
+      // A round holds other clans' wars too. One tag the API would not answer used
+      // to end the clan's run, every run, and later days were never captured.
+      it("carries on past a war the API cannot give it", async () => {
+        const war = readFileSync(join(process.cwd(), "fixtures", "cwlwar.json"), "utf8");
+        const tags = CWL_GROUP.rounds.flatMap((r) => r.warTags).filter((t) => t && t !== "#0");
+        const bad = tags[0]!;
+        const asked: string[] = [];
+
+        process.env.USE_FIXTURES = "false";
+        process.env.COC_API_TOKEN = "not-a-real-token";
+        process.env.COC_THROTTLE_MS = "0";
+        process.env.COC_BACKOFF_MS = "0";
+        vi.stubGlobal("fetch", (input: string | URL | Request) => {
+          const url = decodeURIComponent(String(input));
+          const json = { "content-type": "application/json" };
+          if (url.includes("leaguegroup")) {
+            return Promise.resolve(new Response(JSON.stringify(CWL_GROUP), { status: 200, headers: json }));
+          }
+          const tag = url.split("/wars/")[1] ?? "";
+          asked.push(tag);
+          return Promise.resolve(
+            tag === bad
+              ? new Response("{}", { status: 500 })
+              : new Response(war, { status: 200, headers: json }),
+          );
+        });
+
+        try {
+          expect(await runSyncJob("cwl", syncCwl, { client })).toBe("failed");
+        } finally {
+          delete process.env.COC_THROTTLE_MS;
+          delete process.env.COC_BACKOFF_MS;
+          delete process.env.COC_API_TOKEN;
+        }
+
+        expect(await count(h, "cwl_wars")).toBeGreaterThan(0);
+        const lastRound = CWL_GROUP.rounds.findLast((r) => r.warTags.some((t) => t && t !== "#0"))!;
+        expect(asked.some((tag) => lastRound.warTags.includes(tag))).toBe(true);
+      });
+
+      // Two family clans in one group share a war tag. A unique tag let each run
+      // take the row from the other clan's season.
+      it("keeps a war per clan when two of ours are in the same group", async () => {
+        const war = JSON.parse(readFileSync(join(process.cwd(), "fixtures", "cwlwar.json"), "utf8")) as {
+          opponent: { tag: string };
+        };
+        const OTHER = "aaaaaaaa-0000-4000-8000-0000000000b2";
+        await h.db.exec(
+          `insert into clans (id, tag, name) values ('${OTHER}', '${war.opponent.tag}', 'Sister clan')`,
+        );
+
+        await runSyncJob("cwl", syncCwl, { client });
+        await runSyncJob("cwl", syncCwl, { client });
+
+        const perSeason = await h.db.query<{ clan_id: string; n: number }>(
+          `select s.clan_id, count(w.id)::int as n
+             from cwl_seasons s join cwl_wars w on w.season_id = s.id
+            group by s.clan_id`,
+        );
+        expect(perSeason.rows.map((r) => r.n)).toEqual([WAR_COUNT, WAR_COUNT]);
+      });
+
       it("does not re-fetch a war it has already recorded as ended", async () => {
         await runSyncJob("cwl", syncCwl, { client });
 

@@ -209,6 +209,8 @@ export function profileRow(target: ProgressTarget, profile: PlayerProfile, captu
   };
 }
 
+const MAX_FAILED_IN_A_ROW = 5;
+
 export async function syncPlayers(ctx: JobContext): Promise<void> {
   const { supabase } = ctx;
 
@@ -224,6 +226,8 @@ export async function syncPlayers(ctx: JobContext): Promise<void> {
   const profiles: Array<ReturnType<typeof profileRow>> = [];
   const capturedAt = new Date().toISOString();
   let missing = 0;
+  const problems: string[] = [];
+  let failedInARow = 0;
 
   for (const target of targets) {
     try {
@@ -231,6 +235,7 @@ export async function syncPlayers(ctx: JobContext): Promise<void> {
       rows.push(progressRow(target, mapPlayerProgress(api)));
       counters.push(counterRow(target, mapDonationCounters(api), clanIdByTag));
       profiles.push(profileRow(target, mapPlayerProfile(api), capturedAt));
+      failedInARow = 0;
     } catch (error) {
       // A village the API no longer knows — a banned or deleted account — must
       // not cost everybody else their reading. clan-games.ts does the same.
@@ -239,7 +244,14 @@ export async function syncPlayers(ctx: JobContext): Promise<void> {
         console.warn(`  ${target.tag} not found, skipped`);
         continue;
       }
-      throw error;
+      // Anything else fails the run, but only after what WAS read is written. One
+      // 5xx in a hundred villages used to throw the other ninety-nine away, and
+      // a daily reading missed is a day that cannot be fetched again.
+      problems.push(`${target.tag}: ${error instanceof Error ? error.message : String(error)}`);
+      failedInARow += 1;
+      // A run of them is the API being down, not one village. Each has already
+      // been through the client's retries, so carrying on only runs out the clock.
+      if (failedInARow >= MAX_FAILED_IN_A_ROW) break;
     }
   }
 
@@ -280,6 +292,8 @@ export async function syncPlayers(ctx: JobContext): Promise<void> {
       (missing ? `, ${missing} not found` : "") +
       " — a second run today writes nothing (R5)",
   );
+
+  if (problems.length) throw new Error(problems.join("; "));
 }
 
 // Matched on the file name rather than a substring of the whole path, so a
