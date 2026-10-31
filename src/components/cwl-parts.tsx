@@ -108,14 +108,14 @@ export function SeasonNav({
   ];
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-      <nav aria-label="This season" className="bg-muted/60 flex gap-1 rounded-control p-1">
+      <nav aria-label="This season" className="bg-muted/60 cb-scroll-x flex max-w-full gap-1 rounded-control p-1">
         {tabs.map((tab) => (
           <Link
             key={tab.key}
             href={tab.href}
             aria-current={tab.key === active ? "page" : undefined}
             className={cn(
-              "rounded-chip px-3 py-1.5 text-sm font-medium transition-colors",
+              "shrink-0 rounded-chip px-3 py-1.5 text-sm font-medium transition-colors",
               tab.key === active
                 ? "bg-card text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground",

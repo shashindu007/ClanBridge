@@ -197,7 +197,7 @@ export default async function WarRatingPage({
         </div>
 
         {/* The month, then all clans in one ranking or one clan's own. */}
-        <nav aria-label="Month" className="flex flex-wrap gap-2">
+        <nav aria-label="Month" className="cb-scroll-x flex gap-2 [&>*]:shrink-0">
           {months.slice(0, 12).map((m) => (
             <Choice key={m} href={here({ month: m })} active={m === month} label={seasonLabel(m)} />
           ))}

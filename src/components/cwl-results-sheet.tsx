@@ -69,7 +69,9 @@ export function CwlResultsSheet({
       className="dark text-foreground flex flex-col overflow-hidden shadow-lg"
       style={{
         width: 540,
-        height: 675,
+        // A minimum, not a height. Three clans fit a 4:5 image, and a fourth was
+        // clipped top and bottom; a slightly taller image beats a missing clan.
+        minHeight: 675,
         padding: 16,
         gap: 10,
         fontSize: 12,

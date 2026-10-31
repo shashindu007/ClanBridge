@@ -35,6 +35,7 @@ import {
   ChevronDown,
   CircleUser,
   ClipboardList,
+  BellRing,
   KeyRound,
   LogOut,
   MessageSquare,
@@ -185,6 +186,7 @@ export function AccountMenu({
           {/* T11.8 — the member's own villages and their picture. */}
           <MenuLink href="/account" Icon={CircleUser} label="Profile" />
           {approved && <MenuLink href="/settings/account" Icon={KeyRound} label="Sign-in & password" />}
+          {approved && <MenuLink href="/settings/notifications" Icon={BellRing} label="Notifications" />}
         </Group>
 
         <Group label="ClanBridge">

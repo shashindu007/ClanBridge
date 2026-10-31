@@ -45,10 +45,15 @@ export function PickSelectionBar({
     const onReset = () => setTimeout(recount, 0);
     document.addEventListener("change", onChange);
     form?.addEventListener("reset", onReset);
+    // Filtering unmounts rows, ticked ones included, and fires no change event, so
+    // "Add 3 selected" could add fewer. Any change to the list recounts.
+    const observer = new MutationObserver(recount);
+    observer.observe(document.body, { childList: true, subtree: true });
     recount();
     return () => {
       document.removeEventListener("change", onChange);
       form?.removeEventListener("reset", onReset);
+      observer.disconnect();
     };
   }, [formId, recount]);
 

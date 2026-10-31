@@ -24,7 +24,7 @@
 // One village: no arrows, no dots, no timer — just the card.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import { Tile } from "@/components/kit";
 import { BaseSlide, type MainBaseView } from "@/components/main-base-card";
@@ -43,6 +43,7 @@ export function BaseCarousel({
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [holding, setHolding] = useState(false);
+  const touchStart = useRef<number | null>(null);
   const total = bases.length;
   const many = total > 1;
   const turning = many && !paused && !holding;
@@ -74,6 +75,19 @@ export function BaseCarousel({
         aria-label={many ? "Your bases" : undefined}
         onMouseEnter={() => setHolding(true)}
         onMouseLeave={() => setHolding(false)}
+        // A phone has no hover, so it used to turn under a reader's thumb. Touching
+        // it stops it for good, and a swipe turns it by hand.
+        onTouchStart={(e) => {
+          touchStart.current = e.touches[0]?.clientX ?? null;
+          if (many) setPaused(true);
+        }}
+        onTouchEnd={(e) => {
+          const from = touchStart.current;
+          const to = e.changedTouches[0]?.clientX;
+          touchStart.current = null;
+          if (!many || from === null || to === undefined || Math.abs(to - from) < 40) return;
+          go(to < from ? 1 : -1);
+        }}
         onFocus={() => setHolding(true)}
         onBlur={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHolding(false);
@@ -114,7 +128,7 @@ export function BaseCarousel({
                   aria-label={`Show ${b.label}`}
                   aria-current={i === index ? "true" : undefined}
                   className={cn(
-                    "focus-visible:ring-ring/50 h-2 rounded-full transition-all outline-none focus-visible:ring-[3px]",
+                    "focus-visible:ring-ring/50 relative h-2 rounded-full transition-all outline-none after:absolute after:-inset-x-1 after:-inset-y-5 focus-visible:ring-[3px]",
                     i === index ? "bg-primary w-6" : "bg-muted-foreground/35 hover:bg-muted-foreground/60 w-2",
                   )}
                 />
@@ -125,7 +139,7 @@ export function BaseCarousel({
               onClick={() => setPaused((p) => !p)}
               aria-label={paused ? "Turn through bases automatically" : "Stop turning through bases"}
               title={paused ? "Play" : "Pause"}
-              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 inline-flex size-6 items-center justify-center rounded-full outline-none focus-visible:ring-[3px]"
+              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 inline-flex size-10 items-center justify-center rounded-full outline-none focus-visible:ring-[3px]"
             >
               {paused ? <Play aria-hidden className="size-3.5" /> : <Pause aria-hidden className="size-3.5" />}
             </button>

@@ -116,6 +116,7 @@ describe("the middleware matcher", () => {
     "/apple-touch-icon.png",
     "/robots.txt",
     "/manifest.json",
+    "/offline.html",
     "/sw.js",
     "/icons/icon-192.png",
     "/game/heroes/hero-archer-queen.webp",

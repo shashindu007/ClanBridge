@@ -22,8 +22,8 @@ import { THEME_COLOR, THEME_INIT_SCRIPT } from "@/lib/theme";
 // the request now costs a millisecond. Declaring the icons here as well stops
 // the browser guessing.
 export const metadata: Metadata = {
-  title: "ClanBridge",
-  description: "Clan management for three Clash of Clans clans.",
+  title: { default: "ClanBridge", template: "%s · ClanBridge" },
+  description: "Clan management for our Clash of Clans clans.",
   manifest: "/manifest.json",
   icons: {
     icon: [

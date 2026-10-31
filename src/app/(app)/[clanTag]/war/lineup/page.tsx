@@ -426,7 +426,7 @@ export default async function WarLineupPage({
         </ActionForm>
       ) : (
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
-          <aside className="order-first lg:sticky lg:top-4 lg:order-last">
+          <aside className="order-first lg:sticky lg:top-28 lg:order-last">
             <LineupPanel
               title={`${selected.size}v${selected.size} war`}
               status={selected.status}

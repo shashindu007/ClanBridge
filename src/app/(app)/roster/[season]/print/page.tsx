@@ -122,11 +122,15 @@ export default async function LineupExportPage({
               <DownloadImageButton
                 targetId={id}
                 fileName={`${clan.name} CWL lineup ${season}`}
+                share
               />
             </div>
+            {/* Scrolls rather than squeezes: the capture reads the sheet's own width,
+                so at phone width the table was cut off on screen and in the image. */}
+            <div className="overflow-x-auto print:overflow-visible">
             <article
               id={id}
-              className="cb-sheet space-y-4 rounded-panel border p-6 shadow-lg print:rounded-none print:border-0 print:p-0 print:shadow-none"
+              className="cb-sheet min-w-fit space-y-4 rounded-panel border p-6 shadow-lg print:min-w-0 print:rounded-none print:border-0 print:p-0 print:shadow-none"
             >
               <header
                 className="flex items-center gap-4 border-b-4 pb-3"
@@ -215,6 +219,7 @@ export default async function LineupExportPage({
                 <span>ClanBridge · {formatDisplay(new Date().toISOString(), "date")}</span>
               </footer>
             </article>
+            </div>
           </section>
         );
       })}
@@ -246,7 +251,7 @@ function AllLineupsSheet({
   return (
     <section className="space-y-2 print:hidden">
       <div className="flex justify-end">
-        <DownloadImageButton targetId="lineup-all" fileName={`CWL lineups ${season}`} label="Download all lineups PNG" />
+        <DownloadImageButton targetId="lineup-all" fileName={`CWL lineups ${season}`} label="Download all lineups PNG" share />
       </div>
       <div className="overflow-x-auto">
         <article id="lineup-all" className="cb-sheet min-w-fit space-y-4 rounded-panel border p-6 shadow-lg">
