@@ -167,6 +167,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
 
   // Clan roles (T12.9). One sentence for every refusal, naming the rules
   // rather than which one said no.
+  failed: "That did not go through. Try again.",
+  refused: "That was refused. The account may already have been decided, or it is not yours to decide.",
   "role-refused":
     "That role was not saved. You can only change roles in a clan you lead, never your own, and only the platform owner can make or unmake a leader.",
 

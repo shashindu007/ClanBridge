@@ -17,6 +17,7 @@
 // in the approval queue. The wording on this page says so, because a button
 // labelled Delete that does not delete is worse than either.
 
+import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect, notFound } from "next/navigation";
 import { Castle, Crown, Mail, ShieldAlert, Undo2 } from "lucide-react";
@@ -365,8 +366,12 @@ export default async function AdminAccountPage({
           </p>
         ) : account.status !== "approved" ? (
           <p className="text-muted-foreground text-sm">
-            Approve this account first. Approving makes them a member of the clan they
-            verified in, and you can change the role from here after that.
+            Approve this account on the{" "}
+            <Link className="underline underline-offset-2" href="/admin/members">
+              members list
+            </Link>{" "}
+            first. Approving makes them a member of the clan they verified in, and you can
+            change the role from here after that.
           </p>
         ) : !rolesEditable ? (
           <p className="text-muted-foreground text-sm">

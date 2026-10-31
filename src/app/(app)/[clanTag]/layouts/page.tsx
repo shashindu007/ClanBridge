@@ -24,6 +24,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmSubmit } from "@/components/confirm-submit";
 import { SubmitButton } from "@/components/submit-button";
 import { currentUserId } from "@/lib/auth";
 import { requireClanByTag } from "@/lib/clans";
@@ -167,9 +168,14 @@ function LayoutCard({
             <input type="hidden" name="clanTag" value={clanTag} />
             <input type="hidden" name="layoutId" value={layout.id} />
             <input type="hidden" name="action" value="remove" />
-            <SubmitButton size="sm" variant="ghost">
+            <ConfirmSubmit
+              variant="ghost"
+              title="Remove this layout?"
+              body="It leaves the clan's library, along with its votes, and cannot be brought back here."
+              confirmLabel="Remove"
+            >
               Remove
-            </SubmitButton>
+            </ConfirmSubmit>
           </form>
         )}
       </div>

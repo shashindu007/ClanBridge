@@ -20,6 +20,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmSubmit } from "@/components/confirm-submit";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -270,9 +271,13 @@ export default async function NoticesPage({
 
                     <form action={removeNotice}>
                       <input type="hidden" name="id" value={notice.id} />
-                      <SubmitButton variant="outline" size="sm">
+                      <ConfirmSubmit
+                        title="Remove this notice?"
+                        body="Members will no longer see it, and it cannot be brought back here."
+                        confirmLabel="Remove"
+                      >
                         Remove
-                      </SubmitButton>
+                      </ConfirmSubmit>
                     </form>
                   </>
                 )}

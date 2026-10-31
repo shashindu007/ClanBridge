@@ -247,6 +247,62 @@ describe("067 — security hardening", () => {
     });
   });
 
+  describe("reopen_account", () => {
+    async function declined(): Promise<void> {
+      await h.db.exec(`
+        select set_config('clanbridge.bootstrap', 'on', false);
+        update users set status = 'rejected', requested_clan_id = '${CLAN_A}' where id = '${MEMBER_A}';
+        update clan_roles set deleted_at = now() where user_id = '${MEMBER_A}';
+      `);
+    }
+
+    it("puts a declined applicant back in the queue, and grants nothing", async () => {
+      await declined();
+      await h.asUser(LEADER_A);
+      expect(await scalar<boolean>("select reopen_account($1)", [MEMBER_A])).toBe(true);
+
+      await h.asSuperuser();
+      expect(await scalar<string>("select status from users where id = $1", [MEMBER_A])).toBe("pending");
+      const live = await scalar<number>(
+        "select count(*)::int from clan_roles where user_id = $1 and deleted_at is null",
+        [MEMBER_A],
+      );
+      expect(live).toBe(0);
+    });
+
+    it("keeps the declined applicant visible to the leader who can reopen them", async () => {
+      await declined();
+      await h.asUser(LEADER_A);
+      const rows = await h.db.query<{ id: string }>("select id from admin_accounts($1)", [null]);
+      expect(rows.rows.map((r) => r.id)).toContain(MEMBER_A);
+    });
+
+    it("refuses a leader of another clan", async () => {
+      await declined();
+      await h.db.exec(`
+        update users set requested_clan_id = '${CLAN_B}' where id = '${MEMBER_A}';
+        update clan_roles set deleted_at = now() where user_id = '${LEADER_B}' and clan_id = '${CLAN_B}';
+      `);
+      await h.asUser(LEADER_A);
+      expect(await scalar<boolean>("select reopen_account($1)", [MEMBER_A])).toBe(false);
+    });
+
+    it("does nothing to an account that is not declined", async () => {
+      await h.asUser(LEADER_A);
+      expect(await scalar<boolean>("select reopen_account($1)", [MEMBER_A])).toBe(false);
+    });
+
+    it("is written to the audit log", async () => {
+      await declined();
+      await h.asUser(LEADER_A);
+      await h.db.query("select reopen_account($1)", [MEMBER_A]);
+
+      await h.asSuperuser();
+      const n = await scalar<number>("select count(*)::int from audit_log where action = 'reopen'");
+      expect(n).toBe(1);
+    });
+  });
+
   describe("approve_account after a removal", () => {
     async function pendingAfterRemoval(): Promise<void> {
       await h.asUser(LEADER_A);

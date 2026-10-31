@@ -22,10 +22,10 @@
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Castle, Hash, History } from "lucide-react";
+import { Castle, Hash, History, UserRoundX } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PlayerCareer } from "@/components/player-career";
-import { FactRow } from "@/components/kit";
+import { EmptyState, FactRow, Panel } from "@/components/kit";
 import { TownHall } from "@/components/game/town-hall";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ import { requireClanByTag, visibleClans } from "@/lib/clans";
 import { canSeeBaseDetails } from "@/lib/visibility";
 import { currentUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { assertRead } from "@/lib/errors";
 import { decodeTag, encodeTag, InvalidTagError } from "@/lib/tags";
 import { playerReport } from "@/repositories/player-report";
 import { playerProfile } from "@/repositories/profiles";
@@ -61,18 +62,18 @@ export default async function PlayerProfilePage({
     throw error;
   }
 
-  // R3 — found within this clan. RLS would deny another clan's player anyway;
-  // the explicit filter is the mechanism, the policy is the net.
+  // By tag, NOT by clan, and the report below is what stays scoped (R3). A player
+  // has one row, and sync:clans moves its clan_id when they move. The family moves
+  // players between clans for CWL, so filtering here turned every link to a moved
+  // player, from this clan's CWL, war, raid and rating pages, into a 404.
   //
-  // Note this stays a clan-scoped lookup even though 031 added an owner-scoped
-  // policy to `players`. A leader reaching a member through the directory must see
-  // the same thing whether or not that member happens to be themselves.
-  const { data } = await supabase
+  // RLS decides whether the row comes back: this viewer's clans, and their own.
+  const { data, error } = await supabase
     .from("players")
-    .select("id, tag, name, th_level, verified, clan_role, left_at, league_tier")
-    .eq("clan_id", clan.id)
+    .select("id, tag, name, th_level, verified, clan_role, left_at, league_tier, clan_id")
     .eq("tag", playerTag)
     .is("deleted_at", null);
+  assertRead(error, "players");
 
   const player = (data ?? [])[0] as
     | {
@@ -84,10 +85,31 @@ export default async function PlayerProfilePage({
         clan_role: string | null;
         left_at: string | null;
         league_tier: string | null;
+        clan_id: string;
       }
     | undefined;
 
-  if (!player) notFound();
+  if (!player) {
+    return (
+      <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
+        <PageHeader
+          back={{ href: `/${encodeURIComponent(clan.tag)}/members`, label: "Members" }}
+          eyebrow={clan.name}
+          title="Player not in this clan"
+        />
+        <Panel>
+          <EmptyState
+            icon={UserRoundX}
+            title="This player has moved on"
+            body="They are not in this clan now, and not in another clan of yours. Their part in past wars and CWL seasons stays on those pages."
+          />
+        </Panel>
+      </main>
+    );
+  }
+
+  // Their history here is still theirs, so the page stays. It just says so.
+  const moved = player.clan_id !== clan.id;
 
   // The report's own seven reads, plus the one this page needs to turn clan ids
   // into names. Issued together: the name lookup does not depend on the report.
@@ -121,7 +143,10 @@ export default async function PlayerProfilePage({
         ribbons={
           player.clan_role || player.verified || player.left_at ? (
             <>
-              {player.clan_role && <Badge variant="secondary">{player.clan_role}</Badge>}
+              {moved && !player.left_at && (
+                <Badge variant="secondary">now in {clanNames.get(player.clan_id) ?? "another clan"}</Badge>
+              )}
+              {player.clan_role && !moved && <Badge variant="secondary">{player.clan_role}</Badge>}
               {player.league_tier && <Badge variant="outline">{player.league_tier}</Badge>}
               {player.verified && <Badge variant="outline">verified</Badge>}
               {player.left_at && <Badge variant="destructive">left the clan</Badge>}
@@ -131,7 +156,7 @@ export default async function PlayerProfilePage({
         actions={
           // T11B.10 — leadership only, matching the details page's own gate, so
           // nobody is shown a button that leads to a 404.
-          canSeeBaseDetails(clan.role) ? (
+          canSeeBaseDetails(clan.role) && !moved ? (
             <Button asChild variant="outline">
               <Link href={`/${encodedTag}/player/${encodeTag(player.tag)}/details`}>
                 <Castle aria-hidden />
@@ -158,7 +183,7 @@ export default async function PlayerProfilePage({
         clanNames={clanNames}
       />
 
-      <PlayerCareer profile={profile} departed={player.left_at !== null} />
+      <PlayerCareer profile={profile} departed={moved || player.left_at !== null} />
     </main>
   );
 }

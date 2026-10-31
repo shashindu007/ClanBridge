@@ -52,7 +52,7 @@
 
 import { PageHeader } from "@/components/page-header";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { CalendarClock, CircleAlert, FileDown } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -205,7 +205,9 @@ export default async function RosterBuilderPage({
     visibleClans(supabase, userId),
     rostersForSeason(supabase, season),
   ]);
-  if (rosters.length === 0) notFound();
+  // Not a 404. "Build the lineup" and "Pick the CWL lineup" link here before a
+  // season has started, and starting one is on /roster.
+  if (rosters.length === 0) redirect("/roster");
 
   const clanById = new Map<string, VisibleClan>(clans.map((c) => [c.id, c]));
   const leads = clans.filter((c) => isLeadership(c.role));

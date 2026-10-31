@@ -138,24 +138,26 @@ export default async function CrossClanSearchPage({
                   const clan = byId.get(hit.clanId);
                   if (!clan) return null;
 
-                  // WHERE THE NAME LINKS DEPENDS ON WHETHER YOU ARE IN THAT CLAN.
-                  // player/[tag] still resolves through requireClanByTag, so for
-                  // a clan the caller holds no role in it would 404 — a search
-                  // result that punishes you for clicking it. Those land on the
-                  // clan's roster with the tag already searched, which is the
-                  // most a visitor is allowed to see of that person anyway.
+                  // ONLY YOUR OWN CLANS LINK. Every clan page resolves through
+                  // requireClanByTag, which passes clans you hold a role in, so a
+                  // link into anyone else's is a 404. A visiting result shows who
+                  // and where, and stops there.
                   const clanHref = `/${encodeURIComponent(clan.tag)}`;
                   const inClan = roles.has(hit.clanId);
-                  const nameHref = inClan
-                    ? `${clanHref}/player/${encodeURIComponent(hit.tag)}`
-                    : `${clanHref}/members?q=${encodeURIComponent(hit.tag)}`;
 
                   return (
                     <TableRow key={hit.playerId}>
                       <TableCell data-cell="title" className="font-medium">
-                        <Link className="underline-offset-2 hover:underline" href={nameHref}>
-                          {hit.name}
-                        </Link>
+                        {inClan ? (
+                          <Link
+                            className="underline-offset-2 hover:underline"
+                            href={`${clanHref}/player/${encodeURIComponent(hit.tag)}`}
+                          >
+                            {hit.name}
+                          </Link>
+                        ) : (
+                          hit.name
+                        )}
                         {hit.leftAt && (
                           <Badge variant="destructive" className="ml-2 font-normal">
                             left
@@ -166,11 +168,12 @@ export default async function CrossClanSearchPage({
                         </span>
                       </TableCell>
                       <TableCell data-label="Clan" className="text-sm">
-                        <Link className="underline-offset-2 hover:underline" href={clanHref}>
-                          {clan.name}
-                        </Link>
-                        {!inClan && (
-                          <span className="text-muted-foreground ml-2 text-xs">visiting</span>
+                        {inClan ? (
+                          <Link className="underline-offset-2 hover:underline" href={clanHref}>
+                            {clan.name}
+                          </Link>
+                        ) : (
+                          clan.name
                         )}
                       </TableCell>
                       <TableCell data-label="Role" className="text-muted-foreground text-sm">

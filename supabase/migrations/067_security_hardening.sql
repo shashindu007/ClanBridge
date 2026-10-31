@@ -307,3 +307,91 @@ begin
   return true;
 end;
 $$;
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 7. reopen_account — Decline can be undone.
+--
+-- Decline was one tap beside Approve, and the only way back was removing the
+-- account, restoring it, then approving it. This puts a declined applicant back in
+-- the queue, for whoever could have decided in the first place, and nothing else:
+-- it grants no access, and the account still needs approving.
+--
+-- auth_may_administer_account() changes with it, or the leader who declined someone
+-- could never see them again to change their mind. Only for an account verified
+-- into a clan the caller leads, which is the audience they already had.
+
+create or replace function auth_may_administer_account(p_target uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    p_target is not null
+    and auth.uid() is not null
+    and (
+      public.auth_is_platform_admin()
+
+      -- A member of a clan this caller leads.
+      or exists (
+        select 1
+        from public.clan_roles cr
+        join public.users u on u.id = cr.user_id
+        where cr.user_id = p_target
+          and cr.clan_id in (select public.auth_leader_clan_ids())
+          and (cr.deleted_at is null or u.deleted_at is not null)
+      )
+
+      -- An applicant who verified into one, waiting or declined.
+      or exists (
+        select 1
+        from public.users u
+        where u.id = p_target
+          and u.status in ('pending', 'rejected')
+          and u.requested_clan_id in (select public.auth_leader_clan_ids())
+      )
+    )
+$$;
+
+create or replace function reopen_account(target uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target_clan uuid;
+begin
+  if auth.uid() is null or target is null or target = auth.uid() then
+    return false;
+  end if;
+
+  select requested_clan_id into target_clan
+  from public.users
+  where id = target and deleted_at is null and status = 'rejected';
+
+  if not found then
+    return false;
+  end if;
+
+  if not public.auth_is_platform_admin()
+     and (target_clan is null or target_clan not in (select public.auth_leader_clan_ids())) then
+    return false;
+  end if;
+
+  perform set_config('clanbridge.bootstrap', 'on', true);
+
+  update public.users set status = 'pending' where id = target;
+
+  insert into public.audit_log (user_id, clan_id, action, entity, entity_id, after)
+  values (auth.uid(), target_clan, 'reopen', 'users', target,
+          jsonb_build_object('status', 'pending'));
+
+  return true;
+end;
+$$;
+
+revoke execute on function reopen_account(uuid) from public, anon;
+grant execute on function reopen_account(uuid) to authenticated;
