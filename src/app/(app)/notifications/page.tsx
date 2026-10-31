@@ -38,6 +38,7 @@ import { currentUserId } from "@/lib/auth";
 import { safeNext } from "@/lib/safe-next";
 import { feedFor, markAllRead, markRead } from "@/repositories/notifications";
 import { LocalTime } from "@/components/local-time";
+import { ActionForm, type ActionResult } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -71,12 +72,24 @@ const KINDS: Record<string, { label: string; Icon: typeof Mail }> = {
 
 const GENERIC = { label: "Notification", Icon: Megaphone };
 
-async function markOneRead(formData: FormData) {
+/** Going to something is reading it. "Needs you" otherwise never clears. */
+async function openItem(formData: FormData) {
   "use server";
 
   const supabase = await createClient();
   const id = String(formData.get("id") ?? "");
-  if (!id) redirect("/notifications");
+  if (id) await markRead(supabase, id);
+
+  revalidatePath("/notifications");
+  redirect(safeNext(String(formData.get("url") ?? "")));
+}
+
+async function markOneRead(formData: FormData): Promise<ActionResult> {
+  "use server";
+
+  const supabase = await createClient();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return {};
 
   // mark_notification_read() (040) checks that the row is the caller's own, so
   // a forged id changes nothing and there is no authority for this file to
@@ -84,7 +97,7 @@ async function markOneRead(formData: FormData) {
   await markRead(supabase, id);
 
   revalidatePath("/notifications");
-  redirect("/notifications");
+  return {};
 }
 
 async function clearAll() {
@@ -193,17 +206,26 @@ export default async function NotificationsPage() {
                   {item.url !== "/notifications" &&
                     item.url !== "/" &&
                     safeNext(item.url) === item.url && (
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={item.url}>Go to it</Link>
-                    </Button>
+                    item.readAt ? (
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={item.url}>Go to it</Link>
+                      </Button>
+                    ) : (
+                      <form action={openItem}>
+                        <input type="hidden" name="id" value={item.id} />
+                        <input type="hidden" name="url" value={item.url} />
+                        <SubmitButton size="sm" variant="outline" pendingLabel="Opening">
+                          Go to it
+                        </SubmitButton>
+                      </form>
+                    )
                   )}
                   {!item.readAt && (
-                    <form action={markOneRead}>
-                      <input type="hidden" name="id" value={item.id} />
+                    <ActionForm action={markOneRead} hidden={{ id: item.id }}>
                       <SubmitButton size="sm" variant="ghost" pendingLabel="Marking">
                         Mark as read
                       </SubmitButton>
-                    </form>
+                    </ActionForm>
                   )}
                 </div>
               </li>

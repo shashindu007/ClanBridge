@@ -35,6 +35,7 @@ import {
   type AdminAccount,
 } from "@/repositories/accounts";
 import { sentTo } from "@/repositories/notifications";
+import { ActionForm, type ActionResult } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +48,7 @@ export const dynamic = "force-dynamic";
 /** The longest body 039's check constraint accepts. Restated so the form can say so first. */
 const BODY_LIMIT = 2000;
 
-async function sendMessage(formData: FormData) {
+async function sendMessage(formData: FormData): Promise<ActionResult> {
   "use server";
 
   const supabase = await createClient();
@@ -57,12 +58,12 @@ async function sendMessage(formData: FormData) {
   const back = `/admin/members/${target}`;
 
   if (!target) redirect("/admin/members?error=bad-request");
-  if (!subject) redirect(`${back}?error=no-subject`);
-  if (!body) redirect(`${back}?error=no-body`);
-  if (body.length > BODY_LIMIT) redirect(`${back}?error=message-too-long`);
+  if (!subject) return { error: "no-subject" };
+  if (!body) return { error: "no-body" };
+  if (body.length > BODY_LIMIT) return { error: "message-too-long" };
 
   const id = await sendAccountMessage(supabase, target, subject, body);
-  if (!id) redirect(`${back}?error=send-failed`);
+  if (!id) return { error: "send-failed" };
 
   // The doorbell, after the message is safely written. A push is an HTTPS round
   // trip to a third party and lib/push.ts swallows every failure by design —
@@ -88,7 +89,7 @@ async function sendMessage(formData: FormData) {
 
   revalidatePath(back);
   revalidatePath("/notifications");
-  redirect(`${back}?ok=message-sent`);
+  return { ok: "message-sent" };
 }
 
 async function removeAccess(formData: FormData) {
@@ -457,7 +458,7 @@ export default async function AdminAccountPage({
             This is your own account, so there is nobody to write to.
           </p>
         ) : (
-          <form action={sendMessage} className="space-y-3">
+          <ActionForm action={sendMessage} className="space-y-3">
             <input type="hidden" name="userId" value={account.id} />
             <div className="space-y-1.5">
               <Label htmlFor="subject">Subject</Label>
@@ -485,7 +486,7 @@ export default async function AdminAccountPage({
               <Mail aria-hidden />
               Send message
             </SubmitButton>
-          </form>
+          </ActionForm>
         )}
 
         {sent.length > 0 && (

@@ -21,6 +21,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmSubmit } from "@/components/confirm-submit";
+import { ActionForm, type ActionResult } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -81,7 +82,7 @@ export default async function NoticesPage({
   // The server actions below decide what to RENDER and nothing more. Every one
   // of them calls a function that re-checks authority in the database, so a
   // member who reaches the action directly is refused there (R3, 021).
-  async function createNotice(formData: FormData) {
+  async function createNotice(formData: FormData): Promise<ActionResult> {
     "use server";
 
     const supabase = await createClient();
@@ -97,7 +98,7 @@ export default async function NoticesPage({
     });
 
     if (error) {
-      redirect(`${base}?error=${encodeURIComponent(noticeError("post-notice", error))}`);
+      return { error: noticeError("post-notice", error) };
     }
 
     // T5.6 — the notice is posted; now tell people it exists.
@@ -125,7 +126,7 @@ export default async function NoticesPage({
 
     revalidatePath(base);
     revalidatePath(`/${encodeURIComponent(clan.tag)}`); // the dashboard shows the latest
-    redirect(`${base}?ok=notice-posted`);
+    return { ok: "notice-posted" };
   }
 
   async function removeNotice(formData: FormData) {
@@ -188,7 +189,7 @@ export default async function NoticesPage({
           them below the fold on the page whose whole point is reading them. */}
       {mayPost && (
         <Disclosure title="Post an announcement" icon={Megaphone}>
-        <form action={createNotice} className="space-y-3">
+        <ActionForm action={createNotice} className="space-y-3">
 
           <div className="space-y-1">
             <Label htmlFor="title">Title</Label>
@@ -217,7 +218,7 @@ export default async function NoticesPage({
           </label>
 
           <SubmitButton variant="gold">Post</SubmitButton>
-        </form>
+        </ActionForm>
         </Disclosure>
       )}
 

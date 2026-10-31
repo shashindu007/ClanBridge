@@ -22,6 +22,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { CircleAlert, MessageSquare, Shield, Swords } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ActionForm, type ActionResult } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,7 +40,11 @@ export const dynamic = "force-dynamic";
 
 const POLL_TYPES: PollType[] = ["cwl_availability", "war_availability", "general"];
 
-async function submit(formData: FormData) {
+/**
+ * Returns a problem rather than redirecting with it: a redirect lost everything
+ * typed into the form, and on a general poll it lost the poll type as well.
+ */
+async function submit(formData: FormData): Promise<ActionResult> {
   "use server";
 
   const supabase = await createClient();
@@ -51,17 +56,17 @@ async function submit(formData: FormData) {
   const back = `/${encodeURIComponent(clan.tag)}/polls`;
 
   const pollType = String(formData.get("pollType") ?? "general") as PollType;
-  if (!POLL_TYPES.includes(pollType)) redirect(`${back}/new?error=bad-type`);
+  if (!POLL_TYPES.includes(pollType)) return { error: "bad-type" };
 
   const title = String(formData.get("title") ?? "").trim();
-  if (!title) redirect(`${back}/new?error=no-title`);
+  if (!title) return { error: "no-title" };
 
   const question = String(formData.get("question") ?? "").trim() || null;
   const season = String(formData.get("season") ?? "").trim() || null;
   // The page offers this month and next from a list; anything else is a crafted
   // request or a stale tab from last month.
   if (pollType === "cwl_availability" && (!season || !startableSeasons(new Date()).includes(season))) {
-    redirect(`${back}/new?type=cwl_availability&error=bad-season`);
+    return { error: "bad-season" };
   }
 
   // A CWL poll spans every clan; anything else belongs to this one.
@@ -72,7 +77,7 @@ async function submit(formData: FormData) {
   // which put the close 5h30 late for every leader in Colombo.
   const closesRaw = String(formData.get("closesAt") ?? "").trim();
   const closesAt = parseDisplayLocal(closesRaw)?.toISOString() ?? null;
-  if (closesRaw && !closesAt) redirect(`${back}/new?error=bad-close-time`);
+  if (closesRaw && !closesAt) return { error: "bad-close-time" };
 
   const options = String(formData.get("options") ?? "")
     .split("\n")
@@ -81,8 +86,8 @@ async function submit(formData: FormData) {
 
   // A poll nobody can answer is worse than no poll: it looks like a question was
   // asked and silently collects nothing.
-  if (options.length < 2) redirect(`${back}/new?error=need-options`);
-  if (new Set(options).size !== options.length) redirect(`${back}/new?error=duplicate-options`);
+  if (options.length < 2) return { error: "need-options" };
+  if (new Set(options).size !== options.length) return { error: "duplicate-options" };
 
   const result = await createPoll(
     supabase,
@@ -100,7 +105,7 @@ async function submit(formData: FormData) {
   );
 
   if ("error" in result) {
-    redirect(`${back}/new?error=${encodeURIComponent(result.error)}`);
+    return { error: result.error };
   }
 
   revalidatePath(back);
@@ -197,7 +202,7 @@ export default async function CreatePollPage({
         </nav>
       </section>
 
-      <form action={submit} className="cb-panel space-y-5 rounded-panel border p-5">
+      <ActionForm action={submit} className="cb-panel space-y-5 rounded-panel border p-5">
         <h2 className="text-lg font-semibold">2. The details</h2>
         <input type="hidden" name="clanTag" value={clanTag} />
         <input type="hidden" name="pollType" value={selectedType} />
@@ -285,7 +290,7 @@ export default async function CreatePollPage({
             Open the poll
           </SubmitButton>
         </div>
-      </form>
+      </ActionForm>
     </main>
   );
 }

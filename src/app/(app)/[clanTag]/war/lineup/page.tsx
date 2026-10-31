@@ -39,6 +39,7 @@ import { revalidatePath } from "next/cache";
 import { CircleAlert, Link2, Plus } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { ActionForm, type ActionResult } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import {
   AvailabilityBadge,
@@ -103,7 +104,13 @@ function lineupSearch(query: BuilderQuery, lineupId: string | null, extra: Parti
   return text ? `?${text}` : "";
 }
 
-async function mutate(formData: FormData) {
+/**
+ * Every write on this page. RETURNS rather than redirecting, for the reason
+ * action-form.tsx gives: a redirect remounts the page, and on a phone the lineup
+ * sits above the player list, so each Add lost the leader's place. Only starting a
+ * lineup still navigates, because the new lineup needs its own URL.
+ */
+async function mutate(formData: FormData): Promise<ActionResult> {
   "use server";
 
   const supabase = await createClient();
@@ -120,7 +127,6 @@ async function mutate(formData: FormData) {
   // Back to the same lineup and filters. Allow-listed like the page's own URL.
   const query = parseBuilderQuery(new URLSearchParams(String(formData.get("view") ?? "")));
   const back = () => `${path}${lineupSearch(query, UUID.test(lineupId) ? lineupId : null)}`;
-  const join = () => (back().includes("?") ? "&" : "?");
 
   let result: { error?: string } = {};
   // Paired with each call, so the toast says what actually happened.
@@ -129,9 +135,10 @@ async function mutate(formData: FormData) {
   if (action === "create") {
     const size = Number(formData.get("size") ?? 15);
     const created = await createLineup(supabase, clanId, size, userId);
-    if ("error" in created) result = { error: created.error };
-    else lineupId = created.id;
-    done = "lineup-started";
+    if ("error" in created) return { error: created.error };
+    lineupId = created.id;
+    revalidatePath(path);
+    redirect(`${back()}${back().includes("?") ? "&ok=lineup-started" : "?ok=lineup-started"}`);
   } else if (action === "add") {
     result = await addToLineup(supabase, lineupId, playerId, userId);
     done = "lineup-added";
@@ -151,13 +158,13 @@ async function mutate(formData: FormData) {
     result = await attachLineupToWar(supabase, lineupId, String(formData.get("warId") ?? ""));
     done = "lineup-linked";
   } else {
-    redirect(`${back()}${join()}error=unknown-action`);
+    return { error: "unknown-action" };
   }
 
-  if (result.error) redirect(`${back()}${join()}error=${encodeURIComponent(result.error)}`);
+  if (result.error) return { error: result.error };
 
   revalidatePath(path);
-  redirect(`${back()}${join()}ok=${done}`);
+  return { ok: done };
 }
 
 export default async function WarLineupPage({
@@ -389,7 +396,7 @@ export default async function WarLineupPage({
       )}
 
       {!selected ? (
-        <form action={mutate} className="cb-panel max-w-xl space-y-4 rounded-panel border p-5">
+        <ActionForm action={mutate} className="cb-panel max-w-xl space-y-4 rounded-panel border p-5">
           <input type="hidden" name="clanTag" value={clan.tag} />
           <input type="hidden" name="clanId" value={clan.id} />
           <input type="hidden" name="action" value="create" />
@@ -416,7 +423,7 @@ export default async function WarLineupPage({
             </select>
           </label>
           <SubmitButton pendingLabel="Starting">Start lineup</SubmitButton>
-        </form>
+        </ActionForm>
       ) : (
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
           <aside className="order-first lg:sticky lg:top-4 lg:order-last">
@@ -432,7 +439,7 @@ export default async function WarLineupPage({
               {/* T6.10's prerequisite. Offered, not automatic: only a human knows
                   which war a plan was made for. */}
               {war && !selected.warId && selected.status === "published" && (
-                <form action={mutate} className="space-y-2 border-t pt-4">
+                <ActionForm action={mutate} className="space-y-2 border-t pt-4">
                   <input type="hidden" name="clanTag" value={clan.tag} />
                   <input type="hidden" name="clanId" value={clan.id} />
                   <input type="hidden" name="action" value="attach" />
@@ -450,7 +457,7 @@ export default async function WarLineupPage({
                   <p className="text-muted-foreground text-xs">
                     Linking lets the war report compare who you picked with who played.
                   </p>
-                </form>
+                </ActionForm>
               )}
               {selected.warId && (
                 <p className="text-muted-foreground border-t pt-4 text-sm">
@@ -548,7 +555,7 @@ export default async function WarLineupPage({
                           {full ? (
                             <span className="text-muted-foreground text-xs">Lineup full</span>
                           ) : (
-                            <form action={mutate}>
+                            <ActionForm action={mutate}>
                               <input type="hidden" name="clanTag" value={clan.tag} />
                               <input type="hidden" name="clanId" value={clan.id} />
                               <input type="hidden" name="action" value="add" />
@@ -563,7 +570,7 @@ export default async function WarLineupPage({
                               >
                                 Add
                               </SubmitButton>
-                            </form>
+                            </ActionForm>
                           )}
                         </td>
                       </tr>

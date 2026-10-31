@@ -15,6 +15,7 @@
 
 import Link from "next/link";
 import { CheckCircle2, CircleDashed, CircleHelp, Eye, EyeOff, Search, TriangleAlert, XCircle } from "lucide-react";
+import { ActionForm, type ResultAction } from "@/components/action-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -182,7 +183,7 @@ export function LastCwl({
   );
 }
 
-type Action = (formData: FormData) => Promise<void>;
+type Action = ResultAction;
 
 function Hidden({ fields }: { fields: Record<string, string> }) {
   return (
@@ -267,8 +268,7 @@ export function LineupPanel({
               </span>
               <TownHall level={m.thLevel} />
               {action && (
-                <form action={action}>
-                  <Hidden fields={{ ...hidden, action: "remove", playerId: m.playerId }} />
+                <ActionForm action={action} hidden={{ ...hidden, action: "remove", playerId: m.playerId }}>
                   <SubmitButton
                     size="xs"
                     variant="ghost"
@@ -277,7 +277,7 @@ export function LineupPanel({
                   >
                     Remove
                   </SubmitButton>
-                </form>
+                </ActionForm>
               )}
             </li>
           ))}
@@ -285,8 +285,11 @@ export function LineupPanel({
       )}
 
       {action && (
-        <form action={action} className="space-y-2">
-          <Hidden fields={{ ...hidden, action: published ? "unpublish" : "publish" }} />
+        <ActionForm
+          action={action}
+          className="space-y-2"
+          hidden={{ ...hidden, action: published ? "unpublish" : "publish" }}
+        >
           <SubmitButton
             size="sm"
             variant={published ? "outline" : "default"}
@@ -303,7 +306,7 @@ export function LineupPanel({
                 ? "Add at least one player before you can publish."
                 : "Members are not told until you publish."}
           </p>
-        </form>
+        </ActionForm>
       )}
 
       {children}
