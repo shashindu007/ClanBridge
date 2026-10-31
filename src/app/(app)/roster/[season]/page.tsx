@@ -87,6 +87,7 @@ import { LocalTime } from "@/components/local-time";
 import { playerDetails, type PlayerDetail } from "@/lib/cwl-lineup-data";
 import { currentUserId } from "@/lib/auth";
 import { visibleClans, type VisibleClan } from "@/lib/clans";
+import { cwlSeason } from "@/lib/coc-time";
 import { isLeadership } from "@/lib/visibility";
 import {
   DEFAULT_QUERY,
@@ -132,6 +133,7 @@ async function mutate(formData: FormData): Promise<ActionResult> {
 
   const season = String(formData.get("season") ?? "");
   if (!/^\d{4}-\d{2}$/.test(season)) return { error: "bad-season" };
+  if (season < cwlSeason(new Date())) return { error: "That season is over, so its lineups are final." };
   const action = String(formData.get("action") ?? "");
   const rosterId = String(formData.get("rosterId") ?? "");
 
@@ -216,7 +218,11 @@ export default async function RosterBuilderPage({
 
   // Rosters this caller may actually edit. RLS already restricts what came back;
   // this is the mechanism to the policy's net (R3).
-  const editable = rosters.filter((r) => leads.some((c) => c.id === r.clanId)).sort(byClanName);
+  // A finished season is a record, and "View" on /roster opened the live builder.
+  const finished = season < cwlSeason(new Date());
+  const editable = finished
+    ? []
+    : rosters.filter((r) => leads.some((c) => c.id === r.clanId)).sort(byClanName);
 
   const base = `/roster/${encodeURIComponent(season)}`;
   const title = seasonLabel(season);
@@ -260,10 +266,13 @@ export default async function RosterBuilderPage({
         <RosterHeader title={title} />
         <Alert variant="info">
           <CircleAlert aria-hidden />
-          <AlertTitle>Only leaders and co-leaders pick lineups</AlertTitle>
+          <AlertTitle>
+            {finished ? "This season is over" : "Only leaders and co-leaders pick lineups"}
+          </AlertTitle>
           <AlertDescription>
-            You can see the lineups that have been published for {title}. If yours is not
-            here yet, your leader has not published it.
+            {finished
+              ? `These are the lineups published for ${title}. They can no longer be changed.`
+              : `You can see the lineups that have been published for ${title}. If yours is not here yet, your leader has not published it.`}
           </AlertDescription>
         </Alert>
         {visible.length === 0 ? (

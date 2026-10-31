@@ -434,9 +434,9 @@ export default async function AdminAccountPage({
         )}
 
         <dl className="text-muted-foreground grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
-          <div><dt className="text-foreground inline font-medium">Member</dt> <dd className="inline">— war board, polls, notices and layouts; claims war targets.</dd></div>
-          <div><dt className="text-foreground inline font-medium">Elder</dt> <dd className="inline">— plus CWL history, raids, Clan Games and the war contribution report.</dd></div>
-          <div><dt className="text-foreground inline font-medium">Co-leader</dt> <dd className="inline">— plus lineups, CWL rosters, targets, polls, notices and medals.</dd></div>
+          <div><dt className="text-foreground inline font-medium">Member</dt> <dd className="inline">— every clan page: war board, CWL, raids, Clan Games, the war report, polls, notices and layouts; claims war targets.</dd></div>
+          <div><dt className="text-foreground inline font-medium">Elder</dt> <dd className="inline">— plus the &ldquo;Worth a look&rdquo; panel on the members page.</dd></div>
+          <div><dt className="text-foreground inline font-medium">Co-leader</dt> <dd className="inline">— plus lineups, CWL rosters, targets, polls, notices and other members&rsquo; base details.</dd></div>
           <div><dt className="text-foreground inline font-medium">Leader</dt> <dd className="inline">— plus admin, the audit log, and approving and managing accounts.</dd></div>
         </dl>
       </section>

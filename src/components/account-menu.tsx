@@ -52,6 +52,8 @@ export interface AccountMenuProps {
   showLeadership: boolean;
   /** Any member of at least one clan — Player rating is not leadership only. */
   showRating: boolean;
+  /** False for pending and removed accounts: most of the menu just bounces them to /pending. */
+  approved?: boolean;
   /**
    * T11.10 — the stored picture's path, or null with none.
    *
@@ -115,6 +117,7 @@ export function AccountMenu({
   showAdmin,
   showLeadership,
   showRating,
+  approved = true,
   avatarPath = null,
 }: AccountMenuProps) {
   const ref = useRef<HTMLDetailsElement>(null);
@@ -181,11 +184,11 @@ export function AccountMenu({
         <Group label="You">
           {/* T11.8 — the member's own villages and their picture. */}
           <MenuLink href="/account" Icon={CircleUser} label="Profile" />
-          <MenuLink href="/settings/account" Icon={KeyRound} label="Sign-in & password" />
+          {approved && <MenuLink href="/settings/account" Icon={KeyRound} label="Sign-in & password" />}
         </Group>
 
         <Group label="ClanBridge">
-          <MenuLink href="/people" Icon={Users} label="People" />
+          {approved && <MenuLink href="/people" Icon={Users} label="People" />}
           {/* Cross-clan destinations. On the rail itself from `md` up, so these
               are the narrow-screen path to the same pages — here rather than
               hidden, so the menu is always the COMPLETE list. */}
@@ -199,7 +202,7 @@ export function AccountMenu({
           <MenuLink href="/guide" Icon={BookOpen} label="Guide" />
           {/* Home's "Go to" panel was the only way here; that panel is gone,
               and a member with something to say should not have to hunt. */}
-          <MenuLink href="/feedback" Icon={MessageSquare} label="Feedback" />
+          {approved && <MenuLink href="/feedback" Icon={MessageSquare} label="Feedback" />}
         </Group>
 
         {/* T12.4 — NOTIFICATIONS IS NOT HERE, AND THAT IS THE POINT. The bell

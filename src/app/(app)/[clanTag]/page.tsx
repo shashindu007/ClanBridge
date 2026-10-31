@@ -62,7 +62,7 @@ import { Button } from "@/components/ui/button";
 import { clanAccent } from "@/lib/clan-accent";
 import { artKeyForLeague } from "@/lib/game-art";
 import { requireClanByTag } from "@/lib/clans";
-import { isLeader } from "@/lib/visibility";
+import { isLeader, isLeadership } from "@/lib/visibility";
 import { cwlPhase, nextCwlWindow } from "@/lib/coc-time";
 import { createClient } from "@/lib/supabase/server";
 import { clanDetail, currentMemberCount, latestAnnouncement } from "@/repositories/clans";
@@ -365,13 +365,19 @@ export default async function ClanDashboardPage({
             title="This clan has never been synced"
             body={
               <>
-                The clan row exists, but no sync job has read it from the game yet. Level,
-                member count and war league fill in on the next run of{" "}
-                <code className="text-xs">sync:clans</code>. If this is still here tomorrow,
-                the job is not running — check{" "}
-                <Link className="underline" href="/admin">
-                  Admin
-                </Link>
+                Nothing has been read from the game for this clan yet. Level, member count
+                and war league fill in by themselves on the next sync. If this is still here
+                tomorrow,{" "}
+                {isLeader(clan.role) ? (
+                  <>
+                    the sync is not running — check{" "}
+                    <Link className="underline" href="/admin">
+                      Admin
+                    </Link>
+                  </>
+                ) : (
+                  "let a leader know"
+                )}
                 .
               </>
             }
@@ -444,9 +450,11 @@ export default async function ClanDashboardPage({
                 No war on right now. The board fills in within the hour of a war
                 being declared in game.
               </p>
-              <Button asChild variant="outline">
-                <Link href={`${href}/war/lineup`}>Plan the next lineup</Link>
-              </Button>
+              {isLeadership(clan.role) && (
+                <Button asChild variant="outline">
+                  <Link href={`${href}/war/lineup`}>Plan the next lineup</Link>
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-4">

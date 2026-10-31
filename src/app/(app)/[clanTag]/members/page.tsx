@@ -277,12 +277,18 @@ export default async function MemberDirectoryPage({
             title="No members recorded yet"
             body={
               <>
-                The member list arrives with <code className="text-xs">sync:clans</code>,
-                which runs hourly. If this is still empty after that, the job is not
-                running — check{" "}
-                <Link className="underline" href="/admin">
-                  Admin
-                </Link>
+                The member list arrives with the next sync, within the hour. If this is
+                still empty after that,{" "}
+                {isLeader(clan.role) ? (
+                  <>
+                    the sync is not running — check{" "}
+                    <Link className="underline" href="/admin">
+                      Admin
+                    </Link>
+                  </>
+                ) : (
+                  "let a leader know"
+                )}
                 .
               </>
             }

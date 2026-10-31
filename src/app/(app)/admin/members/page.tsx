@@ -27,7 +27,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Search, UserCheck, UserX } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { currentUserId } from "@/lib/auth";
+import { currentUserId, isPlatformAdmin } from "@/lib/auth";
 import { safeMessage } from "@/lib/errors";
 import { ConfirmSubmit } from "@/components/confirm-submit";
 import { adminAccounts, clansLeftInGame, type AdminAccount } from "@/repositories/accounts";
@@ -134,7 +134,7 @@ export default async function AdminAccountsPage({
       />
       <AdminNav
         current="accounts"
-        showFeedback={accounts.some((a) => a.id === userId && a.isPlatformAdmin)}
+        showFeedback={await isPlatformAdmin(supabase, userId)}
       />
 
       {/* Errors and confirmations come through the shared toast

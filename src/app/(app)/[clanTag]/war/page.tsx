@@ -275,9 +275,12 @@ export default async function WarBoardPage({
                 : "This board fills in by itself within an hour of a war being declared in game."
             }
             action={
-              <Button asChild variant="gold">
-                <Link href={`${base}/war/lineup`}>Plan the next lineup</Link>
-              </Button>
+              // Leadership only: for anyone else this opens a read-only page.
+              isLeadership(clan.role) ? (
+                <Button asChild variant="gold">
+                  <Link href={`${base}/war/lineup`}>Plan the next lineup</Link>
+                </Button>
+              ) : undefined
             }
           />
         </Tile>

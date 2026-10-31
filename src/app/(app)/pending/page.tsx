@@ -16,6 +16,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { currentUserId } from "@/lib/auth";
+import { CheckAgainButton } from "@/components/check-again-button";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -150,9 +151,7 @@ export default async function PendingApprovalPage() {
         </Button>
       )}
 
-      <p className="text-muted-foreground text-xs">
-        Nothing here updates automatically — reload this page to check.
-      </p>
+      <CheckAgainButton />
     </main>
   );
 }

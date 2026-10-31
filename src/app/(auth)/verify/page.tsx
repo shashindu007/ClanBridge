@@ -214,6 +214,12 @@ function VerifyForm() {
           product's speed by. See the note in that file. */}
       <div className="text-muted-foreground border-t pt-4 text-sm">
         Wrong account? <SignOutButton />
+        <p className="mt-2">
+          Adding another village?{" "}
+          <Link className="text-foreground underline underline-offset-2" href="/account">
+            Back to your account
+          </Link>
+        </p>
       </div>
     </div>
   );

@@ -288,6 +288,7 @@ export default async function AppLayout({
             </Link>
           )}
 
+          {approved && (
           <Link
             href="/notifications"
             aria-label={
@@ -305,6 +306,7 @@ export default async function AppLayout({
                 for contrast in both themes (globals.css). */}
             {approved && unread > 0 && <Badge variant="info">{unread}</Badge>}
           </Link>
+          )}
 
           {/* T12.3 — how many people are actually here.
 
@@ -353,6 +355,7 @@ export default async function AppLayout({
               showLeadership={showLeadershipLinks}
               showRating={showRatingLink}
               avatarPath={profile?.avatarPath ?? null}
+              approved={approved}
             />
           </div>
           </div>

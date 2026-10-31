@@ -99,7 +99,7 @@ async function claimOwnership() {
   }
 
   revalidatePath("/admin");
-  redirect("/admin?ok=clan-added");
+  redirect("/admin?ok=ownership-claimed");
 }
 
 async function addClan(formData: FormData) {
@@ -135,7 +135,7 @@ async function addClan(formData: FormData) {
   }
 
   revalidatePath("/admin");
-  redirect("/admin");
+  redirect("/admin?ok=clan-added");
 }
 
 async function grantSelfLeader(formData: FormData) {

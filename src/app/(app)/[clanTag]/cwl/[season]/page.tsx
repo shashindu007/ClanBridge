@@ -62,8 +62,10 @@ import { canPrintCwlReport, loadSeasonBoards, loadSeasonView, ratingFor } from "
 import { isLeader } from "@/lib/visibility";
 import { DAY_TONE_CLASS, DAY_TONE_LABEL, dayTone } from "@/lib/war-status";
 import { cn } from "@/lib/utils";
+import { currentUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { seasonByName } from "@/repositories/cwl";
+import { myPlayers } from "@/repositories/polls";
 import { latestRun } from "@/repositories/sync-log";
 import { dayBoard, type BaseRef } from "@/services/cwl-day";
 import { oneDecimal, signed } from "@/services/cwl-rating";
@@ -110,10 +112,12 @@ export default async function CwlDayDetailPage({
   const season = await seasonByName(supabase, clan.id, decodeURIComponent(seasonName));
   if (!season) notFound();
 
-  const [view, run, canPrint] = await Promise.all([
+  const userId = await currentUserId(supabase);
+  const [view, run, canPrint, mine] = await Promise.all([
     loadSeasonView(supabase, clan, season, { withPlayers: true }),
     latestRun(supabase, "cwl", clan.id),
     canPrintCwlReport(supabase, clan.role),
+    userId ? myPlayers(supabase, userId) : Promise.resolve([]),
   ]);
   const { wars } = view;
 
@@ -141,6 +145,8 @@ export default async function CwlDayDetailPage({
   // attacked at all — counting either as a miss is how 15 of 15 got listed
   // as having failed a war that had not started.
   const dayState = selected?.state ?? null;
+  const myIds = new Set(mine.map((p) => p.id));
+  const myBases = board.bases.filter((b) => myIds.has(b.playerId));
   const dayOver = dayState !== "preparation" && dayState !== "inWar";
   const missed = board.bases.filter((b) => !b.attack);
   const selectedTone = selected ? dayTone(selected.result, selected.state) : "pending";
@@ -222,6 +228,33 @@ export default async function CwlDayDetailPage({
 
           {selected && selected.state === "inWar" && (
             <LiveDayPanel war={selected} clanName={clan.name} ours={board.ours} theirs={board.theirs} />
+          )}
+
+          {/* Home's Attack button lands here. A member shouldn't have to find
+              their own row in a table of up to fifty to learn whether they owe one. */}
+          {selected && selected.state !== "preparation" && myBases.length > 0 && (
+            <section className="cb-panel space-y-2 rounded-panel border p-5">
+              <h2 className="font-medium">{myBases.length === 1 ? "Your attack" : "Your attacks"}</h2>
+              <ul className="space-y-1.5 text-sm">
+                {myBases.map((b) => (
+                  <li key={b.playerId} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="font-medium">
+                      {b.name} <span className="text-muted-foreground tabular-nums">#{b.base ?? "?"}</span>
+                    </span>
+                    {b.attack ? (
+                      <span className="text-muted-foreground">
+                        hit their #{b.attack.target?.base ?? "?"}: {b.attack.stars}★,{" "}
+                        {Math.round(b.attack.destruction)}%
+                      </span>
+                    ) : selected.state === "inWar" ? (
+                      <Badge variant="warning">not used yet</Badge>
+                    ) : (
+                      <Badge variant="destructive">not used</Badge>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
 
           {selected && selected.state !== "inWar" && (
