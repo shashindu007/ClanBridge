@@ -13,12 +13,14 @@
 import Link from "next/link";
 import { Castle, ChevronRight, Link2, ScrollText, ShieldCheck } from "lucide-react";
 import { Tile } from "@/components/kit";
+import { CompactRank } from "@/components/player-rank";
 import { TownHall } from "@/components/game/town-hall";
 import { UnitIcon } from "@/components/game/unit-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { formatDisplay } from "@/lib/display-time";
+import type { Standing } from "@/services/player-rank";
 import type { StoredUnit } from "@/services/progress";
 
 export interface MainBaseView {
@@ -42,6 +44,9 @@ export interface MainBaseView {
     capturedAt: string;
     heroes: StoredUnit[];
   } | null;
+  standing: Standing;
+  /** False for a clan this viewer holds no role in, whose name is not theirs to read. */
+  showClanRank: boolean;
 }
 
 /** Shown when the member has linked no village yet. */
@@ -120,6 +125,7 @@ export function BaseSlide({
               </Badge>
             )}
           </div>
+          <CompactRank standing={base.standing} tag={base.tag} showClan={base.showClanRank} />
         </div>
       </div>
 

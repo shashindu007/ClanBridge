@@ -25,6 +25,8 @@ import { notFound } from "next/navigation";
 import { Castle, Hash, History, UserRoundX } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PlayerCareer } from "@/components/player-career";
+import { PlayerGlance } from "@/components/player-glance";
+import { RankHistory } from "@/components/player-rank";
 import { EmptyState, FactRow, Panel } from "@/components/kit";
 import { TownHall } from "@/components/game/town-hall";
 import { Badge } from "@/components/ui/badge";
@@ -38,9 +40,11 @@ import { canSeeBaseDetails } from "@/lib/visibility";
 import { currentUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { assertRead } from "@/lib/errors";
+import { playerGlance } from "@/lib/player-rank-data";
 import { decodeTag, encodeTag, InvalidTagError } from "@/lib/tags";
 import { playerReport } from "@/repositories/player-report";
 import { playerProfile } from "@/repositories/profiles";
+import { rankHistory, standingOf } from "@/services/player-rank";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +89,7 @@ export default async function PlayerProfilePage({
         clan_role: string | null;
         left_at: string | null;
         league_tier: string | null;
-        clan_id: string;
+        clan_id: string | null;
       }
     | undefined;
 
@@ -110,14 +114,18 @@ export default async function PlayerProfilePage({
 
   // Their history here is still theirs, so the page stays. It just says so.
   const moved = player.clan_id !== clan.id;
+  // A career follows the village, so it is read where the village is now. A moved
+  // player's row is stored under their new clan, which is why this was never found.
+  const currentClan = player.clan_id ?? clan.id;
 
   // The report's own seven reads, plus the one this page needs to turn clan ids
   // into names. Issued together: the name lookup does not depend on the report.
-  const [report, userId, profile] = await Promise.all([
+  const [report, userId, profile, glance] = await Promise.all([
     playerReport(supabase, clan.id, player.id),
     currentUserId(supabase),
     // 065 — clan-scoped like everything else here (R3).
-    playerProfile(supabase, player.id, { clanId: clan.id }),
+    playerProfile(supabase, player.id, { clanId: currentClan }),
+    playerGlance(supabase, player.id, currentClan),
   ]);
 
   // Only clans this user may see resolve, which is the same restriction RLS
@@ -128,6 +136,7 @@ export default async function PlayerProfilePage({
   );
 
   const encodedTag = encodeURIComponent(clan.tag);
+  const now = new Date();
 
   return (
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
@@ -144,7 +153,7 @@ export default async function PlayerProfilePage({
           player.clan_role || player.verified || player.left_at ? (
             <>
               {moved && !player.left_at && (
-                <Badge variant="secondary">now in {clanNames.get(player.clan_id) ?? "another clan"}</Badge>
+                <Badge variant="secondary">now in {clanNames.get(currentClan) ?? "another clan"}</Badge>
               )}
               {player.clan_role && !moved && <Badge variant="secondary">{player.clan_role}</Badge>}
               {player.league_tier && <Badge variant="outline">{player.league_tier}</Badge>}
@@ -167,6 +176,15 @@ export default async function PlayerProfilePage({
         }
       />
 
+      <PlayerGlance
+        standing={standingOf(glance.history, now)}
+        tag={player.tag}
+        showClan={clanNames.has(currentClan)}
+        glance={glance}
+        profile={profile}
+        thLevel={player.th_level}
+      />
+
       <FactRow
         items={[
           { label: "tag", value: <span className="font-mono text-xs">{player.tag}</span>, icon: Hash },
@@ -183,7 +201,9 @@ export default async function PlayerProfilePage({
         clanNames={clanNames}
       />
 
-      <PlayerCareer profile={profile} departed={moved || player.left_at !== null} />
+      <RankHistory rows={rankHistory(glance.history, now)} />
+
+      <PlayerCareer profile={profile} departed={player.left_at !== null} />
     </main>
   );
 }

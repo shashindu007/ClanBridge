@@ -132,23 +132,33 @@ export interface VillageSnapshot extends VillageScore {
   capturedAt: string;
 }
 
-export async function latestProgressFor(
+/** Each village's newest reading, units included, in one read however many there are. */
+export async function latestReadings(
   supabase: SupabaseClient,
   playerIds: readonly string[],
-): Promise<Map<string, VillageSnapshot>> {
-  const out = new Map<string, VillageSnapshot>();
+): Promise<Map<string, ProgressReading>> {
+  const out = new Map<string, ProgressReading>();
   const ids = [...new Set(playerIds)];
   if (!ids.length) return out;
 
   const { data, error } = await supabase.rpc("latest_player_progress", { p_player_ids: ids });
   assertRead(error, "latest_player_progress");
-  if (!data) return out;
 
-  for (const row of data as Array<Record<string, unknown>>) {
-    const reading = toReading(row);
-    out.set(row.player_id as string, {
+  for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+    out.set(row.player_id as string, toReading(row));
+  }
+  return out;
+}
+
+export async function latestProgressFor(
+  supabase: SupabaseClient,
+  playerIds: readonly string[],
+): Promise<Map<string, VillageSnapshot>> {
+  const out = new Map<string, VillageSnapshot>();
+  for (const [playerId, reading] of await latestReadings(supabase, playerIds)) {
+    out.set(playerId, {
       thLevel: reading.thLevel,
-      thWeaponLevel: (row.th_weapon_level as number | null) ?? null,
+      thWeaponLevel: reading.thWeaponLevel,
       capturedAt: reading.capturedAt,
       ...villageSnapshot(reading.units),
     });

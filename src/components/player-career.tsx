@@ -2,9 +2,9 @@
 // has them. Shared by [clanTag]/player/[tag] and /account/bases/[tag], the
 // same way player-report-sections.tsx is, so the two pages cannot drift.
 //
-// A SERVER COMPONENT. The numbers are lifetime totals from the daily player
-// sync — not season figures — and the panel says so, because "1,240 war
-// stars" beside a season's table reads as this season unless told otherwise.
+// A SERVER COMPONENT. Most of these are lifetime totals and two are this season's,
+// all from the daily player sync, so each tile says which it is: "1,240 war stars"
+// beside a season's table reads as this season unless told otherwise.
 
 import { Award, Coins, Hammer, Medal, Shield, Star, Swords, Trophy } from "lucide-react";
 import { Disclosure, StatTile } from "@/components/kit";
@@ -44,19 +44,19 @@ export function PlayerCareer({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Career</h2>
           <p className="text-muted-foreground text-xs">
-            Lifetime, from the game · read <LocalTime iso={profile.capturedAt} style="date" />
+            From the game · read <LocalTime iso={profile.capturedAt} style="date" />
           </p>
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <StatTile label="War stars" icon={Star} value={number(profile.warStars)} sub="regular wars and CWL" />
+          <StatTile label="War stars" icon={Star} value={number(profile.warStars)} sub="lifetime, wars and CWL" />
           <StatTile
             label="Capital Gold given"
             icon={Coins}
             value={number(profile.capitalContributions)}
-            sub="to the Clan Capital"
+            sub="lifetime, to the Clan Capital"
           />
-          <StatTile label="Best trophies" icon={Trophy} value={number(profile.bestTrophies)} sub="home village" />
+          <StatTile label="Best trophies" icon={Trophy} value={number(profile.bestTrophies)} sub="all-time, home village" />
           <StatTile
             label="Attacks won"
             icon={Swords}

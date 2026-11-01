@@ -20,6 +20,7 @@
 //
 // R11 — writes player_ratings only. Derived from game facts, and no person edits it.
 
+import { monthOf, openMonths } from "@/lib/rating";
 import { SEGMENT_WINDOW_DAYS } from "@/repositories/season-donations";
 import { ratingMonths } from "@/repositories/player-ratings";
 import {
@@ -35,22 +36,13 @@ const HOUR = 3_600_000;
 /** A successful run within this leaves nothing to do. */
 export const RATINGS_EVERY_MS = 6 * HOUR;
 
-/** Last month stays open until this day of the month. */
-const LAST_MONTH_OPEN_UNTIL = 10;
-
-const monthOf = (date: Date) => date.toISOString().slice(0, 7);
-
 /**
  * Oldest first, so a backfill that fails partway leaves the older months done.
  * `force` takes every month the readings still cover, ranked or not.
  */
 export function monthsToRate(stored: readonly string[], now: Date, force = false): string[] {
   const current = monthOf(now);
-  const open = new Set([current]);
-
-  if (now.getUTCDate() <= LAST_MONTH_OPEN_UNTIL) {
-    open.add(monthOf(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))));
-  }
+  const open = new Set(openMonths(now));
 
   const earliest = new Date(now.getTime() - SEGMENT_WINDOW_DAYS * DAY);
   let walk = new Date(Date.UTC(earliest.getUTCFullYear(), earliest.getUTCMonth(), 1));

@@ -178,6 +178,26 @@ export async function latestSnapshots(
   return latest;
 }
 
+/** One player's newest trophy count in a clan, or null with no reading of it. */
+export async function latestTrophies(
+  supabase: SupabaseClient,
+  clanId: string,
+  playerId: string,
+): Promise<number | null> {
+  const { data, error } = await supabase
+    .from("member_snapshots")
+    .select("trophies")
+    .eq("clan_id", clanId) // R3
+    .eq("player_id", playerId)
+    .is("deleted_at", null)
+    .not("trophies", "is", null)
+    .order("captured_at", { ascending: false })
+    .limit(1);
+
+  assertRead(error, "member_snapshots");
+  return (data as Array<{ trophies: number }> | null)?.[0]?.trophies ?? null;
+}
+
 export interface SearchHit extends MemberRow {
   clanId: string;
 }

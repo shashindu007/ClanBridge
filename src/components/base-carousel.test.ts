@@ -31,6 +31,8 @@ function view(tag: string, label: string, over: Partial<MainBaseView> = {}): Mai
     detailsHref: `/account/bases/${encodeURIComponent(tag)}/details`,
     reportHref: `/account/bases/${encodeURIComponent(tag)}`,
     progress: null,
+    standing: { kind: "not-ranked" },
+    showClanRank: true,
     ...over,
   };
 }
