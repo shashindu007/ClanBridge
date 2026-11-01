@@ -39,7 +39,13 @@ import { currentUserId } from "@/lib/auth";
 import { visibleClans, type VisibleClan } from "@/lib/clans";
 import { isLeadership } from "@/lib/visibility";
 import { cwlWindow } from "@/lib/coc-time";
-import { lineupFocusSeason, publishedSummary, seasonLabel, startableSeasons } from "@/lib/roster-view";
+import {
+  clansWithoutLineup,
+  lineupFocusSeason,
+  publishedSummary,
+  seasonLabel,
+  startableSeasons,
+} from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
 import {
   createRoster,
@@ -125,7 +131,8 @@ export default async function RosterSeasonsPage() {
   );
 
   const started = new Set(seasons);
-  const canStart = leads.length > 0 ? startableSeasons(now).filter((s) => !started.has(s)) : [];
+  const startable = startableSeasons(now);
+  const canStart = leads.length > 0 ? startable.filter((s) => !started.has(s)) : [];
 
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
@@ -155,6 +162,7 @@ export default async function RosterSeasonsPage() {
 
       {open.map(({ season, rosters }, i) => {
         const published = rosters.filter((r) => r.status === "published").length;
+        const missing = startable.includes(season) ? clansWithoutLineup(leads, rosters) : [];
         return (
           <Tile
             as="section"
@@ -192,6 +200,22 @@ export default async function RosterSeasonsPage() {
                 </li>
               ))}
             </ul>
+
+            {missing.length > 0 && (
+              <form
+                action={startSeason}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-panel border border-dashed p-4"
+              >
+                <input type="hidden" name="season" value={season} />
+                <p className="text-sm">
+                  <span className="font-medium">{missing.map((c) => c.name).join(", ")}</span>{" "}
+                  {missing.length === 1 ? "has" : "have"} no lineup for {seasonLabel(season)} yet.
+                </p>
+                <SubmitButton variant="outline" size="sm" pendingLabel="Creating">
+                  Create draft lineup
+                </SubmitButton>
+              </form>
+            )}
 
             {leads.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">

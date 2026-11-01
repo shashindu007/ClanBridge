@@ -192,6 +192,15 @@ export function startableSeasons(now: Date): string[] {
   return [focus, nextSeason(focus)];
 }
 
+/** A clan added after its season was started has no lineup, and nothing else creates one. */
+export function clansWithoutLineup<C extends { id: string }>(
+  clans: readonly C[],
+  rosters: readonly { clanId: string }[],
+): C[] {
+  const have = new Set(rosters.map((r) => r.clanId));
+  return clans.filter((c) => !have.has(c.id));
+}
+
 export interface PoolEntry {
   name: string;
   tag: string;

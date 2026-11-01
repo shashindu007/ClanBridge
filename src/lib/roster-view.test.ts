@@ -5,6 +5,7 @@ import {
   availabilityOf,
   builderSearch,
   byWarOrder,
+  clansWithoutLineup,
   lineupBreakdown,
   lineupDeadline,
   filterPool,
@@ -149,6 +150,22 @@ describe("lineupDeadline", () => {
 
   it("refuses anything that is not a season key", () => {
     expect(lineupDeadline("October")).toBeNull();
+  });
+});
+
+describe("clansWithoutLineup", () => {
+  const clans = [{ id: CLAN_A }, { id: CLAN_B }];
+
+  it("finds a clan added after the season was started", () => {
+    expect(clansWithoutLineup(clans, [{ clanId: CLAN_A }])).toEqual([{ id: CLAN_B }]);
+  });
+
+  it("is empty once every clan has a lineup", () => {
+    expect(clansWithoutLineup(clans, [{ clanId: CLAN_A }, { clanId: CLAN_B }])).toEqual([]);
+  });
+
+  it("ignores lineups of clans the caller does not lead", () => {
+    expect(clansWithoutLineup([{ id: CLAN_A }], [{ clanId: CLAN_B }])).toEqual([{ id: CLAN_A }]);
   });
 });
 
