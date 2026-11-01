@@ -94,11 +94,13 @@ import {
   availabilityCounts,
   builderSearch,
   byWarOrder,
+  clansWithoutLineup,
   filterPool,
   lineupBreakdown,
   lineupDeadline,
   parseBuilderQuery,
   seasonLabel,
+  startableSeasons,
   warPreferenceClash,
 } from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
@@ -223,6 +225,9 @@ export default async function RosterBuilderPage({
   const editable = finished
     ? []
     : rosters.filter((r) => leads.some((c) => c.id === r.clanId)).sort(byClanName);
+  const missing = startableSeasons(new Date()).includes(season) ? clansWithoutLineup(leads, rosters) : [];
+  // Leading only clans with no lineup yet is not the same as not being a leader.
+  if (editable.length === 0 && missing.length > 0) redirect("/roster");
 
   const base = `/roster/${encodeURIComponent(season)}`;
   const title = seasonLabel(season);
@@ -457,6 +462,21 @@ export default async function RosterBuilderPage({
             CWL starts at the beginning of the month — finish and publish before the 2nd.
           </span>
         </div>
+      )}
+
+      {missing.length > 0 && (
+        <Alert variant="warning">
+          <CircleAlert aria-hidden />
+          <AlertTitle>
+            {missing.map((c) => c.name).join(", ")} {missing.length === 1 ? "has" : "have"} no lineup for {title} yet
+          </AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>Create the draft first, then it appears here with the other lineups.</p>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/roster">Go to CWL lineups</Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       {availabilityPoll ? (
