@@ -294,7 +294,16 @@ this ranking has to compare across clans.
   player_ratings (073)               one number per player per month
         v
   family_player_ratings()            read by /rating, for any member
+        v
+  player_rating_history() (075)      the same rows, for a few players: Home, profiles
 ```
+
+**The database works out rank, and nothing else does.** `family_player_ratings()`
+returns each player's rank in the family and in their clan. Ties share a rank and
+the next one skips (1, 2, 2, 4), and `/rating`'s `#` is always the family rank,
+whatever filter is on. `services/player-rank.ts` only chooses which month to lead
+with and how to word it. A month stays open until the 10th of the next one, a rule
+`lib/rating.ts` holds for both the sync job and the pages.
 
 It cannot be derived on read: a viewer may read only their own clans, and the key
 that reads them all never reaches Vercel (R6). A failed read fails the job rather
@@ -433,7 +442,7 @@ Every table carrying clan data gets an equivalent policy. Sync jobs use the serv
 
 - **CWL history (037, Phase 11C).** Members of this family move between its clans and play CWL in whichever one fields a roster, so a village's CWL record has to follow the village. `family_cwl_history()` returns per-player season TOTALS and the clan's name to anyone holding a role in any platform clan. The CWL tables' own policies are unchanged: a member still reads none of another clan's seasons, wars or attacks directly.
 - **The family directory (038, T12.1).** `family_clans()` and `family_clan_roster()` return every clan's overview and roster, and nothing else about it.
-- **The Player rating (073, T13.10).** A player has one number whoever is looking, so `family_player_ratings()` returns every family player's marks, percentages and rating. No raw donation counts, attacks or account links. `player_ratings` itself stays clan-scoped.
+- **The Player rating (073, T13.10).** A player has one number whoever is looking, so `family_player_ratings()` returns every family player's marks, percentages, rating and rank. No raw donation counts, attacks or account links. `player_ratings` itself stays clan-scoped. `player_rating_history()` (075) reads only through that function, so it is not a further exception.
 
 **Test this deliberately.** Sign in as an ordinary member of clan one, then request clan two's data by editing the URL directly. If anything comes back, there is a hole. Repeat this test after every phase.
 

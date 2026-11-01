@@ -68,13 +68,17 @@ import {
   type Announcement,
 } from "@/repositories/clans";
 import { basesForUser, type OwnedBase } from "@/repositories/account-bases";
-import { baseProgress } from "@/repositories/player-progress";
+import { latestReadings, type ProgressReading } from "@/repositories/player-progress";
+import type { RatingMonth } from "@/repositories/player-ratings";
 import { baseLabel } from "@/lib/nickname";
+import { safeMessage } from "@/lib/errors";
+import { HOME_RANK_MONTHS, rankHistories } from "@/lib/player-rank-data";
+import { standingOf } from "@/services/player-rank";
 import { encodeTag } from "@/lib/tags";
 import { counts, groupProgress, overallProgress } from "@/services/progress";
 import { attacksForWar, currentWar, membersOfWar, type WarRow } from "@/repositories/war";
 import * as cwlRepo from "@/repositories/cwl";
-import { myPlayers, pollsForClan, responsesForPoll, type Poll } from "@/repositories/polls";
+import { pollsForClan, responsesForPoll, type Poll } from "@/repositories/polls";
 import { latestRun } from "@/repositories/sync-log";
 import { membersForClan } from "@/repositories/members";
 import { unreadCount } from "@/repositories/notifications";
@@ -238,14 +242,14 @@ function basesInOrder(bases: OwnedBase[], main: OwnedBase | null): OwnedBase[] {
  * One village, drawn from its latest reading. Home village only: that is the
  * Town Hall the card names, and its heroes are what a member checks first.
  */
-async function loadBaseView(
-  supabase: Supabase,
+function toBaseView(
   base: OwnedBase,
   isMain: boolean,
   clanNames: Map<string, string>,
-): Promise<MainBaseView> {
-  // "owner" scope: the member's own village, wherever it plays.
-  const { latest } = await baseProgress(supabase, "owner", base.playerId);
+  latest: ProgressReading | null,
+  history: RatingMonth[] | null,
+  now: Date,
+): MainBaseView {
   const home = latest?.units.filter((u) => u.village === "home") ?? [];
   const counted = home.filter(counts);
   const playing = base.clanId && !base.leftAt;
@@ -270,6 +274,8 @@ async function loadBaseView(
           heroes: groupProgress(home, "home").find((g) => g.group === "hero")?.units ?? [],
         }
       : null,
+    standing: standingOf(history, now),
+    showClanRank: Boolean(playing && clanNames.has(base.clanId!)),
   };
 }
 
@@ -322,11 +328,10 @@ export default async function DashboardPage({
   const userId = await currentUserId(supabase);
   if (!userId) redirect("/login");
 
-  const [{ clan: wanted }, profile, clans, mine, unread, bases] = await Promise.all([
+  const [{ clan: wanted }, profile, clans, unread, bases] = await Promise.all([
     searchParams,
     accountProfile(supabase, userId),
     visibleClans(supabase, userId),
-    myPlayers(supabase, userId),
     unreadCount(supabase, userId),
     basesForUser(supabase, userId),
   ]);
@@ -344,14 +349,32 @@ export default async function DashboardPage({
 
   const main = mainBase(bases);
   const clanNames = new Map(clans.map((c) => [c.id, c.name]));
+  const shownBases = basesInOrder(bases, main);
+  const shownIds = shownBases.map((b) => b.playerId);
 
-  const [loaded, accounts, baseViews] = await Promise.all([
+  const [loaded, accounts, readings, histories] = await Promise.all([
     Promise.all(clans.map((clan) => loadClan(supabase, clan, now, phase === "wars"))),
     // Scoped by admin_accounts() to accounts THIS caller may approve.
     admin || leads ? adminAccounts(supabase) : Promise.resolve([]),
-    // Each village's latest reading, all at once: two small reads apiece.
-    Promise.all(basesInOrder(bases, main).map((b) => loadBaseView(supabase, b, b === main, clanNames))),
+    // One read for every village. Losing it costs the progress line, not Home.
+    latestReadings(supabase, shownIds).catch((error: unknown) => {
+      safeMessage("home-readings", { message: String(error) }, "");
+      return new Map<string, ProgressReading>();
+    }),
+    // An account in no clan is outside the family ranking, so nothing to ask.
+    clans.length > 0 ? rankHistories(supabase, shownIds, HOME_RANK_MONTHS) : new Map<string, RatingMonth[]>(),
   ]);
+
+  const baseViews = shownBases.map((b) =>
+    toBaseView(
+      b,
+      b === main,
+      clanNames,
+      readings.get(b.playerId) ?? null,
+      histories === null ? null : (histories.get(b.playerId) ?? []),
+      now,
+    ),
+  );
 
   // Your village in each clan: the same rule as the main base, applied to the
   // villages playing there — so the main one wins wherever it plays.
@@ -380,13 +403,13 @@ export default async function DashboardPage({
   const homeClans = loaded.map(toHomeClan);
   const items = needsYou({
     clans: homeClans,
-    myPlayers: mine.map((p) => ({ id: p.id, clanId: p.clanId })),
+    myPlayers: bases.map((b) => ({ id: b.playerId, clanId: b.clanId })),
     unread,
     waitingAccounts: accounts.filter((a) => a.status === "pending" && !a.removedAt).length,
     now,
   });
 
-  const myIds = new Set(mine.map((p) => p.id));
+  const myIds = new Set(bases.map((b) => b.playerId));
   const statuses = homeClans.map((c) => clanStatus(c, myIds, now, phase));
 
   // THE ONE GOLD BUTTON. The first clan where you still have an attack gets it

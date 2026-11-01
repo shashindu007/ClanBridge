@@ -8,7 +8,10 @@
 // Marks and % only. Each section's own page keeps its own rating, which is a
 // share of one clan, so the % there differs from the one here.
 //
-// ALL CLANS, OR ONE (?clan=), and a month picker (?month=).
+// ALL CLANS, OR ONE (?clan=), a month picker (?month=) and a search (?q=), all in
+// the URL. None of them renumbers anyone: # is always the family rank the database
+// worked out (075), so a number means the same thing wherever it is seen. A
+// player's place inside a clan is shown as its own line, in words.
 //
 // R3 — THE WHOLE FAMILY, ON PURPOSE. 073's family_player_ratings() is the third
 // deliberate exception; read its header. A player is linked only in a clan the
@@ -18,7 +21,11 @@
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ListChecks, Trophy } from "lucide-react";
+import { ListChecks, Trophy, UserRound } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -31,7 +38,16 @@ import { currentUserId } from "@/lib/auth";
 import { clanAccent } from "@/lib/clan-accent";
 import { visibleClans } from "@/lib/clans";
 import { formatDisplay } from "@/lib/display-time";
-import { RATING_SECTIONS, type RatingKind } from "@/lib/rating";
+import {
+  RATING_SECTIONS,
+  RATING_SHORT_LABELS,
+  hasMarks,
+  matchesPlayer,
+  openMonths,
+  rankAnchor,
+  ratingPercent,
+  type RatingKind,
+} from "@/lib/rating";
 import { seasonLabel } from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
@@ -39,31 +55,15 @@ import { canSeeMemberStats } from "@/lib/visibility";
 import { PageHeader } from "@/components/page-header";
 import { Disclosure, EmptyState, Panel, SectionHeader } from "@/components/kit";
 import { TownHall } from "@/components/game/town-hall";
+import { RankMedal } from "@/components/player-rank";
 import { RatingNav } from "@/components/rating-nav";
 import { RuleList } from "@/components/rating-parts";
+import { basesForUser } from "@/repositories/account-bases";
 import { familyRatings, ratingMonths, type RatedPlayer } from "@/repositories/player-ratings";
 import { DONATION_MARKS, RATING_KINDS, RATING_WEIGHTS } from "@/services/player-rating";
 import { signed2 } from "@/services/raid-rating";
 
 export const dynamic = "force-dynamic";
-
-/** Gold, silver, bronze for the top three, as on the section ratings. */
-const MEDAL = ["#f5c542", "#c0c7d1", "#cd8a4b"];
-
-/** Short, for a table with ten columns. */
-const COLUMN: Record<RatingKind, string> = {
-  donations: "Donations",
-  war: "War",
-  cwl: "CWL",
-  games: "Games",
-  raids: "Raids",
-};
-
-/** "0.70%", with a real minus. */
-function percent(value: number): string {
-  const text = `${Math.abs(value).toFixed(2)}%`;
-  return value < 0 ? `−${text}` : text;
-}
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -166,8 +166,8 @@ function Rules() {
 function Section({ player, kind }: { player: RatedPlayer; kind: RatingKind }) {
   const marks = player.marks[kind];
   return (
-    <TableCell data-label={COLUMN[kind]} className="text-right tabular-nums">
-      <span className="text-sm">{percent(player.shares[kind])}</span>
+    <TableCell data-label={RATING_SHORT_LABELS[kind]} className="text-right tabular-nums">
+      <span className="text-sm">{ratingPercent(player.shares[kind])}</span>
       <span className={cn("block text-xs", marks < 0 ? "text-destructive" : "text-muted-foreground")}>
         {signed2(marks)}
       </span>
@@ -175,12 +175,49 @@ function Section({ player, kind }: { player: RatedPlayer; kind: RatingKind }) {
   );
 }
 
+/** The viewer's own villages in this month, each with a way to its row. */
+function YourRank({
+  villages,
+  rowHref,
+}: {
+  villages: RatedPlayer[];
+  rowHref: (player: RatedPlayer) => string;
+}) {
+  return (
+    <Panel aria-labelledby="your-rank-title" className="space-y-3">
+      <SectionHeader id="your-rank-title" title="Your rank" icon={UserRound} />
+      <ul className="divide-y">
+        {villages.map((village) => (
+          <li key={village.playerId} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0">
+            <RankMedal rank={village.familyRank} medal={hasMarks(village.marks)} />
+            <span className="min-w-0 flex-1">
+              <span className="block font-medium">{village.name}</span>
+              <span className="text-muted-foreground block text-xs tabular-nums">
+                #{village.familyRank} of {village.familySize} in the family
+                {village.tied && ", tied"} · #{village.clanRank} of {village.clanSize} in {village.clanName}
+              </span>
+            </span>
+            <span className="font-semibold tabular-nums">{ratingPercent(village.rating)}</span>
+            <Link
+              href={rowHref(village)}
+              className="text-primary inline-flex min-h-11 items-center text-sm font-medium hover:underline"
+            >
+              Show in list
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  );
+}
+
 export default async function PlayerRatingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ clan?: string; month?: string }>;
+  searchParams: Promise<{ clan?: string; month?: string; q?: string | string[] }>;
 }) {
-  const { clan: clanParam, month: monthParam } = await searchParams;
+  const { clan: clanParam, month: monthParam, q: queryParam } = await searchParams;
+  const query = (Array.isArray(queryParam) ? queryParam[0] : queryParam)?.trim().slice(0, 40) ?? "";
   const supabase = await createClient();
   const userId = await currentUserId(supabase);
   if (!userId) redirect("/login");
@@ -217,7 +254,9 @@ export default async function PlayerRatingPage({
     );
   }
 
-  const everyone = await familyRatings(supabase, month);
+  const [everyone, bases] = await Promise.all([familyRatings(supabase, month), basesForUser(supabase, userId)]);
+  const ownIds = new Set(bases.map((b) => b.playerId));
+  const ownRows = everyone.filter((p) => ownIds.has(p.playerId));
 
   const ranked = [...new Map(everyone.map((p) => [p.clanId, p])).values()]
     .map((p) => ({
@@ -230,33 +269,46 @@ export default async function PlayerRatingPage({
 
   // One clan when asked for; otherwise all of them. An unknown tag is "all".
   const only = ranked.find((c) => c.tag === clanParam) ?? null;
-  const rows = only ? everyone.filter((p) => p.clanId === only.id) : everyone;
+  const rows = (only ? everyone.filter((p) => p.clanId === only.id) : everyone).filter((p) =>
+    matchesPlayer(p, query),
+  );
 
   const mine = new Set(clans.map((c) => c.id));
   const notYet = RATING_KINDS.filter((kind) => everyone.every((p) => p.marks[kind] === 0));
+  const isOpen = openMonths(new Date()).includes(month);
 
-  const here = (next: { clan?: string | null; month?: string }) => {
-    const query = new URLSearchParams();
+  const here = (next: { clan?: string | null; month?: string; q?: string | null }) => {
+    const search = new URLSearchParams();
     const m = next.month ?? month;
     const c = next.clan === undefined ? (only?.tag ?? null) : next.clan;
-    if (m !== months[0]) query.set("month", m);
-    if (c) query.set("clan", c);
-    const text = query.toString();
+    const q = next.q === undefined ? query : next.q;
+    if (m !== months[0]) search.set("month", m);
+    if (c) search.set("clan", c);
+    if (q) search.set("q", q);
+    const text = search.toString();
     return text ? `/rating?${text}` : "/rating";
   };
 
   return (
     <Shell>
+      {ownRows.length > 0 && (
+        <YourRank
+          villages={ownRows}
+          rowHref={(p) => `${here({ clan: null, q: null })}#${rankAnchor(p.tag)}`}
+        />
+      )}
+
       <Panel aria-labelledby="ranking-title" className="space-y-4">
         <div className="space-y-1">
           <SectionHeader
             id="ranking-title"
-            title={`Ranking for ${seasonLabel(month)}`}
+            title={`Ranking for ${seasonLabel(month)}${isOpen ? ", so far" : ", final"}`}
             icon={Trophy}
             count={rows.length}
           />
           <p className="text-muted-foreground text-sm">
-            Each % is a share of the whole family&apos;s marks, with the marks below it. Updated{" "}
+            # is the rank in the whole family, and players level on rating share it. Each % is a
+            share of the whole family&apos;s marks, with the marks below it. Updated{" "}
             {formatDisplay(everyone[0]?.computedAt)}.
             {notYet.length > 0 &&
               ` Nothing counted yet for ${notYet
@@ -287,17 +339,50 @@ export default async function PlayerRatingPage({
           ))}
         </nav>
 
+        {/* A plain GET form: the search is URL state, so it survives a reload. */}
+        <form action="/rating" role="search" className="flex flex-wrap items-center gap-2">
+          {month !== months[0] && <input type="hidden" name="month" value={month} />}
+          {only && <input type="hidden" name="clan" value={only.tag} />}
+          <Label htmlFor="rating-search" className="sr-only">
+            Find a player by name or tag
+          </Label>
+          <Input
+            id="rating-search"
+            name="q"
+            type="search"
+            defaultValue={query}
+            maxLength={40}
+            placeholder="Find a player by name or tag"
+            className="min-w-0 flex-1 sm:max-w-xs"
+          />
+          <Button type="submit" variant="outline">
+            Find
+          </Button>
+          {query && (
+            <Button asChild variant="ghost">
+              <Link href={here({ q: null })}>Clear</Link>
+            </Button>
+          )}
+        </form>
+
+        {rows.length === 0 ? (
+          <p className="text-muted-foreground rounded-panel border border-dashed p-6 text-center text-sm">
+            No player matches &ldquo;{query}&rdquo; here. <Link className="text-foreground underline underline-offset-2" href={here({ clan: null, q: null })}>Show everyone</Link>
+          </p>
+        ) : (
         <div className="-mx-5 overflow-x-auto px-5">
           <Table className="cb-stack">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12 text-right">#</TableHead>
+                <TableHead className="w-12 text-right" title="Rank in the whole family">
+                  #
+                </TableHead>
                 <TableHead>Member</TableHead>
                 {!only && <TableHead>Clan</TableHead>}
                 <TableHead className="text-right">TH</TableHead>
                 {RATING_KINDS.map((kind) => (
                   <TableHead key={kind} className="text-right">
-                    {COLUMN[kind]}
+                    {RATING_SHORT_LABELS[kind]}
                     <span className="text-muted-foreground block text-xs font-normal">
                       {RATING_WEIGHTS[kind]}%
                     </span>
@@ -307,19 +392,15 @@ export default async function PlayerRatingPage({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((player, index) => (
-                <TableRow key={player.playerId}>
+              {rows.map((player) => (
+                <TableRow
+                  key={player.playerId}
+                  id={rankAnchor(player.tag)}
+                  className={cn("scroll-mt-24", ownIds.has(player.playerId) && "bg-primary/10")}
+                >
                   <TableCell data-cell="corner" className="text-right">
-                    {index < 3 ? (
-                      <span
-                        className="inline-flex size-7 items-center justify-center rounded-full text-sm font-bold text-black"
-                        style={{ background: MEDAL[index] }}
-                      >
-                        {index + 1}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground text-sm tabular-nums">{index + 1}</span>
-                    )}
+                    <RankMedal rank={player.familyRank} medal={hasMarks(player.marks)} />
+                    {player.tied && <span className="text-muted-foreground block text-xs">Tied</span>}
                   </TableCell>
                   <TableCell data-cell="title">
                     {mine.has(player.clanId) ? (
@@ -332,7 +413,17 @@ export default async function PlayerRatingPage({
                     ) : (
                       <span className="font-medium">{player.name}</span>
                     )}
+                    {ownIds.has(player.playerId) && (
+                      <Badge variant="secondary" className="ml-2">
+                        You
+                      </Badge>
+                    )}
                     <span className="text-muted-foreground block font-mono text-xs">{player.tag}</span>
+                    {only && (
+                      <span className="text-muted-foreground block text-xs tabular-nums">
+                        #{player.clanRank} of {player.clanSize} in {player.clanName}
+                      </span>
+                    )}
                   </TableCell>
                   {!only && (
                     <TableCell data-label="Clan">
@@ -353,13 +444,14 @@ export default async function PlayerRatingPage({
                     <Section key={kind} player={player} kind={kind} />
                   ))}
                   <TableCell data-label="Rating" className="text-right font-semibold tabular-nums">
-                    {percent(player.rating)}
+                    {ratingPercent(player.rating)}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
+        )}
       </Panel>
 
       <Rules />

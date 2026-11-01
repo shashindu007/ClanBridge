@@ -34,16 +34,20 @@ import { PageHeader } from "@/components/page-header";
 import { TownHall } from "@/components/game/town-hall";
 import { PlayerReportSections, dayLabel } from "@/components/player-report-sections";
 import { PlayerCareer } from "@/components/player-career";
+import { PlayerGlance } from "@/components/player-glance";
+import { RankHistory } from "@/components/player-rank";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { clanRoles, currentUserId } from "@/lib/auth";
 import { visibleClans } from "@/lib/clans";
 import { baseLabel } from "@/lib/nickname";
+import { playerGlance } from "@/lib/player-rank-data";
 import { createClient } from "@/lib/supabase/server";
 import { decodeTag, encodeTag, InvalidTagError } from "@/lib/tags";
 import { basesForUser } from "@/repositories/account-bases";
 import { playerReport } from "@/repositories/player-report";
 import { playerProfile } from "@/repositories/profiles";
+import { rankHistory, standingOf } from "@/services/player-rank";
 
 export const dynamic = "force-dynamic";
 
@@ -75,19 +79,25 @@ export default async function OwnBaseReportPage({
   const base = bases.find((b) => b.tag === playerTag);
   if (!base) notFound();
 
-  // 065 — read as the OWNER, after the gate above: the career is about the
-  // village, not a clan, so it shows even when there is no clan report.
-  const profile = await playerProfile(supabase, base.playerId, "owner");
-
-  const label = baseLabel(base.nickname, base.name);
-  const named = label !== base.name;
-
   // Can a report be built at all? Everything it reads — member_snapshots, wars,
   // cwl_*, raid_*, clan_games — is still filtered by clan_id in auth_clan_ids(),
   // which 031 deliberately did NOT widen. So for a village outside the clans this
   // member holds a role in, there is genuinely nothing to read, and the honest
-  // page says so instead of rendering six panels that each say "no data".
+  // page says so instead of rendering six panels that each say "no data". The
+  // summary shows either way, without the clan's name on the degraded path.
   const reportable = Boolean(base.clanId && roles.has(base.clanId));
+
+  // 065 — read as the OWNER, after the gate above: the career is about the
+  // village, not a clan, so it shows even when there is no clan report.
+  const [profile, glance] = await Promise.all([
+    playerProfile(supabase, base.playerId, "owner"),
+    // Trophies are a clan-scoped reading, so only where the report is readable too.
+    playerGlance(supabase, base.playerId, reportable ? base.clanId : null),
+  ]);
+  const now = new Date();
+
+  const label = baseLabel(base.nickname, base.name);
+  const named = label !== base.name;
 
   return (
     <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
@@ -122,6 +132,15 @@ export default async function OwnBaseReportPage({
             </Link>
           </Button>
         }
+      />
+
+      <PlayerGlance
+        standing={standingOf(glance.history, now)}
+        tag={base.tag}
+        showClan={reportable}
+        glance={glance}
+        profile={profile}
+        thLevel={base.thLevel}
       />
 
       {reportable ? (
@@ -159,6 +178,8 @@ export default async function OwnBaseReportPage({
           )}
         </section>
       )}
+
+      <RankHistory rows={rankHistory(glance.history, now)} />
 
       <PlayerCareer profile={profile} />
     </main>

@@ -188,6 +188,8 @@ export const PHASE1_MIGRATIONS = [
   "073_player_ratings.sql",
   // add_clan() and remove_clan(). Must follow 011 (cwl_rosters) and 046.
   "074_add_and_remove_clans.sql",
+  // Rank in family_player_ratings(), and player_rating_history(). Must follow 073.
+  "075_player_rank.sql",
 ] as const;
 
 /**

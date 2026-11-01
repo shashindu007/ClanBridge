@@ -37,9 +37,11 @@ describe("PlayerCareer", () => {
     expect(html).not.toContain("War stars");
   });
 
-  it("shows the lifetime numbers, labelled as lifetime", () => {
+  it("says on each tile whether it is lifetime or this season", () => {
     const html = render(PROFILE);
-    expect(html).toContain("Lifetime, from the game");
+    expect(html).toContain("lifetime, wars and CWL");
+    expect(html).toContain("this season, multiplayer");
+    expect(html).not.toContain("Lifetime, from the game");
     expect(html).toContain("1,240");
     expect(html).toContain("4,200,000");
     expect(html).toContain("5,600");

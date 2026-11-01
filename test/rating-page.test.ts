@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   months: vi.fn(),
   ratings: vi.fn(),
   clans: vi.fn(),
+  bases: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
@@ -24,6 +25,7 @@ vi.mock("@/lib/auth", async (importOriginal) => ({
   currentUserId: async () => "user-1",
 }));
 vi.mock("@/lib/clans", () => ({ visibleClans: mocks.clans }));
+vi.mock("@/repositories/account-bases", () => ({ basesForUser: mocks.bases }));
 vi.mock("@/repositories/player-ratings", () => ({
   ratingMonths: mocks.months,
   familyRatings: mocks.ratings,
@@ -52,12 +54,19 @@ function player(over: Partial<RatedPlayer>): RatedPlayer {
     shares: { ...none, donations: 0.5 },
     rating: 0.1,
     computedAt: "2026-10-31T06:02:00Z",
+    familyRank: 2,
+    familySize: 2,
+    tied: false,
+    clanRank: 1,
+    clanSize: 1,
+    ratedPlayers: 2,
     ...over,
   };
 }
 
 const ann = player({ playerId: "ann" });
 const ben = player({
+  familyRank: 1,
   playerId: "ben",
   clanId: CLAN_B,
   clanTag: "#20PP0JCC",
@@ -69,7 +78,7 @@ const ben = player({
   rating: 0.48,
 });
 
-async function render(search: { clan?: string; month?: string } = {}): Promise<string> {
+async function render(search: { clan?: string; month?: string; q?: string | string[] } = {}): Promise<string> {
   return renderToStaticMarkup(await PlayerRatingPage({ searchParams: Promise.resolve(search) }));
 }
 
@@ -80,6 +89,71 @@ describe("the Player rating page", () => {
     ]);
     mocks.months.mockResolvedValue(["2026-10", "2026-09"]);
     mocks.ratings.mockResolvedValue([ben, ann]);
+    mocks.bases.mockResolvedValue([]);
+  });
+
+  it("shows the database's rank, so two tied players get the same number", async () => {
+    mocks.ratings.mockResolvedValue([
+      player({ playerId: "a", name: "Ann", familyRank: 4, tied: true }),
+      player({ playerId: "b", name: "Bob", familyRank: 4, tied: true, tag: "#C2V89UGL" }),
+      player({ playerId: "c", name: "Cat", familyRank: 6, tag: "#L2QYGJ9P" }),
+    ]);
+    const html = await render();
+
+    expect(html.match(/>4<\/span>/g)).toHaveLength(2);
+    expect(html).toContain(">6</span>");
+    expect(html).not.toContain(">5</span>");
+    expect(html.match(/Tied/g)).toHaveLength(2);
+  });
+
+  it("gives no medal to a place with no marks behind it", async () => {
+    mocks.ratings.mockResolvedValue([player({ familyRank: 1, marks: none, rating: 0 })]);
+    expect(await render()).not.toContain("rounded-full text-sm font-bold");
+  });
+
+  it("keeps the family rank when one clan is shown, and says the clan place in words", async () => {
+    mocks.ratings.mockResolvedValue([
+      ben,
+      player({ playerId: "ann", familyRank: 7, clanRank: 2, clanSize: 3 }),
+    ]);
+    const html = await render({ clan: "#2PP0JCCL" });
+
+    expect(html).toContain(">7</span>");
+    expect(html).toContain("#2 of 3 in Dark Hell");
+  });
+
+  it("finds a player by name or tag without renumbering anyone", async () => {
+    const byName = await render({ q: "ann" });
+    expect(byName).toContain(">2</span>");
+    expect(byName).not.toContain("Ben");
+
+    expect(await render({ q: "#C2V" })).toContain("Ben");
+    expect(await render({ q: ["ann", "ben"] })).not.toContain("Ben");
+  });
+
+  it("says when a search finds nobody", async () => {
+    const html = await render({ q: "zzz" });
+    expect(html).toContain("No player matches");
+    expect(html).toContain("Show everyone");
+  });
+
+  it("marks your own villages, and links each to its row", async () => {
+    mocks.bases.mockResolvedValue([{ playerId: "ann", tag: "#PY0LQGRJ" }]);
+    const html = await render();
+
+    expect(html).toContain("Your rank");
+    expect(html).toContain("#2 of 2 in the family");
+    expect(html).toContain('href="/rating#rank-PY0LQGRJ"');
+    expect(html).toContain('id="rank-PY0LQGRJ"');
+    expect(html).toContain(">You<");
+  });
+
+  it("leaves Your rank out for someone with no village in the month", async () => {
+    expect(await render()).not.toContain("Your rank");
+  });
+
+  it("says whether the month is final", async () => {
+    expect(await render({ month: "2026-09" })).toContain("final");
   });
 
   it("shows every clan's players, each section's weight, and the rating", async () => {
