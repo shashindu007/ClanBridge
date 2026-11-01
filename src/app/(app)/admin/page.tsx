@@ -12,9 +12,9 @@
 // leader — after which every later permission is per clan again, as designed.
 //
 // R3 — every mutation here is authorised by the database, not by this file. The
-// claim is a definer function that refuses if an admin already exists; the clan
-// insert is gated by 015's "platform admin adds clans" policy; the role insert by
-// "admin or leader grants roles". The checks below decide what to RENDER. They
+// claim is a definer function that refuses if an admin already exists; add_clan()
+// and remove_clan() (074) check who is asking themselves; the role insert is gated
+// by "admin or leader grants roles". The checks below decide what to RENDER. They
 // are not the security boundary and must never be the only check.
 
 import { revalidatePath } from "next/cache";
@@ -41,7 +41,7 @@ import {
   type TableSize,
 } from "@/repositories/data-retention";
 import { formatDisplay } from "@/lib/display-time";
-import { seasonLabel } from "@/lib/roster-view";
+import { seasonLabel, startableSeasons } from "@/lib/roster-view";
 import { ago, freshness } from "@/services/freshness";
 import { groupFailures } from "@/services/sync-failures";
 import { clanAccent } from "@/lib/clan-accent";
@@ -126,16 +126,46 @@ async function addClan(formData: FormData) {
   // Only name and tag. badge_url and everything else about a clan is a game fact
   // filled in by scripts/sync/clans.ts on its first run (R11) — typing it here
   // would be inventing data the API owns.
-  const { error } = await supabase.from("clans").insert({ tag, name });
+  const { data: outcome, error } = await supabase.rpc("add_clan", {
+    p_tag: tag,
+    p_name: name,
+    p_seasons: startableSeasons(new Date()),
+  });
 
   if (error) {
     if (isUniqueViolation(error)) redirect("/admin?error=duplicate");
     safeMessage("add-clan", error, "");
     redirect("/admin?error=add-clan-failed");
   }
+  if (outcome === "exists") redirect("/admin?error=duplicate");
+  if (outcome === "refused") redirect("/admin?error=forbidden");
 
   revalidatePath("/admin");
-  redirect("/admin?ok=clan-added");
+  redirect(outcome === "restored" ? "/admin?ok=clan-restored" : "/admin?ok=clan-added");
+}
+
+async function removeClan(formData: FormData) {
+  "use server";
+
+  const supabase = await createClient();
+  const userId = await currentUserId(supabase);
+  if (!userId) redirect("/login");
+
+  if (formData.get("confirm") !== "yes") redirect("/admin?error=remove-clan-unconfirmed");
+
+  const clanId = String(formData.get("clanId") ?? "");
+  if (!clanId) redirect("/admin?error=no-clan");
+
+  const { data: removed, error } = await supabase.rpc("remove_clan", { p_clan: clanId });
+
+  if (error || removed !== true) {
+    if (error) safeMessage("remove-clan", error, "");
+    redirect("/admin?error=remove-clan-failed");
+  }
+
+  // Every page's clan switcher lists it, not just this one.
+  revalidatePath("/", "layout");
+  redirect("/admin?ok=clan-removed");
 }
 
 async function grantSelfLeader(formData: FormData) {
@@ -588,6 +618,7 @@ export default async function AdminPage({
 
   const clanRows = (allClans ?? []) as Array<{ id: string; tag: string; name: string }>;
   const myClanIds = new Set(clans.map((c) => c.id));
+  const ledClanIds = new Set(clans.filter((c) => isLeader(c.role)).map((c) => c.id));
 
   // Whether the platform has an owner at all, through 067's function: RLS hides
   // the admin's row, so a count here was 0 for everybody but the admin, and every
@@ -768,7 +799,7 @@ export default async function AdminPage({
           ) : (
             <ul className="divide-y">
               {clanRows.map((clan) => (
-                <li key={clan.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                <li key={clan.id} className="flex flex-wrap items-center gap-3 py-2.5 first:pt-0 last:pb-0">
                   <span
                     aria-hidden
                     className="size-2.5 shrink-0 rounded-full"
@@ -791,6 +822,40 @@ export default async function AdminPage({
                         </SubmitButton>
                       </form>
                     )
+                  )}
+                  {(admin || ledClanIds.has(clan.id)) && (
+                    <details className="w-full">
+                      <summary className="text-muted-foreground cursor-pointer text-xs">
+                        Remove this clan
+                      </summary>
+                      <form action={removeClan} className="border-destructive/50 mt-2 space-y-3 rounded-control border p-3">
+                        <input type="hidden" name="clanId" value={clan.id} />
+                        <p className="text-muted-foreground text-sm">
+                          {clan.name} disappears from ClanBridge for everyone and stops syncing, and
+                          everyone&apos;s role in it ends. Its lineups are withdrawn, so its players can
+                          be picked for other clans. Player ratings are worked out again without it.
+                          Nothing is deleted: the platform owner can bring it all back by adding the
+                          same tag.
+                        </p>
+                        <div className="flex items-start gap-3">
+                          <input
+                            id={`confirm-remove-${clan.id}`}
+                            name="confirm"
+                            type="checkbox"
+                            value="yes"
+                            required
+                            className="mt-1 size-4"
+                          />
+                          <Label htmlFor={`confirm-remove-${clan.id}`} className="font-normal">
+                            Yes, remove {clan.name}.
+                          </Label>
+                        </div>
+                        <SubmitButton variant="destructive" size="sm" pendingLabel="Removing">
+                          <Trash2 aria-hidden />
+                          Remove clan
+                        </SubmitButton>
+                      </form>
+                    </details>
                   )}
                 </li>
               ))}

@@ -186,6 +186,8 @@ export const PHASE1_MIGRATIONS = [
   // deliberate R3 exception after 037 and 038, and 'ratings' in sync_log's job
   // types. Must follow 046 (auth_clan_ids) and 057 (the last job_type check).
   "073_player_ratings.sql",
+  // add_clan() and remove_clan(). Must follow 011 (cwl_rosters) and 046.
+  "074_add_and_remove_clans.sql",
 ] as const;
 
 /**
