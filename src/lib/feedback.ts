@@ -72,7 +72,9 @@ export const OK_MESSAGES: Record<string, string> = {
   "notifications-saved": "Notification settings saved.",
 
   // Admin.
-  "clan-added": "Clan added. The next sync fills in its details.",
+  "clan-added": "Clan added, with a draft lineup for any season already started. The next sync fills in its details.",
+  "clan-restored": "Clan brought back, with its roles and lineups.",
+  "clan-removed": "Clan removed. Adding the same tag again brings it back.",
   "member-updated": "Account updated.",
   "ownership-claimed": "You now own this platform.",
 
@@ -141,6 +143,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
   "claim-failed":
     "The ownership claim was refused. Either this platform already has an admin, or something went wrong — check the server log.",
   "add-clan-failed": "Could not add that clan. Check the server log for why.",
+  "remove-clan-unconfirmed": "Tick the box to confirm before removing a clan.",
+  "remove-clan-failed": "Could not remove that clan. Only its leader or the platform owner can.",
   "grant-failed":
     "Could not grant you leader of that clan. You need to be the platform admin or already lead it.",
 
