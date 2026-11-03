@@ -56,12 +56,13 @@ const SAVED: ExportSummary = {
   buildingsPct: 87.4,
   walls: { level: 17, atLevel: 200, total: 325 },
   running: [
-    { name: "Cannon", village: "home", fromLevel: 20, secondsLeft: 3_600, finishesAt: "2026-11-03T13:00:00Z" },
-    { name: "Archer Queen", village: "home", fromLevel: 99, secondsLeft: 90_000, finishesAt: "2026-11-04T13:00:00Z" },
-    { name: "X-Bow", village: "home", fromLevel: 11, secondsLeft: 100_000, finishesAt: "2026-11-04T16:00:00Z" },
-    { name: "Inferno Tower", village: "home", fromLevel: 10, secondsLeft: 200_000, finishesAt: "2026-11-05T16:00:00Z" },
+    { name: "Cannon", village: "home", fromLevel: 20, secondsLeft: 3_600, finishesAt: "2026-11-03T13:00:00Z", subject: { type: "building", kind: "Defense" } },
+    { name: "Archer Queen", village: "home", fromLevel: 99, secondsLeft: 90_000, finishesAt: "2026-11-04T13:00:00Z", subject: { type: "unit", group: "hero" } },
+    { name: "X-Bow", village: "home", fromLevel: 11, secondsLeft: 100_000, finishesAt: "2026-11-04T16:00:00Z", subject: { type: "building", kind: "Defense" } },
+    { name: "Inferno Tower", village: "home", fromLevel: 10, secondsLeft: 200_000, finishesAt: "2026-11-05T16:00:00Z", subject: null },
   ],
   finishedSince: 1,
+  builders: { busy: 3, total: 6 },
 };
 
 const render = (bases: MainBaseView[]) => renderToStaticMarkup(createElement(BaseCarousel, { bases }));
@@ -139,6 +140,11 @@ describe("BaseCarousel", () => {
     expect(html).toContain("87.4%");
     expect(html).toContain("Lv 17");
     expect(html).toContain("200 of 325 at this level");
+    expect(html).toContain("Builders busy");
+    expect(html).toContain("3/6");
+    expect(html).toContain("3 free");
+    // Each upgrade has its picture, or its kind's token without the art.
+    expect(html).toContain('data-kind="Defense"');
     expect(html).toContain("4 upgrades running");
     expect(html).toContain("1 finished since the export");
     expect(html).toContain("Cannon");

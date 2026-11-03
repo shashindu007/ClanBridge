@@ -17,6 +17,9 @@ import {
   formatDuration,
   secondsLeft,
   STALE_EXPORT_DAYS,
+  upgradeSubject,
+  wallBreakdown,
+  workshops,
 } from "@/services/village";
 import { groupProgress } from "@/services/progress";
 import type { ExportedVillage } from "@/types/village";
@@ -220,5 +223,61 @@ describe("exportSummary — a saved export read later", () => {
   it("never goes negative", () => {
     expect(secondsLeft({ finishesAt: "2000-01-01T00:00:00Z" }, NOW)).toBe(0);
     expect(secondsLeft({ finishesAt: "not a date" }, NOW)).toBe(0);
+  });
+});
+
+describe("Base details helpers — walls, workers, what is upgrading", () => {
+  const village = parse(
+    sampleExport({
+      buildings: [
+        ...sampleExport().buildings,
+        { data: 1000015, lvl: 1, cnt: 5 }, // Builder's Hut x5
+        { data: 1000064, lvl: 1 }, // B.O.B's Hut, the sixth builder
+        { data: 1000007, lvl: 14 }, // Laboratory
+        { data: 1000068, lvl: 11 }, // Pet House
+      ],
+      units: [{ data: 4000000, lvl: 12, timer: 7_200 }], // the lab is busy, an hour left at NOW
+    }),
+  );
+
+  it("breaks the walls down by level, highest first, against the cap", () => {
+    expect(wallBreakdown(village, "home")).toEqual({
+      total: 325,
+      cap: 18,
+      levels: [
+        { level: 17, count: 200 },
+        { level: 16, count: 125 },
+      ],
+      atCap: 0,
+    });
+    expect(wallBreakdown(village, "builder")).toBeNull();
+  });
+
+  it("counts builders busy from buildings and heroes, and the lab and pet house apart", () => {
+    expect(workshops(village, "home", NOW)).toEqual([
+      { key: "builders", label: "Builders", busy: 2, total: 6 },
+      { key: "lab", label: "Laboratory", busy: 1, total: 1 },
+      { key: "pets", label: "Pet House", busy: 0, total: 1 },
+    ]);
+    // A week on, every timer is done and every builder free.
+    const later = workshops(village, "home", new Date(NOW.getTime() + 7 * 86_400_000));
+    expect(later.every((w) => w.busy === 0)).toBe(true);
+  });
+
+  it("knows whether an upgrade is a building or a unit, for its picture", () => {
+    expect(upgradeSubject(village, { name: "Cannon", village: "home" })).toEqual({
+      type: "building",
+      kind: "Defense",
+    });
+    expect(upgradeSubject(village, { name: "Barbarian King", village: "home" })).toEqual({
+      type: "unit",
+      group: "hero",
+    });
+    expect(upgradeSubject(village, { name: "Nothing", village: "home" })).toBeNull();
+  });
+
+  it("puts builders on the Home card's summary", () => {
+    expect(exportSummary(village, NOW).builders).toEqual({ busy: 2, total: 6 });
+    expect(exportSummary(parse(), NOW).builders).toBeNull();
   });
 });

@@ -19,7 +19,7 @@
 // three questions asked first: how far along, what is behind, what moved.
 
 import Link from "next/link";
-import { ArrowUpRight, CheckCircle2, Hourglass, TrendingUp } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Hammer, Hourglass, TrendingUp } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { StatTile } from "@/components/kit";
 import { TownHall } from "@/components/game/town-hall";
@@ -44,6 +44,13 @@ export interface BaseDetailsProps {
   village: Village;
   /** This page's own path, for the village switch. Already encoded. */
   path: string;
+  /** Draw the Home village / Builder Base switch. Off when the page draws its own. */
+  switcher?: boolean;
+  /**
+   * Draw the hall banner. Off on the owner's page when an export is saved: the
+   * export's summary above already names the hall, so this grid gets a heading.
+   */
+  banner?: boolean;
 }
 
 /** Parse the `?village=` search parameter. Anything but "builder" is home. */
@@ -56,7 +63,7 @@ export function isMaxed(unit: StoredUnit): boolean {
   return unit.cap > 0 && unit.level >= unit.cap;
 }
 
-export function BaseDetails({ progress, village, path }: BaseDetailsProps) {
+export function BaseDetails({ progress, village, path, switcher = true, banner = true }: BaseDetailsProps) {
   const { latest, baseline } = progress;
 
   if (!latest) {
@@ -93,15 +100,24 @@ export function BaseDetails({ progress, village, path }: BaseDetailsProps) {
 
   return (
     <>
+      {!banner && (
+        <div className="flex flex-wrap items-baseline justify-between gap-2 pt-2">
+          <h2 className="cb-title text-2xl">Heroes, troops and spells</h2>
+          <span className="text-muted-foreground text-sm tabular-nums">
+            {overall.pct}% · read {dayLabel(latest.capturedAt)}
+          </span>
+        </div>
+      )}
+      {banner && (
       <section data-scene="banner" className="cb-panel space-y-5 rounded-panel border p-5">
-        <nav aria-label="Village" className="cb-sunken inline-flex gap-1 rounded-control p-1">
-          <VillageLink path={path} village="home" current={village}>
-            Home village
-          </VillageLink>
-          <VillageLink path={path} village="builder" current={village}>
-            Builder Base
-          </VillageLink>
-        </nav>
+        {switcher && (
+          <VillageSwitch
+            path={path}
+            current={village}
+            thLevel={latest.thLevel}
+            bhLevel={latest.bhLevel}
+          />
+        )}
 
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -205,6 +221,7 @@ export function BaseDetails({ progress, village, path }: BaseDetailsProps) {
           </p>
         )}
       </section>
+      )}
 
       {groups.length === 0 ? (
         <section className="cb-panel rounded-panel border p-5">
@@ -227,6 +244,37 @@ export function BaseDetails({ progress, village, path }: BaseDetailsProps) {
   );
 }
 
+/**
+ * Home village or Builder Base, for the whole page: two links with the hall on
+ * each, so a player sees which village they are looking at before reading a
+ * word. The owner's page draws it once, above both the export and this grid.
+ */
+export function VillageSwitch({
+  path,
+  current,
+  thLevel,
+  bhLevel,
+}: {
+  path: string;
+  current: Village;
+  thLevel: number | null;
+  bhLevel: number | null;
+}) {
+  return (
+    <nav aria-label="Village" className="cb-sunken flex w-full gap-1 rounded-control p-1 sm:inline-flex sm:w-auto">
+      <VillageLink path={path} village="home" current={current}>
+        <TownHall level={thLevel} size="xs" />
+        <span>Home village</span>
+      </VillageLink>
+      <VillageLink path={path} village="builder" current={current}>
+        <Hammer aria-hidden className="size-4" />
+        <span>Builder Base</span>
+        {bhLevel ? <span className="text-muted-foreground text-xs tabular-nums">BH {bhLevel}</span> : null}
+      </VillageLink>
+    </nav>
+  );
+}
+
 function VillageLink({
   path,
   village,
@@ -244,7 +292,7 @@ function VillageLink({
       href={village === "home" ? path : `${path}?village=builder`}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "rounded-chip px-3.5 py-1.5 text-sm font-medium transition-colors",
+        "flex min-h-10 flex-1 items-center justify-center gap-2 rounded-chip px-3.5 py-1.5 text-sm font-medium transition-colors sm:flex-none",
         active ? "bg-tile text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
       )}
     >

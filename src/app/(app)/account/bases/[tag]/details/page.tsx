@@ -23,7 +23,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ScrollText } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { BaseDetails, villageParam } from "@/components/base-details";
+import { BaseDetails, VillageSwitch, villageParam } from "@/components/base-details";
 import { SavedVillageExport } from "@/components/village-export-saved";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -78,9 +78,11 @@ export default async function OwnBaseDetailsPage({
   const label = baseLabel(base.nickname, base.name);
   const named = label !== base.name;
   const encoded = encodeTag(base.tag);
+  const path = `/account/bases/${encoded}/details`;
+  const which = villageParam(query.village);
 
   return (
-    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <PageHeader
         back={{ href: "/account", label: "Profile" }}
         eyebrow="Base details"
@@ -102,18 +104,24 @@ export default async function OwnBaseDetailsPage({
         }
       />
 
+      {/* One switch for the whole page: the export and the API grid below it
+          always show the same village. */}
+      <VillageSwitch
+        path={path}
+        current={which}
+        thLevel={saved?.village.thLevel ?? progress.latest?.thLevel ?? null}
+        bhLevel={saved?.village.bhLevel ?? progress.latest?.bhLevel ?? null}
+      />
+
       <SavedVillageExport
         tag={base.tag}
         label={label}
         village={saved?.village ?? null}
         now={new Date().toISOString()}
+        which={which}
       />
 
-      <BaseDetails
-        progress={progress}
-        village={villageParam(query.village)}
-        path={`/account/bases/${encoded}/details`}
-      />
+      <BaseDetails progress={progress} village={which} path={path} switcher={false} banner={!saved} />
     </main>
   );
 }

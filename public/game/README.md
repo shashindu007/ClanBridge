@@ -33,7 +33,10 @@ allows this for a free, non-commercial fan tool. The notice in
    ```
 
    The output lists:
-   - each key and the file it will use
+   - each key and the file it will use, including buildings and traps
+     (`building-cannon`, `builder-building-roaster`, `trap-giant-bomb`) from
+     files such as `Building_HV_Cannon_level_21`, where the highest level
+     render wins
    - the Town Halls, heroes, pets and leagues the kit lacks, which keep their
      fallback
    - how many files went unused

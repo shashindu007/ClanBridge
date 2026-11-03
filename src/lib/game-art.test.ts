@@ -11,6 +11,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import {
   ART_MANIFEST,
+  artKeyForBuilding,
   artKeyForLeague,
   artKeyForTownHall,
   artKeyForUnit,
@@ -61,6 +62,16 @@ describe("keys", () => {
     expect(artKeyForUnit("Baby Dragon", "builderTroop")).toBe("builder-troop-baby-dragon");
     expect(artKeyForUnit("Rage Spell", "elixirSpell")).toBe("spell-rage-spell");
     expect(artKeyForUnit("L.A.S.S.I", "pet")).toBe("pet-lassi");
+  });
+
+  it("files buildings and traps by village, and leaves the halls to Town Hall art", () => {
+    expect(artKeyForBuilding("Cannon", "home", "Defense")).toBe("building-cannon");
+    expect(artKeyForBuilding("Cannon", "builder", "Defense")).toBe("builder-building-cannon");
+    expect(artKeyForBuilding("Giant Bomb", "home", "trap")).toBe("trap-giant-bomb");
+    expect(artKeyForBuilding("Mega Mine", "builder", "trap")).toBe("builder-trap-mega-mine");
+    expect(artKeyForBuilding("X-Bow", "home", "Defense")).toBe("building-x-bow");
+    expect(artKeyForBuilding("Town Hall", "home", "Town Hall")).toBeNull();
+    expect(artKeyForBuilding("Builder Hall", "builder", "Town Hall2")).toBeNull();
   });
 
   it("reads a league's division from its roman numeral", () => {

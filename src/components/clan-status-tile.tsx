@@ -3,13 +3,18 @@
 // The home page used to show ONE clan at a time, behind tabs, and the thing a
 // member most needs — "is a war on, and do I still have an attack?" — sat in the
 // middle of a card below a to-do list. A member in four clans had to click four
-// tabs to find out. Now every clan is a tile, all visible at once, and each
+// tabs to find out. Now every clan is a row, all visible at once, and each
 // answers three questions in the order they are asked:
 //
 //   1. What is happening?        the ribbon: WAR · 12h, CWL DAY 3, PREP, NO WAR
-//   2. What do I need to do?     one big line — "2 attacks left" — with the
+//   2. What do I need to do?     one line — "2 attacks left" — with the
 //                                button that does it, or "All attacks used"
 //   3. What is this clan?        its name, your role, members and league
+//
+// A LIST, NOT A GRID OF CARDS. Two tall cards to a line looked fine with three
+// clans and lopsided with five — an odd one out, and a section taller than the
+// base card above it. Each clan is now one row of one list (dashboard/page.tsx
+// shows the first few and folds the rest), so any number of clans lines up.
 //
 // LEAN ON PURPOSE. Home is where a member tracks their OWN bases now, so the
 // base card above carries Town Hall, rank and Base details, and the village
@@ -19,15 +24,11 @@
 // "No announcements yet" on every clan was noise, and the Announcements feed
 // below covers "anything new?".
 //
-// Two zones side by side — who, and what is happening — that stack on a phone;
-// the page lays two rows per line on a wide screen.
-//
-// The whole row opens the clan (the same page the Clans menu opens — the tabs'
-// ?clan= links, which went somewhere else under the same name, are gone). The
+// The whole row opens the clan (the same page the Clans menu opens). The
 // controls inside carry `relative z-10` to rise above that one link, the same
 // pattern as Tile in kit.tsx.
 //
-// GOLD AT MOST ONCE. The page decides which single tile, if any, gets the gold
+// GOLD AT MOST ONCE. The page decides which single row, if any, gets the gold
 // "Attack" — the first clan where you still have one — and says so with `gold`.
 
 import Link from "next/link";
@@ -110,71 +111,79 @@ export function ClanStatusTile({
   const leagueKey = artKeyForLeague(warLeague);
 
   return (
-    <li className="cb-panel cb-panel-interactive relative overflow-hidden rounded-panel border">
-      {/* The clan's colour, as an edge rather than a band: a row reads left
-          to right, so that is where its owner's mark goes. */}
+    <li className="hover:bg-accent/40 relative transition-colors">
+      {/* The clan's colour, as an edge: a row reads left to right, so that is
+          where its owner's mark goes. */}
       <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ background: clan.color }} />
       {/* One link for the whole row; the controls inside rise above it. */}
       <Link
         href={`/${encodeURIComponent(clan.tag)}`}
         aria-label={`Open ${clan.name}`}
-        className="focus-visible:ring-ring/50 absolute inset-0 z-[1] rounded-panel outline-none focus-visible:ring-[3px]"
+        className="focus-visible:ring-ring/50 absolute inset-0 z-[1] outline-none focus-visible:ring-[3px] focus-visible:ring-inset"
       />
 
-      <div className="grid gap-x-5 gap-y-3 py-3 pr-3 pl-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-center sm:pr-4">
+      <div className="flex flex-col gap-2.5 py-3 pr-3 pl-4 sm:flex-row sm:items-center sm:gap-4 sm:pr-4">
         {/* Who: the clan, your role, and two facts. */}
-        <div className="flex min-w-0 items-center gap-3">
-          <ClanBadge src={clan.badgeUrl} name={clan.name} size="lg" tone={clan.color} priority />
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <ClanBadge src={clan.badgeUrl} name={clan.name} size="md" tone={clan.color} priority />
           <div className="min-w-0 space-y-0.5">
             <p className="flex min-w-0 items-baseline gap-2">
               <span className="cb-title truncate text-lg leading-tight">{clan.name}</span>
               <span className="text-muted-foreground shrink-0 text-xs capitalize">{clan.role}</span>
             </p>
-            <FactRow
-              className="gap-x-3 gap-y-0.5 text-xs"
-              items={[
-                { label: memberCount === 1 ? "member" : "members", value: memberCount, icon: Users },
-                ...(warLeague
-                  ? [
-                      {
-                        label: "league",
-                        value: warLeague.replace(/ League/, ""),
-                        title: warLeague,
-                        art: (
-                          <GameArt
-                            art={leagueKey}
-                            size={16}
-                            alt=""
-                            fallback={<Trophy aria-hidden className="text-muted-foreground size-3.5" />}
-                          />
-                        ),
-                      },
-                    ]
-                  : []),
-              ]}
-            />
-            {behind && (
-              <Badge variant="warning" title={`Game data ${fresh.label} — numbers here may be out of date.`}>
-                <TriangleAlert aria-hidden />
-                Data {fresh.label}
-              </Badge>
-            )}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <FactRow
+                className="gap-x-3 gap-y-0.5 text-xs"
+                items={[
+                  { label: memberCount === 1 ? "member" : "members", value: memberCount, icon: Users },
+                  ...(warLeague
+                    ? [
+                        {
+                          label: "league",
+                          value: warLeague.replace(/ League/, ""),
+                          title: warLeague,
+                          art: (
+                            <GameArt
+                              art={leagueKey}
+                              size={16}
+                              alt=""
+                              fallback={<Trophy aria-hidden className="text-muted-foreground size-3.5" />}
+                            />
+                          ),
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+              {behind && (
+                <Badge variant="warning" title={`Game data ${fresh.label} — numbers here may be out of date.`}>
+                  <TriangleAlert aria-hidden />
+                  Data {fresh.label}
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
 
         {/* What is happening, and what you owe it. */}
-        <div className="min-w-0 space-y-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 pl-[3.25rem] sm:w-[26rem] sm:shrink-0 sm:flex-nowrap sm:pl-0">
           <Ribbon tone={status.tone} icon={RIBBON_ICON[status.kind]}>
             {status.label}
           </Ribbon>
-          <Action status={status} gold={gold} clanLeft={clanLeft} />
+          <div className="min-w-0 flex-1">
+            <Action status={status} gold={gold} clanLeft={clanLeft} />
+          </div>
         </div>
 
-        {/* The latest notice — only when there is one. */}
-        {notice && (
+        <ChevronRight aria-hidden className="text-muted-foreground hidden size-4 shrink-0 sm:block" />
+      </div>
+
+      {/* The latest notice — only when there is one. */}
+      {notice && (
+        <div className="pr-3 pb-3 pl-4 sm:pr-4 sm:pl-[4.25rem]">
           <Link
             href={`/${encodeURIComponent(clan.tag)}/notices`}
-            className="cb-sunken hover:bg-accent/50 relative z-10 flex min-w-0 items-center gap-2.5 rounded-control px-3 py-1.5 text-sm sm:col-span-2"
+            className="cb-sunken hover:bg-accent/50 relative z-10 flex min-w-0 items-center gap-2.5 rounded-control px-3 py-1.5 text-sm"
           >
             {notice.pinned ? (
               <Pin aria-label="Pinned" className="text-info-ink size-4 shrink-0" />
@@ -185,8 +194,8 @@ export function ClanStatusTile({
             <span className="text-muted-foreground shrink-0 text-xs">{timeAgo(notice.createdAt, now)}</span>
             <ChevronRight aria-hidden className="text-muted-foreground -mr-1 size-3.5 shrink-0" />
           </Link>
-        )}
-      </div>
+        </div>
+      )}
     </li>
   );
 }
@@ -211,7 +220,7 @@ function Action({
     return (
       <div className="flex items-center justify-between gap-3">
         <p className="leading-tight">
-          <span className="cb-title text-2xl tabular-nums">{mine.left}</span>{" "}
+          <span className="cb-title text-xl tabular-nums">{mine.left}</span>{" "}
           <span className="text-sm font-medium">
             {mine.left === 1 ? "attack" : "attacks"} left
           </span>
@@ -253,5 +262,5 @@ function Action({
     }
   })();
 
-  return <p className="text-muted-foreground text-sm">{line}</p>;
+  return <p className="text-muted-foreground truncate text-sm">{line}</p>;
 }

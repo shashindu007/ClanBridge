@@ -12,7 +12,7 @@ import { useState, useTransition } from "react";
 import { RefreshCw, Trash2 } from "lucide-react";
 import { removeVillageExport } from "@/app/(app)/account/bases/actions";
 import { VillageExportForm } from "@/components/village-export-upload";
-import { VillageExportView } from "@/components/village-export-view";
+import { VillageExportView, type BuildingFilter } from "@/components/village-export-view";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { encodeTag } from "@/lib/tags";
@@ -28,10 +28,13 @@ export interface SavedVillageExportProps {
   village: ExportedVillage | null;
   /** The page's clock, ISO, so server and browser agree on time left. */
   now: string;
+  /** Which village the page is showing: its `?village=` switch decides. */
+  which?: Village;
 }
 
-export function SavedVillageExport({ tag, label, village, now }: SavedVillageExportProps) {
-  const [which, setWhich] = useState<Village>("home");
+export function SavedVillageExport({ tag, label, village, now, which = "home" }: SavedVillageExportProps) {
+  const [filter, setFilter] = useState<BuildingFilter>("all");
+  const [notMaxedOnly, setNotMaxedOnly] = useState(false);
   const [replacing, setReplacing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState("");
@@ -98,7 +101,16 @@ export function SavedVillageExport({ tag, label, village, now }: SavedVillageExp
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      <VillageExportView village={village} which={which} onWhich={setWhich} now={new Date(now)} actions={actions} />
+      <VillageExportView
+        village={village}
+        which={which}
+        now={new Date(now)}
+        actions={actions}
+        filter={filter}
+        onFilter={setFilter}
+        notMaxedOnly={notMaxedOnly}
+        onNotMaxedOnly={setNotMaxedOnly}
+      />
     </div>
   );
 }
