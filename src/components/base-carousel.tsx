@@ -20,6 +20,11 @@
 //   - aria-live is "off" while it turns on its own and "polite" once paused, so
 //     a screen reader is not interrupted every 20 seconds but does hear a
 //     change the member asked for.
+//   - It holds while a card's upload dialog is open. The dialog sits in a
+//     portal, outside this region in the DOM, so focus leaving for it would
+//     otherwise read as focus leaving the carousel. React still bubbles the
+//     dialog's events through here, so keys and swipes that started in it are
+//     ignored — an arrow key in the paste box moves the cursor, not the base.
 //
 // One village: no arrows, no dots, no timer — just the card.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -43,10 +48,14 @@ export function BaseCarousel({
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [holding, setHolding] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const touchStart = useRef<number | null>(null);
   const total = bases.length;
   const many = total > 1;
-  const turning = many && !paused && !holding;
+  const turning = many && !paused && !holding && !dialogOpen;
+
+  /** True for an event from this region's own DOM, not one bubbled from a portal. */
+  const inside = (e: React.SyntheticEvent) => e.currentTarget.contains(e.target as Node);
 
   const go = useCallback((step: number) => setIndex((i) => (i + step + total) % total), [total]);
 
@@ -67,7 +76,7 @@ export function BaseCarousel({
       as="section"
       accent="var(--trim)"
       banner
-      className={cn("overflow-hidden", many && "pb-4 sm:px-14")}
+      className={cn("overflow-hidden sm:p-6", many && "pb-4 sm:px-16")}
     >
       <div
         role={many ? "region" : undefined}
@@ -78,6 +87,7 @@ export function BaseCarousel({
         // A phone has no hover, so it used to turn under a reader's thumb. Touching
         // it stops it for good, and a swipe turns it by hand.
         onTouchStart={(e) => {
+          if (!inside(e)) return;
           touchStart.current = e.touches[0]?.clientX ?? null;
           if (many) setPaused(true);
         }}
@@ -85,7 +95,7 @@ export function BaseCarousel({
           const from = touchStart.current;
           const to = e.changedTouches[0]?.clientX;
           touchStart.current = null;
-          if (!many || from === null || to === undefined || Math.abs(to - from) < 40) return;
+          if (!inside(e) || !many || from === null || to === undefined || Math.abs(to - from) < 40) return;
           go(to < from ? 1 : -1);
         }}
         onFocus={() => setHolding(true)}
@@ -93,7 +103,7 @@ export function BaseCarousel({
           if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHolding(false);
         }}
         onKeyDown={(e) => {
-          if (!many) return;
+          if (!many || dialogOpen || !inside(e)) return;
           if (e.key === "ArrowLeft") go(-1);
           if (e.key === "ArrowRight") go(1);
         }}
@@ -113,7 +123,7 @@ export function BaseCarousel({
           aria-live={many ? (turning ? "off" : "polite") : undefined}
           className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300"
         >
-          <BaseSlide base={base} position={index + 1} total={total} />
+          <BaseSlide base={base} position={index + 1} total={total} onHold={setDialogOpen} />
         </div>
 
         {many && (

@@ -1,21 +1,23 @@
 // T11B.11 — the in-game "Export village data" JSON, parsed and mapped.
 //
-// A member copies it from Settings → More Settings → Data Export and pastes it
-// into Base details. It is the only way to see BUILDINGS, walls, traps and running
-// upgrade timers, none of which the official API exposes.
+// A member copies it from Settings → More Settings → Data Export and uploads it
+// on Home or Base details. It is the only way to see BUILDINGS, walls, traps and
+// running upgrade timers, none of which the official API exposes.
 //
 // ─────────────────────────────────────────────────────────────────────────────
-// VIEW ONLY, IN THE BROWSER, NEVER STORED
+// PARSED TWICE, AND ONLY THE MAPPED VILLAGE IS KEPT
 //
-// This module runs in the member's browser (components/village-export-paste.tsx)
-// and nowhere else. Nothing here is sent to the server, and there is no table for
-// it. That is a decision, not a gap:
+// This module runs in the browser (components/village-export-upload.tsx), for an
+// instant answer, and again on the server (app/(app)/account/bases/actions.ts),
+// whose result is what 076 saves. It was once view-only and never stored; 076's
+// header records why that changed and how its two reasons still hold:
 //
-//   - R11. The export is a game fact, but a PERSON supplies it. A table written
-//     by pasting would be a game-fact table with a human writer, which is the
-//     mixing R11 forbids, and it could not be told apart from a real reading.
-//   - The member asked to see it, not to publish it. It carries base coordinates
-//     and a complete defensive inventory, and leadership has no need of either.
+//   - R11. The export is a game fact, but a PERSON supplies it. So it has its own
+//     owner-written table and is never merged into player_progress, where it
+//     could not be told apart from a real reading.
+//   - It carries base coordinates and a complete defensive inventory. The raw
+//     text is never stored — mapVillageExport() keeps counts per level, not
+//     positions — and only the owner can read the saved village.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // THE SHAPE, AND WHERE IT WAS CONFIRMED

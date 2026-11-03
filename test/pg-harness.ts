@@ -190,6 +190,9 @@ export const PHASE1_MIGRATIONS = [
   "074_add_and_remove_clans.sql",
   // Rank in family_player_ratings(), and player_rating_history(). Must follow 073.
   "075_player_rank.sql",
+  // A member's saved village export. Must follow 031, whose
+  // auth_owned_player_ids() every one of its policies calls.
+  "076_village_exports.sql",
 ] as const;
 
 /**
@@ -413,6 +416,7 @@ export const PHASE1_TABLES = [
   "raid_seasons",
   "sync_log",
   "users",
+  "village_exports",
   "war_attacks",
   "war_lineup_members",
   "war_lineups",

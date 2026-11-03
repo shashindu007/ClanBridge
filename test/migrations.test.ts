@@ -67,6 +67,11 @@ async function seedFixtures(h: Harness) {
       ('${PLAYER_A}', 'main', '${USER_A}'),
       ('${PLAYER_B}', 'alt',  '${USER_B}');
 
+    -- 076. Owner-only, like the nicknames above.
+    insert into village_exports (player_id, uploaded_by, exported_at, village) values
+      ('${PLAYER_A}', '${USER_A}', '2026-07-01T00:00:00Z', '{"tag": "#PY0LQGRJ"}'),
+      ('${PLAYER_B}', '${USER_B}', '2026-07-01T00:00:00Z', '{"tag": "#C2V89UGL"}');
+
     insert into cwl_seasons (id, clan_id, season, league) values
       ('11111111-0000-4000-8000-000000000001', '${CLAN_A}', '2026-07', 'Crystal I'),
       ('22222222-0000-4000-8000-000000000001', '${CLAN_B}', '2026-07', 'Gold II');
@@ -385,8 +390,9 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
     //   war_lineups, ..._members     024, leadership plans a war lineup (T6.8)
     //   base_layouts                 028, any member uploads a layout (T8.3)
     //   player_nicknames             033, a member labels their own base (T11.3)
+    //   village_exports              076, a member saves their own game export
     //
-    // The two from 023 and the one from 033 are the only entries here whose
+    // The two from 023 and the ones from 033 and 076 are the only entries here whose
     // subject and actor are the same person, which is why they are plain policies
     // rather than the audited definer functions 021 and 022 argued for: no such
     // row affects anyone else, and none has a clan_id to record an audit entry
@@ -428,6 +434,7 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
       "polls",
       "push_subscriptions",
       "users",
+      "village_exports",
       "war_lineup_members",
       "war_lineups",
     ]);

@@ -59,6 +59,7 @@ const TABLES = [
   "sync_log",
   "audit_log",
   "member_snapshots",
+  "village_exports", // 076
 ];
 
 interface Probe {

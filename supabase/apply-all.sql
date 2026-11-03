@@ -7,7 +7,7 @@
 -- BEGIN/COMMIT means a failure anywhere rolls the entire thing back, so you
 -- cannot end up with a half-applied schema.
 --
--- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql, 054_half_hour_snapshots.sql, 055_last_activity.sql, 056_notification_and_push_hardening.sql, 057_cwl_scouting.sql, 058_purge_cwl_scouting.sql, 059_purge_other_clans_only.sql, 060_scout_th_weapon.sql, 061_purge_keeps_our_wars.sql, 062_cwl_attack_order.sql, 063_war_opponent_attacks.sql, 064_raid_attacks.sql, 065_api_extras.sql, 066_war_duplicates.sql, 067_security_hardening.sql, 068_war_reminders_and_cwl_identity.sql, 071_api_extras_more.sql, 072_cwl_wars_drop_global_tag.sql, 073_player_ratings.sql, 074_add_and_remove_clans.sql, 075_player_rank.sql
+-- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql, 054_half_hour_snapshots.sql, 055_last_activity.sql, 056_notification_and_push_hardening.sql, 057_cwl_scouting.sql, 058_purge_cwl_scouting.sql, 059_purge_other_clans_only.sql, 060_scout_th_weapon.sql, 061_purge_keeps_our_wars.sql, 062_cwl_attack_order.sql, 063_war_opponent_attacks.sql, 064_raid_attacks.sql, 065_api_extras.sql, 066_war_duplicates.sql, 067_security_hardening.sql, 068_war_reminders_and_cwl_identity.sql, 071_api_extras_more.sql, 072_cwl_wars_drop_global_tag.sql, 073_player_ratings.sql, 074_add_and_remove_clans.sql, 075_player_rank.sql, 076_village_exports.sql
 --
 -- Two numbers are absent, retired rather than reused so that apply order
 -- stays equal to numeric order: 009 (cwl_signups, superseded by Phase 4B)
@@ -12674,6 +12674,121 @@ comment on function player_rating_history(uuid[], integer) is
 --   select month, family_rank, family_size
 --   from player_rating_history(array['<a player id>']::uuid[], 6);
 -- ---------------------------------------------------------------------------
+
+-- ========================================================================
+-- 076_village_exports.sql
+-- ========================================================================
+
+-- A member's saved in-game village export, so Home and Base details can track
+-- buildings, walls and upgrade timers between visits.
+--
+--
+-- THIS REVERSES A RECORDED DECISION, AND SAYS WHY
+--
+-- T11B.11/12 parsed the export in the browser and stored nothing. Its header
+-- gave two reasons. Both still hold, and this table is shaped around them rather
+-- than over them:
+--
+--   1. R11. The export is a game fact that a PERSON supplies. Written into
+--      player_progress it could not be told apart from a sync reading. So it is
+--      NOT written there: it lives in its own table with one writer, the owner,
+--      through the application. No sync job reads or writes it, and nothing
+--      merges it into player_progress. The UI always labels it "from your game
+--      export" with the date the game exported it.
+--
+--   2. The export carries base coordinates and a full defensive inventory. So
+--      the RAW text is never stored. The server parses it and keeps only the
+--      mapped village (src/types/village.ts): per building, how many are at each
+--      level, plus unit levels and running timers. There are no positions in
+--      that shape. And only the owner can read it — not clanmates, not leaders.
+--
+-- The member asked for this: Home exists to track their own bases, and pasting
+-- the export again on every visit was the thing they kept having to do.
+--
+--
+-- PLAIN POLICIES, NOT A DEFINER FUNCTION — 033's argument, unchanged. The row
+-- belongs to its owner, has no clan, and affects nobody else, so there is no
+-- readable audit entry to write. Same owner function, same full unique index,
+-- same R11 grants.
+
+
+-- ---------------------------------------------------------------------------
+-- village_exports
+--
+-- uploaded_by, NOT user_id: ownership lives on players.user_id, and this column
+-- records who saved the row, as player_nicknames.set_by does.
+--
+-- exported_at is the game's own timestamp, not ours. Upgrade timers count from
+-- it, and "exported 3 days ago" is what tells a member it needs refreshing.
+--
+-- `village` is ExportedVillage as JSON. th_level and bh_level are copied out of
+-- it so a row reads at a glance in the SQL editor; the jsonb is the source.
+-- ---------------------------------------------------------------------------
+create table village_exports (
+  id          uuid primary key default gen_random_uuid(),
+  player_id   uuid not null references players (id) on delete restrict,
+  uploaded_by uuid not null references users (id) on delete restrict,
+  exported_at timestamptz not null,
+  th_level    integer,
+  bh_level    integer,
+  village     jsonb not null,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz,
+  deleted_at  timestamptz,
+
+  constraint village_exports_village_shape check (jsonb_typeof(village) = 'object')
+);
+
+-- One saved export per base. FULL, not partial, for 033's reason: a re-upload is
+-- one upsert on player_id that also revives a removed export (R4).
+create unique index village_exports_player_key on village_exports (player_id);
+
+create trigger village_exports_set_updated_at
+  before update on village_exports
+  for each row execute function set_updated_at();
+
+
+-- ---------------------------------------------------------------------------
+-- RLS. Owner-scoped through 031's auth_owned_player_ids(), never by clan.
+-- ---------------------------------------------------------------------------
+alter table village_exports enable row level security;
+
+create policy "read own village exports" on village_exports
+  for select to authenticated
+  using (player_id in (select auth_owned_player_ids()));
+
+create policy "save your own village export" on village_exports
+  for insert to authenticated
+  with check (
+    player_id in (select auth_owned_player_ids())
+    and uploaded_by = auth.uid()
+  );
+
+create policy "replace your own village export" on village_exports
+  for update to authenticated
+  using (player_id in (select auth_owned_player_ids()))
+  with check (
+    player_id in (select auth_owned_player_ids())
+    and uploaded_by = auth.uid()
+  );
+
+-- No delete policy (R4). Removing an export sets deleted_at.
+
+
+-- ---------------------------------------------------------------------------
+-- R11 as a privilege. The REVOKE is the operative line: 014's default privilege
+-- made this table writable by service_role the moment it was created. See 033.
+-- ---------------------------------------------------------------------------
+grant select, insert, update on village_exports to authenticated;  -- never delete (R4)
+grant select on village_exports to service_role;
+revoke insert, update on village_exports from service_role;
+
+comment on table village_exports is
+  'The member''s own in-game village export for one of their bases, parsed and '
+  'saved so Home can track buildings, walls and upgrade timers. A HUMAN-SUPPLIED '
+  'copy (R11): written only by the owner through the application, never by a sync '
+  'job, and never merged into player_progress. Only the mapped village is kept - '
+  'no raw export, no base coordinates. Owner-only.';
 
 commit;
 

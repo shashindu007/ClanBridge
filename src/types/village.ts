@@ -4,8 +4,10 @@
 // ResolvedUnit, and domain.ts is imported BY src/data/game — a type-only cycle
 // is harmless at runtime but makes the dependency direction unreadable.
 //
-// NEVER STORED. These objects live in the member's browser tab and nowhere else;
-// see the header of the integration file for why.
+// SAVED, OWNER-ONLY (076). An ExportedVillage is what village_exports.village
+// holds — counts per level, never positions. Read back days later, so an
+// upgrade's time left comes from `finishesAt`; `remainingSeconds` is only true
+// at the moment it was parsed.
 
 import type { ResolvedUnit } from "@/data/game";
 import type { Village } from "@/types/domain";
@@ -32,7 +34,7 @@ export interface ExportedUpgrade {
   village: Village;
   /** The level being upgraded FROM — the export reports the old level until it finishes. */
   fromLevel: number;
-  /** Seconds left as of when the export was parsed, clamped at 0. */
+  /** Seconds left as of when the export was parsed, clamped at 0. Use services/village secondsLeft() to read it later. */
   remainingSeconds: number;
   finishesAt: string;
 }

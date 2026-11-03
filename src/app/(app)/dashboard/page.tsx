@@ -17,11 +17,14 @@
 // "Needs you" beneath (services/home.ts, pure and tested, because the ORDER is
 // the design).
 //
-// Above the clans, the member's own bases — Town Hall, progress, heroes —
-// the main one first and the rest in turn (components/base-carousel.tsx),
-// with Base details one click away instead of four. Each clan tile carries
-// your village there and the clan's latest notice, and a small Announcements
-// feed sits beside "Needs you", so "anything new?" needs no Notices page.
+// Above the clans, the member's own bases — the place they track them. One
+// large card at a time, the main one first (components/base-carousel.tsx):
+// family rank, career numbers, % to max per unit group, the heroes, and what
+// their saved game export (076) says about buildings, walls and timers, with
+// Upload JSON and Base details beside it. The clan rows below are lean — role,
+// members, league, what is happening — with a notice line only when the clan
+// has one, and a small Announcements feed sits beside "Needs you", so
+// "anything new?" needs no Notices page.
 //
 // The "Online now" and "Go to" side panels are gone — every link
 // in "Go to" is on the rail or in the account menu under the same name, and
@@ -70,6 +73,9 @@ import {
 import { basesForUser, type OwnedBase } from "@/repositories/account-bases";
 import { latestReadings, type ProgressReading } from "@/repositories/player-progress";
 import type { RatingMonth } from "@/repositories/player-ratings";
+import { ownCareers, type PlayerCareer } from "@/repositories/profiles";
+import { villageExportsFor, type SavedExport } from "@/repositories/village-exports";
+import { exportSummary } from "@/services/village";
 import { baseLabel } from "@/lib/nickname";
 import { safeMessage } from "@/lib/errors";
 import { HOME_RANK_MONTHS, rankHistories } from "@/lib/player-rank-data";
@@ -80,7 +86,7 @@ import { attacksForWar, currentWar, membersOfWar, type WarRow } from "@/reposito
 import * as cwlRepo from "@/repositories/cwl";
 import { pollsForClan, responsesForPoll, type Poll } from "@/repositories/polls";
 import { latestRun } from "@/repositories/sync-log";
-import { membersForClan } from "@/repositories/members";
+import { latestTrophies, membersForClan } from "@/repositories/members";
 import { unreadCount } from "@/repositories/notifications";
 import { adminAccounts } from "@/repositories/accounts";
 import { isOpen } from "@/services/polls";
@@ -113,7 +119,6 @@ type Supabase = Awaited<ReturnType<typeof createClient>>;
 interface LoadedClan {
   clan: VisibleClan;
   memberCount: number;
-  level: number | null;
   warLeague: string | null;
   fresh: Freshness;
   war: WarRow | null;
@@ -207,7 +212,6 @@ async function loadClan(
   return {
     clan,
     memberCount: detail?.memberCount ?? held,
-    level: detail?.level ?? null,
     warLeague: detail?.warLeague ?? null,
     fresh: freshness(run),
     war,
@@ -238,6 +242,15 @@ function basesInOrder(bases: OwnedBase[], main: OwnedBase | null): OwnedBase[] {
   return (main ? [main, ...rest] : rest).slice(0, MAX_BASES_ON_HOME);
 }
 
+/** Everything Home reads about one village besides the village itself. */
+interface BaseReads {
+  latest: ProgressReading | null;
+  history: RatingMonth[] | null;
+  career: PlayerCareer | null;
+  trophies: number | null;
+  saved: SavedExport | null;
+}
+
 /**
  * One village, drawn from its latest reading. Home village only: that is the
  * Town Hall the card names, and its heroes are what a member checks first.
@@ -246,12 +259,13 @@ function toBaseView(
   base: OwnedBase,
   isMain: boolean,
   clanNames: Map<string, string>,
-  latest: ProgressReading | null,
-  history: RatingMonth[] | null,
+  reads: BaseReads,
   now: Date,
 ): MainBaseView {
+  const { latest, career, saved } = reads;
   const home = latest?.units.filter((u) => u.village === "home") ?? [];
   const counted = home.filter(counts);
+  const groups = groupProgress(home, "home");
   const playing = base.clanId && !base.leftAt;
 
   return {
@@ -259,23 +273,49 @@ function toBaseView(
     name: base.name,
     tag: base.tag,
     thLevel: latest?.thLevel ?? base.thLevel,
+    thWeaponLevel: latest?.thWeaponLevel ?? null,
+    bhLevel: latest?.bhLevel ?? null,
     verified: base.verified,
     isMain,
     clanName: playing ? (clanNames.get(base.clanId!) ?? null) : null,
     clanRole: playing ? base.clanRole : null,
     detailsHref: detailsHref(base),
     reportHref: `/account/bases/${encodeTag(base.tag)}`,
+    career:
+      career || reads.trophies !== null
+        ? {
+            expLevel: career?.expLevel ?? null,
+            trophies: reads.trophies,
+            bestTrophies: career?.bestTrophies ?? null,
+            warStars: career?.warStars ?? null,
+            attackWins: career?.attackWins ?? null,
+            defenseWins: career?.defenseWins ?? null,
+            builderBaseTrophies: career?.builderBaseTrophies ?? null,
+            capitalContributions: career?.capitalContributions ?? null,
+          }
+        : null,
     progress: latest
       ? {
           pct: overallProgress(latest.units, "home").pct,
           maxed: counted.filter((u) => u.level >= u.cap).length,
           counted: counted.length,
           capturedAt: latest.capturedAt,
-          heroes: groupProgress(home, "home").find((g) => g.group === "hero")?.units ?? [],
+          heroes: groups.find((g) => g.group === "hero")?.units ?? [],
+          groups: groups.filter((g) => g.group !== "superTroop").map((g) => ({ label: g.label, pct: g.pct })),
         }
       : null,
-    standing: standingOf(history, now),
+    standing: standingOf(reads.history, now),
     showClanRank: Boolean(playing && clanNames.has(base.clanId!)),
+    // Summarised here, on the server, so the card's timers and the page agree.
+    saved: saved ? exportSummary(saved.village, now) : null,
+  };
+}
+
+/** A read Home can live without: on failure, logged and empty. */
+function survivable<T>(what: string, fallback: T) {
+  return (error: unknown): T => {
+    safeMessage(what, { message: String(error) }, "");
+    return fallback;
   };
 }
 
@@ -352,38 +392,43 @@ export default async function DashboardPage({
   const shownBases = basesInOrder(bases, main);
   const shownIds = shownBases.map((b) => b.playerId);
 
-  const [loaded, accounts, readings, histories] = await Promise.all([
+  const [loaded, accounts, readings, histories, careers, exports, trophies] = await Promise.all([
     Promise.all(clans.map((clan) => loadClan(supabase, clan, now, phase === "wars"))),
     // Scoped by admin_accounts() to accounts THIS caller may approve.
     admin || leads ? adminAccounts(supabase) : Promise.resolve([]),
-    // One read for every village. Losing it costs the progress line, not Home.
-    latestReadings(supabase, shownIds).catch((error: unknown) => {
-      safeMessage("home-readings", { message: String(error) }, "");
-      return new Map<string, ProgressReading>();
-    }),
+    // One read for every village. Losing it costs the progress block, not Home.
+    latestReadings(supabase, shownIds).catch(survivable("home-readings", new Map<string, ProgressReading>())),
     // An account in no clan is outside the family ranking, so nothing to ask.
     clans.length > 0 ? rankHistories(supabase, shownIds, HOME_RANK_MONTHS) : new Map<string, RatingMonth[]>(),
+    // Each of these is one read for every village, and costs only its own tiles.
+    ownCareers(supabase, shownIds).catch(survivable("home-careers", new Map<string, PlayerCareer>())),
+    villageExportsFor(supabase, shownIds).catch(survivable("home-exports", new Map<string, SavedExport>())),
+    // Current trophies live on the clan's snapshots, so only for a village
+    // playing in a clan this member can read.
+    Promise.all(
+      shownBases.map((b) =>
+        b.clanId && !b.leftAt && clanNames.has(b.clanId)
+          ? latestTrophies(supabase, b.clanId, b.playerId).catch(survivable("home-trophies", null))
+          : null,
+      ),
+    ),
   ]);
 
-  const baseViews = shownBases.map((b) =>
+  const baseViews = shownBases.map((b, i) =>
     toBaseView(
       b,
       b === main,
       clanNames,
-      readings.get(b.playerId) ?? null,
-      histories === null ? null : (histories.get(b.playerId) ?? []),
+      {
+        latest: readings.get(b.playerId) ?? null,
+        history: histories === null ? null : (histories.get(b.playerId) ?? []),
+        career: careers.get(b.playerId) ?? null,
+        trophies: trophies[i] ?? null,
+        saved: exports.get(b.playerId) ?? null,
+      },
       now,
     ),
   );
-
-  // Your village in each clan: the same rule as the main base, applied to the
-  // villages playing there — so the main one wins wherever it plays.
-  const villageIn = (clanId: string) => {
-    const here = mainBase(bases.filter((b) => b.clanId === clanId && !b.leftAt));
-    return here
-      ? { label: baseLabel(here.nickname, here.name), thLevel: here.thLevel, href: detailsHref(here) }
-      : null;
-  };
 
   const feed = announcementFeed(
     loaded.flatMap((l) =>
@@ -479,9 +524,8 @@ export default async function DashboardPage({
           <h2 id="clans-title" className="text-lg font-semibold">
             Your clans
           </h2>
-          {/* A list of small rows: any number of clans reads top to bottom,
-              with no orphan tile on a second line. */}
-          <ul className="space-y-2.5">
+          {/* Lean rows, two to a line on a wide screen; one column on a phone. */}
+          <ul className="grid gap-2.5 lg:grid-cols-2">
             {loaded.map((l, i) => (
               <ClanStatusTile
                 key={l.clan.id}
@@ -495,7 +539,6 @@ export default async function DashboardPage({
                 }}
                 status={statuses[i]!}
                 memberCount={l.memberCount}
-                level={l.level}
                 warLeague={l.warLeague}
                 fresh={l.fresh}
                 gold={i === goldTile}
@@ -507,7 +550,6 @@ export default async function DashboardPage({
                       ) || null
                     : null
                 }
-                village={villageIn(l.clan.id)}
                 notice={l.notices[0] ?? null}
                 now={now}
               />

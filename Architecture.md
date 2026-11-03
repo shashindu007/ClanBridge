@@ -452,6 +452,10 @@ Every table carrying clan data gets an equivalent policy. Sync jobs use the serv
 
 **One account, many villages, and the two kinds of name.** A village's `name` is a GAME FACT, written only by the clan sync. A member's label for it is a HUMAN DECISION and lives in its own table, `player_nicknames`, written only by its owner (§1B is the rule this follows; `players` is select-only for a session, which is why verification itself goes through a definer function). The UI falls back to `players.name` when there is no label, so the feature costs nothing for the member with one village.
 
+**The saved game export (076).** The in-game Data Export is the only source of buildings, walls and upgrade timers. It used to be parsed in the browser and never stored, so a member pasted it again on every visit. Now `village_exports` keeps one per base, so Home's base card and Base details can track it. It follows `player_nicknames` exactly: owner-only policies through `auth_owned_player_ids()`, written only by the owner through the application, and the sync role may read but never write it. Two rules keep it R11-clean and private:
+- It is never merged into `player_progress`, so a pasted export can't pass for a sync reading. The UI always says "from your game export" and how old it is.
+- The server parses the raw text again, and only the mapped village (counts per level, units, timers) is kept. Base coordinates never reach storage, and leaders cannot read the row.
+
 **The picture is per ACCOUNT; the label is per VILLAGE.** A member with three villages is still one person, and a face repeated three times down a list carries no information. So `users.avatar_path` is singular, and it holds a path inside a private bucket rather than a URL — the bucket serves nothing without a signed URL minted per request, and the object path leads with the owner's id so the storage policy can check it the way the layouts bucket checks a clan id.
 
 **`players` has two SELECT policies, and the second one is filtered by owner rather than by clan.**
