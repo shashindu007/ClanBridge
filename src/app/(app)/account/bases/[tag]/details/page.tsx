@@ -11,10 +11,11 @@
 // are. So this page works for every base on /account, which is why its button
 // there is shown for all of them.
 //
-// T11B.12 — the owner, and only the owner, can also paste their in-game village
-// export for buildings, walls and timers. Parsed in the browser and never stored;
-// see components/village-export-paste.tsx. Not on the leader's page: it is the
-// member's own game data, and nothing about it passes through this server.
+// T11B.12 — the owner, and only the owner, can also upload their in-game village
+// export for buildings, walls and timers. Since 076 it is SAVED, owner-only,
+// and shown here and on Home until they upload a newer one; 076's header says
+// what is kept and why. Not on the leader's page: it is the member's own game
+// data, and no leader can read it.
 //
 // R1 — every read is PostgreSQL.
 
@@ -23,7 +24,7 @@ import { notFound } from "next/navigation";
 import { ScrollText } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { BaseDetails, villageParam } from "@/components/base-details";
-import { VillageExportPaste } from "@/components/village-export-paste";
+import { SavedVillageExport } from "@/components/village-export-saved";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { currentUserId } from "@/lib/auth";
@@ -32,6 +33,8 @@ import { createClient } from "@/lib/supabase/server";
 import { decodeTag, encodeTag, InvalidTagError } from "@/lib/tags";
 import { basesForUser } from "@/repositories/account-bases";
 import { baseProgress } from "@/repositories/player-progress";
+import { villageExportsFor, type SavedExport } from "@/repositories/village-exports";
+import { safeMessage } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +65,15 @@ export default async function OwnBaseDetailsPage({
   if (!base) notFound();
 
   // "owner" scope: every reading of this village, whichever clan it was in.
-  const progress = await baseProgress(supabase, "owner", base.playerId);
+  const [progress, exports] = await Promise.all([
+    baseProgress(supabase, "owner", base.playerId),
+    // Losing it shows the upload form, not an error page.
+    villageExportsFor(supabase, [base.playerId]).catch((error: unknown) => {
+      safeMessage("base-details-export", { message: String(error) }, "");
+      return new Map<string, SavedExport>();
+    }),
+  ]);
+  const saved = exports.get(base.playerId) ?? null;
 
   const label = baseLabel(base.nickname, base.name);
   const named = label !== base.name;
@@ -91,7 +102,12 @@ export default async function OwnBaseDetailsPage({
         }
       />
 
-      <VillageExportPaste tag={base.tag} label={label} />
+      <SavedVillageExport
+        tag={base.tag}
+        label={label}
+        village={saved?.village ?? null}
+        now={new Date().toISOString()}
+      />
 
       <BaseDetails
         progress={progress}

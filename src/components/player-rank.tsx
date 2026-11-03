@@ -1,7 +1,7 @@
 // A player's rank, worded and drawn one way on Home, the profile and /rating.
 //
 // PRESENTATION ONLY, and safe in the browser: components/base-carousel.tsx renders
-// the compact form, so nothing here may import a repository. Which month to lead
+// the Home form, so nothing here may import a repository. Which month to lead
 // with, and what to say, is services/player-rank.ts.
 //
 // A MEDAL IS A COLOUR ON A NUMBER, never instead of one, so rank still reads with
@@ -67,8 +67,11 @@ function RankIcon({ rank }: { rank: number }) {
   );
 }
 
-/** One or two lines, for Home's base card. */
-export function CompactRank({
+/**
+ * Home's base card: the rank as the headline, then what it is made of. The same
+ * facts as RankSummary, sized for a side panel rather than a page.
+ */
+export function HomeRank({
   standing,
   tag,
   showClan,
@@ -79,26 +82,64 @@ export function CompactRank({
   showClan: boolean;
 }) {
   if (standing.kind !== "ranked") {
-    return <p className="text-muted-foreground pt-1 text-xs">{notRankedText(standing)}</p>;
+    return (
+      <div className="space-y-1">
+        <h3 className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium uppercase">
+          <Trophy aria-hidden className="size-3.5" />
+          Player rank
+        </h3>
+        <p className="text-sm">{notRankedText(standing)}</p>
+      </div>
+    );
   }
 
   return (
-    <Link
-      href={rankHref(standing.month, tag)}
-      className="hover:bg-accent -mx-1 flex min-h-11 items-center gap-2 rounded-control px-1 text-xs"
-    >
-      <RankIcon rank={standing.familyRank} />
-      <span className="min-w-0">
-        <span className="block text-sm font-semibold tabular-nums">
-          #{standing.familyRank} of {standing.familySize} in the family
-          {standing.tied && <span className="text-muted-foreground font-normal"> · tied</span>}
-        </span>
-        <span className="text-muted-foreground block truncate">
-          {showClan && `#${standing.clanRank} in ${standing.clanName} · `}
-          {seasonLabel(standing.month)}, {finality(standing.open)}
-        </span>
-      </span>
-    </Link>
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 space-y-0.5">
+          <h3 className="text-muted-foreground text-xs font-medium uppercase">
+            Player rank · {seasonLabel(standing.month)}, {finality(standing.open)}
+          </h3>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <RankIcon rank={standing.familyRank} />
+            <span
+              className="cb-title text-4xl leading-none tabular-nums"
+              style={medalColour(standing.familyRank) ? { color: medalColour(standing.familyRank) } : undefined}
+            >
+              #{standing.familyRank}
+            </span>
+            <span className="text-muted-foreground text-sm">of {standing.familySize} in the family</span>
+            {standing.tied && <Badge variant="outline">Tied</Badge>}
+          </p>
+          {showClan && (
+            <p className="truncate text-sm tabular-nums">
+              #{standing.clanRank} of {standing.clanSize} in {standing.clanName}
+            </p>
+          )}
+          {standing.movement && <p className="text-muted-foreground text-xs">{standing.movement}</p>}
+        </div>
+        <p className="shrink-0 text-right">
+          <span className="cb-title block text-2xl leading-none tabular-nums">{ratingPercent(standing.rating)}</span>
+          <span className="text-muted-foreground text-xs">rating</span>
+        </p>
+      </div>
+
+      <dl className="grid grid-cols-5 gap-1 border-t pt-2.5 text-center">
+        {RATING_SECTIONS.map(({ kind }) => (
+          <div key={kind} className="min-w-0">
+            <dt className="text-muted-foreground truncate text-[0.6875rem]">{RATING_SHORT_LABELS[kind]}</dt>
+            <dd className="text-xs font-semibold tabular-nums">{ratingPercent(standing.shares[kind])}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <Link
+        href={rankHref(standing.month, tag)}
+        className="text-primary inline-flex min-h-11 items-center text-sm font-medium hover:underline"
+      >
+        See the full ranking
+      </Link>
+    </div>
   );
 }
 

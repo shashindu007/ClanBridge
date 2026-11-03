@@ -1,5 +1,5 @@
-// T11B.11 — arithmetic over a pasted village export. Pure, and browser-safe:
-// components/village-export-paste.tsx runs it client-side.
+// T11B.11 — arithmetic over a village export. Pure, and browser-safe: the
+// export views run it client-side, Home and Base details on the server.
 //
 // Units from an export go through services/progress.ts unchanged — they carry
 // the same ResolvedUnit shape the sync job stores. This file is only what the
@@ -10,7 +10,7 @@
 // same way, which is why a TH upgrade makes the wall bar drop sharply — that is
 // accurate, and every tracker shows it.
 
-import type { ExportedBuilding, ExportedVillage } from "@/types/village";
+import type { ExportedBuilding, ExportedUpgrade, ExportedVillage } from "@/types/village";
 import type { Village } from "@/types/domain";
 
 export type BuildingGroupKey = "defenses" | "traps" | "walls" | "resources" | "army" | "workers";
@@ -120,4 +120,86 @@ export function formatDuration(seconds: number): string {
   if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
   if (m > 0) return `${m}m`;
   return "under a minute";
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A SAVED export (076), read days after it was taken.
+//
+// An upgrade's remainingSeconds was true when the export was parsed and is
+// wrong by the next page load. finishesAt is absolute, so time left is always
+// worked out from it here — never read from storage.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Older than this, Home asks for a fresh export. */
+export const STALE_EXPORT_DAYS = 7;
+
+/** Seconds left on one upgrade at `now`, from its absolute finish time. */
+export function secondsLeft(upgrade: Pick<ExportedUpgrade, "finishesAt">, now: Date): number {
+  const ms = Date.parse(upgrade.finishesAt) - now.getTime();
+  return Number.isFinite(ms) ? Math.max(0, Math.round(ms / 1000)) : 0;
+}
+
+export interface RunningUpgrade {
+  name: string;
+  village: Village;
+  fromLevel: number;
+  secondsLeft: number;
+  finishesAt: string;
+}
+
+export interface ExportSummary {
+  exportedAt: string;
+  /** Whole days since the game took the export. */
+  ageDays: number;
+  stale: boolean;
+  /** Home village buildings against this Town Hall's caps. */
+  buildingsPct: number;
+  /** The highest wall level and how many walls are at it, of all walls. */
+  walls: { level: number; atLevel: number; total: number } | null;
+  /** Still running at `now`, soonest first. */
+  running: RunningUpgrade[];
+  /** Upgrades that were running at export time and have finished since. */
+  finishedSince: number;
+}
+
+export function exportSummary(village: ExportedVillage, now: Date): ExportSummary {
+  const ageMs = Math.max(0, now.getTime() - Date.parse(village.exportedAt));
+  const ageDays = Number.isFinite(ageMs) ? Math.floor(ageMs / 86_400_000) : 0;
+
+  const home = village.buildings.filter((b) => b.village === "home");
+  const wallRows = home.filter((b) => b.kind === "Wall");
+  let walls: ExportSummary["walls"] = null;
+  if (wallRows.length > 0) {
+    const levels = new Map<number, number>();
+    for (const w of wallRows) {
+      for (const [level, count] of Object.entries(w.levels)) {
+        levels.set(Number(level), (levels.get(Number(level)) ?? 0) + count);
+      }
+    }
+    const top = Math.max(...levels.keys());
+    walls = {
+      level: top,
+      atLevel: levels.get(top) ?? 0,
+      total: [...levels.values()].reduce((sum, n) => sum + n, 0),
+    };
+  }
+
+  const timed = village.upgrades.map((u) => ({
+    name: u.name,
+    village: u.village,
+    fromLevel: u.fromLevel,
+    secondsLeft: secondsLeft(u, now),
+    finishesAt: u.finishesAt,
+  }));
+
+  return {
+    exportedAt: village.exportedAt,
+    ageDays,
+    stale: ageDays >= STALE_EXPORT_DAYS,
+    // The same buildings, and so the same %, as Base details' headline figure.
+    buildingsPct: buildingTally(buildingGroups(village, "home").flatMap((g) => g.buildings)).pct,
+    walls,
+    running: timed.filter((u) => u.secondsLeft > 0).sort((a, b) => a.secondsLeft - b.secondsLeft),
+    finishedSince: timed.filter((u) => u.secondsLeft === 0).length,
+  };
 }

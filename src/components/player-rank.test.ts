@@ -4,7 +4,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { CompactRank, RankHistory, RankSummary, rankHref } from "@/components/player-rank";
+import { HomeRank, RankHistory, RankSummary, rankHref } from "@/components/player-rank";
 import type { Standing } from "@/services/player-rank";
 
 vi.mock("next/link", () => ({
@@ -31,8 +31,8 @@ const RANKED: Standing = {
 const summary = (standing: Standing, showClan = true) =>
   renderToStaticMarkup(createElement(RankSummary, { standing, tag: "#PY0LQGRJ", showClan }));
 
-const compact = (standing: Standing, showClan = true) =>
-  renderToStaticMarkup(createElement(CompactRank, { standing, tag: "#PY0LQGRJ", showClan }));
+const home = (standing: Standing, showClan = true) =>
+  renderToStaticMarkup(createElement(HomeRank, { standing, tag: "#PY0LQGRJ", showClan }));
 
 describe("RankSummary", () => {
   it("says the rank, out of what, in which month, and how final it is", () => {
@@ -73,20 +73,25 @@ describe("RankSummary", () => {
   });
 });
 
-describe("CompactRank", () => {
-  it("fits the rank and its month on Home's card", () => {
-    const html = compact(RANKED);
-    expect(html).toContain("#12 of 195 in the family");
-    expect(html).toContain("#3 in Dark Hell");
+describe("HomeRank", () => {
+  it("leads Home's card with the rank, its month, the rating and its sections", () => {
+    const html = home(RANKED);
+    expect(html).toContain("#12");
+    expect(html).toContain("of 195 in the family");
+    expect(html).toContain("#3 of 45 in Dark Hell");
     expect(html).toContain("October 2026, final");
+    expect(html).toContain("Up 3 from September");
+    expect(html).toContain("3.21%");
+    expect(html).toContain("CWL");
+    expect(html).toContain('href="/rating?month=2026-10#rank-PY0LQGRJ"');
   });
 
   it("leaves out a clan this viewer may not read", () => {
-    expect(compact(RANKED, false)).not.toContain("Dark Hell");
+    expect(home(RANKED, false)).not.toContain("Dark Hell");
   });
 
   it("carries a failed read as its own sentence, and no link", () => {
-    const html = compact({ kind: "failed" });
+    const html = home({ kind: "failed" });
     expect(html).toContain("could not be loaded");
     expect(html).not.toContain("<a ");
   });

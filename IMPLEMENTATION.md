@@ -770,9 +770,12 @@ clanbridge/
     │   ├── player-report-sections.tsx  T11.11  the six panels, shared by the two
     │   │                            pages that show them (+ .test.ts, 22 cases)
     │   ├── base-details.tsx T11B.9  progress panels, shared by both details pages
-    │   ├── village-export-paste.tsx  T11B.12  "use client". Parses in the tab,
-    │   │                            sends nothing, saves nothing
-    │   ├── village-export-view.tsx   T11B.12  what a parsed export shows
+    │   ├── village-export-upload.tsx  076  "use client". Paste or .json file,
+    │   │                            checked in the tab, parsed again and saved
+    │   │                            by account/bases/actions.ts
+    │   ├── village-export-saved.tsx   076  Base details: the saved export,
+    │   │                            Upload newer and Remove
+    │   ├── village-export-view.tsx   T11B.12  what an export shows
     │   └── ui/              shadcn copies land here
     │
     ├── data/game/           T11B.3  GENERATED game data — see its README.md
@@ -2729,6 +2732,8 @@ independent check — `game-data.test.ts` asserts no unit on it sits above its c
   no table.** R11 — a table written by pasting would be a game-fact table with a
   human writer. The export's tag must match the base. The parser and ~60 KB of game
   data load on the first "Show details", not with the page.
+  **Superseded by 076**: the export is now saved, owner-only, in its own table —
+  see the Home base card entry below.
 
 - [x] **T11B.13 — Write Phase 11B down** — `IMPLEMENTATION.md`, `Architecture.md`
 
@@ -2909,6 +2914,19 @@ and migrations; this is the first time they are in the ledger.*
     fix itself on the next page load.
   - Deviation: a step rather than its own workflow, because the repository is
     private and each extra checkout costs Actions minutes.
+- [x] **Home tracks your bases** (076). The base card is the reason a member
+  opens Home, so it carries what they track:
+  - Family and clan rank, rating and its five sections (`HomeRank`).
+  - Career numbers: trophies, war stars, wins, Builder Base, capital gold, the
+    Town Hall weapon (`ownCareers()`, one read for every village).
+  - % to max per unit group, and the heroes.
+  - Buildings %, walls and running upgrades from the member's saved game export.
+    Upload JSON on the card or on Base details, by paste or `.json` file.
+  - `village_exports` is owner-only and R11-clean; 076's header has why the
+    old "never stored" decision changed and what is still never kept (the raw
+    text, base coordinates). Time left is worked out from `finishesAt`.
+  - Clan rows are lean: role, members, league and what is happening, two to a
+    line; the notice line only when the clan has one.
 - [x] **T13.11 — Phone layout** — every page fits a 390px screen.
 - [x] **T13.13 — Full QA audit, October 2026** (066 to 071). Checked against the
   live database as well as the code, which is what found the worst of it.

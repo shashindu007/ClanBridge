@@ -139,6 +139,20 @@ export async function playerProfile(
 
   return {
     warPreference: preference(row.war_preference),
+    ...toCareer(row),
+    achievements: Array.isArray(row.achievements) ? (row.achievements as Achievement[]) : [],
+  };
+}
+
+/** A village's career numbers — the profile without achievements or war preference. */
+export type PlayerCareer = Omit<PlayerProfileRow, "warPreference" | "achievements">;
+
+const CAREER_COLUMNS =
+  "player_id, exp_level, best_trophies, attack_wins, defense_wins, war_stars, " +
+  "capital_contributions, builder_base_trophies, best_builder_base_trophies, captured_at";
+
+function toCareer(row: Record<string, unknown>): PlayerCareer {
+  return {
     expLevel: num(row.exp_level),
     bestTrophies: num(row.best_trophies),
     attackWins: num(row.attack_wins),
@@ -147,9 +161,35 @@ export async function playerProfile(
     capitalContributions: num(row.capital_contributions),
     builderBaseTrophies: num(row.builder_base_trophies),
     bestBuilderBaseTrophies: num(row.best_builder_base_trophies),
-    achievements: Array.isArray(row.achievements) ? (row.achievements as Achievement[]) : [],
     capturedAt: iso(row.captured_at) ?? new Date(0).toISOString(),
   };
+}
+
+/**
+ * The career numbers of the caller's OWN villages, in one read — for Home's base
+ * cards. "owner" scope only: 065's owner policy is the net, and the caller
+ * passes ids from basesForUser(). Achievements are left out; Home does not show
+ * them and they are most of a row's size.
+ */
+export async function ownCareers(
+  supabase: SupabaseClient,
+  playerIds: readonly string[],
+): Promise<Map<string, PlayerCareer>> {
+  const out = new Map<string, PlayerCareer>();
+  const ids = [...new Set(playerIds)];
+  if (!ids.length) return out;
+
+  const { data, error } = await supabase
+    .from("player_profiles")
+    .select(CAREER_COLUMNS)
+    .in("player_id", ids)
+    .is("deleted_at", null);
+
+  assertRead(error, "player_profiles");
+  for (const row of (data ?? []) as unknown as Array<Record<string, unknown>>) {
+    out.set(row.player_id as string, toCareer(row));
+  }
+  return out;
 }
 
 /**

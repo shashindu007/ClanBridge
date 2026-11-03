@@ -86,6 +86,12 @@ const nextConfig: NextConfig = {
     staleTimes: {
       dynamic: 30,
     },
+    // A village export is up to 1 MB (MAX_EXPORT_BYTES), posted as text to
+    // account/bases/actions.ts; the 1 MB default would refuse the largest ones
+    // before the action could say why.
+    serverActions: {
+      bodySizeLimit: "2mb",
+    },
   },
 
   images: {

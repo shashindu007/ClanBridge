@@ -1874,6 +1874,44 @@ export interface Database {
           last_seen_at?: string | null;
         };
       };
+      village_exports: {
+        Row: {
+          id: string;
+          player_id: string;
+          uploaded_by: string;
+          exported_at: string;
+          th_level: number | null;
+          bh_level: number | null;
+          village: Json;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          player_id: string;
+          uploaded_by: string;
+          exported_at: string;
+          th_level?: number | null;
+          bh_level?: number | null;
+          village: Json;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          player_id?: string;
+          uploaded_by?: string;
+          exported_at?: string;
+          th_level?: number | null;
+          bh_level?: number | null;
+          village?: Json;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
       war_attacks: {
         Row: {
           id: string;

@@ -13,7 +13,10 @@ import {
   buildingGroups,
   buildingTally,
   capTrusted,
+  exportSummary,
   formatDuration,
+  secondsLeft,
+  STALE_EXPORT_DAYS,
 } from "@/services/village";
 import { groupProgress } from "@/services/progress";
 import type { ExportedVillage } from "@/types/village";
@@ -175,5 +178,47 @@ describe("services/village", () => {
     [2 * 86_400, "2d"],
   ])("formats %i seconds as %s", (seconds, text) => {
     expect(formatDuration(seconds)).toBe(text);
+  });
+});
+
+// 076 — the export is saved, so it is read again days after it was parsed.
+describe("exportSummary — a saved export read later", () => {
+  const village = parse();
+
+  it("reads walls as the top level and how many are at it", () => {
+    expect(exportSummary(village, NOW).walls).toEqual({ level: 17, atLevel: 200, total: 325 });
+  });
+
+  it("matches Base details' buildings figure", () => {
+    const all = buildingGroups(village, "home").flatMap((g) => g.buildings);
+    expect(exportSummary(village, NOW).buildingsPct).toBe(buildingTally(all).pct);
+  });
+
+  it("works time left out from the finish time, not the stored seconds", () => {
+    // Read 30 minutes after parsing: the Cannon's hour is now half an hour.
+    const later = new Date(NOW.getTime() + 30 * 60_000);
+    const summary = exportSummary(village, later);
+    expect(summary.running.map((u) => [u.name, u.secondsLeft])).toEqual([
+      ["Cannon", 1_800],
+      ["Barbarian King", 81_000],
+    ]);
+    expect(summary.finishedSince).toBe(0);
+  });
+
+  it("counts what finished since the export, and calls a week-old export stale", () => {
+    const fresh = exportSummary(village, NOW);
+    expect(fresh.stale).toBe(false);
+
+    const weekLater = new Date(NOW.getTime() + STALE_EXPORT_DAYS * 86_400_000);
+    const old = exportSummary(village, weekLater);
+    expect(old.running).toEqual([]);
+    expect(old.finishedSince).toBe(2);
+    expect(old.stale).toBe(true);
+    expect(old.ageDays).toBe(STALE_EXPORT_DAYS);
+  });
+
+  it("never goes negative", () => {
+    expect(secondsLeft({ finishesAt: "2000-01-01T00:00:00Z" }, NOW)).toBe(0);
+    expect(secondsLeft({ finishesAt: "not a date" }, NOW)).toBe(0);
   });
 });

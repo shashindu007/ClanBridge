@@ -1,14 +1,14 @@
-// T11B.12 — the pasted-export view, rendered statically.
+// T11B.12 / 076 — the saved-export view, rendered statically.
 //
-// The paste component itself holds state and cannot render past its first frame
-// under renderToStaticMarkup, so what is tested here is its first frame (the
-// button, and the promise that nothing is saved) and the presentational view it
-// swaps in once an export parses.
+// The saved component holds state and cannot render past its first frame under
+// renderToStaticMarkup, so what is tested here is that first frame — the upload
+// form with nothing saved, the view with an export — and the presentational
+// view itself.
 
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
-import { VillageExportPaste } from "@/components/village-export-paste";
+import { describe, expect, it, vi } from "vitest";
+import { SavedVillageExport } from "@/components/village-export-saved";
 import { VillageExportView } from "@/components/village-export-view";
 import { parseVillageExport } from "@/integration/village-export";
 import type { Village } from "@/types/domain";
@@ -36,25 +36,53 @@ const parsed = parseVillageExport(
 if (!parsed.ok) throw new Error(parsed.error);
 const village = parsed.village;
 
-function view(which: Village = "home"): string {
-  return renderToStaticMarkup(
-    createElement(VillageExportView, { village, which, onWhich: () => {}, onClear: () => {} }),
-  );
+// The server actions module imports the Supabase server client; the first frame
+// never calls it.
+vi.mock("@/app/(app)/account/bases/actions", () => ({
+  uploadVillageExport: vi.fn(),
+  removeVillageExport: vi.fn(),
+}));
+
+function view(which: Village = "home", now: Date = NOW): string {
+  return renderToStaticMarkup(createElement(VillageExportView, { village, which, onWhich: () => {}, now }));
 }
 
-describe("VillageExportPaste — first frame", () => {
-  it("offers the button and says nothing is sent or saved", () => {
-    const html = renderToStaticMarkup(
-      createElement(VillageExportPaste, { tag: "#PY0LQGRJ", label: "Main" }),
-    );
-    expect(html).toContain("Paste village export");
+const saved = (value: typeof village | null) =>
+  renderToStaticMarkup(
+    createElement(SavedVillageExport, {
+      tag: "#PY0LQGRJ",
+      label: "Main",
+      village: value,
+      now: NOW.toISOString(),
+    }),
+  );
+
+describe("SavedVillageExport — first frame", () => {
+  it("offers the upload form when nothing is saved, and says what the API lacks", () => {
+    const html = saved(null);
+    expect(html).toContain("Track everything, from your game");
     expect(html).toContain("no buildings, walls, traps or upgrade timers");
+    expect(html).toContain("Choose .json file");
+    expect(html).toContain("visible only to you");
+  });
+
+  it("shows the saved export with Upload newer and Remove", () => {
+    const html = saved(village);
+    expect(html).toContain("From your village export");
+    expect(html).toContain("Upload newer");
+    expect(html).toContain("Remove");
+    expect(html).not.toContain("Choose .json file");
   });
 });
 
 describe("VillageExportView", () => {
-  it("says the details are not saved", () => {
-    expect(view()).toContain("Not saved");
+  it("says the details are saved and private", () => {
+    expect(view()).toContain("Saved to your account");
+  });
+
+  it("works time left out from the finish time, days after the export", () => {
+    // Two days on, the upgrade that had a day left is done.
+    expect(view("home", new Date(NOW.getTime() + 2 * 86_400_000))).toContain(">done<");
   });
 
   it("lists buildings by group with counts, level spread and cap", () => {

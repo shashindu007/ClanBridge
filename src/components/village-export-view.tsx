@@ -1,9 +1,13 @@
-// T11B.12 — what a pasted village export shows: buildings, walls, traps, running
+// T11B.12 — what a village export shows: buildings, walls, traps, running
 // upgrades, and the export's own unit levels.
 //
 // Presentational only — no hooks, no state — so village-export-view.test.ts can
-// render it statically. The state (the pasted text, which village is showing)
-// lives in village-export-paste.tsx.
+// render it statically. The state (which village is showing, replacing and
+// removing) lives in village-export-saved.tsx.
+//
+// The export is SAVED (076) and read again days later, so time left is worked
+// out from each upgrade's finish time against `now`, never from the seconds
+// stored when it was parsed.
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +27,7 @@ import {
   buildingTally,
   capTrusted,
   formatDuration,
+  secondsLeft,
   type BuildingGroup,
 } from "@/services/village";
 import type { Village } from "@/types/domain";
@@ -32,7 +37,10 @@ export interface VillageExportViewProps {
   village: ExportedVillage;
   which: Village;
   onWhich: (which: Village) => void;
-  onClear: () => void;
+  /** For time left. The page passes its own, so server and browser agree. */
+  now: Date;
+  /** Replace and Remove, beside the heading. */
+  actions?: React.ReactNode;
 }
 
 /** "21 ×5 · 20 ×1", highest level first. */
@@ -44,7 +52,7 @@ function levelSummary(building: ExportedBuilding): string {
     .join(" · ");
 }
 
-export function VillageExportView({ village, which, onWhich, onClear }: VillageExportViewProps) {
+export function VillageExportView({ village, which, onWhich, now, actions }: VillageExportViewProps) {
   const hall = which === "home" ? village.thLevel : village.bhLevel;
   const hallName = which === "home" ? "Town Hall" : "Builder Hall";
   const groups = buildingGroups(village, which);
@@ -52,7 +60,10 @@ export function VillageExportView({ village, which, onWhich, onClear }: VillageE
   const buildingsOverall = buildingTally(allBuildings);
   const unitsOverall = overallProgress(village.units, which);
   const unitGroups = groupProgress(village.units, which);
-  const upgrades = village.upgrades.filter((u) => u.village === which);
+  const upgrades = village.upgrades
+    .filter((u) => u.village === which)
+    .map((u) => ({ ...u, left: secondsLeft(u, now) }))
+    .sort((a, b) => a.left - b.left);
 
   return (
     <div className="space-y-6">
@@ -61,13 +72,11 @@ export function VillageExportView({ village, which, onWhich, onClear }: VillageE
           <div className="space-y-1">
             <h2 className="text-lg font-semibold">From your village export</h2>
             <p className="text-muted-foreground text-xs">
-              Exported {formatDisplay(village.exportedAt, "datetime")}. Not saved, and
-              gone when you leave or reload this page.
+              Exported {formatDisplay(village.exportedAt, "datetime")}. Saved to your account
+              and visible only to you.
             </p>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={onClear}>
-            Clear
-          </Button>
+          {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
         </div>
 
         <div role="group" aria-label="Village" className="flex flex-wrap gap-2">
@@ -116,16 +125,16 @@ export function VillageExportView({ village, which, onWhich, onClear }: VillageE
                   </span>
                 </span>
                 <span className="text-muted-foreground tabular-nums">
-                  {u.remainingSeconds === 0
+                  {u.left === 0
                     ? "done"
-                    : `${formatDuration(u.remainingSeconds)} left · ${formatDisplay(u.finishesAt, "datetime")}`}
+                    : `${formatDuration(u.left)} left · ${formatDisplay(u.finishesAt, "datetime")}`}
                 </span>
               </li>
             ))}
           </ul>
         )}
         <p className="text-muted-foreground text-xs">
-          Time left is counted from when you exported, so it is only as fresh as the export.
+          Time left is counted from when you exported. Anything started since needs a fresh export.
         </p>
       </section>
 
