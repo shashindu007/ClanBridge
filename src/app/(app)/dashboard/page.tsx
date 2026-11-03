@@ -459,9 +459,15 @@ export default async function DashboardPage({
 
   // THE ONE GOLD BUTTON. The first clan where you still have an attack gets it
   // on its tile; if there is none, the first "Needs you" row does. Never both.
-  const goldTile = statuses.findIndex(
-    (s) => (s.kind === "war" || s.kind === "cwl") && (s.mine?.left ?? 0) > 0,
-  );
+  const needsAttack = (s: (typeof statuses)[number]) =>
+    (s.kind === "war" || s.kind === "cwl") && (s.mine?.left ?? 0) > 0;
+  const goldTile = statuses.findIndex(needsAttack);
+
+  // Clans with an attack waiting first (stable, so the rest keep their order):
+  // the one gold Attack must never be folded behind "Show more".
+  const clanOrder = loaded
+    .map((_, i) => i)
+    .sort((a, b) => Number(needsAttack(statuses[b]!)) - Number(needsAttack(statuses[a]!)));
 
   const name = profile?.username ?? "there";
   const summary = [
@@ -474,6 +480,39 @@ export default async function DashboardPage({
   // Three rows, then the rest behind "Show more": a to-do list longer than the
   // screen is one nobody reaches the end of.
   const FIRST = 3;
+  // The same for clans, one row each: four fit beside a glance at the base card.
+  const CLANS_SHOWN = 4;
+  const clanRow = (i: number) => {
+    const l = loaded[i]!;
+    return (
+      <ClanStatusTile
+        key={l.clan.id}
+        clan={{
+          id: l.clan.id,
+          tag: l.clan.tag,
+          name: l.clan.name,
+          role: l.clan.role,
+          badgeUrl: l.clan.badgeUrl,
+          color: clanAccent(l.clan.id).color,
+        }}
+        status={statuses[i]!}
+        memberCount={l.memberCount}
+        warLeague={l.warLeague}
+        fresh={l.fresh}
+        gold={i === goldTile}
+        clanLeft={
+          isLeadership(l.clan.role)
+            ? (statuses[i]!.kind === "cwl" ? (l.cwl?.record ?? []) : l.record).reduce(
+                (sum, r) => sum + r.attacksRemaining,
+                0,
+              ) || null
+            : null
+        }
+        notice={l.notices[0] ?? null}
+        now={now}
+      />
+    );
+  };
   const needRow = (item: NeedItem, i: number) => {
     const style = KIND_STYLE[item.kind];
     return (
@@ -521,40 +560,25 @@ export default async function DashboardPage({
         </Panel>
       ) : (
         <section aria-labelledby="clans-title" className="space-y-2">
-          <h2 id="clans-title" className="text-lg font-semibold">
-            Your clans
-          </h2>
-          {/* Lean rows, two to a line on a wide screen; one column on a phone. */}
-          <ul className="grid gap-2.5 lg:grid-cols-2">
-            {loaded.map((l, i) => (
-              <ClanStatusTile
-                key={l.clan.id}
-                clan={{
-                  id: l.clan.id,
-                  tag: l.clan.tag,
-                  name: l.clan.name,
-                  role: l.clan.role,
-                  badgeUrl: l.clan.badgeUrl,
-                  color: clanAccent(l.clan.id).color,
-                }}
-                status={statuses[i]!}
-                memberCount={l.memberCount}
-                warLeague={l.warLeague}
-                fresh={l.fresh}
-                gold={i === goldTile}
-                clanLeft={
-                  isLeadership(l.clan.role)
-                    ? (statuses[i]!.kind === "cwl" ? (l.cwl?.record ?? []) : l.record).reduce(
-                        (sum, r) => sum + r.attacksRemaining,
-                        0,
-                      ) || null
-                    : null
-                }
-                notice={l.notices[0] ?? null}
-                now={now}
-              />
-            ))}
-          </ul>
+          <SectionHeader id="clans-title" title="Your clans" count={loaded.length} />
+          {/* One list, one row per clan: it lines up the same with two clans
+              or eight, where a grid of cards left an odd one hanging. */}
+          <div className="cb-panel overflow-hidden rounded-panel border">
+            <ul className="divide-y">{clanOrder.slice(0, CLANS_SHOWN).map(clanRow)}</ul>
+            {clanOrder.length > CLANS_SHOWN && (
+              <details className="group border-t">
+                <summary className="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex cursor-pointer list-none items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition-colors [&::-webkit-details-marker]:hidden">
+                  <span className="group-open:hidden">
+                    Show {clanOrder.length - CLANS_SHOWN} more{" "}
+                    {clanOrder.length - CLANS_SHOWN === 1 ? "clan" : "clans"}
+                  </span>
+                  <span className="hidden group-open:inline">Show fewer</span>
+                  <ChevronDown aria-hidden className="size-4 transition-transform group-open:rotate-180" />
+                </summary>
+                <ul className="divide-y border-t">{clanOrder.slice(CLANS_SHOWN).map(clanRow)}</ul>
+              </details>
+            )}
+          </div>
         </section>
       )}
 

@@ -12,6 +12,7 @@
 
 import type { ExportedBuilding, ExportedUpgrade, ExportedVillage } from "@/types/village";
 import type { Village } from "@/types/domain";
+import type { UnitGroup } from "@/data/game";
 
 export type BuildingGroupKey = "defenses" | "traps" | "walls" | "resources" | "army" | "workers";
 
@@ -139,12 +140,141 @@ export function secondsLeft(upgrade: Pick<ExportedUpgrade, "finishesAt">, now: D
   return Number.isFinite(ms) ? Math.max(0, Math.round(ms / 1000)) : 0;
 }
 
+/**
+ * What an upgrade is upgrading, for its picture. The export's timer row does not
+ * say which section it came from, so it is looked up by name: units first, since
+ * "Battle Machine" is both a Builder Base hero and the building it stands on, and
+ * the hero is the one being upgraded.
+ */
+export type UpgradeSubject =
+  | { type: "unit"; group: UnitGroup }
+  | { type: "building"; kind: string }
+  | null;
+
+export function upgradeSubject(
+  village: ExportedVillage,
+  upgrade: Pick<ExportedUpgrade, "name" | "village">,
+): UpgradeSubject {
+  const unit = village.units.find((u) => u.name === upgrade.name && u.village === upgrade.village);
+  if (unit) return { type: "unit", group: unit.group };
+  const building = village.buildings.find((b) => b.name === upgrade.name && b.village === upgrade.village);
+  if (building) return { type: "building", kind: building.kind };
+  return null;
+}
+
+/** Who does an upgrade in the game: a builder, the lab, or the pet house. */
+type Workshop = "builders" | "lab" | "pets";
+
+function workshopOf(subject: UpgradeSubject): Workshop | null {
+  if (!subject) return null;
+  if (subject.type === "building") return "builders";
+  switch (subject.group) {
+    case "hero":
+    case "builderHero":
+      return "builders";
+    case "pet":
+      return "pets";
+    case "elixirTroop":
+    case "darkTroop":
+    case "siege":
+    case "elixirSpell":
+    case "darkSpell":
+    case "builderTroop":
+      return "lab";
+    default:
+      return null;
+  }
+}
+
+/** The huts whose count is the number of builders, per village. */
+const BUILDER_HUTS: Record<Village, string[]> = {
+  home: ["Builder's Hut", "B.O.B's Hut"],
+  builder: ["Master Builder's Hut", "O.T.T.O's Outpost"],
+};
+
+const WORKSHOP_BUILDING: Record<Village, Record<Exclude<Workshop, "builders">, string | null>> = {
+  home: { lab: "Laboratory", pets: "Pet House" },
+  builder: { lab: "Star Laboratory", pets: null },
+};
+
+export interface WorkshopState {
+  key: Workshop;
+  /** "Builders", "Laboratory", "Pet House" — the game's names. */
+  label: string;
+  /** Running at `now`. */
+  busy: number;
+  /** How many there are: huts for builders, 1 for the lab and pet house. */
+  total: number;
+}
+
+/**
+ * Who is busy, the way the game's top bar says it: builders 5/6, the lab, the
+ * pet house. Only what this village has: no Pet House row before it is built.
+ */
+export function workshops(village: ExportedVillage, which: Village, now: Date): WorkshopState[] {
+  const has = (name: string) =>
+    village.buildings.some((b) => b.village === which && b.name === name && b.count > 0);
+  const huts = village.buildings
+    .filter((b) => b.village === which && BUILDER_HUTS[which].includes(b.name))
+    .reduce((n, b) => n + b.count, 0);
+
+  const busy: Record<Workshop, number> = { builders: 0, lab: 0, pets: 0 };
+  for (const u of village.upgrades) {
+    if (u.village !== which || secondsLeft(u, now) === 0) continue;
+    const w = workshopOf(upgradeSubject(village, u));
+    if (w) busy[w] += 1;
+  }
+
+  const out: WorkshopState[] = [];
+  if (huts > 0) out.push({ key: "builders", label: "Builders", busy: busy.builders, total: huts });
+  for (const key of ["lab", "pets"] as const) {
+    const name = WORKSHOP_BUILDING[which][key];
+    if (name && has(name)) out.push({ key, label: name, busy: busy[key], total: 1 });
+  }
+  return out;
+}
+
+export interface WallBreakdown {
+  total: number;
+  /** This hall's wall cap, or null when the data has none to trust. */
+  cap: number | null;
+  /** Highest level first. */
+  levels: Array<{ level: number; count: number }>;
+  atCap: number;
+}
+
+/** Every wall piece by level, for one village. Null when the export has none. */
+export function wallBreakdown(village: ExportedVillage, which: Village): WallBreakdown | null {
+  const rows = village.buildings.filter((b) => b.village === which && b.kind === "Wall");
+  if (rows.length === 0) return null;
+
+  const byLevel = new Map<number, number>();
+  for (const w of rows) {
+    for (const [level, count] of Object.entries(w.levels)) {
+      byLevel.set(Number(level), (byLevel.get(Number(level)) ?? 0) + count);
+    }
+  }
+  const levels = [...byLevel.entries()]
+    .map(([level, count]) => ({ level, count }))
+    .sort((a, b) => b.level - a.level);
+  const trusted = rows.find(capTrusted);
+  const cap = trusted ? trusted.cap : null;
+
+  return {
+    total: levels.reduce((n, l) => n + l.count, 0),
+    cap,
+    levels,
+    atCap: cap === null ? 0 : levels.filter((l) => l.level >= cap).reduce((n, l) => n + l.count, 0),
+  };
+}
+
 export interface RunningUpgrade {
   name: string;
   village: Village;
   fromLevel: number;
   secondsLeft: number;
   finishesAt: string;
+  subject: UpgradeSubject;
 }
 
 export interface ExportSummary {
@@ -160,6 +290,8 @@ export interface ExportSummary {
   running: RunningUpgrade[];
   /** Upgrades that were running at export time and have finished since. */
   finishedSince: number;
+  /** Home village builders busy at `now`, of how many. Null when the export has no huts. */
+  builders: { busy: number; total: number } | null;
 }
 
 export function exportSummary(village: ExportedVillage, now: Date): ExportSummary {
@@ -190,7 +322,9 @@ export function exportSummary(village: ExportedVillage, now: Date): ExportSummar
     fromLevel: u.fromLevel,
     secondsLeft: secondsLeft(u, now),
     finishesAt: u.finishesAt,
+    subject: upgradeSubject(village, u),
   }));
+  const builders = workshops(village, "home", now).find((w) => w.key === "builders");
 
   return {
     exportedAt: village.exportedAt,
@@ -201,5 +335,6 @@ export function exportSummary(village: ExportedVillage, now: Date): ExportSummar
     walls,
     running: timed.filter((u) => u.secondsLeft > 0).sort((a, b) => a.secondsLeft - b.secondsLeft),
     finishedSince: timed.filter((u) => u.secondsLeft === 0).length,
+    builders: builders ? { busy: builders.busy, total: builders.total } : null,
   };
 }

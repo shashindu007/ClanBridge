@@ -13,7 +13,7 @@
 // rather than guessed at: art filed under the wrong key is a Hog Rider standing
 // where a Valkyrie should be, and nobody would notice until a member did.
 
-import { artKeyForLeague, artKeyForUnit, artSlug } from "../src/lib/game-art";
+import { artKeyForBuilding, artKeyForLeague, artKeyForUnit, artSlug } from "../src/lib/game-art";
 import type { UnitGroup } from "../src/data/game";
 import type { Village } from "../src/types/domain";
 
@@ -23,10 +23,21 @@ export interface KnownUnit {
   village: Village;
 }
 
+/** A building or trap from src/data/game/buildings.json. */
+export interface KnownBuilding {
+  name: string;
+  village: Village;
+  /** The export's kind: "Defense", "trap", "Wall", … */
+  kind: string;
+}
+
 /** Where each key family is written under public/game/. */
 export function folderFor(key: string): string {
   if (key.startsWith("th-")) return "townhall";
   if (key.startsWith("builder-troop-")) return "builder-troops";
+  if (key.startsWith("builder-building-")) return "builder-buildings";
+  if (key.startsWith("builder-trap-") || key.startsWith("trap-")) return "traps";
+  if (key.startsWith("building-")) return "buildings";
   const prefix = key.split("-")[0];
   const folders: Record<string, string> = {
     hero: "heroes",
@@ -132,7 +143,18 @@ export function preference(relativePath: string): number[] {
     capital ? 0 : 1,
     isIconFile(relativePath) ? 1 : 0,
     fileWords.includes("old") ? 0 : 1,
+    renderLevel(fileWords),
   ];
+}
+
+/**
+ * The level a building render shows ("Building_HV_Cannon_level_21" → 21), or 0.
+ * The kit ships every level of a building; the highest is the one a player
+ * pictures, so it wins over the rest.
+ */
+function renderLevel(fileWords: string[]): number {
+  const m = /\b(?:level|lvl|lv) ?(\d{1,3})\b/.exec(fileWords.join(" "));
+  return m ? Number(m[1]) : 0;
 }
 
 /** Whether `a` is a better source than `b` by preference(), before file size. */
@@ -172,7 +194,11 @@ function containsRun(haystack: string[], needle: string[]): boolean {
  * `relativePath` is the path inside the unzipped kit, folders included —
  * folder names are often the only place "Builder Base" appears.
  */
-export function matchArtKey(relativePath: string, units: readonly KnownUnit[]): string | null {
+export function matchArtKey(
+  relativePath: string,
+  units: readonly KnownUnit[],
+  buildings: readonly KnownBuilding[] = [],
+): string | null {
   const w = words(relativePath);
   const fileWords = words(relativePath.replace(/\\/g, "/").split("/").pop() ?? "");
   const joined = w.join(" ");
@@ -211,12 +237,33 @@ export function matchArtKey(relativePath: string, units: readonly KnownUnit[]): 
     return artKeyForLeague(name);
   }
 
-  // Units: the longest unit name found as a whole run of words wins, so
-  // "Super Barbarian" beats "Barbarian" and "Barbarian King" beats both.
   // The kit prefixes files "Icon_BB_…" (Builder Base) and "Icon_HV_…" (home
   // village); a folder name is the other place the village is said.
   const builder =
     containsRun(w, ["builder", "base"]) || w.includes("builder") || fileWords.includes("bb");
+
+  // Buildings and traps: "Building_HV_Cannon_level_21", "Building_BB_Roaster",
+  // or anything in a Buildings / Traps / Defenses folder. A file that SAYS
+  // "building" is only ever a building — "Archer Tower" must not be filed as
+  // the Archer — while one that is only in such a folder may still be a unit.
+  const saysBuilding = fileWords.includes("building") || fileWords.includes("trap");
+  const inBuildingFolder = ["buildings", "traps", "defenses", "defense"].some((f) => w.includes(f));
+  if (saysBuilding || inBuildingFolder) {
+    let found: { building: KnownBuilding; length: number } | null = null;
+    for (const b of buildings) {
+      const needle = artSlug(b.name).split("-");
+      if (!containsRun(w, needle)) continue;
+      const onRightSide = b.village === "home" ? !builder : builder;
+      const length = needle.length + (onRightSide ? 100 : 0);
+      if (!found || length > found.length) found = { building: b, length };
+    }
+    const key = found && artKeyForBuilding(found.building.name, found.building.village, found.building.kind);
+    if (key) return key;
+    if (saysBuilding) return null;
+  }
+
+  // Units: the longest unit name found as a whole run of words wins, so
+  // "Super Barbarian" beats "Barbarian" and "Barbarian King" beats both.
   const inSpellsFolder = w.includes("spells") || w.includes("spell");
   // Hero equipment: "Hero_Equipment_…", "HeroEquipment_…", "HeroGear_…",
   // "icon_gear_…", "HG_DD_…". Such a file is only ever a piece of equipment —

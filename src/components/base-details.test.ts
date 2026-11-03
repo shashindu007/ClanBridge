@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { BaseDetails, villageParam } from "@/components/base-details";
+import { BaseDetails, VillageSwitch, villageParam } from "@/components/base-details";
 import { playerSchema } from "@/integration/coc-schemas";
 import { mapPlayerProgress } from "@/integration/mappers";
 import type { BaseProgress, ProgressReading } from "@/repositories/player-progress";
@@ -83,6 +83,33 @@ describe("BaseDetails", () => {
     expect(builder).toContain("Builder Hall 10");
     expect(builder).toContain("Battle Machine");
     expect(builder).not.toContain("Barbarian King");
+  });
+
+  it("leaves the switch and the banner to the owner's page when it draws its own", () => {
+    const html = renderToStaticMarkup(
+      createElement(BaseDetails, {
+        progress: { latest, baseline: null },
+        village: "home",
+        path: "/account/bases/%23PY0LQGRJ/details",
+        switcher: false,
+        banner: false,
+      }),
+    );
+    expect(html).not.toContain("?village=builder");
+    expect(html).not.toContain('data-scene="banner"');
+    expect(html).toContain("Heroes, troops and spells");
+    // The army grid itself is still there.
+    expect(html).toContain("Barbarian King");
+  });
+
+  it("names each village's hall on the shared switch", () => {
+    const html = renderToStaticMarkup(
+      createElement(VillageSwitch, { path: "/p", current: "builder", thLevel: 17, bhLevel: 10 }),
+    );
+    expect(html).toContain("Town Hall 17");
+    expect(html).toContain("BH 10");
+    const current = /<a[^>]*aria-current="page"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(current).toContain('href="/p?village=builder"');
   });
 
   it("marks units whose cap is not known yet, and explains the mark", () => {

@@ -3,6 +3,7 @@
 // Valkyrie should be and nothing else would ever notice.
 
 import { describe, expect, it } from "vitest";
+import buildingsFile from "../src/data/game/buildings.json";
 import unitsFile from "../src/data/game/units.json";
 import {
   comparePreference,
@@ -11,11 +12,13 @@ import {
   matchArtKey,
   preference,
   words,
+  type KnownBuilding,
   type KnownUnit,
 } from "./game-art.map";
 
 const units = unitsFile.units as KnownUnit[];
-const key = (path: string) => matchArtKey(path, units);
+const buildings = buildingsFile.buildings as KnownBuilding[];
+const key = (path: string) => matchArtKey(path, units, buildings);
 
 describe("words", () => {
   it("splits folders, underscores and camel case, and drops decoration", () => {
@@ -130,12 +133,43 @@ describe("matchArtKey", () => {
   });
 });
 
+describe("matchArtKey — buildings and traps", () => {
+  it("files a building render under its village", () => {
+    expect(key("Buildings/Building_HV_Cannon_level_21.png")).toBe("building-cannon");
+    expect(key("Builder Base/Building_BB_Cannon_level_10.png")).toBe("builder-building-cannon");
+    expect(key("Building_BB_Roaster.png")).toBe("builder-building-roaster");
+  });
+
+  it("never files a building as the troop it is named after", () => {
+    expect(key("Building_HV_Archer_Tower_level_21.png")).toBe("building-archer-tower");
+    expect(key("Building_HV_Wizard_Tower.png")).toBe("building-wizard-tower");
+    expect(key("Building_HV_Unknown_Thing.png")).toBeNull();
+  });
+
+  it("takes the longest trap name, so a Giant Bomb is not a Bomb", () => {
+    expect(key("Traps/Trap_HV_Giant_Bomb.png")).toBe("trap-giant-bomb");
+    expect(key("Traps/Trap_HV_Bomb.png")).toBe("trap-bomb");
+  });
+
+  it("still files a unit kept in a Defenses folder as the unit", () => {
+    expect(key("Defenses/Icon_HV_Hog_Rider.png")).toBe("troop-hog-rider");
+  });
+
+  it("leaves the halls to Town Hall art", () => {
+    expect(key("Buildings/Building_HV_Town_Hall_level_16.png")).toBe("th-16");
+  });
+});
+
 describe("folderFor", () => {
   it("files every family under its own folder", () => {
     expect(folderFor("th-17")).toBe("townhall");
     expect(folderFor("hero-archer-queen")).toBe("heroes");
     expect(folderFor("builder-troop-baby-dragon")).toBe("builder-troops");
     expect(folderFor("league-crystal-1")).toBe("leagues");
+    expect(folderFor("building-cannon")).toBe("buildings");
+    expect(folderFor("builder-building-cannon")).toBe("builder-buildings");
+    expect(folderFor("trap-bomb")).toBe("traps");
+    expect(folderFor("builder-trap-mine")).toBe("traps");
   });
 });
 
@@ -164,6 +198,10 @@ describe("preference", () => {
   it("takes an icon over a render, and a new file over an old one", () => {
     expect(better("Icon_HV_Hero_Archer_Queen.png", "Archer_Queen_1.png")).toBe(true);
     expect(better("Icon_HV_Spell_Freeze_new.png", "Icon_HV_Spell_Freeze_old.png")).toBe(true);
+  });
+
+  it("takes a building's highest level render", () => {
+    expect(better("Building_HV_Cannon_level_21.png", "Building_HV_Cannon_level_9.png")).toBe(true);
   });
 
   it("calls two files of the same kind even, for the file size to decide", () => {

@@ -36,9 +36,17 @@
 
 import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
+import buildingsFile from "../src/data/game/buildings.json";
 import unitsFile from "../src/data/game/units.json";
 import { artKeyForUnit, type ArtManifest } from "../src/lib/game-art";
-import { comparePreference, folderFor, matchArtKey, preference, type KnownUnit } from "./game-art.map";
+import {
+  comparePreference,
+  folderFor,
+  matchArtKey,
+  preference,
+  type KnownBuilding,
+  type KnownUnit,
+} from "./game-art.map";
 
 const OUT_DIR = join(process.cwd(), "public", "game");
 const MANIFEST = join(process.cwd(), "src", "data", "game", "art-manifest.json");
@@ -101,6 +109,12 @@ async function main() {
     village: u.village,
   }));
 
+  const buildings: KnownBuilding[] = (buildingsFile.buildings as KnownBuilding[]).map((b) => ({
+    name: b.name,
+    village: b.village,
+    kind: b.kind,
+  }));
+
   const files = await walk(kit);
   const chosen = new Map<string, { path: string; bytes: number; rank: number[] }>();
   const unused: string[] = [];
@@ -111,7 +125,7 @@ async function main() {
       unused.push(rel);
       continue;
     }
-    const key = matchArtKey(rel, units);
+    const key = matchArtKey(rel, units, buildings);
     if (!key) {
       unused.push(rel);
       continue;

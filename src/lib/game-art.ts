@@ -23,6 +23,7 @@
 
 import manifestFile from "@/data/game/art-manifest.json";
 import type { UnitGroup } from "@/data/game";
+import type { Village } from "@/types/domain";
 
 export interface ArtEntry {
   /** Public path, e.g. /game/townhall/th-17.webp */
@@ -82,6 +83,19 @@ const GROUP_PREFIX: Record<UnitGroup, string> = {
 
 export function artKeyForUnit(name: string, group: UnitGroup): string {
   return `${GROUP_PREFIX[group]}-${artSlug(name)}`;
+}
+
+/**
+ * A building or trap as a key, by the export's `kind` (src/data/game/buildings.json).
+ * Each village is its own family — the Builder Base Cannon is not the home one —
+ * and traps are kept apart from buildings, the way the game's shop files them.
+ * The halls are Town Hall art (`th-N`), so they have no building key.
+ */
+export function artKeyForBuilding(name: string, village: Village, kind: string): string | null {
+  if (kind === "Town Hall") return null;
+  if (kind === "Town Hall2" && name === "Builder Hall") return null;
+  const family = kind === "trap" ? "trap" : "building";
+  return `${village === "builder" ? "builder-" : ""}${family}-${artSlug(name)}`;
 }
 
 const ROMAN: Record<string, number> = { i: 1, ii: 2, iii: 3, iv: 4, v: 5 };

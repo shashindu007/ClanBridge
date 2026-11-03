@@ -9,7 +9,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { SavedVillageExport } from "@/components/village-export-saved";
-import { VillageExportView } from "@/components/village-export-view";
+import { VillageExportView, type VillageExportViewProps } from "@/components/village-export-view";
 import { parseVillageExport } from "@/integration/village-export";
 import type { Village } from "@/types/domain";
 
@@ -43,17 +43,18 @@ vi.mock("@/app/(app)/account/bases/actions", () => ({
   removeVillageExport: vi.fn(),
 }));
 
-function view(which: Village = "home", now: Date = NOW): string {
-  return renderToStaticMarkup(createElement(VillageExportView, { village, which, onWhich: () => {}, now }));
+function view(which: Village = "home", now: Date = NOW, extra: Partial<VillageExportViewProps> = {}): string {
+  return renderToStaticMarkup(createElement(VillageExportView, { village, which, now, ...extra }));
 }
 
-const saved = (value: typeof village | null) =>
+const saved = (value: typeof village | null, which: Village = "home") =>
   renderToStaticMarkup(
     createElement(SavedVillageExport, {
       tag: "#PY0LQGRJ",
       label: "Main",
       village: value,
       now: NOW.toISOString(),
+      which,
     }),
   );
 
@@ -72,6 +73,13 @@ describe("SavedVillageExport — first frame", () => {
     expect(html).toContain("Upload newer");
     expect(html).toContain("Remove");
     expect(html).not.toContain("Choose .json file");
+    // The filter it holds is offered.
+    expect(html).toContain("Not maxed only");
+    expect(html).toContain('aria-pressed="true"');
+  });
+
+  it("shows the village the page chose, not one of its own", () => {
+    expect(saved(village, "builder")).toContain("Builder Hall 10");
   });
 });
 
@@ -85,20 +93,51 @@ describe("VillageExportView", () => {
     expect(view("home", new Date(NOW.getTime() + 2 * 86_400_000))).toContain(">done<");
   });
 
-  it("lists buildings by group with counts, level spread and cap", () => {
+  it("draws every building as a tile with its icon, count, level spread and cap", () => {
     const html = view();
     expect(html).toContain("Defenses");
     expect(html).toContain("Cannon");
+    expect(html).toContain("×6");
     expect(html).toContain("21 ×5 · 20");
-    expect(html).toContain("Walls");
-    expect(html).toContain("17 ×300");
     expect(html).toContain("Traps");
+    // No Fan Kit building art in a test: each kind's token stands in.
+    expect(html).toContain('data-kind="Defense"');
+    expect(html).toContain('data-kind="trap"');
+    expect(html).not.toContain("<table");
+  });
+
+  it("gives walls a card of their own, by level", () => {
+    const html = view();
+    expect(html).toContain('id="walls-title"');
+    expect(html).toContain("300 pieces");
+    expect(html).toContain("Lv 17");
+    expect(html).toContain("×300");
+    expect(html).toContain("300 at level 17");
+  });
+
+  it("leads with the four numbers a player checks first", () => {
+    const html = view();
+    expect(html).toContain("Town Hall 17");
+    expect(html).toContain("Buildings");
+    expect(html).toContain("Builders busy");
+    expect(html).toContain("Heroes and army");
+  });
+
+  it("filters the grid to one group, and hides what is maxed", () => {
+    const traps = view("home", NOW, { filter: "traps", onFilter: () => {} });
+    expect(traps).toContain(">Bomb<");
+    // The tile's own bar; Cannon is still named in "Upgrading now".
+    expect(traps).not.toContain('aria-label="Cannon ');
+    const left = view("home", NOW, { notMaxedOnly: true, onNotMaxedOnly: () => {} });
+    expect(left).toContain('aria-label="Cannon ');
+    // Six Bombs at 13, the TH 17 cap: all maxed, so hidden.
+    expect(left).not.toContain(">Bomb<");
   });
 
   it("shows running upgrades with time left from the export", () => {
     const html = view();
     expect(html).toContain("Upgrading now");
-    expect(html).toContain("20 → 21");
+    expect(html).toContain("Level 20 → 21");
     // 90,000s at export, 60s ago: 89,940s, which formats as whole days only.
     expect(html).toContain("1d left");
   });

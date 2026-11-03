@@ -41,6 +41,7 @@ import {
 import { StatTile, Tile } from "@/components/kit";
 import { HomeRank } from "@/components/player-rank";
 import { VillageExportDialog } from "@/components/village-export-upload";
+import { BuildingIcon } from "@/components/game/building-icon";
 import { TownHall } from "@/components/game/town-hall";
 import { UnitIcon } from "@/components/game/unit-icon";
 import { Badge } from "@/components/ui/badge";
@@ -412,7 +413,7 @@ function ExportBlock({ base, onUpload }: { base: MainBaseView; onUpload: () => v
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div className="min-w-0 space-y-1">
           <p className="text-muted-foreground text-xs">Buildings</p>
           <p className="cb-title text-2xl leading-none tabular-nums">{saved.buildingsPct}%</p>
@@ -431,6 +432,23 @@ function ExportBlock({ base, onUpload }: { base: MainBaseView; onUpload: () => v
             <p className="text-muted-foreground text-sm">None in the export</p>
           )}
         </div>
+        <div className="min-w-0 space-y-1">
+          <p className="text-muted-foreground text-xs">Builders busy</p>
+          {saved.builders ? (
+            <>
+              <p className="cb-title text-2xl leading-none tabular-nums">
+                {saved.builders.busy}/{saved.builders.total}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {saved.builders.busy >= saved.builders.total
+                  ? "all working"
+                  : `${saved.builders.total - saved.builders.busy} free`}
+              </p>
+            </>
+          ) : (
+            <p className="text-muted-foreground text-sm">—</p>
+          )}
+        </div>
       </div>
 
       <div className="space-y-1.5">
@@ -443,10 +461,15 @@ function ExportBlock({ base, onUpload }: { base: MainBaseView; onUpload: () => v
           )}
         </p>
         {shown.length > 0 && (
-          <ul className="space-y-1 text-sm">
+          <ul className="space-y-1.5 text-sm">
             {shown.map((u, i) => (
-              <li key={`${u.village}:${u.name}:${i}`} className="flex justify-between gap-3">
-                <span className="min-w-0 truncate">
+              <li key={`${u.village}:${u.name}:${i}`} className="flex items-center justify-between gap-3">
+                {u.subject?.type === "unit" ? (
+                  <UnitIcon name={u.name} group={u.subject.group} size={24} />
+                ) : (
+                  <BuildingIcon name={u.name} village={u.village} kind={u.subject?.kind ?? "Other"} size={24} />
+                )}
+                <span className="min-w-0 flex-1 truncate">
                   {u.name}{" "}
                   <span className="text-muted-foreground tabular-nums">
                     {u.fromLevel} → {u.fromLevel + 1}
