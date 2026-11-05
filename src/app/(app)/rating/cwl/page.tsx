@@ -42,9 +42,11 @@ import {
   type BoardColumn,
   type BoardRow,
 } from "@/components/rating-board";
+import { DifficultyRules } from "@/components/rating-parts";
 import { RatingShell } from "@/components/rating-shell";
 import { basesForUser } from "@/repositories/account-bases";
 import { oneDecimal, signed } from "@/services/cwl-rating";
+import { leagueWeight, weightLabel, type WeightedMonth } from "@/services/difficulty";
 
 export const dynamic = "force-dynamic";
 
@@ -107,14 +109,32 @@ export default async function CwlRatingPage({
   const countOf = (r: (typeof ratings)[number]) =>
     r.rating.players.filter((p) => r.rating.started || p.provisional).length;
 
-  type Item = { clan: (typeof ratings)[number]["clan"]; player: (typeof ratings)[number]["rating"]["players"][number] };
+  // DIFFICULTY (services/difficulty.ts): with several clans in one list, each
+  // finished day counts by the league times its enemy lineup. One clan alone
+  // is as it always was.
+  const weighedView = !only && ratings.length > 1;
+  const leagueOf = new Map(ratings.map((r) => [r.clan.id, r.view.league]));
+
+  type Item = {
+    clan: (typeof ratings)[number]["clan"];
+    player: (typeof ratings)[number]["rating"]["players"][number];
+    weighed: WeightedMonth | null;
+  };
+  const ratingOf = (item: Item) => (item.weighed ? item.weighed.rating : item.player.rating);
+  const marksOf = (item: Item) => (item.weighed ? item.weighed.marks : item.player.marks);
   const order = (a: Item, b: Item) =>
-    b.player.rating - a.player.rating ||
-    b.player.marks - a.player.marks ||
+    ratingOf(b) - ratingOf(a) ||
+    marksOf(b) - marksOf(a) ||
     (b.player.averageDestruction ?? -1) - (a.player.averageDestruction ?? -1) ||
     (b.player.provisional?.share ?? 0) - (a.player.provisional?.share ?? 0);
   const sorted: Item[] = shown
-    .flatMap(({ clan, rating }) => rating.players.map((player) => ({ clan, player })))
+    .flatMap(({ clan, rating, weighed }) =>
+      rating.players.map((player) => ({
+        clan,
+        player,
+        weighed: weighedView ? (weighed.get(player.playerId) ?? null) : null,
+      })),
+    )
     // Until a day has finished there is only the running day to go on.
     .filter(({ player }) => started || player.provisional)
     .sort((a, b) => order(a, b) || a.player.name.localeCompare(b.player.name));
@@ -124,38 +144,65 @@ export default async function CwlRatingPage({
   const here = (clanTag: string | null) =>
     clanTag ? `/rating/cwl?clan=${encodeURIComponent(clanTag)}` : "/rating/cwl";
 
-  const rows: BoardRow[] = rankRows(sorted, (a, b) => order(a, b) === 0).map(({ item: { clan, player }, rank, tied }) => ({
+  const rows: BoardRow[] = rankRows(sorted, (a, b) => order(a, b) === 0).map(({ item, rank, tied }) => {
+    const { clan, player, weighed } = item;
+    const perDay = weighed ? weighed.perUnit : player.perDay;
+    const league = leagueOf.get(clan.id) ?? null;
+    return {
     key: `${clan.id}:${player.playerId}`,
     anchorId: rankAnchor(player.tag),
     rank,
     tied,
-    medal: player.rating > 0,
+    medal: ratingOf(item) > 0,
     name: player.name,
     tag: player.tag,
     href: `/${encodeURIComponent(clan.tag)}/player/${encodeURIComponent(player.tag)}`,
     you: ownIds.has(player.playerId),
-    clan: { id: clan.id, name: clan.name, href: monthHref(clan.tag) },
+    clan: {
+      id: clan.id,
+      // The league beside the clan, where it changes what a day is worth.
+      name: weighedView && league ? `${clan.name} · ${league.replace(" League", "")}` : clan.name,
+      href: monthHref(clan.tag),
+    },
     thLevel: player.thLevel,
-    rating: { text: oneDecimal(player.rating), value: player.rating },
+    rating: {
+      text: oneDecimal(ratingOf(item)),
+      value: ratingOf(item),
+      sub: weighed ? `${oneDecimal(player.rating)} before difficulty` : undefined,
+    },
     cells: {
       days: player.daysCounted,
       marks: <span className={cn(player.marks < 0 && "text-destructive")}>{signed(player.marks)}</span>,
+      difficulty: (
+        <span
+          className="text-muted-foreground text-sm"
+          title={
+            league
+              ? `${league} (${weightLabel(leagueWeight(league))}) times each day's enemy Town Hall`
+              : "League not recorded: counts ×1.00, times each day's enemy Town Hall"
+          }
+        >
+          {weightLabel(weighed?.averageWeight ?? null)}
+        </span>
+      ),
       live: (
         <span className="text-muted-foreground text-sm">
           {player.provisional ? `${signed(player.provisional.marks)} · ${oneDecimal(player.provisional.share)}%` : "—"}
         </span>
       ),
       perDay: (
-        <span className="text-muted-foreground text-sm">
-          {player.perDay === null ? "—" : oneDecimal(player.perDay)}
-        </span>
+        <span className="text-muted-foreground text-sm">{perDay === null ? "—" : oneDecimal(perDay)}</span>
       ),
     },
-  }));
+  };
+  });
 
   const columns: BoardColumn[] = [
     { key: "days", label: "Days" },
     { key: "marks", label: "Marks" },
+    ...(weighedView
+      ? [{ key: "difficulty", label: "Difficulty", title: "League × enemy Town Hall: see How difficulty works" }]
+      : []),
     ...(running ? [{ key: "live", label: "Today so far" }] : []),
     { key: "perDay", label: "Per day", title: "Rating divided by the finished days they played" },
   ];
@@ -195,6 +242,8 @@ export default async function CwlRatingPage({
                 : "Rating is each finished day's share of a player's own clan's plus marks, added up."
               : "No day has finished yet — this is the running day so far, and it will move."}
             {started && running && " The day still running is shown beside it and is not counted yet."}
+            {weighedView &&
+              " With every clan in one list, each finished day counts by its league and how hard its enemy was (Difficulty); pick one clan to see it without."}
           </p>
         </div>
 
@@ -267,6 +316,8 @@ export default async function CwlRatingPage({
           rating page — {only ? "the link above" : "follow a clan's name"}.
         </p>
       </Panel>
+
+      <DifficultyRules cwl />
     </RatingShell>
   );
 }

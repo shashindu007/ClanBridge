@@ -27,7 +27,7 @@ import { seasonLabel } from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { canSeeMemberStats } from "@/lib/visibility";
-import { loadWarMonth } from "@/lib/war-rating-data";
+import { loadWarMonth, weightedWarMonth } from "@/lib/war-rating-data";
 import { EmptyState, Panel, SectionHeader } from "@/components/kit";
 import { RankDock } from "@/components/rank-dock";
 import {
@@ -39,10 +39,12 @@ import {
   type BoardColumn,
   type BoardRow,
 } from "@/components/rating-board";
+import { DifficultyRules } from "@/components/rating-parts";
 import { RatingShell } from "@/components/rating-shell";
 import { basesForUser } from "@/repositories/account-bases";
 import { warMonthsForClan } from "@/repositories/war";
 import { oneDecimal, signed } from "@/services/cwl-rating";
+import { weightLabel, type WeightedMonth } from "@/services/difficulty";
 
 export const dynamic = "force-dynamic";
 
@@ -97,7 +99,10 @@ export default async function WarRatingPage({
   }
 
   const loaded = await Promise.all(
-    clans.map(async (clan) => ({ clan, view: await loadWarMonth(supabase, clan, month) })),
+    clans.map(async (clan) => {
+      const view = await loadWarMonth(supabase, clan, month);
+      return { clan, view, weighed: weightedWarMonth(view) };
+    }),
   );
   // The clans that fought a war this month.
   const played = loaded.filter(({ view }) => view.wars.length > 0);
@@ -115,14 +120,30 @@ export default async function WarRatingPage({
   const attackOnly = counted.filter((w) => w.attackOnly).length;
   const incomplete = counted.filter((w) => w.starsNotCaptured > 0).length;
 
-  type Item = { clan: (typeof played)[number]["clan"]; player: ReturnType<typeof rankedOf>[number] };
+  // DIFFICULTY (services/difficulty.ts): with several clans in one list, each
+  // finished war counts by its enemy lineup. One clan alone is as it always was.
+  const weighedView = !only && played.length > 1;
+
+  type Item = {
+    clan: (typeof played)[number]["clan"];
+    player: ReturnType<typeof rankedOf>[number];
+    weighed: WeightedMonth | null;
+  };
+  const ratingOf = (item: Item) => (item.weighed ? item.weighed.rating : item.player.rating);
+  const marksOf = (item: Item) => (item.weighed ? item.weighed.marks : item.player.marks);
   const order = (a: Item, b: Item) =>
-    b.player.rating - a.player.rating ||
-    b.player.marks - a.player.marks ||
+    ratingOf(b) - ratingOf(a) ||
+    marksOf(b) - marksOf(a) ||
     (b.player.averageDestruction ?? -1) - (a.player.averageDestruction ?? -1) ||
     (b.player.provisional?.share ?? 0) - (a.player.provisional?.share ?? 0);
   const sorted: Item[] = shown
-    .flatMap((p) => rankedOf(p).map((player) => ({ clan: p.clan, player })))
+    .flatMap((p) =>
+      rankedOf(p).map((player) => ({
+        clan: p.clan,
+        player,
+        weighed: weighedView ? (p.weighed.get(player.playerId) ?? null) : null,
+      })),
+    )
     .sort((a, b) => order(a, b) || a.player.name.localeCompare(b.player.name));
 
   const clanHref = (clanTag: string) => `/${encodeURIComponent(clanTag)}/war/rating?month=${month}`;
@@ -136,38 +157,52 @@ export default async function WarRatingPage({
     return text ? `/rating/war?${text}` : "/rating/war";
   };
 
-  const rows: BoardRow[] = rankRows(sorted, (a, b) => order(a, b) === 0).map(({ item: { clan, player }, rank, tied }) => ({
+  const rows: BoardRow[] = rankRows(sorted, (a, b) => order(a, b) === 0).map(({ item, rank, tied }) => {
+    const { clan, player, weighed } = item;
+    const perWar = weighed ? weighed.perUnit : player.perWar;
+    return {
     key: `${clan.id}:${player.playerId}`,
     anchorId: rankAnchor(player.tag),
     rank,
     tied,
-    medal: player.rating > 0,
+    medal: ratingOf(item) > 0,
     name: player.name,
     tag: player.tag,
     href: `/${encodeURIComponent(clan.tag)}/player/${encodeURIComponent(player.tag)}`,
     you: ownIds.has(player.playerId),
     clan: { id: clan.id, name: clan.name, href: clanHref(clan.tag) },
     thLevel: player.thLevel,
-    rating: { text: oneDecimal(player.rating), value: player.rating },
+    rating: {
+      text: oneDecimal(ratingOf(item)),
+      value: ratingOf(item),
+      sub: weighed ? `${oneDecimal(player.rating)} before difficulty` : undefined,
+    },
     cells: {
       wars: player.warsCounted,
       marks: <span className={cn(player.marks < 0 && "text-destructive")}>{signed(player.marks)}</span>,
+      difficulty: (
+        <span className="text-muted-foreground text-sm" title="The average weight of the wars they played">
+          {weightLabel(weighed?.averageWeight ?? null)}
+        </span>
+      ),
       live: (
         <span className="text-muted-foreground text-sm">
           {player.provisional ? `${signed(player.provisional.marks)} · ${oneDecimal(player.provisional.share)}%` : "—"}
         </span>
       ),
       perWar: (
-        <span className="text-muted-foreground text-sm">
-          {player.perWar === null ? "—" : oneDecimal(player.perWar)}
-        </span>
+        <span className="text-muted-foreground text-sm">{perWar === null ? "—" : oneDecimal(perWar)}</span>
       ),
     },
-  }));
+  };
+  });
 
   const columns: BoardColumn[] = [
     { key: "wars", label: "Wars" },
     { key: "marks", label: "Marks" },
+    ...(weighedView
+      ? [{ key: "difficulty", label: "Difficulty", title: "How hard their wars were: see How difficulty works" }]
+      : []),
     ...(fighting ? [{ key: "live", label: "This war so far" }] : []),
     { key: "perWar", label: "Per war", title: "Rating divided by the finished wars they were in" },
   ];
@@ -205,6 +240,8 @@ export default async function WarRatingPage({
                 : "Rating is each finished war's share of a player's own clan's plus marks, added up over the month."
               : "No war of this month has finished yet — this is the war being fought so far, and it will move."}
             {started && fighting && " The war being fought is shown beside it and is not counted yet."}
+            {weighedView &&
+              " With every clan in one list, each finished war counts by how hard its enemy was (Difficulty); pick one clan to see it without."}
           </p>
         </div>
 
@@ -273,6 +310,8 @@ export default async function WarRatingPage({
             ` In ${incomplete} the last attacks were not captured, so nobody lost marks for an unused attack there.`}
         </p>
       </Panel>
+
+      <DifficultyRules />
     </RatingShell>
   );
 }

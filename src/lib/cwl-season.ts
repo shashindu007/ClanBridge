@@ -15,6 +15,7 @@ import { currentUserId, isPlatformAdmin } from "@/lib/auth";
 import type { ClanRole } from "@/types/domain";
 import { isLeadership } from "@/lib/visibility";
 import { canonicalLeague } from "@/data/cwl-medals";
+import { dayWeight, weightedMonth, type WeightedMonth } from "@/services/difficulty";
 import { clanDetail } from "@/repositories/clans";
 import {
   attacksForWar,
@@ -180,6 +181,29 @@ export async function loadSeasonBoards(
       groupWar: view.groupWars.find((w) => w.warTag === war.warTag),
     }),
   );
+}
+
+/**
+ * Each day's difficulty weight (services/difficulty.ts): the season's league
+ * times that day's enemy lineup. In the order of `view.wars`.
+ */
+export function dayWeights(view: SeasonView, boards: readonly DayBoard[]): number[] {
+  return boards.map((board) => dayWeight(view.league, board.enemyThs ?? []));
+}
+
+/**
+ * Every player's season with each finished day weighed by how hard it was: for
+ * the views that rank several clans together. A clan's own pages use the
+ * rating as it is.
+ */
+export function weightedSeason(
+  view: SeasonView,
+  boards: readonly DayBoard[],
+  rating: SeasonRating,
+): Map<string, WeightedMonth> {
+  const weights = dayWeights(view, boards);
+  const counted = rating.days.map((d) => d.status === "counted");
+  return new Map(rating.players.map((player) => [player.playerId, weightedMonth(player.days, weights, counted)]));
 }
 
 /**

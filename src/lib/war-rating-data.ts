@@ -14,6 +14,7 @@ import {
   warsInMonth,
   type WarRatingWar,
 } from "@/repositories/war";
+import { warWeight, weightedMonth, type WeightedMonth } from "@/services/difficulty";
 import { monthWarRating, warBoard, type MonthWarRating, type WarBoard } from "@/services/war-rating";
 
 export interface WarMonthView {
@@ -68,4 +69,22 @@ export async function loadWarMonth(
       })),
     ),
   };
+}
+
+/** Each war's difficulty weight (services/difficulty.ts), in the order of `view.wars`. */
+export function warWeights(view: WarMonthView): number[] {
+  return view.boards.map((board) => warWeight(board.enemyThs ?? []));
+}
+
+/**
+ * Every player's month with each finished war weighed by how hard it was: for
+ * the views that rank several clans together. A clan's own page uses
+ * `view.rating` as it is.
+ */
+export function weightedWarMonth(view: WarMonthView): Map<string, WeightedMonth> {
+  const weights = warWeights(view);
+  const counted = view.rating.wars.map((w) => w.status === "counted");
+  return new Map(
+    view.rating.players.map((player) => [player.playerId, weightedMonth(player.wars, weights, counted)]),
+  );
 }

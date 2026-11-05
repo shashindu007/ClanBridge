@@ -11,11 +11,11 @@
 // The job fails, and the month keeps its last good ranking.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { loadSeasonBoards, loadSeasonView, ratingFor } from "@/lib/cwl-season";
+import { loadSeasonBoards, loadSeasonView, ratingFor, weightedSeason } from "@/lib/cwl-season";
 import { loadGamesMonth } from "@/lib/games-rating-data";
 import { loadRaidMonth } from "@/lib/raid-rating-data";
 import type { RatingKind } from "@/lib/rating";
-import { loadWarMonth } from "@/lib/war-rating-data";
+import { loadWarMonth, weightedWarMonth } from "@/lib/war-rating-data";
 import { seasonByName } from "@/repositories/cwl";
 import { membersForClan } from "@/repositories/members";
 import {
@@ -86,6 +86,12 @@ function add(marks: Map<string, number>, players: ReadonlyArray<{ playerId: stri
   }
 }
 
+function addWeighed(marks: Map<string, number>, weighed: ReadonlyMap<string, { marks: number }>) {
+  for (const [playerId, month] of weighed) {
+    marks.set(playerId, (marks.get(playerId) ?? 0) + month.marks);
+  }
+}
+
 /** Null when nobody in the family has a mark this month, so there is nothing to rank. */
 export async function familyMonthRatings(
   supabase: SupabaseClient,
@@ -101,11 +107,19 @@ export async function familyMonthRatings(
     games: new Map(),
     raids: new Map(),
   };
+  // War and CWL as each section's page shows them, kept to be stored beside
+  // the shares: the shares themselves come from the weighed marks.
+  const shown = { war: new Map<string, number>(), cwl: new Map<string, number>() };
 
   // One clan at a time, on purpose. This is a background job on a small
   // database, and nobody is waiting on it.
   for (const clan of family.clans) {
-    add(marks.war, (await loadWarMonth(supabase, clan, month)).rating.players);
+    // DIFFICULTY (services/difficulty.ts): the family compares clans, so each
+    // finished war and CWL day's plus marks count by how hard it was. A clan's
+    // own pages, and the marks stored here, stay as they were.
+    const war = await loadWarMonth(supabase, clan, month);
+    add(shown.war, war.rating.players);
+    addWeighed(marks.war, weightedWarMonth(war));
     add(marks.raids, (await loadRaidMonth(supabase, clan, month)).rating.players);
     add(marks.games, (await loadGamesMonth(supabase, clan, month)).rating.players);
 
@@ -114,7 +128,9 @@ export async function familyMonthRatings(
       // withPlayers, or the view has no rosters and every CWL mark comes out 0.
       const view = await loadSeasonView(supabase, clan, cwl, { withPlayers: true });
       const boards = await loadSeasonBoards(supabase, clan, view);
-      add(marks.cwl, ratingFor(view, boards).players);
+      const rating = ratingFor(view, boards);
+      add(shown.cwl, rating.players);
+      addWeighed(marks.cwl, weightedSeason(view, boards, rating));
     }
   }
 
@@ -130,7 +146,14 @@ export async function familyMonthRatings(
     marks.donations.set(row.playerId, donationMarks(row));
   }
 
-  const ratings = playerRatings([...family.clanOf.keys()], marks);
+  const ratings = playerRatings([...family.clanOf.keys()], marks).map((r) => ({
+    ...r,
+    marks: {
+      ...r.marks,
+      war: Math.round((shown.war.get(r.playerId) ?? 0) * 100) / 100,
+      cwl: Math.round((shown.cwl.get(r.playerId) ?? 0) * 100) / 100,
+    },
+  }));
   const anyMarks = ratings.some((r) => Object.values(r.marks).some((value) => value !== 0));
   return anyMarks ? ratings : null;
 }

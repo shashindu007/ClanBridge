@@ -112,6 +112,12 @@ export interface WarBoard {
   orderKnown: boolean;
   /** Stars in the final score with no recorded attack behind them. See starsNotCaptured. */
   starsNotCaptured: number;
+  /**
+   * The enemy lineup's Town Hall levels, for the difficulty weight
+   * (services/difficulty.ts). The bases our attacks hit when the lineup itself
+   * was never recorded; empty with neither.
+   */
+  enemyThs?: number[];
 }
 
 /**
@@ -226,12 +232,18 @@ export function warBoard(input: {
     }))
     .sort((a, b) => (a.base ?? 999) - (b.base ?? 999) || a.name.localeCompare(b.name));
 
+  const lineupThs = opponents.map((o) => o.thLevel).filter((l): l is number => l !== null);
+  const hitThs = bases
+    .flatMap((b) => b.attacks.map((a) => a.target?.thLevel ?? null))
+    .filter((l): l is number => l !== null);
+
   return {
     bases,
     enemyBases: opponents.length || teamSize,
     defenceKnown,
     orderKnown,
     starsNotCaptured: starsNotCaptured(ourStars, attacks),
+    enemyThs: lineupThs.length > 0 ? lineupThs : hitThs,
   };
 }
 
