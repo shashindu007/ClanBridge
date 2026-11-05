@@ -13,18 +13,17 @@ import {
   BrickWall,
   Castle,
   Coins,
-  Hammer,
   Tent,
   Wrench,
-  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { artKeyForBuilding, artKeyForTownHall, type ArtManifest } from "@/lib/game-art";
+import { BuilderHutIcon, type Glyph } from "@/components/game/builder-hut-icon";
 import { GameArt } from "@/components/game/game-art";
 import type { Village } from "@/types/domain";
 
 interface KindStyle {
-  glyph: LucideIcon;
+  glyph: Glyph;
   tone: string;
 }
 
@@ -35,8 +34,9 @@ const KIND_STYLE: Record<string, KindStyle> = {
   Wall: { glyph: BrickWall, tone: "oklch(0.5 0.04 260)" },
   Resource: { glyph: Coins, tone: "oklch(0.6 0.13 85)" },
   Army: { glyph: Tent, tone: "oklch(0.5 0.13 300)" },
-  Worker: { glyph: Hammer, tone: "oklch(0.55 0.12 50)" },
-  Worker2: { glyph: Hammer, tone: "oklch(0.55 0.12 50)" },
+  // Builder's Hut; Worker2 is the Builder Base's Master Builder and B.O.B.
+  Worker: { glyph: BuilderHutIcon, tone: "oklch(0.55 0.12 50)" },
+  Worker2: { glyph: BuilderHutIcon, tone: "oklch(0.55 0.12 50)" },
   Helper: { glyph: Wrench, tone: "oklch(0.55 0.1 190)" },
   "Town Hall": { glyph: Castle, tone: "oklch(0.55 0.2 25)" },
   "Town Hall2": { glyph: Castle, tone: "oklch(0.5 0.06 240)" },

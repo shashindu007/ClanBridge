@@ -1285,17 +1285,584 @@
     }
   }
 
+  /* ═════════════════════════════════════════════════════════════════════════
+     THE PLATE, AND THE MOTION THAT GOES WITH IT
+
+     A plate is a headline number standing on a card, the way a game's HUD
+     sets a stat on a cut metal tag: corners chamfered top-left and
+     bottom-right, an edge lit in --plate-accent, a darker face inside it.
+     A well (.cb-sunken) is cut INTO the card; a plate stands ON it. Use a
+     plate for a hero card's few numbers, a well for a board of twenty.
+
+     The edge is the element's own background, the face is ::before inset
+     1.5px, both clipped to the same polygon, so the outline follows the cut
+     corners (a border or box-shadow would follow the box instead).
+     ::after is left free for .cb-shine.
+     ═════════════════════════════════════════════════════════════════════════ */
+  .cb-plate {
+    --plate-accent: var(--primary);
+    --plate-cut: 0.875rem;
+    --plate-face: oklch(0.985 0.008 250 / 0.9);
+    position: relative;
+    isolation: isolate;
+    clip-path: polygon(
+      var(--plate-cut) 0,
+      100% 0,
+      100% calc(100% - var(--plate-cut)),
+      calc(100% - var(--plate-cut)) 100%,
+      0 100%,
+      0 var(--plate-cut)
+    );
+    background: linear-gradient(
+      150deg,
+      var(--plate-accent) 0%,
+      color-mix(in oklch, var(--plate-accent) 35%, transparent) 38%,
+      oklch(0.5 0.03 260 / 0.25) 100%
+    );
+  }
+
+  .dark .cb-plate {
+    --plate-face: oklch(0.2 0.045 262 / 0.82);
+  }
+
+  .cb-plate::before {
+    content: "";
+    position: absolute;
+    inset: 1.5px;
+    z-index: -1;
+    pointer-events: none;
+    clip-path: polygon(
+      calc(var(--plate-cut) - 0.6px) 0,
+      100% 0,
+      100% calc(100% - var(--plate-cut) + 0.6px),
+      calc(100% - var(--plate-cut) + 0.6px) 100%,
+      0 100%,
+      0 calc(var(--plate-cut) - 0.6px)
+    );
+    background:
+      linear-gradient(180deg, color-mix(in oklch, var(--plate-accent) 18%, transparent) 0%, transparent 55%),
+      var(--plate-face);
+    transition: background-color 180ms ease;
+  }
+
+  /* The icon on its badge: the accent, on a tint of itself. */
+  .cb-plate-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 0.5rem;
+    color: var(--plate-accent);
+    background: color-mix(in oklch, var(--plate-accent) 18%, transparent);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.25),
+      inset 0 0 0 1px color-mix(in oklch, var(--plate-accent) 45%, transparent);
+    transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* Lift: rises and brightens under the pointer, or when focus is inside it.
+     filter, not box-shadow, for the glow: a clipped plate clips its own shadow. */
+  .cb-lift {
+    transition:
+      transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      filter 200ms ease;
+  }
+
+  .cb-lift:hover,
+  .cb-lift:focus-within {
+    transform: translateY(-3px);
+    filter: brightness(1.1) saturate(1.12);
+  }
+
+  .cb-lift:hover .cb-plate-icon {
+    transform: scale(1.14) rotate(-8deg);
+  }
+
+  /* Shine: one sweep of light across the face on hover. */
+  .cb-shine {
+    overflow: hidden;
+  }
+
+  .cb-shine::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(105deg, transparent 30%, oklch(1 0 0 / 0.2) 50%, transparent 70%);
+    transform: translateX(-130%);
+  }
+
+  .cb-shine:hover::after {
+    animation: cb-shine 750ms ease-out;
+  }
+
+  @keyframes cb-shine {
+    to {
+      transform: translateX(130%);
+    }
+  }
+
+  /* Rise: in on first paint, one after another by --i. `backwards`, not
+     `both`, so once it is over the element is its own again and hover's
+     transform still transitions. */
+  .cb-rise {
+    animation: cb-rise 560ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+    animation-delay: calc(var(--i, 0) * 70ms);
+  }
+
+  @keyframes cb-rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.97);
+    }
+  }
+
+  /* Fade: Rise for a table row, which cannot be moved reliably. */
+  .cb-fade {
+    animation: cb-fade 420ms ease-out backwards;
+    animation-delay: calc(var(--i, 0) * 30ms);
+  }
+
+  @keyframes cb-fade {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* Pop: a headline number landing. */
+  .cb-pop {
+    display: inline-block;
+    animation: cb-pop 620ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+    animation-delay: calc(120ms + var(--i, 0) * 80ms);
+  }
+
+  @keyframes cb-pop {
+    from {
+      opacity: 0;
+      transform: scale(1.5);
+      filter: blur(4px);
+    }
+  }
+
+  /* Hop: a hero square jumps a little under the pointer. */
+  .cb-hop {
+    transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .cb-hop:hover {
+    transform: translateY(-4px) scale(1.06);
+  }
+
+  /* The Town Hall on Home's card: a pool of light behind it, and a slow bob
+     under the pointer. */
+  .cb-hall {
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+
+  .cb-hall::before {
+    content: "";
+    position: absolute;
+    inset: -18%;
+    z-index: -1;
+    border-radius: 9999px;
+    background: radial-gradient(circle, color-mix(in oklch, var(--trim) 45%, transparent) 0%, transparent 68%);
+    opacity: 0.8;
+    transition: opacity 200ms ease;
+  }
+
+  .cb-hall:hover::before {
+    opacity: 1;
+  }
+
+  .cb-hall:hover > * {
+    animation: cb-bob 1.4s ease-in-out infinite;
+  }
+
+  @keyframes cb-bob {
+    50% {
+      transform: translateY(-4px);
+    }
+  }
+
+  /* Bars: a track with a lip, a glossy fill that grows in on first paint. */
+  .cb-bar {
+    box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.25);
+  }
+
+  .cb-bar-fill {
+    background-image: linear-gradient(180deg, oklch(1 0 0 / 0.35), transparent 65%);
+    transform-origin: left center;
+    animation: cb-fill 1s cubic-bezier(0.2, 0.8, 0.2, 1) 180ms backwards;
+  }
+
+  @keyframes cb-fill {
+    from {
+      transform: scaleX(0);
+    }
+  }
+
+  /* ── A builder's hut slot (components/game/builder-hut-icon.tsx) ─────────
+     Lit and working, or dashed and free. */
+  .cb-builder-slot {
+    --slot: oklch(0.72 0.13 52);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.375rem;
+    height: 1.375rem;
+    border-radius: 0.375rem;
+    color: var(--muted-foreground);
+    border: 1px dashed color-mix(in oklch, var(--muted-foreground) 50%, transparent);
+    opacity: 0.65;
+  }
+
+  .cb-builder-slot[data-busy] {
+    color: var(--slot);
+    border: 0;
+    opacity: 1;
+    background: color-mix(in oklch, var(--slot) 20%, transparent);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.25),
+      inset 0 0 0 1px color-mix(in oklch, var(--slot) 55%, transparent),
+      0 0 10px -3px var(--slot);
+  }
+
+  .cb-builder-slot[data-busy] > svg {
+    animation: cb-work 1.8s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * 150ms);
+  }
+
+  @keyframes cb-work {
+    0%,
+    70%,
+    100% {
+      transform: none;
+    }
+    80% {
+      transform: translateY(-1.5px) rotate(-6deg);
+    }
+    90% {
+      transform: translateY(0) rotate(4deg);
+    }
+  }
+
+  /* ═════════════════════════════════════════════════════════════════════════
+     THE LEADERBOARD (/rating, components/rating-board.tsx)
+     ═════════════════════════════════════════════════════════════════════════ */
+
+  /* Medal colours, by data-tier: the same three as player-rank.tsx's MEDAL. */
+  [data-tier="1"] {
+    --medal: #f5c542;
+    --medal-ink: oklch(0.3 0.07 70);
+  }
+
+  [data-tier="2"] {
+    --medal: #c0c7d1;
+    --medal-ink: oklch(0.28 0.02 260);
+  }
+
+  [data-tier="3"] {
+    --medal: #cd8a4b;
+    --medal-ink: oklch(0.25 0.05 50);
+  }
+
+  /* A rank on a hex shield. The rim is the badge's own background and the
+     core is ::before, like the plate. The glow sits on the wrapper because a
+     clipped element clips its own shadow. */
+  /* :where(), so a data-tier on the badge or on any parent wins. */
+  :where(.cb-rank) {
+    --medal: oklch(0.42 0.035 260);
+    --medal-ink: oklch(0.99 0 0);
+  }
+
+  .cb-rank {
+    display: inline-flex;
+    vertical-align: middle;
+    filter: drop-shadow(0 2px 2px oklch(0 0 0 / 0.35));
+    transition:
+      transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+      filter 220ms ease;
+  }
+
+  .cb-rank[data-tier] {
+    filter: drop-shadow(0 0 6px color-mix(in oklch, var(--medal) 55%, transparent))
+      drop-shadow(0 2px 2px oklch(0 0 0 / 0.35));
+  }
+
+  .cb-rank-badge {
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2.25rem;
+    clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+    background: linear-gradient(180deg, oklch(1 0 0 / 0.75), oklch(1 0 0 / 0.1)), var(--medal);
+    color: var(--medal-ink);
+    font-family: var(--font-display);
+    font-size: 0.9375rem;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 1px 0 oklch(1 0 0 / 0.25);
+  }
+
+  .cb-rank:not([data-tier]) .cb-rank-badge {
+    background: linear-gradient(180deg, oklch(0.75 0.03 260), oklch(0.45 0.03 260));
+    text-shadow: 0 1px 0 oklch(0 0 0 / 0.45);
+  }
+
+  .cb-rank-badge::before {
+    content: "";
+    position: absolute;
+    inset: 2px;
+    z-index: -1;
+    clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+    background:
+      radial-gradient(circle at 35% 25%, oklch(1 0 0 / 0.45), transparent 55%),
+      var(--medal);
+  }
+
+  .cb-rank[data-size="lg"] .cb-rank-badge {
+    width: 3.25rem;
+    height: 3.625rem;
+    font-size: 1.5rem;
+  }
+
+  .cb-rank[data-size="lg"] .cb-rank-badge::before {
+    inset: 3px;
+  }
+
+  .cb-board-row:hover .cb-rank,
+  .cb-lift:hover .cb-rank {
+    transform: scale(1.1);
+  }
+
+  /* First place breathes. */
+  .cb-glow {
+    animation: cb-glow 2.6s ease-in-out infinite;
+  }
+
+  @keyframes cb-glow {
+    50% {
+      filter: drop-shadow(0 0 14px color-mix(in oklch, var(--medal) 80%, transparent))
+        drop-shadow(0 2px 2px oklch(0 0 0 / 0.35));
+    }
+  }
+
+  .cb-crown {
+    color: var(--medal);
+    filter: drop-shadow(0 0 6px color-mix(in oklch, var(--medal) 60%, transparent));
+    animation: cb-crown 2.6s ease-in-out infinite;
+  }
+
+  @keyframes cb-crown {
+    50% {
+      transform: translateY(-3px) rotate(-6deg);
+    }
+  }
+
+  /* The podium's step under each card: tallest for first. */
+  .cb-podium-plinth {
+    align-items: center;
+    justify-content: center;
+    height: var(--plinth, 2rem);
+    margin-inline: 0.5rem;
+    clip-path: polygon(5% 0, 95% 0, 100% 100%, 0 100%);
+    background: linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--medal) 50%, transparent),
+      color-mix(in oklch, var(--medal) 6%, transparent)
+    );
+    color: color-mix(in oklch, var(--medal) 85%, white);
+    font-size: 1.25rem;
+    text-shadow: 0 1px 0 oklch(0 0 0 / 0.4);
+  }
+
+  .cb-podium-step[data-place="1"] {
+    --plinth: 4.5rem;
+  }
+
+  .cb-podium-step[data-place="2"] {
+    --plinth: 3rem;
+  }
+
+  .cb-podium-step[data-place="3"] {
+    --plinth: 2rem;
+  }
+
+  /* A filter choice: a month or a clan. */
+  .cb-choice {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    background: color-mix(in oklch, var(--card) 45%, transparent);
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+    font-weight: 500;
+    white-space: nowrap;
+    transition:
+      color 140ms ease,
+      background-color 140ms ease,
+      border-color 140ms ease,
+      box-shadow 140ms ease,
+      transform 140ms ease;
+  }
+
+  .cb-choice:hover {
+    color: var(--foreground);
+    border-color: color-mix(in oklch, var(--chip, var(--primary)) 70%, var(--border));
+    transform: translateY(-1px);
+  }
+
+  .cb-choice[data-active] {
+    color: var(--primary-foreground);
+    background: var(--primary);
+    border-color: transparent;
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.3),
+      0 2px 0 var(--primary-shade, transparent),
+      0 6px 14px -6px color-mix(in oklch, var(--primary) 70%, transparent);
+  }
+
+  .cb-choice-clan[data-active] {
+    color: var(--foreground);
+    background: color-mix(in oklch, var(--chip) 24%, var(--card));
+    border-color: var(--chip);
+    box-shadow:
+      0 0 0 1px var(--chip),
+      0 0 16px -4px var(--chip);
+  }
+
+  /* The month row: a segmented control, choices without their own borders. */
+  .cb-segment {
+    padding: 0.25rem;
+    border-radius: var(--radius-control);
+    background: oklch(0 0 0 / 0.08);
+  }
+
+  .dark .cb-segment {
+    background: oklch(0 0 0 / 0.25);
+  }
+
+  .cb-segment > .cb-choice:not([data-active]) {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .cb-choice-count {
+    padding: 0 0.375rem;
+    border-radius: 9999px;
+    background: oklch(0 0 0 / 0.14);
+    font-size: 0.75rem;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cb-choice-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: var(--chip, var(--primary));
+    box-shadow: 0 0 0 2.5px color-mix(in oklch, var(--chip, var(--primary)) 28%, transparent);
+  }
+
+  /* A clan's name as a small tag in its colour. */
+  .cb-clan-tag {
+    --chip: var(--row-accent, var(--primary));
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    background: color-mix(in oklch, var(--chip) 14%, transparent);
+    color: var(--foreground);
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+
+  /* A section's weight in the table head. */
+  .cb-weight {
+    display: inline-block;
+    margin-top: 0.125rem;
+    padding: 0 0.375rem;
+    border-radius: 9999px;
+    background: oklch(0 0 0 / 0.12);
+    color: var(--muted-foreground);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* A leaderboard row: a strip in its clan's colour down the left edge,
+     gold and wider for the viewer's own. */
+  .cb-board-row {
+    --strip: var(--row-accent, transparent);
+    --strip-width: 3px;
+  }
+
+  .cb-board-row[data-you] {
+    --strip: var(--gold);
+    --strip-width: 4px;
+  }
+
+  @media (width >= 40rem) {
+    .cb-board-row > td:first-child {
+      box-shadow: inset var(--strip-width) 0 0 var(--strip);
+    }
+  }
+
+  @media (width < 40rem) {
+    .cb-stack > tbody > tr.cb-board-row {
+      box-shadow: inset var(--strip-width) 0 0 var(--strip);
+    }
+  }
+
   /* Nobody asked the interface to move. The depth stays, since depth is not
      motion; only the travel goes. */
   @media (prefers-reduced-motion: reduce) {
     .cb-panel-interactive,
-    .cb-raised {
-      transition-property: box-shadow, border-color, background-color, filter;
+    .cb-raised,
+    .cb-lift,
+    .cb-hop,
+    .cb-rank,
+    .cb-choice {
+      transition-property: box-shadow, border-color, background-color, color, filter;
     }
 
     .cb-panel-interactive:hover,
-    .cb-raised:active:not(:disabled) {
+    .cb-raised:active:not(:disabled),
+    .cb-lift:hover,
+    .cb-lift:focus-within,
+    .cb-hop:hover,
+    .cb-choice:hover,
+    .cb-board-row:hover .cb-rank,
+    .cb-lift:hover .cb-rank,
+    .cb-lift:hover .cb-plate-icon {
       transform: none;
+    }
+
+    .cb-rise,
+    .cb-fade,
+    .cb-pop,
+    .cb-bar-fill,
+    .cb-glow,
+    .cb-crown,
+    .cb-hall:hover > *,
+    .cb-shine:hover::after,
+    .cb-builder-slot[data-busy] > svg {
+      animation: none;
     }
   }
 }

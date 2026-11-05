@@ -27,12 +27,11 @@ import {
   ChevronDown,
   FileJson,
   FlaskConical,
-  Hammer,
   Hourglass,
   PawPrint,
   Swords,
-  type LucideIcon,
 } from "lucide-react";
+import { BuilderHutIcon, BuilderSlots, type Glyph } from "@/components/game/builder-hut-icon";
 import { BuildingIcon } from "@/components/game/building-icon";
 import { TownHall } from "@/components/game/town-hall";
 import { UnitIcon } from "@/components/game/unit-icon";
@@ -170,6 +169,9 @@ export function VillageExportView({
 
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
           <StatTile
+            variant="plate"
+            accent="oklch(0.66 0.2 28)"
+            className="cb-rise"
             label="Buildings"
             icon={Castle}
             value={`${buildingsOverall.pct}%`}
@@ -178,18 +180,32 @@ export function VillageExportView({
             <Progress value={buildingsOverall.pct} label="Buildings progress" className="mt-1.5 h-1.5" />
           </StatTile>
           <StatTile
+            variant="plate"
+            accent="oklch(0.7 0.05 260)"
+            className="cb-rise"
+            style={{ "--i": 1 } as React.CSSProperties}
             label="Walls"
             icon={BrickWall}
             value={walls ? `Lv ${walls.levels[0]!.level}` : "—"}
             sub={walls ? `${walls.levels[0]!.count} of ${walls.total} at this level` : "none in the export"}
           />
           <StatTile
+            variant="plate"
+            accent="oklch(0.72 0.13 52)"
+            className="cb-rise"
+            style={{ "--i": 2 } as React.CSSProperties}
             label="Builders busy"
-            icon={Hammer}
+            icon={BuilderHutIcon}
             value={builders ? `${builders.busy}/${builders.total}` : "—"}
             sub={buildersLine(builders)}
-          />
+          >
+            {builders && <BuilderSlots busy={builders.busy} total={builders.total} className="pt-0.5" />}
+          </StatTile>
           <StatTile
+            variant="plate"
+            accent="oklch(0.7 0.16 300)"
+            className="cb-rise"
+            style={{ "--i": 3 } as React.CSSProperties}
             label="Heroes and army"
             icon={Swords}
             value={`${unitsOverall.pct}%`}
@@ -274,8 +290,8 @@ export function VillageExportView({
   );
 }
 
-const WORKSHOP_ICON: Record<WorkshopState["key"], LucideIcon> = {
-  builders: Hammer,
+const WORKSHOP_ICON: Record<WorkshopState["key"], Glyph> = {
+  builders: BuilderHutIcon,
   lab: FlaskConical,
   pets: PawPrint,
 };

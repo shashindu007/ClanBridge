@@ -9,9 +9,10 @@
 // section ratings'.
 
 import Link from "next/link";
-import { History, Trophy } from "lucide-react";
+import { ArrowRight, History, Trophy } from "lucide-react";
 import { Disclosure } from "@/components/kit";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { RATING_SECTIONS, RATING_SHORT_LABELS, rankAnchor, ratingPercent } from "@/lib/rating";
 import { seasonLabel } from "@/lib/roster-view";
 import { cn } from "@/lib/utils";
@@ -29,18 +30,33 @@ export function rankHref(month: string, tag: string): string {
 
 const finality = (open: boolean) => (open ? "so far" : "final");
 
-/** The rank column on /rating. A place with no marks behind it earns no medal. */
-export function RankMedal({ rank, medal = true }: { rank: number; medal?: boolean }) {
-  const colour = medal ? medalColour(rank) : undefined;
-  return colour ? (
-    <span
-      className="inline-flex size-7 items-center justify-center rounded-full text-sm font-bold text-black"
-      style={{ background: colour }}
-    >
-      {rank}
+/** 1, 2 or 3 for a medal place with marks behind it; otherwise none. */
+export function medalTier(rank: number, medal = true): 1 | 2 | 3 | undefined {
+  return medal && rank >= 1 && rank <= 3 ? (rank as 1 | 2 | 3) : undefined;
+}
+
+/**
+ * A rank on a hex shield: gold, silver and bronze for the top three, steel for
+ * everyone else. The number is always printed, so the place reads with no
+ * colour at all. A place with no marks behind it earns no medal.
+ */
+export function RankMedal({
+  rank,
+  medal = true,
+  size = "md",
+  className,
+}: {
+  rank: number;
+  medal?: boolean;
+  size?: "sm" | "md" | "lg";
+  className?: string;
+}) {
+  return (
+    <span className={cn("cb-rank", className)} data-tier={medalTier(rank, medal)} data-size={size}>
+      <span className="cb-rank-badge">
+        <span>{rank}</span>
+      </span>
     </span>
-  ) : (
-    <span className="text-muted-foreground text-sm tabular-nums">{rank}</span>
   );
 }
 
@@ -93,17 +109,26 @@ export function HomeRank({
     );
   }
 
+  // Each section's bar is against the player's own best section, so the bars
+  // say where the rating comes from. A section at or below 0 has no bar.
+  const best = Math.max(0, ...RATING_SECTIONS.map(({ kind }) => standing.shares[kind]));
+  const tier = medalTier(standing.familyRank);
+
   return (
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 space-y-0.5">
-          <h3 className="text-muted-foreground text-xs font-medium uppercase">
+        <div className="min-w-0 space-y-1">
+          <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
             Player rank · {seasonLabel(standing.month)}, {finality(standing.open)}
           </h3>
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <RankIcon rank={standing.familyRank} />
+          <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <span className="cb-rank" data-tier={tier} data-size="md">
+              <span className="cb-rank-badge">
+                <Trophy aria-hidden className="size-4" />
+              </span>
+            </span>
             <span
-              className="cb-title text-4xl leading-none tabular-nums"
+              className="cb-title cb-pop text-4xl leading-none tabular-nums"
               style={medalColour(standing.familyRank) ? { color: medalColour(standing.familyRank) } : undefined}
             >
               #{standing.familyRank}
@@ -119,26 +144,40 @@ export function HomeRank({
           {standing.movement && <p className="text-muted-foreground text-xs">{standing.movement}</p>}
         </div>
         <p className="shrink-0 text-right">
-          <span className="cb-title block text-2xl leading-none tabular-nums">{ratingPercent(standing.rating)}</span>
+          <span
+            className="cb-title cb-pop block text-2xl leading-none tabular-nums"
+            style={{ "--i": 2 } as React.CSSProperties}
+          >
+            {ratingPercent(standing.rating)}
+          </span>
           <span className="text-muted-foreground text-xs">rating</span>
         </p>
       </div>
 
-      <dl className="grid grid-cols-5 gap-1 border-t pt-2.5 text-center">
-        {RATING_SECTIONS.map(({ kind }) => (
-          <div key={kind} className="min-w-0">
-            <dt className="text-muted-foreground truncate text-[0.6875rem]">{RATING_SHORT_LABELS[kind]}</dt>
-            <dd className="text-xs font-semibold tabular-nums">{ratingPercent(standing.shares[kind])}</dd>
-          </div>
-        ))}
+      <dl className="grid grid-cols-5 gap-2 border-t pt-3 text-center">
+        {RATING_SECTIONS.map(({ kind }) => {
+          const share = standing.shares[kind];
+          const width = best > 0 && share > 0 ? Math.max(6, (share / best) * 100) : 0;
+          return (
+            <div key={kind} className={cn("min-w-0 space-y-1", share === 0 && "opacity-50")}>
+              <dt className="text-muted-foreground truncate text-[0.6875rem]">{RATING_SHORT_LABELS[kind]}</dt>
+              <dd className={cn("text-xs font-semibold tabular-nums", share < 0 && "text-destructive")}>
+                {ratingPercent(share)}
+              </dd>
+              <span aria-hidden className="cb-gauge block h-1">
+                <span className="cb-bar-fill" style={{ width: `${width}%`, "--gauge": "var(--gold)" } as React.CSSProperties} />
+              </span>
+            </div>
+          );
+        })}
       </dl>
 
-      <Link
-        href={rankHref(standing.month, tag)}
-        className="text-primary inline-flex min-h-11 items-center text-sm font-medium hover:underline"
-      >
-        See the full ranking
-      </Link>
+      <Button asChild size="sm" variant="outline" className="group">
+        <Link href={rankHref(standing.month, tag)}>
+          See the full ranking
+          <ArrowRight aria-hidden className="transition-transform group-hover:translate-x-0.5" />
+        </Link>
+      </Button>
     </div>
   );
 }

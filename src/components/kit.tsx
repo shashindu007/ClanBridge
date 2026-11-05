@@ -25,6 +25,7 @@
 
 import Link from "next/link";
 import { ChevronDown, type LucideIcon } from "lucide-react";
+import type { Glyph } from "@/components/game/builder-hut-icon";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -344,17 +345,56 @@ export function StatTile({
   sub,
   icon: Icon,
   tone,
+  variant = "well",
+  accent,
   className,
+  style,
   children,
 }: {
   label: string;
   value: React.ReactNode;
   sub?: React.ReactNode;
-  icon?: LucideIcon;
+  icon?: Glyph;
   tone?: string;
+  /**
+   * `well` (the default) is cut into the surface, for dense boards. `plate` is
+   * a game plate standing on it: chamfered corners, an accent edge, the icon on
+   * a badge, and it lifts and catches the light on hover. For a hero card's
+   * few headline numbers (Home, Base details), not a board of twenty.
+   */
+  variant?: "well" | "plate";
+  /** A plate's edge and icon colour. Decoration only: the number keeps `tone`. */
+  accent?: string;
   className?: string;
+  style?: React.CSSProperties;
   children?: React.ReactNode;
 }) {
+  if (variant === "plate") {
+    return (
+      <div
+        className={cn("cb-plate cb-lift cb-shine min-w-0 space-y-1.5 p-3.5", className)}
+        style={{ ...(accent ? { "--plate-accent": accent } : {}), ...style } as React.CSSProperties}
+      >
+        <p className="text-muted-foreground flex items-center gap-2 text-xs font-medium">
+          {Icon && (
+            <span className="cb-plate-icon">
+              <Icon aria-hidden className="size-4" />
+            </span>
+          )}
+          <span className="truncate">{label}</span>
+        </p>
+        <p
+          className="cb-title truncate text-2xl leading-tight tabular-nums"
+          style={tone ? { color: tone } : undefined}
+        >
+          {value}
+        </p>
+        {sub && <p className="text-muted-foreground truncate text-xs tabular-nums">{sub}</p>}
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div className={cn("cb-sunken min-w-0 space-y-1 rounded-control p-3", className)}>
       <p className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">

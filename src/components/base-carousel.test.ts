@@ -143,6 +143,10 @@ describe("BaseCarousel", () => {
     expect(html).toContain("Builders busy");
     expect(html).toContain("3/6");
     expect(html).toContain("3 free");
+    // The builders as huts: 3 lit of 6.
+    expect(html).toContain('aria-label="3 of 6 builders busy"');
+    expect(html.match(/cb-builder-slot/g)).toHaveLength(6);
+    expect(html.match(/data-busy="true"/g)).toHaveLength(3);
     // Each upgrade has its picture, or its kind's token without the art.
     expect(html).toContain('data-kind="Defense"');
     expect(html).toContain("4 upgrades running");

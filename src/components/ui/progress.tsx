@@ -23,13 +23,14 @@ export function Progress({
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={pct}
-      className={cn("bg-muted h-2 w-full overflow-hidden rounded-full", className)}
+      className={cn("cb-bar bg-muted h-2 w-full overflow-hidden rounded-full", className)}
     >
       <div
         // Full bars go green: "done" is a status, and globals.css reserves
         // --success for exactly that. Everything short of it stays the primary
         // colour, so a bar never reads as a warning just for being incomplete.
-        className={cn("h-full rounded-full", pct >= 100 ? "bg-success" : "bg-primary")}
+        // cb-bar-fill is the gloss and the fill-in on first paint.
+        className={cn("cb-bar-fill h-full rounded-full", pct >= 100 ? "bg-success" : "bg-primary")}
         style={{ width: `${pct}%` }}
       />
     </div>

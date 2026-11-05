@@ -90,6 +90,11 @@ describe("HomeRank", () => {
     expect(home(RANKED, false)).not.toContain("Dark Hell");
   });
 
+  it("gives a medal shield to the top three only", () => {
+    expect(home(RANKED)).not.toContain("data-tier");
+    expect(home({ ...RANKED, familyRank: 1 })).toContain('data-tier="1"');
+  });
+
   it("carries a failed read as its own sentence, and no link", () => {
     const html = home({ kind: "failed" });
     expect(html).toContain("could not be loaded");

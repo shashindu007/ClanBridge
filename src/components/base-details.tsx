@@ -19,7 +19,8 @@
 // three questions asked first: how far along, what is behind, what moved.
 
 import Link from "next/link";
-import { ArrowUpRight, CheckCircle2, Hammer, Hourglass, TrendingUp } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Hourglass, TrendingUp } from "lucide-react";
+import { BuilderHutIcon } from "@/components/game/builder-hut-icon";
 import { Progress } from "@/components/ui/progress";
 import { StatTile } from "@/components/kit";
 import { TownHall } from "@/components/game/town-hall";
@@ -145,18 +146,29 @@ export function BaseDetails({ progress, village, path, switcher = true, banner =
         {groups.length > 0 && (
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <StatTile
+              variant="plate"
+              accent="oklch(0.74 0.15 150)"
+              className="cb-rise"
               label="Maxed"
               icon={CheckCircle2}
               value={maxedCount}
               sub={`of ${counted.length} units`}
             />
             <StatTile
+              variant="plate"
+              accent="oklch(0.8 0.16 70)"
+              className="cb-rise"
+              style={{ "--i": 1 } as React.CSSProperties}
               label="Behind"
               icon={Hourglass}
               value={hasPrevious ? behindCount : "—"}
               sub={hasPrevious ? `under ${hallShort} ${hall! - 1} cap` : "no earlier hall"}
             />
             <StatTile
+              variant="plate"
+              accent="oklch(0.74 0.14 230)"
+              className="cb-rise"
+              style={{ "--i": 2 } as React.CSSProperties}
               label="Upgraded"
               icon={TrendingUp}
               value={baseline ? upgrades.length : "—"}
@@ -267,7 +279,7 @@ export function VillageSwitch({
         <span>Home village</span>
       </VillageLink>
       <VillageLink path={path} village="builder" current={current}>
-        <Hammer aria-hidden className="size-4" />
+        <BuilderHutIcon aria-hidden className="size-4" />
         <span>Builder Base</span>
         {bhLevel ? <span className="text-muted-foreground text-xs tabular-nums">BH {bhLevel}</span> : null}
       </VillageLink>

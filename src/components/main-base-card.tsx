@@ -24,11 +24,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
+  BrickWall,
   Castle,
   ChevronRight,
   Coins,
   FileJson,
-  Hammer,
   Link2,
   ScrollText,
   ShieldCheck,
@@ -41,6 +41,7 @@ import {
 import { StatTile, Tile } from "@/components/kit";
 import { HomeRank } from "@/components/player-rank";
 import { VillageExportDialog } from "@/components/village-export-upload";
+import { BuilderHutIcon, BuilderSlots, type Glyph } from "@/components/game/builder-hut-icon";
 import { BuildingIcon } from "@/components/game/building-icon";
 import { TownHall } from "@/components/game/town-hall";
 import { UnitIcon } from "@/components/game/unit-icon";
@@ -155,7 +156,9 @@ export function BaseSlide({
       {/* ── 1. Who, and where they stand ───────────────────────────────── */}
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:items-center">
         <div className="flex min-w-0 items-center gap-4">
-          <TownHall level={base.thLevel} size="lg" />
+          <span className="cb-hall">
+            <TownHall level={base.thLevel} size="lg" />
+          </span>
           <div className="min-w-0 space-y-1">
             <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
               {base.isMain ? "Your main base" : "Your base"}
@@ -195,7 +198,10 @@ export function BaseSlide({
           </div>
         </div>
 
-        <div className="cb-sunken rounded-control p-4">
+        <div
+          className="cb-plate cb-lift p-4"
+          style={{ "--plate-accent": "var(--gold)", "--i": 1 } as React.CSSProperties}
+        >
           <HomeRank standing={base.standing} tag={base.tag} showClan={base.showClanRank} />
         </div>
       </div>
@@ -243,10 +249,22 @@ export function BaseSlide({
   );
 }
 
+/** Each tile's plate colour. Decoration, the same in both themes. */
+const ACCENT = {
+  trophies: "var(--gold)",
+  stars: "oklch(0.8 0.16 70)",
+  attack: "oklch(0.66 0.2 28)",
+  builder: "oklch(0.72 0.13 52)",
+  capital: "oklch(0.7 0.16 300)",
+  weapon: "oklch(0.76 0.13 210)",
+  progress: "oklch(0.74 0.14 230)",
+  export: "oklch(0.76 0.12 185)",
+} as const;
+
 /** The career numbers, as tiles. A number the sync has not read is left out, not shown as 0. */
 function Stats({ base }: { base: MainBaseView }) {
   const c = base.career;
-  const tiles: Array<{ label: string; value: string; sub?: string; icon: typeof Trophy }> = [];
+  const tiles: Array<{ label: string; value: string; sub?: string; icon: Glyph; accent: string }> = [];
 
   const trophies = c?.trophies ?? c?.bestTrophies ?? null;
   if (trophies !== null) {
@@ -255,15 +273,19 @@ function Stats({ base }: { base: MainBaseView }) {
       value: count(trophies),
       sub: c?.trophies != null && c.bestTrophies != null ? `best ${count(c.bestTrophies)}` : undefined,
       icon: Trophy,
+      accent: ACCENT.trophies,
     });
   }
-  if (c?.warStars != null) tiles.push({ label: "War stars", value: count(c.warStars), icon: Star });
+  if (c?.warStars != null) {
+    tiles.push({ label: "War stars", value: count(c.warStars), icon: Star, accent: ACCENT.stars });
+  }
   if (c?.attackWins != null) {
     tiles.push({
       label: "Attack wins",
       value: count(c.attackWins),
       sub: c.defenseWins != null ? `${count(c.defenseWins)} defences won` : undefined,
       icon: Swords,
+      accent: ACCENT.attack,
     });
   }
   if (c?.builderBaseTrophies != null) {
@@ -271,14 +293,21 @@ function Stats({ base }: { base: MainBaseView }) {
       label: "Builder Base",
       value: count(c.builderBaseTrophies),
       sub: base.bhLevel ? `Builder Hall ${base.bhLevel}` : "trophies",
-      icon: Hammer,
+      icon: BuilderHutIcon,
+      accent: ACCENT.builder,
     });
   }
   if (c?.capitalContributions != null) {
-    tiles.push({ label: "Capital gold", value: count(c.capitalContributions), sub: "contributed", icon: Coins });
+    tiles.push({
+      label: "Capital gold",
+      value: count(c.capitalContributions),
+      sub: "contributed",
+      icon: Coins,
+      accent: ACCENT.capital,
+    });
   }
   if (base.thWeaponLevel) {
-    tiles.push({ label: "Town Hall weapon", value: `Lv ${base.thWeaponLevel}`, icon: Zap });
+    tiles.push({ label: "Town Hall weapon", value: `Lv ${base.thWeaponLevel}`, icon: Zap, accent: ACCENT.weapon });
   }
 
   if (tiles.length === 0) {
@@ -290,9 +319,21 @@ function Stats({ base }: { base: MainBaseView }) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-6">
-      {tiles.map((t) => (
-        <StatTile key={t.label} label={t.label} value={t.value} sub={t.sub} icon={t.icon} />
+    // auto-fit, not a fixed 6: a village without a capital or a weapon has 4
+    // or 5 tiles, and a fixed grid left a hole at the end of the row.
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))]">
+      {tiles.map((t, i) => (
+        <StatTile
+          key={t.label}
+          variant="plate"
+          accent={t.accent}
+          label={t.label}
+          value={t.value}
+          sub={t.sub}
+          icon={t.icon}
+          className="cb-rise"
+          style={{ "--i": i } as React.CSSProperties}
+        />
       ))}
     </div>
   );
@@ -304,7 +345,7 @@ function ProgressBlock({ base }: { base: MainBaseView }) {
 
   if (!progress) {
     return (
-      <div className="cb-sunken rounded-control p-4">
+      <div className="cb-plate p-4" style={{ "--plate-accent": ACCENT.progress } as React.CSSProperties}>
         <p className="text-muted-foreground text-sm">
           Hero, troop and spell levels appear here after the next daily read of this village.
         </p>
@@ -313,13 +354,17 @@ function ProgressBlock({ base }: { base: MainBaseView }) {
   }
 
   return (
-    <section aria-label="Progress" className="cb-sunken space-y-4 rounded-control p-4">
+    <section
+      aria-label="Progress"
+      className="cb-plate cb-lift cb-rise space-y-4 p-4"
+      style={{ "--plate-accent": ACCENT.progress, "--i": 6 } as React.CSSProperties}
+    >
       <div className="space-y-1.5">
         <div className="flex items-baseline justify-between gap-3">
           <h3 className="text-sm font-medium">
             {base.thLevel ? `Town Hall ${base.thLevel} progress` : "Progress"}
           </h3>
-          <span className="cb-title text-3xl tabular-nums">{progress.pct}%</span>
+          <span className="cb-title cb-pop text-3xl tabular-nums">{progress.pct}%</span>
         </div>
         <Progress value={progress.pct} label={`${base.label} progress`} />
         <p className="text-muted-foreground text-xs">
@@ -330,7 +375,7 @@ function ProgressBlock({ base }: { base: MainBaseView }) {
       {progress.heroes.length > 0 && (
         <ul aria-label="Heroes" className="flex flex-wrap gap-3">
           {progress.heroes.map((h) => (
-            <li key={h.name} title={`${h.name} — ${h.level === 0 ? "locked" : `level ${h.level} of ${h.cap}`}`}>
+            <li key={h.name} className="cb-hop" title={`${h.name} — ${h.level === 0 ? "locked" : `level ${h.level} of ${h.cap}`}`}>
               <UnitIcon
                 name={h.name}
                 group={h.group}
@@ -402,7 +447,11 @@ function ExportBlock({ base, onUpload }: { base: MainBaseView; onUpload: () => v
   const shown = saved.running.slice(0, UPGRADES_SHOWN);
 
   return (
-    <section aria-label="Game export" className="cb-sunken space-y-4 rounded-control p-4">
+    <section
+      aria-label="Game export"
+      className="cb-plate cb-lift cb-rise space-y-4 p-4"
+      style={{ "--plate-accent": ACCENT.export, "--i": 7 } as React.CSSProperties}
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 className="flex items-center gap-2 text-sm font-medium">
           <FileJson aria-hidden className="text-primary size-4" />
@@ -415,12 +464,18 @@ function ExportBlock({ base, onUpload }: { base: MainBaseView; onUpload: () => v
 
       <div className="grid grid-cols-3 gap-4">
         <div className="min-w-0 space-y-1">
-          <p className="text-muted-foreground text-xs">Buildings</p>
-          <p className="cb-title text-2xl leading-none tabular-nums">{saved.buildingsPct}%</p>
+          <p className="text-muted-foreground flex items-center gap-1 text-xs">
+            <Castle aria-hidden className="size-3.5" />
+            Buildings
+          </p>
+          <p className="cb-title cb-pop text-2xl leading-none tabular-nums">{saved.buildingsPct}%</p>
           <Progress value={saved.buildingsPct} label="Buildings progress" className="h-1.5" />
         </div>
         <div className="min-w-0 space-y-1">
-          <p className="text-muted-foreground text-xs">Walls</p>
+          <p className="text-muted-foreground flex items-center gap-1 text-xs">
+            <BrickWall aria-hidden className="size-3.5" />
+            Walls
+          </p>
           {saved.walls ? (
             <>
               <p className="cb-title text-2xl leading-none tabular-nums">Lv {saved.walls.level}</p>
@@ -433,12 +488,16 @@ function ExportBlock({ base, onUpload }: { base: MainBaseView; onUpload: () => v
           )}
         </div>
         <div className="min-w-0 space-y-1">
-          <p className="text-muted-foreground text-xs">Builders busy</p>
+          <p className="text-muted-foreground flex items-center gap-1 text-xs">
+            <BuilderHutIcon aria-hidden className="size-3.5" />
+            Builders busy
+          </p>
           {saved.builders ? (
             <>
               <p className="cb-title text-2xl leading-none tabular-nums">
                 {saved.builders.busy}/{saved.builders.total}
               </p>
+              <BuilderSlots busy={saved.builders.busy} total={saved.builders.total} />
               <p className="text-muted-foreground text-xs">
                 {saved.builders.busy >= saved.builders.total
                   ? "all working"
@@ -463,7 +522,10 @@ function ExportBlock({ base, onUpload }: { base: MainBaseView; onUpload: () => v
         {shown.length > 0 && (
           <ul className="space-y-1.5 text-sm">
             {shown.map((u, i) => (
-              <li key={`${u.village}:${u.name}:${i}`} className="flex items-center justify-between gap-3">
+              <li
+                key={`${u.village}:${u.name}:${i}`}
+                className="hover:bg-foreground/5 -mx-1.5 flex items-center justify-between gap-3 rounded-chip px-1.5 py-0.5 transition-colors"
+              >
                 {u.subject?.type === "unit" ? (
                   <UnitIcon name={u.name} group={u.subject.group} size={24} />
                 ) : (

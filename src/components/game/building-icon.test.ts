@@ -31,6 +31,9 @@ describe("BuildingIcon", () => {
     expect(glyph("Resource")).toContain("lucide-coins");
     expect(glyph("Army")).toContain("lucide-tent");
     expect(glyph("Other")).toContain("lucide-box");
+    // The Fan Kit has no hut art, so huts are this app's own builder's hut.
+    expect(glyph("Worker")).toContain('data-icon="builder-hut"');
+    expect(glyph("Worker2")).toContain('data-icon="builder-hut"');
   });
 
   it("uses the Fan Kit picture when there is one, for its own village only", () => {

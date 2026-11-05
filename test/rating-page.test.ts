@@ -108,7 +108,34 @@ describe("the Player rating page", () => {
 
   it("gives no medal to a place with no marks behind it", async () => {
     mocks.ratings.mockResolvedValue([player({ familyRank: 1, marks: none, rating: 0 })]);
-    expect(await render()).not.toContain("rounded-full text-sm font-bold");
+    const html = await render();
+    expect(html).not.toContain("data-tier");
+    // Nor a place on the podium.
+    expect(html).not.toContain("Top of the ranking");
+  });
+
+  it("stands the top three on a podium, which a search takes away", async () => {
+    const html = await render();
+    expect(html).toContain('aria-label="Top of the ranking"');
+    expect(html).toContain('data-place="1"');
+    expect(html).toContain('data-place="2"');
+    // Still a link only where the profile is open to this viewer.
+    expect(html).not.toContain(`/player/${encodeURIComponent("#C2V89UGL")}`);
+
+    expect(await render({ q: "ann" })).not.toContain("Top of the ranking");
+  });
+
+  it("puts one clan's own top three on the podium, saying the family rank in words", async () => {
+    mocks.ratings.mockResolvedValue([player({ playerId: "ann", familyRank: 7, clanRank: 1, clanSize: 3 })]);
+    const html = await render({ clan: "#2PP0JCCL" });
+    expect(html).toContain('data-place="1"');
+    expect(html).toContain("#7 of 2 in the family");
+  });
+
+  it("fades a section nobody has marks in yet, and keeps its column", async () => {
+    const html = await render();
+    expect(html).toContain("Nothing counted yet this month");
+    expect(html).toContain('data-label="CWL"');
   });
 
   it("keeps the family rank when one clan is shown, and says the clan place in words", async () => {
