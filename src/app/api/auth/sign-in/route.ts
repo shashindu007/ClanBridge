@@ -27,7 +27,12 @@ import { isAuthRetryableFetchError } from "@supabase/supabase-js";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { PASSWORD_MAX_LENGTH } from "@/lib/account";
-import { rateLimitHeaders, sharedRateLimiter, SIGN_IN_LIMIT } from "@/lib/rate-limit";
+import {
+  RateLimitNotConfiguredError,
+  rateLimitHeaders,
+  sharedRateLimiter,
+  SIGN_IN_LIMIT,
+} from "@/lib/rate-limit";
 import { safeNext } from "@/lib/safe-next";
 
 const bodySchema = z.object({
@@ -140,6 +145,13 @@ export async function POST(request: Request): Promise<Response> {
     // closed is that nobody can get into the product at all because Upstash had
     // a bad minute. Same reasoning as hasWriteBudget() in
     // lib/supabase/middleware.ts.
+    //
+    // Except when the limiter is not configured at all. That is no bad minute:
+    // it would stay unlimited until somebody read the logs.
+    if (error instanceof RateLimitNotConfiguredError) {
+      console.error(`sign-in: ${error.message}`);
+      return json({ error: "Sign-in is temporarily unavailable. Try again later." }, 503);
+    }
     console.error(
       `sign-in: rate limit unavailable, allowing attempt — ${
         error instanceof Error ? error.message : String(error)

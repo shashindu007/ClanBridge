@@ -85,6 +85,35 @@ describe("015 — bootstrap and leader-managed clans", () => {
       await expect(h.db.query("select claim_platform_ownership()")).rejects.toThrow();
     });
 
+    // 077 — the RPC is callable by any session, so the owner check cannot live
+    // only in the /admin Server Action.
+    it("refuses an account that is not the owner's address, even on an empty platform", async () => {
+      await h.asUser(STRANGER);
+      const res = await h.db.query<{ claim_platform_ownership: boolean }>(
+        "select claim_platform_ownership()",
+      );
+      expect(res.rows[0]!.claim_platform_ownership).toBe(false);
+      await h.asSuperuser();
+      expect(await count(h, "users", "is_platform_admin")).toBe(0);
+    });
+
+    it("refuses everyone when no owner address is stored", async () => {
+      await h.asSuperuser();
+      await h.db.exec(`delete from private.app_secrets where name = 'owner_email'`);
+      try {
+        await h.asUser(OWNER);
+        const res = await h.db.query<{ claim_platform_ownership: boolean }>(
+          "select claim_platform_ownership()",
+        );
+        expect(res.rows[0]!.claim_platform_ownership).toBe(false);
+      } finally {
+        await h.asSuperuser();
+        await h.db.exec(
+          `insert into private.app_secrets (name, value) values ('owner_email', 'owner@example.com')`,
+        );
+      }
+    });
+
     it("records the claim in audit_log (R4)", async () => {
       await h.asUser(OWNER);
       await h.db.query("select claim_platform_ownership()");

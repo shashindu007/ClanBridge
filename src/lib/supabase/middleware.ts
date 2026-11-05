@@ -12,7 +12,7 @@
 
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { WRITE_LIMIT, sharedRateLimiter } from "@/lib/rate-limit";
+import { RateLimitNotConfiguredError, WRITE_LIMIT, sharedRateLimiter } from "@/lib/rate-limit";
 import { PATHNAME_HEADER, USER_ID_HEADER } from "@/lib/request-headers";
 import { CSP_HEADER } from "@/lib/csp";
 
@@ -95,12 +95,17 @@ export function isServerAction(request: Pick<NextRequest, "method" | "headers">)
  * writes behind this are still gated by RLS and by each action's own role check
  * — the limiter is a budget, never the access control.
  */
-async function hasWriteBudget(key: string): Promise<boolean> {
+async function hasWriteBudget(key: string): Promise<boolean | "unconfigured"> {
   try {
     const limiter = await sharedRateLimiter(WRITE_LIMIT);
     const { success } = await limiter.limit(`write:${key}`);
     return success;
   } catch (error) {
+    // Not configured at all is a deployment fault, not a bad minute: closed.
+    if (error instanceof RateLimitNotConfiguredError) {
+      console.error(`write refused: ${error.message}`);
+      return "unconfigured";
+    }
     console.error(
       `rate limit unavailable, allowing write: ${
         error instanceof Error ? error.message : String(error)
@@ -230,7 +235,14 @@ export async function updateSession(request: NextRequest, csp?: string) {
   // never consumes anyone's budget.
   if (isServerAction(request)) {
     const key = user?.id ?? request.headers.get("x-forwarded-for") ?? "anonymous";
-    if (!(await hasWriteBudget(key))) {
+    const budget = await hasWriteBudget(key);
+    if (budget === "unconfigured") {
+      return new NextResponse("Saving is unavailable right now. Try again later.", {
+        status: 503,
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
+    if (!budget) {
       return new NextResponse("Too many requests. Wait a minute and try again.", {
         status: 429,
         headers: {

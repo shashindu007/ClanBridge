@@ -22,6 +22,7 @@ import { rateLimitHeaders, sharedRateLimiter, VERIFY_LIMIT } from "@/lib/rate-li
 import { InvalidTagError, normaliseTag } from "@/lib/tags";
 import { verifyPlayerToken } from "@/integration/coc-client";
 import { CocAuthError, CocError } from "@/integration/errors";
+import { verifyLinkProof, verifyLinkSecret } from "@/lib/verify-proof";
 
 /**
  * The in-game token is 8+ characters of opaque text. It is length-checked only —
@@ -82,6 +83,18 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  // 077: the link needs a proof signed with this secret. Without one the
+  // database refuses every link, so say so before spending a game API call.
+  const secret = verifyLinkSecret();
+  if (!secret) {
+    console.error("verify: VERIFY_LINK_SECRET is not set");
+    return json(
+      { error: "Verification is temporarily unavailable. Try again later." },
+      503,
+      headers,
+    );
+  }
+
   let tag: string;
   try {
     tag = normaliseTag(parsed.data.playerTag);
@@ -132,8 +145,13 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   // Ownership is proven. The write itself is a definer function (016), because
-  // `players` is select-only for a session and must stay that way (R11).
-  const { data, error } = await supabase.rpc("link_verified_player", { p_tag: tag });
+  // `players` is select-only for a session and must stay that way (R11). It
+  // takes a signed proof that this check ran (077); without it, a session
+  // calling the RPC directly could link any tag.
+  const { data, error } = await supabase.rpc("link_verified_player", {
+    p_tag: tag,
+    ...verifyLinkProof(userId, tag, secret),
+  });
 
   if (error) {
     if (/already linked to another account/.test(error.message)) {
@@ -162,6 +180,16 @@ export async function POST(request: Request): Promise<Response> {
             "clans in game first, then verify again.",
         },
         404,
+        headers,
+      );
+    }
+    if (result?.reason === "not_configured" || result?.reason === "bad_proof") {
+      // Our configuration, not the member: the two secrets differ, one is
+      // missing, or this server's clock is far off the database's.
+      console.error(`verify: link refused — ${result.reason}`);
+      return json(
+        { error: "Verification is temporarily unavailable. Try again later." },
+        503,
         headers,
       );
     }

@@ -153,11 +153,24 @@ function upstashConfigured(): boolean {
  * than none, because it looks like protection while allowing `max × instances`
  * requests through.
  */
+/**
+ * Production without Upstash. A CONFIGURATION fault, not an outage, so callers
+ * that fail open on a bad Upstash minute must still fail closed on this — a
+ * deployment that forgot the variables would otherwise run unlimited forever,
+ * with nothing but a log line to say so.
+ */
+export class RateLimitNotConfiguredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RateLimitNotConfiguredError";
+  }
+}
+
 export async function getRateLimiter(config: RateLimitConfig): Promise<RateLimiter> {
   if (upstashConfigured()) return createUpstashRateLimiter(config);
 
   if (process.env.NODE_ENV === "production") {
-    throw new Error(
+    throw new RateLimitNotConfiguredError(
       "Rate limiting is not configured. Set UPSTASH_REDIS_REST_URL and " +
         "UPSTASH_REDIS_REST_TOKEN (T0.9). The in-memory limiter is per-instance " +
         "and does not limit anything across a serverless deployment.",

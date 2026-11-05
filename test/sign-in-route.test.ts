@@ -13,7 +13,7 @@
 // Structure follows test/verify-route.test.ts, which proves the same shape for
 // the other rate-limited route in the project.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetSharedRateLimiters, SIGN_IN_LIMIT } from "@/lib/rate-limit";
 
 const signInWithPassword = vi.hoisted(() => vi.fn());
@@ -47,6 +47,24 @@ describe("POST /api/auth/sign-in", () => {
       error: null,
     });
     upsert.mockResolvedValue({ error: null });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  // A bad Upstash minute fails open (Supabase limits its own endpoint too). A
+  // production deployment with no Upstash at all is a configuration fault that
+  // would stay unlimited forever, so it fails closed.
+  it("503s in production when rate limiting is not configured, without asking Supabase", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await POST(post({ email: EMAIL, password: PASSWORD }));
+    spy.mockRestore();
+    expect(res.status).toBe(503);
+    expect(signInWithPassword).not.toHaveBeenCalled();
   });
 
   describe("refusals that cost nothing", () => {

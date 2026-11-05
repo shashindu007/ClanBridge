@@ -7,7 +7,7 @@
 -- BEGIN/COMMIT means a failure anywhere rolls the entire thing back, so you
 -- cannot end up with a half-applied schema.
 --
--- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql, 054_half_hour_snapshots.sql, 055_last_activity.sql, 056_notification_and_push_hardening.sql, 057_cwl_scouting.sql, 058_purge_cwl_scouting.sql, 059_purge_other_clans_only.sql, 060_scout_th_weapon.sql, 061_purge_keeps_our_wars.sql, 062_cwl_attack_order.sql, 063_war_opponent_attacks.sql, 064_raid_attacks.sql, 065_api_extras.sql, 066_war_duplicates.sql, 067_security_hardening.sql, 068_war_reminders_and_cwl_identity.sql, 071_api_extras_more.sql, 072_cwl_wars_drop_global_tag.sql, 073_player_ratings.sql, 074_add_and_remove_clans.sql, 075_player_rank.sql, 076_village_exports.sql
+-- Includes: 001_core.sql, 002_cwl.sql, 003_war.sql, 004_features.sql, 005_operational.sql, 006_rls.sql, 007_member_snapshots.sql, 008_player_left_at.sql, 010_polls.sql, 011_cwl_rosters.sql, 013_user_status.sql, 014_service_role_grants.sql, 015_platform_admin.sql, 016_player_verification.sql, 017_approval_grants_membership.sql, 018_admin_may_approve_clanless.sql, 019_cwl_war_members.sql, 020_clan_details.sql, 021_announcements.sql, 022_cwl_bonus_awards.sql, 023_notifications.sql, 024_war.sql, 025_war_target_claim.sql, 026_war_opponent.sql, 027_raid_detail.sql, 028_base_layouts.sql, 030_account_credentials.sql, 031_own_players_policy.sql, 032_link_verified_player_v2.sql, 033_player_nicknames.sql, 034_user_avatar.sql, 036_player_progress.sql, 037_family_cwl_history.sql, 038_family_directory.sql, 039_account_administration.sql, 040_notification_feed.sql, 041_active_members.sql, 042_feedback_and_public_stats.sql, 044_set_clan_role.sql, 045_war_opponent_badge.sql, 046_qa_hardening.sql, 047_war_one_member_per_base.sql, 048_cwl_group.sql, 049_latest_player_progress.sql, 050_war_targets_per_attack.sql, 051_latest_progress_family.sql, 052_donation_counters.sql, 053_data_retention.sql, 054_half_hour_snapshots.sql, 055_last_activity.sql, 056_notification_and_push_hardening.sql, 057_cwl_scouting.sql, 058_purge_cwl_scouting.sql, 059_purge_other_clans_only.sql, 060_scout_th_weapon.sql, 061_purge_keeps_our_wars.sql, 062_cwl_attack_order.sql, 063_war_opponent_attacks.sql, 064_raid_attacks.sql, 065_api_extras.sql, 066_war_duplicates.sql, 067_security_hardening.sql, 068_war_reminders_and_cwl_identity.sql, 071_api_extras_more.sql, 072_cwl_wars_drop_global_tag.sql, 073_player_ratings.sql, 074_add_and_remove_clans.sql, 075_player_rank.sql, 076_village_exports.sql, 077_verify_link_proof.sql
 --
 -- Two numbers are absent, retired rather than reused so that apply order
 -- stays equal to numeric order: 009 (cwl_signups, superseded by Phase 4B)
@@ -12789,6 +12789,257 @@ comment on table village_exports is
   'copy (R11): written only by the owner through the application, never by a sync '
   'job, and never merged into player_progress. Only the mapped village is kept - '
   'no raw export, no base coordinates. Owner-only.';
+
+-- ========================================================================
+-- 077_verify_link_proof.sql
+-- ========================================================================
+
+-- 077 — Verification must be proven, not just asked for.
+--
+--
+-- THE HOLE
+--
+-- link_verified_player(p_tag) (016, then 032) is a definer function granted to
+-- every signed-in session. It is what sets players.user_id and verified, and it
+-- routes the account to that clan's leader. The Supercell token check that is
+-- supposed to come first lives only in /api/verify — nothing in the database
+-- knew it had happened. Any signed-in account could call
+--
+--   POST <supabase>/rest/v1/rpc/link_verified_player  {"p_tag": "#VICTIM"}
+--
+-- with the public anon key and its own session, and own a teammate's village:
+-- vote as them, claim war targets as them, and lock the real owner out with
+-- "already linked to another account".
+--
+--
+-- THE FIX, AND WHY THIS SHAPE
+--
+-- The route proves it ran the token check by signing what it checked:
+--
+--   proof = hex(HMAC-SHA256(secret, "<auth.uid()>|<tag>|<issued_at>"))
+--
+-- and the function recomputes it. The secret is in the route's environment
+-- (VERIFY_LINK_SECRET) and in private.app_secrets below, and nowhere a session
+-- can read. A proof is bound to the caller (auth.uid(), never a parameter), to
+-- one tag, and to a two-minute window, so one leaked proof links nothing else.
+--
+-- Not the service-role key: R6 keeps it off Vercel, and this is the one write
+-- the web app makes on a player's behalf. A shared secret that can do exactly
+-- one thing is the smaller grant.
+--
+-- The one-argument function is DROPPED, not left beside the new one. Postgres
+-- overloads by signature, so a `create or replace` with three arguments would
+-- have added a door and left the old one open.
+--
+--
+-- DEPLOYING
+--
+-- After applying this, run once in the SQL editor, with the same value as the
+-- Vercel environment variable VERIFY_LINK_SECRET (any long random string, e.g.
+-- `openssl rand -hex 32`):
+--
+--   insert into private.app_secrets (name, value) values ('verify_link', '<secret>')
+--   on conflict (name) do update set value = excluded.value, updated_at = now();
+--
+-- Until both are set, verification answers "temporarily unavailable" — closed,
+-- not open.
+--
+--
+-- ALSO IN THIS FILE
+--
+--   2. claim_platform_ownership() checks the owner's email itself. Until now
+--      only the /admin Server Action compared it with OWNER_EMAIL, so a direct
+--      RPC call from any account could take ownership of a fresh deployment.
+--      The value lives in private.app_secrets as 'owner_email'; with none set,
+--      nobody can claim — the same safe failure as an empty OWNER_EMAIL.
+--
+--   3. Notification links may not contain control characters. Browsers strip a
+--      tab from a URL, so "/<TAB>/evil.example" passed 056's "no //" check and
+--      arrived as "//evil.example" — an off-site link in the member's own feed.
+
+
+create extension if not exists pgcrypto with schema extensions;
+
+
+-- ---------------------------------------------------------------------------
+-- 1. private.app_secrets
+--
+-- A schema PostgREST does not expose, a table no session role may touch, and
+-- RLS on with no policies as a second lock. Only definer functions read it.
+
+create schema if not exists private;
+revoke all on schema private from public;
+
+create table if not exists private.app_secrets (
+  name       text primary key,
+  value      text not null check (length(value) > 0),
+  updated_at timestamptz not null default now()
+);
+
+alter table private.app_secrets enable row level security;
+revoke all on private.app_secrets from public;
+
+comment on table private.app_secrets is
+  '077 - server-held values the definer functions check against: verify_link '
+  '(the HMAC key /api/verify signs with) and owner_email. Never readable by a session.';
+
+
+-- ---------------------------------------------------------------------------
+-- 2. link_verified_player(tag, issued_at, proof)
+
+revoke execute on function link_verified_player(text) from public, authenticated;
+drop function if exists link_verified_player(text);
+
+create or replace function link_verified_player(p_tag text, p_issued_at bigint, p_proof text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_secret    text;
+  v_expected  text;
+  v_player_id uuid;
+  v_clan_id   uuid;
+  v_owner     uuid;
+begin
+  if auth.uid() is null then
+    return jsonb_build_object('ok', false, 'reason', 'no_session');
+  end if;
+
+  select value into v_secret from private.app_secrets where name = 'verify_link';
+  if v_secret is null then
+    return jsonb_build_object('ok', false, 'reason', 'not_configured');
+  end if;
+
+  if p_tag is null or p_issued_at is null or p_proof is null
+     or abs(extract(epoch from now()) - p_issued_at) > 120 then
+    return jsonb_build_object('ok', false, 'reason', 'bad_proof');
+  end if;
+
+  v_expected := encode(
+    extensions.hmac(auth.uid()::text || '|' || p_tag || '|' || p_issued_at::text, v_secret, 'sha256'),
+    'hex');
+  if v_expected <> lower(p_proof) then
+    return jsonb_build_object('ok', false, 'reason', 'bad_proof');
+  end if;
+
+  -- From here on, 032's body unchanged.
+  select id, clan_id, user_id
+    into v_player_id, v_clan_id, v_owner
+  from public.players
+  where tag = p_tag
+    and deleted_at is null
+    and left_at is null
+    and clan_id is not null;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'not_a_member');
+  end if;
+
+  if v_owner is not null and v_owner <> auth.uid() then
+    raise exception 'player already linked to another account';
+  end if;
+
+  perform set_config('clanbridge.bootstrap', 'on', true);
+
+  update public.players
+  set verified = true,
+      user_id  = auth.uid()
+  where id = v_player_id;
+
+  update public.users
+  set requested_clan_id = v_clan_id
+  where id = auth.uid()
+    and deleted_at is null
+    and status = 'pending'
+    and requested_clan_id is null;
+
+  insert into public.audit_log (user_id, clan_id, action, entity, entity_id, after)
+  values (auth.uid(), v_clan_id, 'verify', 'players', v_player_id,
+          jsonb_build_object('verified', true, 'tag', p_tag));
+
+  return jsonb_build_object(
+    'ok', true,
+    'player_id', v_player_id,
+    'clan_id', v_clan_id);
+end;
+$$;
+
+revoke execute on function link_verified_player(text, bigint, text) from public;
+grant execute on function link_verified_player(text, bigint, text) to authenticated;
+
+comment on function link_verified_player(text, bigint, text) is
+  '077 - links a player tag to auth.uid() only with an HMAC proof from /api/verify '
+  'that the in-game token was checked. Otherwise 032''s behaviour. The only write '
+  'path to players from a session (R11).';
+
+
+-- ---------------------------------------------------------------------------
+-- 3. claim_platform_ownership() — the owner's email, checked here too
+
+create or replace function claim_platform_ownership()
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  existing integer;
+  v_owner  text;
+  v_email  text;
+begin
+  if auth.uid() is null then
+    return false;
+  end if;
+
+  select value into v_owner from private.app_secrets where name = 'owner_email';
+  select email into v_email from auth.users where id = auth.uid();
+  if v_owner is null or v_email is null
+     or lower(trim(v_email)) <> lower(trim(v_owner)) then
+    return false;
+  end if;
+
+  select count(*) into existing
+  from public.users
+  where is_platform_admin and deleted_at is null;
+
+  if existing > 0 then
+    return false;
+  end if;
+
+  perform set_config('clanbridge.bootstrap', 'on', true);
+
+  update public.users
+  set is_platform_admin = true,
+      status = 'approved',
+      approved_at = now()
+  where id = auth.uid();
+
+  insert into public.audit_log (user_id, action, entity, entity_id, after)
+  values (auth.uid(), 'claim-ownership', 'users', auth.uid(),
+          jsonb_build_object('is_platform_admin', true));
+
+  return true;
+end;
+$$;
+
+revoke execute on function claim_platform_ownership() from public;
+grant execute on function claim_platform_ownership() to authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- 4. No control characters in a notification's link
+
+alter table public.notifications drop constraint notifications_url_relative;
+alter table public.notifications add constraint notifications_url_relative
+  check (
+    url like '/%'
+    and url not like '//%'
+    and strpos(url, chr(92)) = 0
+    and url !~ '[[:cntrl:]]'
+  ) not valid;
+alter table public.notifications validate constraint notifications_url_relative;
 
 commit;
 
