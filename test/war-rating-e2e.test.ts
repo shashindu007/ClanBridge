@@ -17,7 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createHarness, type Harness } from "./pg-harness";
 import { createPgliteSupabase } from "./pglite-supabase";
-import { loadWarMonth } from "@/lib/war-rating-data";
+import { loadWarMonth, warWeights, weightedWarMonth } from "@/lib/war-rating-data";
 import { warMonthsForClan } from "@/repositories/war";
 
 const CLAN = "aaaaaaaa-0000-4000-8000-000000000001";
@@ -245,6 +245,18 @@ describe("the war rating, from database rows to marks", () => {
     expect(two.rating).toBeCloseTo((-2 / 14.3) * 100 + (31.5 / 47) * 100, 6);
     expect(two.perWar).toBeCloseTo(two.rating / 2, 6);
     expect(rating.players.map((p) => p.name)).toEqual(["One", "Two", "Three"]);
+  });
+
+  it("weighs each war by its enemy lineup, for ranking clans together", async () => {
+    const view = await load();
+    // Both wars' enemies are TH18, 18 and 17: an average of 17.67, so 1.85 − 0.15 × 0.33.
+    expect(view.boards[0]!.enemyThs).toEqual([18, 18, 17]);
+    expect(warWeights(view)).toEqual([1.8, 1.8]);
+
+    const two = weightedWarMonth(view).get(view.rating.players.find((p) => p.name === "Two")!.playerId)!;
+    // The minus share is left alone; the plus one counts 1.8 times.
+    expect(two.rating).toBeCloseTo((-2 / 14.3) * 100 + (31.5 / 47) * 100 * 1.8, 0);
+    expect(two.averageWeight).toBe(1.8);
   });
 
   it("has nothing for a month with no war", async () => {

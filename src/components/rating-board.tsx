@@ -55,7 +55,8 @@ export interface BoardRow {
   note?: React.ReactNode;
   /** The podium's line under the name, where it differs from the clan chip. */
   podiumNote?: React.ReactNode;
-  rating: { text: string; value: number };
+  /** `sub` is a line under the number: the unweighed rating, where it is weighed. */
+  rating: { text: string; value: number; sub?: React.ReactNode };
   /** The section's own numbers, by column key. */
   cells: Record<string, React.ReactNode>;
 }
@@ -333,6 +334,9 @@ export function Leaderboard({
               <TableCell data-label={ratingLabel} data-cell="row" className="text-right tabular-nums">
                 <span className="cb-title text-lg leading-none">{row.rating.text}</span>
                 <ShareBar value={row.rating.value} top={ratingTop} colour="var(--gold)" className="mt-1.5 h-1.5 w-20" />
+                {row.rating.sub && (
+                  <span className="text-muted-foreground mt-1 block text-xs">{row.rating.sub}</span>
+                )}
               </TableCell>
               {columns.map((column) => (
                 <TableCell

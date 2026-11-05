@@ -48,7 +48,7 @@ import {
   type BoardColumn,
   type BoardRow,
 } from "@/components/rating-board";
-import { RuleList } from "@/components/rating-parts";
+import { DifficultyRules, RuleList } from "@/components/rating-parts";
 import { RatingShell } from "@/components/rating-shell";
 import type { RatedPlayer } from "@/repositories/player-ratings";
 import { DONATION_MARKS, RATING_KINDS, RATING_WEIGHTS } from "@/services/player-rating";
@@ -78,7 +78,8 @@ function Rules() {
             ]}
           />
           <p className="text-muted-foreground text-xs">
-            In proportion. War, CWL, Clan Games and raid marks are the ones on each section&apos;s page.
+            In proportion. The War, CWL, Clan Games and raid marks shown are the ones on each
+            section&apos;s page.
           </p>
         </div>
 
@@ -98,6 +99,12 @@ function Rules() {
           <li>
             A section&apos;s % is a player&apos;s marks divided by the plus marks of every player in the
             family. It is not the rating on that section&apos;s page, which is a share of one clan.
+          </li>
+          <li>
+            War and CWL marks count by how hard each finished war and CWL day was before they are
+            shared out, so a clan facing stronger enemies is not marked as if it faced weaker ones (see
+            How difficulty works). The marks under each % are before that. Months finished before this
+            was added keep the numbers they had.
           </li>
           <li>The rating adds those up by the weights above.</li>
           <li>Missing a section scores 0 for it. The other sections do not make up for it.</li>
@@ -332,6 +339,7 @@ export default async function PlayerRatingPage({
       </Panel>
 
       <Rules />
+      <DifficultyRules cwl />
     </RatingShell>
   );
 }

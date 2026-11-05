@@ -9,14 +9,17 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { VisibleClan } from "@/lib/clans";
-import { loadSeasonBoards, loadSeasonView, ratingFor, type SeasonView } from "@/lib/cwl-season";
+import { loadSeasonBoards, loadSeasonView, ratingFor, weightedSeason, type SeasonView } from "@/lib/cwl-season";
 import { seasonsForClan } from "@/repositories/cwl";
 import type { SeasonRating } from "@/services/cwl-rating";
+import type { WeightedMonth } from "@/services/difficulty";
 
 export interface LatestCwlEntry {
   clan: VisibleClan;
   view: SeasonView;
   rating: SeasonRating;
+  /** Each player's season weighed by difficulty, for ranking clans together. */
+  weighed: Map<string, WeightedMonth>;
 }
 
 /** Null when none of the clans has a CWL season recorded yet. */
@@ -36,7 +39,8 @@ export async function latestCwlMonth(
     played.map(async ({ clan, season }) => {
       const view = await loadSeasonView(supabase, clan, season, { withPlayers: true });
       const boards = await loadSeasonBoards(supabase, clan, view);
-      return { clan, view, rating: ratingFor(view, boards) };
+      const rating = ratingFor(view, boards);
+      return { clan, view, rating, weighed: weightedSeason(view, boards, rating) };
     }),
   );
   return { month, entries };

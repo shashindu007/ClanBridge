@@ -85,6 +85,8 @@ export interface DayBoard {
   /** Our bases attacked at least once, and 3-starred at least once. */
   basesHit: number;
   basesTripled: number;
+  /** The enemy lineup's Town Hall levels, for the difficulty weight (services/difficulty.ts). */
+  enemyThs?: number[];
 }
 
 export function dayBoard(input: {
@@ -216,5 +218,6 @@ export function dayBoard(input: {
     },
     basesHit: bases.filter((b) => b.defences.length > 0).length,
     basesTripled: bases.filter((b) => b.defences.some((d) => d.stars === 3)).length,
+    enemyThs: enemyRows.map((m) => m.thLevel).filter((l): l is number => l !== null && l !== undefined),
   };
 }
