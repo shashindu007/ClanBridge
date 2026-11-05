@@ -200,7 +200,7 @@ export function BaseSlide({
 
         <div
           className="cb-plate cb-lift p-4"
-          style={{ "--plate-accent": "var(--gold)", "--i": 1 } as React.CSSProperties}
+          style={{ "--i": 1 } as React.CSSProperties}
         >
           <HomeRank standing={base.standing} tag={base.tag} showClan={base.showClanRank} />
         </div>
@@ -249,22 +249,10 @@ export function BaseSlide({
   );
 }
 
-/** Each tile's plate colour. Decoration, the same in both themes. */
-const ACCENT = {
-  trophies: "var(--gold)",
-  stars: "oklch(0.8 0.16 70)",
-  attack: "oklch(0.66 0.2 28)",
-  builder: "oklch(0.72 0.13 52)",
-  capital: "oklch(0.7 0.16 300)",
-  weapon: "oklch(0.76 0.13 210)",
-  progress: "oklch(0.74 0.14 230)",
-  export: "oklch(0.76 0.12 185)",
-} as const;
-
 /** The career numbers, as tiles. A number the sync has not read is left out, not shown as 0. */
 function Stats({ base }: { base: MainBaseView }) {
   const c = base.career;
-  const tiles: Array<{ label: string; value: string; sub?: string; icon: Glyph; accent: string }> = [];
+  const tiles: Array<{ label: string; value: string; sub?: string; icon: Glyph }> = [];
 
   const trophies = c?.trophies ?? c?.bestTrophies ?? null;
   if (trophies !== null) {
@@ -273,11 +261,10 @@ function Stats({ base }: { base: MainBaseView }) {
       value: count(trophies),
       sub: c?.trophies != null && c.bestTrophies != null ? `best ${count(c.bestTrophies)}` : undefined,
       icon: Trophy,
-      accent: ACCENT.trophies,
     });
   }
   if (c?.warStars != null) {
-    tiles.push({ label: "War stars", value: count(c.warStars), icon: Star, accent: ACCENT.stars });
+    tiles.push({ label: "War stars", value: count(c.warStars), icon: Star });
   }
   if (c?.attackWins != null) {
     tiles.push({
@@ -285,7 +272,6 @@ function Stats({ base }: { base: MainBaseView }) {
       value: count(c.attackWins),
       sub: c.defenseWins != null ? `${count(c.defenseWins)} defences won` : undefined,
       icon: Swords,
-      accent: ACCENT.attack,
     });
   }
   if (c?.builderBaseTrophies != null) {
@@ -294,7 +280,6 @@ function Stats({ base }: { base: MainBaseView }) {
       value: count(c.builderBaseTrophies),
       sub: base.bhLevel ? `Builder Hall ${base.bhLevel}` : "trophies",
       icon: BuilderHutIcon,
-      accent: ACCENT.builder,
     });
   }
   if (c?.capitalContributions != null) {
@@ -303,11 +288,10 @@ function Stats({ base }: { base: MainBaseView }) {
       value: count(c.capitalContributions),
       sub: "contributed",
       icon: Coins,
-      accent: ACCENT.capital,
     });
   }
   if (base.thWeaponLevel) {
-    tiles.push({ label: "Town Hall weapon", value: `Lv ${base.thWeaponLevel}`, icon: Zap, accent: ACCENT.weapon });
+    tiles.push({ label: "Town Hall weapon", value: `Lv ${base.thWeaponLevel}`, icon: Zap });
   }
 
   if (tiles.length === 0) {
@@ -326,7 +310,6 @@ function Stats({ base }: { base: MainBaseView }) {
         <StatTile
           key={t.label}
           variant="plate"
-          accent={t.accent}
           label={t.label}
           value={t.value}
           sub={t.sub}
@@ -345,7 +328,7 @@ function ProgressBlock({ base }: { base: MainBaseView }) {
 
   if (!progress) {
     return (
-      <div className="cb-plate p-4" style={{ "--plate-accent": ACCENT.progress } as React.CSSProperties}>
+      <div className="cb-plate p-4">
         <p className="text-muted-foreground text-sm">
           Hero, troop and spell levels appear here after the next daily read of this village.
         </p>
@@ -357,7 +340,7 @@ function ProgressBlock({ base }: { base: MainBaseView }) {
     <section
       aria-label="Progress"
       className="cb-plate cb-lift cb-rise space-y-4 p-4"
-      style={{ "--plate-accent": ACCENT.progress, "--i": 6 } as React.CSSProperties}
+      style={{ "--i": 6 } as React.CSSProperties}
     >
       <div className="space-y-1.5">
         <div className="flex items-baseline justify-between gap-3">
@@ -450,7 +433,7 @@ function ExportBlock({ base, onUpload }: { base: MainBaseView; onUpload: () => v
     <section
       aria-label="Game export"
       className="cb-plate cb-lift cb-rise space-y-4 p-4"
-      style={{ "--plate-accent": ACCENT.export, "--i": 7 } as React.CSSProperties}
+      style={{ "--i": 7 } as React.CSSProperties}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 className="flex items-center gap-2 text-sm font-medium">

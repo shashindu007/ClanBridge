@@ -23,6 +23,7 @@
 import {
   BrickWall,
   Castle,
+  Check,
   CheckCircle2,
   ChevronDown,
   FileJson,
@@ -170,7 +171,6 @@ export function VillageExportView({
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
           <StatTile
             variant="plate"
-            accent="oklch(0.66 0.2 28)"
             className="cb-rise"
             label="Buildings"
             icon={Castle}
@@ -181,7 +181,6 @@ export function VillageExportView({
           </StatTile>
           <StatTile
             variant="plate"
-            accent="oklch(0.7 0.05 260)"
             className="cb-rise"
             style={{ "--i": 1 } as React.CSSProperties}
             label="Walls"
@@ -191,7 +190,6 @@ export function VillageExportView({
           />
           <StatTile
             variant="plate"
-            accent="oklch(0.72 0.13 52)"
             className="cb-rise"
             style={{ "--i": 2 } as React.CSSProperties}
             label="Builders busy"
@@ -203,7 +201,6 @@ export function VillageExportView({
           </StatTile>
           <StatTile
             variant="plate"
-            accent="oklch(0.7 0.16 300)"
             className="cb-rise"
             style={{ "--i": 3 } as React.CSSProperties}
             label="Heroes and army"
@@ -416,13 +413,9 @@ function BuildingsSection({
                     key={f.key}
                     type="button"
                     aria-pressed={f.key === filter}
+                    data-active={f.key === filter || undefined}
                     onClick={() => onFilter(f.key)}
-                    className={cn(
-                      "rounded-chip border px-3 py-1 text-sm font-medium transition-colors",
-                      f.key === filter
-                        ? "bg-primary text-primary-foreground border-transparent"
-                        : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
-                    )}
+                    className="cb-choice min-h-10"
                   >
                     {f.label}
                   </button>
@@ -430,15 +423,19 @@ function BuildingsSection({
               </div>
             )}
             {onNotMaxedOnly && (
-              <label className="text-muted-foreground ml-auto flex cursor-pointer items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={notMaxedOnly}
-                  onChange={(e) => onNotMaxedOnly(e.target.checked)}
-                  className="accent-primary size-4"
-                />
+              // A toggle chip like the filters beside it, not a native checkbox:
+              // one control style for one row of controls, and a tap target the
+              // same size as its neighbours.
+              <button
+                type="button"
+                aria-pressed={notMaxedOnly}
+                data-active={notMaxedOnly || undefined}
+                onClick={() => onNotMaxedOnly(!notMaxedOnly)}
+                className="cb-choice min-h-10 sm:ml-auto"
+              >
+                {notMaxedOnly && <Check aria-hidden className="size-4" />}
                 Not maxed only
-              </label>
+              </button>
             )}
           </div>
         )}

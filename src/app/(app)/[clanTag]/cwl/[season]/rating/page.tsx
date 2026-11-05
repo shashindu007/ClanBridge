@@ -21,6 +21,7 @@ import { SyncBadge } from "@/components/sync-badge";
 import { TownHall } from "@/components/lineup-parts";
 import { Disclosure, EmptyState, Panel, SectionHeader } from "@/components/kit";
 import { CwlSeasonHeader } from "@/components/cwl-season-header";
+import { RankMedal } from "@/components/player-rank";
 import { Lines, Marks, RuleList } from "@/components/rating-parts";
 import {
   Table,
@@ -117,6 +118,15 @@ export default async function CwlRatingPage({
         actions={<SyncBadge run={run} clanTag={clan.tag} target="cwl" canAdmin={isLeader(clan.role)} />}
       />
 
+      {/* Back to the ranking across the family's clans: this page was reached
+          from there and had no way back to it. */}
+      <Link
+        href={`/rating/cwl?clan=${encodeURIComponent(clan.tag)}`}
+        className="text-primary inline-flex min-h-10 items-center text-sm font-medium hover:underline"
+      >
+        ← CWL rating, all clans
+      </Link>
+
       {rating.players.length === 0 ? (
         <Panel>
           <EmptyState
@@ -163,7 +173,9 @@ export default async function CwlRatingPage({
                 <TableBody>
                   {rating.players.map((p, index) => (
                     <TableRow key={p.playerId}>
-                      <TableCell data-cell="corner" className="text-muted-foreground text-right tabular-nums">{index + 1}</TableCell>
+                      <TableCell data-cell="corner" className="text-right">
+                        <RankMedal rank={index + 1} medal={p.rating > 0} />
+                      </TableCell>
                       <TableCell data-cell="title">
                         <span className="flex items-center gap-2">
                           <TownHall level={p.thLevel} />

@@ -346,7 +346,6 @@ export function StatTile({
   icon: Icon,
   tone,
   variant = "well",
-  accent,
   className,
   style,
   children,
@@ -358,13 +357,12 @@ export function StatTile({
   tone?: string;
   /**
    * `well` (the default) is cut into the surface, for dense boards. `plate` is
-   * a game plate standing on it: chamfered corners, an accent edge, the icon on
-   * a badge, and it lifts and catches the light on hover. For a hero card's
-   * few headline numbers (Home, Base details), not a board of twenty.
+   * a small bubble standing on it, in the cards' own aqua, with the icon on a
+   * drop; it lifts and catches the light on hover. For a hero card's few
+   * headline numbers (Home, Base details), not a board of twenty. One hue for
+   * every plate: a colour per tile said things that were not true.
    */
   variant?: "well" | "plate";
-  /** A plate's edge and icon colour. Decoration only: the number keeps `tone`. */
-  accent?: string;
   className?: string;
   style?: React.CSSProperties;
   children?: React.ReactNode;
@@ -373,7 +371,7 @@ export function StatTile({
     return (
       <div
         className={cn("cb-plate cb-lift cb-shine min-w-0 space-y-1.5 p-3.5", className)}
-        style={{ ...(accent ? { "--plate-accent": accent } : {}), ...style } as React.CSSProperties}
+        style={style}
       >
         <p className="text-muted-foreground flex items-center gap-2 text-xs font-medium">
           {Icon && (

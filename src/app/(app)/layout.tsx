@@ -19,7 +19,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Bell, ClipboardList, Search, Trophy } from "lucide-react";
+import { Bell, ClipboardList, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { accountProfile, currentUserId, needsAccountSetup } from "@/lib/auth";
 import { platformPresence, touchLastSeen, unreadCount } from "@/repositories/notifications";
@@ -34,6 +34,7 @@ import {
   ClanSectionTabs,
   ClanMenu,
   HomeLink,
+  RatingLink,
   type RailClan,
 } from "@/components/clan-nav-rail";
 import { PATHNAME_HEADER } from "@/lib/request-headers";
@@ -250,14 +251,7 @@ export default async function AppLayout({
                   CWL lineups
                 </Link>
               )}
-              <Link
-                href="/rating"
-                className="hover:text-rail-ink flex items-center gap-1.5 rounded-control px-2 py-1 transition-colors hover:bg-white/8"
-                title="Every player in the family, ranked"
-              >
-                <Trophy aria-hidden className="size-4" />
-                Player rating
-              </Link>
+              <RatingLink />
             </div>
           )}
 

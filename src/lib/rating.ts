@@ -54,6 +54,27 @@ export function ratingPercent(value: number): string {
   return value < 0 ? `−${text}` : text;
 }
 
+/**
+ * Places for a list already in ranking order: 1, 2, 2, 4. Two rows share a
+ * place when `same` says nothing told them apart, and both are `tied`.
+ * Numbering by position instead gave two players level on every count two
+ * different places, and the second one a worse one for no reason.
+ */
+export function rankRows<T>(
+  sorted: readonly T[],
+  same: (a: T, b: T) => boolean,
+): Array<{ item: T; rank: number; tied: boolean }> {
+  const ranks: number[] = [];
+  sorted.forEach((item, i) => {
+    ranks.push(i > 0 && same(sorted[i - 1]!, item) ? ranks[i - 1]! : i + 1);
+  });
+  return sorted.map((item, i) => ({
+    item,
+    rank: ranks[i]!,
+    tied: ranks[i - 1] === ranks[i] || ranks[i + 1] === ranks[i],
+  }));
+}
+
 /** A section's marks can cancel to a rating of zero, so this looks at the marks. */
 export function hasMarks(marks: Readonly<Record<RatingKind, number>>): boolean {
   return Object.values(marks).some((value) => value !== 0);

@@ -66,7 +66,7 @@ export default async function MemberBaseDetailsPage({
   const encodedPlayer = encodeTag(player.tag);
 
   return (
-    <main className="mx-auto max-w-narrow space-y-6 p-4 sm:p-6">
+    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
       <PageHeader
         back={{ href: `/${encodedClan}/player/${encodedPlayer}`, label: `${player.name}'s profile` }}
         eyebrow={`${clan.name} · Base details`}

@@ -23,6 +23,7 @@ import Link from "next/link";
 import { ListChecks, Medal, Scale, Swords } from "lucide-react";
 import { SyncBadge } from "@/components/sync-badge";
 import { PageHeader } from "@/components/page-header";
+import { RankMedal } from "@/components/player-rank";
 import { TownHall } from "@/components/game/town-hall";
 import { Stars } from "@/components/stars";
 import { Disclosure, EmptyState, Panel, SectionHeader } from "@/components/kit";
@@ -86,6 +87,12 @@ export default async function ClanWarRatingPage({
   const header = (
     <PageHeader
       eyebrow={clan.name}
+      // Back to the ranking across the family's clans, on this clan and month:
+      // this page was reached from there and had no way back to it.
+      back={{
+        href: `/rating/war?clan=${encodeURIComponent(clan.tag)}${month && month !== months[0] ? `&month=${month}` : ""}`,
+        label: "War rating, all clans",
+      }}
       title="War rating"
       description="Every player rated on attack and defence in the month's wars, and where each mark came from."
       actions={<SyncBadge run={run} clanTag={clan.tag} target="war" canAdmin={isLeader(clan.role)} />}
@@ -194,7 +201,9 @@ export default async function ClanWarRatingPage({
                 <TableBody>
                   {ranked.map((p, index) => (
                     <TableRow key={p.playerId}>
-                      <TableCell data-cell="corner" className="text-muted-foreground text-right tabular-nums">{index + 1}</TableCell>
+                      <TableCell data-cell="corner" className="text-right">
+                        <RankMedal rank={index + 1} medal={p.rating > 0} />
+                      </TableCell>
                       <TableCell data-cell="title">
                         <span className="flex items-center gap-2">
                           <TownHall level={p.thLevel} />

@@ -48,7 +48,10 @@ function linkText(html: string, href: string): string | null {
 function heading(page: string): string {
   const source = readFileSync(`src/app/(app)/${page}/page.tsx`, "utf8");
   const match =
-    /<h1[^>]*>([^<]+)<\/h1>/.exec(source) ?? /<PageHeader[^>]*?\btitle="([^"]+)"/.exec(source);
+    /<h1[^>]*>([^<]+)<\/h1>/.exec(source) ??
+    /<PageHeader[^>]*?\btitle="([^"]+)"/.exec(source) ??
+    // A Player rating page hands its title to the shared RatingShell.
+    /\bconst TITLE = "([^"]+)"/.exec(source);
   if (!match) throw new Error(`no literal heading in ${page}`);
   return match[1].replace(/&amp;/g, "&").trim();
 }

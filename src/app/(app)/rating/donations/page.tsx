@@ -14,6 +14,11 @@
 //
 // OPEN TO EVERY MEMBER, over every clan they are in (canSeeMemberStats). This
 // was leadership only (T10.8a) until the clan decided otherwise.
+//
+// THE RANKING ON TOP is the stored family rating's donations section, the same
+// numbers as Overall's Donations column (../family-board.tsx), with ?month and
+// ?clan like every other section. The season report under it is what the
+// marks come from, in donations rather than marks, and keeps its ?season.
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -33,12 +38,19 @@ import { DONATION_MARKS } from "@/services/player-rating";
 import { signed2 } from "@/services/raid-rating";
 import { seasonKey, type Season, type SeasonDonationReport } from "@/services/season-donations";
 import { Activity, Eye, HandHeart, Users } from "lucide-react";
-import { PageHeader } from "@/components/page-header";
 import { Disclosure, EmptyState, FactRow, Panel, SectionHeader } from "@/components/kit";
 import { TownHall } from "@/components/game/town-hall";
-import { RatingNav } from "@/components/rating-nav";
+import { RankDock } from "@/components/rank-dock";
+import { Choice, Leaderboard, Podium, RatingToolbar, podiumRows, topOf } from "@/components/rating-board";
+import { RatingShell } from "@/components/rating-shell";
 import { clanAccent } from "@/lib/clan-accent";
+import { rankRows, ratingPercent } from "@/lib/rating";
+import { seasonLabel as monthLabel } from "@/lib/roster-view";
+import type { RatedPlayer } from "@/repositories/player-ratings";
 import { loadRatingData, seasonLabel } from "../data";
+import { clanChoices, dockEntries, familyClans, familyRow, loadFamily } from "../family-board";
+
+const TITLE = "Donations";
 
 export const dynamic = "force-dynamic";
 
@@ -49,19 +61,21 @@ function ratioLabel(ratio: number | null): string {
 export default async function SeasonDonationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ season?: string }>;
+  searchParams: Promise<{ season?: string; month?: string; clan?: string }>;
 }) {
   const query = await searchParams;
   const supabase = await createClient();
   const userId = await currentUserId(supabase);
   if (!userId) redirect("/login");
 
-  const data = await loadRatingData(supabase, userId, query.season);
+  const [data, family] = await Promise.all([
+    loadRatingData(supabase, userId, query.season),
+    loadFamily(query.month),
+  ]);
 
   if (!data) {
     return (
-      <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
-        <PageHeader title="Season donations" back={{ href: "/rating", label: "Player rating" }} />
+      <RatingShell title={TITLE}>
         <Panel>
           {/* T9.10 — being in no clan yet is not a permission problem, and saying
               "not permitted" to someone waiting to be added is both wrong and
@@ -72,7 +86,7 @@ export default async function SeasonDonationsPage({
             body="There is nothing to report on until a leader adds you to a clan."
           />
         </Panel>
-      </main>
+      </RatingShell>
     );
   }
 
@@ -82,14 +96,15 @@ export default async function SeasonDonationsPage({
   const flagged = rows.filter((r) => r.flags.length > 0);
   const others = rows.filter((r) => r.flags.length === 0);
 
+  const board = family.kind === "ok" ? donationBoard(family, query) : null;
+
   return (
-    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
-      <PageHeader
-        title="Season donations"
-        back={{ href: "/rating", label: "Player rating" }}
-        description={`Every member of ${clans.length === 1 ? "your clan" : `all ${clans.length} of your clans`}, in one view — donations per clan and per season.`}
-      />
-      <RatingNav current="donations" />
+    <RatingShell
+      title={TITLE}
+      description={`Who gave most in the family, then every member of ${clans.length === 1 ? "your clan" : `all ${clans.length} of your clans`} by clan and by season.`}
+      dock={board && board.dock.length > 0 && <RankDock title={`Donations, ${monthLabel(board.month)}`} entries={board.dock} />}
+    >
+      {board?.panel}
 
       {rows.length === 0 ? (
         // T9.10 — clans exist but no members have synced yet. Day one of a fresh
@@ -160,8 +175,113 @@ export default async function SeasonDonationsPage({
           </Disclosure>
         </>
       )}
-    </main>
+    </RatingShell>
   );
+}
+
+/**
+ * The donations ranking: the stored family rating's donations share, sorted,
+ * with ties sharing a place. Medals only for a place with marks behind it.
+ */
+function donationBoard(
+  family: Extract<Awaited<ReturnType<typeof loadFamily>>, { kind: "ok" }>,
+  query: { season?: string; month?: string; clan?: string },
+) {
+  const { months, month, everyone, ownIds, mine, isOpen } = family;
+  const clans = familyClans(everyone);
+  const only = clans.find((c) => c.tag === query.clan) ?? null;
+
+  const order = (a: RatedPlayer, b: RatedPlayer) =>
+    b.shares.donations - a.shares.donations || b.marks.donations - a.marks.donations;
+  const sorted = [...everyone].sort((a, b) => order(a, b) || a.name.localeCompare(b.name));
+  const familyPlaces = new Map(rankRows(sorted, (a, b) => order(a, b) === 0).map((r) => [r.item.playerId, r]));
+  const clanPlaces = new Map<string, { place: number; size: number }>();
+  for (const clan of clans) {
+    const inClan = sorted.filter((p) => p.clanId === clan.id);
+    for (const r of rankRows(inClan, (a, b) => order(a, b) === 0)) {
+      clanPlaces.set(r.item.playerId, { place: r.rank, size: inClan.length });
+    }
+  }
+
+  const here = (next: { clan?: string | null; month?: string }) => {
+    const search = new URLSearchParams();
+    const m = next.month ?? month;
+    const c = next.clan === undefined ? (only?.tag ?? null) : next.clan;
+    if (m !== months[0]) search.set("month", m);
+    if (c) search.set("clan", c);
+    if (query.season) search.set("season", query.season);
+    const text = search.toString();
+    return text ? `/rating/donations?${text}` : "/rating/donations";
+  };
+
+  const toRow = (p: RatedPlayer) => {
+    const place = familyPlaces.get(p.playerId)!;
+    const marks = p.marks.donations;
+    return familyRow(p, {
+      rank: place.rank,
+      tied: place.tied,
+      medal: marks > 0,
+      oneClan: only ? (clanPlaces.get(p.playerId) ?? null) : null,
+      mine,
+      ownIds,
+      rating: { text: ratingPercent(p.shares.donations), value: p.shares.donations },
+      cells: {
+        marks: <span className={marks < 0 ? "text-destructive" : undefined}>{signed2(marks)}</span>,
+      },
+    });
+  };
+
+  const rows = sorted.filter((p) => !only || p.clanId === only.id).map(toRow);
+  const dock = dockEntries(
+    sorted.filter((p) => ownIds.has(p.playerId)).map(toRow),
+    (row) => {
+      const p = everyone.find((q) => q.playerId === row.key)!;
+      const inClan = clanPlaces.get(p.playerId);
+      const clanPart = inClan ? ` · #${inClan.place} of ${inClan.size} in ${p.clanName}` : "";
+      return `#${row.rank} of ${everyone.length} in the family${row.tied ? ", tied" : ""}${clanPart}`;
+    },
+    (row) => `${here({ clan: null })}#${row.anchorId}`,
+  );
+
+  const panel = (
+    <Panel aria-labelledby="donation-ranking" className="space-y-4">
+      <div className="space-y-1">
+        <SectionHeader
+          id="donation-ranking"
+          title={`${monthLabel(month)}${isOpen ? ", so far" : ", final"}`}
+          icon={HandHeart}
+          count={rows.length}
+        />
+        <p className="text-muted-foreground text-sm">
+          Each player&apos;s share of the whole family&apos;s donation marks, as in the Overall
+          ranking, with the marks beside it.
+        </p>
+      </div>
+      <RatingToolbar
+        months={months.map((m) => ({ href: here({ month: m }), label: monthLabel(m), active: m === month }))}
+        clans={clanChoices(clans, everyone.length, only, (tag) => here({ clan: tag }))}
+      />
+      <Podium rows={podiumRows(rows)} />
+      {rows.length === 0 ? (
+        <EmptyState
+          icon={HandHeart}
+          title="Nothing to rank yet"
+          body="Donation marks appear after the next rating update."
+        />
+      ) : (
+        <Leaderboard
+          rows={rows}
+          columns={[{ key: "marks", label: "Marks", title: "Donation marks this month" }]}
+          ratingLabel="Share"
+          ratingTitle="Share of the family's donation marks"
+          ratingTop={topOf(everyone.map((p) => p.shares.donations))}
+          showClan={!only}
+        />
+      )}
+    </Panel>
+  );
+
+  return { month, panel, dock };
 }
 
 /**
@@ -197,25 +317,16 @@ function SeasonDonations({
     <Disclosure title="Season donations" icon={HandHeart} count={list.length} defaultOpen>
       <div className="space-y-4">
         {seasons.length > 1 && (
-          <nav aria-label="Season" className="flex flex-wrap gap-2">
-            {seasons.map((s, i) => {
-              const active = s === season;
-              return (
-                <Link
-                  key={seasonKey(s)}
-                  // The running season is the page's default, so it has no parameter.
-                  href={i === 0 ? "/rating/donations" : `/rating/donations?season=${encodeURIComponent(seasonKey(s))}`}
-                  aria-current={active ? "page" : undefined}
-                  className={
-                    active
-                      ? "bg-primary text-primary-foreground rounded-control px-3 py-1 text-sm"
-                      : "hover:bg-accent rounded-control border px-3 py-1 text-sm"
-                  }
-                >
-                  {seasonLabel(s)}
-                </Link>
-              );
-            })}
+          <nav aria-label="Season" className="cb-segment cb-scroll-x flex max-w-full gap-1 [&>*]:shrink-0">
+            {seasons.map((s, i) => (
+              <Choice
+                key={seasonKey(s)}
+                // The running season is the page's default, so it has no parameter.
+                href={i === 0 ? "/rating/donations" : `/rating/donations?season=${encodeURIComponent(seasonKey(s))}`}
+                active={s === season}
+                label={seasonLabel(s)}
+              />
+            ))}
           </nav>
         )}
         {seasons.length === 1 && (
@@ -301,7 +412,7 @@ function SeasonDonations({
         <p className="text-muted-foreground text-xs">
           In the{" "}
           <Link href="/rating" className="underline">
-            Player rating
+            Overall ranking
           </Link>
           , every {DONATION_MARKS.given.per.toLocaleString("en-GB")} donated in the family is{" "}
           {signed2(DONATION_MARKS.given.marks)} mark, every{" "}

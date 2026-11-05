@@ -19,79 +19,35 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Swords } from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { currentUserId } from "@/lib/auth";
 import { clanAccent } from "@/lib/clan-accent";
 import { visibleClans } from "@/lib/clans";
+import { rankAnchor, rankRows } from "@/lib/rating";
 import { seasonLabel } from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { canSeeMemberStats } from "@/lib/visibility";
 import { loadWarMonth } from "@/lib/war-rating-data";
-import { PageHeader } from "@/components/page-header";
 import { EmptyState, Panel, SectionHeader } from "@/components/kit";
-import { TownHall } from "@/components/game/town-hall";
-import { RatingNav } from "@/components/rating-nav";
+import { RankDock } from "@/components/rank-dock";
+import {
+  Leaderboard,
+  Podium,
+  RatingToolbar,
+  podiumRows,
+  topOf,
+  type BoardColumn,
+  type BoardRow,
+} from "@/components/rating-board";
+import { RatingShell } from "@/components/rating-shell";
+import { basesForUser } from "@/repositories/account-bases";
 import { warMonthsForClan } from "@/repositories/war";
 import { oneDecimal, signed } from "@/services/cwl-rating";
 
 export const dynamic = "force-dynamic";
 
-/** Gold, silver, bronze for the top three, as on Player rating. */
-const MEDAL = ["#f5c542", "#c0c7d1", "#cd8a4b"];
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
-      <PageHeader
-        title="War rating"
-        back={{ href: "/rating", label: "Player rating" }}
-        description="Every player of your clans over a month of regular wars, rated on attack and defence."
-      />
-      <RatingNav current="war" />
-      {children}
-    </main>
-  );
-}
-
-/** One filter button: a clan (with its colour), a month, or "All clans". */
-function Choice({
-  href,
-  active,
-  label,
-  count,
-  dot,
-}: {
-  href: string;
-  active: boolean;
-  label: string;
-  count?: number;
-  dot?: string;
-}) {
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "flex items-center gap-2 rounded-control px-3 py-1.5 text-sm font-medium",
-        active ? "bg-primary text-primary-foreground" : "hover:bg-accent border",
-      )}
-    >
-      {dot && <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: dot }} />}
-      {label}
-      {count !== undefined && (
-        <span className={cn("text-xs font-normal tabular-nums", !active && "text-muted-foreground")}>{count}</span>
-      )}
-    </Link>
-  );
-}
+const TITLE = "War rating";
+const DESCRIPTION = "Every player of your clans over a month of regular wars, rated on attack and defence.";
 
 export default async function WarRatingPage({
   searchParams,
@@ -106,7 +62,7 @@ export default async function WarRatingPage({
   const clans = (await visibleClans(supabase, userId)).filter((c) => canSeeMemberStats(c.role));
   if (clans.length === 0) {
     return (
-      <Shell>
+      <RatingShell title={TITLE} description={DESCRIPTION}>
         <Panel>
           <EmptyState
             icon={Swords}
@@ -114,18 +70,21 @@ export default async function WarRatingPage({
             body="There is nothing to rate until a leader adds you to a clan."
           />
         </Panel>
-      </Shell>
+      </RatingShell>
     );
   }
 
   // Every month any of these clans has a war in, newest first.
-  const monthLists = await Promise.all(clans.map((clan) => warMonthsForClan(supabase, clan.id)));
+  const [monthLists, bases] = await Promise.all([
+    Promise.all(clans.map((clan) => warMonthsForClan(supabase, clan.id))),
+    basesForUser(supabase, userId),
+  ]);
   const months = [...new Set(monthLists.flat())].sort().reverse();
   // An unknown or missing month is the latest one, never an error.
   const month = months.find((m) => m === monthParam) ?? months[0] ?? null;
   if (!month) {
     return (
-      <Shell>
+      <RatingShell title={TITLE} description={DESCRIPTION}>
         <Panel>
           <EmptyState
             icon={Swords}
@@ -133,7 +92,7 @@ export default async function WarRatingPage({
             body="The rating appears with the first regular war the sync captures."
           />
         </Panel>
-      </Shell>
+      </RatingShell>
     );
   }
 
@@ -142,6 +101,7 @@ export default async function WarRatingPage({
   );
   // The clans that fought a war this month.
   const played = loaded.filter(({ view }) => view.wars.length > 0);
+  const ownIds = new Set(bases.map((b) => b.playerId));
 
   // One clan when asked for and it played this month; otherwise all of them.
   const only = played.find((p) => p.clan.tag === clanParam) ?? null;
@@ -154,16 +114,16 @@ export default async function WarRatingPage({
   const counted = shown.flatMap((p) => p.view.rating.wars.filter((w) => w.status === "counted"));
   const attackOnly = counted.filter((w) => w.attackOnly).length;
   const incomplete = counted.filter((w) => w.starsNotCaptured > 0).length;
-  const rows = shown
+
+  type Item = { clan: (typeof played)[number]["clan"]; player: ReturnType<typeof rankedOf>[number] };
+  const order = (a: Item, b: Item) =>
+    b.player.rating - a.player.rating ||
+    b.player.marks - a.player.marks ||
+    (b.player.averageDestruction ?? -1) - (a.player.averageDestruction ?? -1) ||
+    (b.player.provisional?.share ?? 0) - (a.player.provisional?.share ?? 0);
+  const sorted: Item[] = shown
     .flatMap((p) => rankedOf(p).map((player) => ({ clan: p.clan, player })))
-    .sort(
-      (a, b) =>
-        b.player.rating - a.player.rating ||
-        b.player.marks - a.player.marks ||
-        (b.player.averageDestruction ?? -1) - (a.player.averageDestruction ?? -1) ||
-        (b.player.provisional?.share ?? 0) - (a.player.provisional?.share ?? 0) ||
-        a.player.name.localeCompare(b.player.name),
-    );
+    .sort((a, b) => order(a, b) || a.player.name.localeCompare(b.player.name));
 
   const clanHref = (clanTag: string) => `/${encodeURIComponent(clanTag)}/war/rating?month=${month}`;
   const here = (next: { clan?: string | null; month?: string }) => {
@@ -176,8 +136,60 @@ export default async function WarRatingPage({
     return text ? `/rating/war?${text}` : "/rating/war";
   };
 
+  const rows: BoardRow[] = rankRows(sorted, (a, b) => order(a, b) === 0).map(({ item: { clan, player }, rank, tied }) => ({
+    key: `${clan.id}:${player.playerId}`,
+    anchorId: rankAnchor(player.tag),
+    rank,
+    tied,
+    medal: player.rating > 0,
+    name: player.name,
+    tag: player.tag,
+    href: `/${encodeURIComponent(clan.tag)}/player/${encodeURIComponent(player.tag)}`,
+    you: ownIds.has(player.playerId),
+    clan: { id: clan.id, name: clan.name, href: clanHref(clan.tag) },
+    thLevel: player.thLevel,
+    rating: { text: oneDecimal(player.rating), value: player.rating },
+    cells: {
+      wars: player.warsCounted,
+      marks: <span className={cn(player.marks < 0 && "text-destructive")}>{signed(player.marks)}</span>,
+      live: (
+        <span className="text-muted-foreground text-sm">
+          {player.provisional ? `${signed(player.provisional.marks)} · ${oneDecimal(player.provisional.share)}%` : "—"}
+        </span>
+      ),
+      perWar: (
+        <span className="text-muted-foreground text-sm">
+          {player.perWar === null ? "—" : oneDecimal(player.perWar)}
+        </span>
+      ),
+    },
+  }));
+
+  const columns: BoardColumn[] = [
+    { key: "wars", label: "Wars" },
+    { key: "marks", label: "Marks" },
+    ...(fighting ? [{ key: "live", label: "This war so far" }] : []),
+    { key: "perWar", label: "Per war", title: "Rating divided by the finished wars they were in" },
+  ];
+
+  const dock = rows
+    .filter((row) => row.you)
+    .map((row) => ({
+      key: row.key,
+      name: row.name,
+      rank: row.rank,
+      medal: row.medal,
+      line: `#${row.rank} of ${rows.length}${row.tied ? ", tied" : ""} in ${only ? only.clan.name : "your clans"} · ${row.clan.name}`,
+      rating: row.rating.text,
+      href: `${here({})}#${row.anchorId}`,
+    }));
+
   return (
-    <Shell>
+    <RatingShell
+      title={TITLE}
+      description={DESCRIPTION}
+      dock={dock.length > 0 && <RankDock title={`War, ${seasonLabel(month)}`} entries={dock} />}
+    >
       <Panel aria-labelledby="war-rating-title" className="space-y-4">
         <div className="space-y-1">
           <SectionHeader
@@ -197,39 +209,39 @@ export default async function WarRatingPage({
         </div>
 
         {/* The month, then all clans in one ranking or one clan's own. */}
-        <nav aria-label="Month" className="cb-scroll-x flex gap-2 [&>*]:shrink-0">
-          {months.slice(0, 12).map((m) => (
-            <Choice key={m} href={here({ month: m })} active={m === month} label={seasonLabel(m)} />
-          ))}
-        </nav>
-        {played.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <nav aria-label="Clan" className="flex flex-wrap gap-2">
-              <Choice
-                href={here({ clan: null })}
-                active={!only}
-                label="All clans"
-                count={played.reduce((t, p) => t + rankedOf(p).length, 0)}
-              />
-              {played.map((p) => (
-                <Choice
-                  key={p.clan.id}
-                  href={here({ clan: p.clan.tag })}
-                  active={only?.clan.id === p.clan.id}
-                  label={p.clan.name}
-                  count={rankedOf(p).length}
-                  dot={clanAccent(p.clan.id).color}
-                />
-              ))}
-            </nav>
-            {/* The clan's own page: each war, and the sum behind every mark. */}
-            {only && (
-              <Link href={clanHref(only.clan.tag)} className="text-primary text-sm font-medium hover:underline">
-                {only.clan.name}, war by war →
+        <RatingToolbar
+          months={months.map((m) => ({ href: here({ month: m }), label: seasonLabel(m), active: m === month }))}
+          clans={
+            played.length > 1
+              ? [
+                  {
+                    href: here({ clan: null }),
+                    label: "All clans",
+                    active: !only,
+                    count: played.reduce((t, p) => t + rankedOf(p).length, 0),
+                  },
+                  ...played.map((p) => ({
+                    href: here({ clan: p.clan.tag }),
+                    label: p.clan.name,
+                    active: only?.clan.id === p.clan.id,
+                    count: rankedOf(p).length,
+                    dot: clanAccent(p.clan.id).color,
+                  })),
+                ]
+              : []
+          }
+          extra={
+            // The clan's own page: each war, and the sum behind every mark.
+            (only ?? (played.length === 1 ? played[0] : null)) && (
+              <Link
+                href={clanHref((only ?? played[0]!).clan.tag)}
+                className="text-primary inline-flex min-h-10 items-center text-sm font-medium hover:underline"
+              >
+                {(only ?? played[0]!).clan.name}, war by war →
               </Link>
-            )}
-          </div>
-        )}
+            )
+          }
+        />
 
         {rows.length === 0 ? (
           <EmptyState
@@ -238,83 +250,15 @@ export default async function WarRatingPage({
             body="Marks appear once battle day starts and the first attacks land."
           />
         ) : (
-          <div className="-mx-5 overflow-x-auto px-5">
-            <Table className="cb-stack">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12 text-right">#</TableHead>
-                  <TableHead>Member</TableHead>
-                  {!only && <TableHead>Clan</TableHead>}
-                  <TableHead className="text-right">TH</TableHead>
-                  <TableHead className="text-right">Wars</TableHead>
-                  <TableHead className="text-right">Marks</TableHead>
-                  {fighting && <TableHead className="text-right">This war so far</TableHead>}
-                  <TableHead className="text-right" title="Rating divided by the finished wars they were in">
-                    Per war
-                  </TableHead>
-                  <TableHead className="text-right">Rating</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map(({ clan, player }, index) => (
-                  <TableRow key={`${clan.id}:${player.playerId}`}>
-                    <TableCell data-cell="corner" className="text-right">
-                      {index < 3 ? (
-                        <span
-                          className="inline-flex size-7 items-center justify-center rounded-full text-sm font-bold text-black"
-                          style={{ background: MEDAL[index] }}
-                        >
-                          {index + 1}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground text-sm tabular-nums">{index + 1}</span>
-                      )}
-                    </TableCell>
-                    <TableCell data-cell="title">
-                      <Link
-                        href={`/${encodeURIComponent(clan.tag)}/player/${encodeURIComponent(player.tag)}`}
-                        className="font-medium hover:underline"
-                      >
-                        {player.name}
-                      </Link>
-                    </TableCell>
-                    {!only && (
-                      <TableCell data-label="Clan">
-                        <Link href={clanHref(clan.tag)} className="group flex items-center gap-2 text-sm">
-                          <span
-                            aria-hidden
-                            className="size-2 shrink-0 rounded-full"
-                            style={{ background: clanAccent(clan.id).color }}
-                          />
-                          <span className="text-muted-foreground group-hover:underline">{clan.name}</span>
-                        </Link>
-                      </TableCell>
-                    )}
-                    <TableCell data-label="TH" className="text-right">
-                      <TownHall level={player.thLevel} />
-                    </TableCell>
-                    <TableCell data-label="Wars" className="text-right tabular-nums">{player.warsCounted}</TableCell>
-                    <TableCell data-label="Marks" className={cn("text-right tabular-nums", player.marks < 0 && "text-destructive")}>
-                      {signed(player.marks)}
-                    </TableCell>
-                    {fighting && (
-                      <TableCell data-label="This war so far" className="text-muted-foreground text-right text-sm tabular-nums">
-                        {player.provisional
-                          ? `${signed(player.provisional.marks)} · ${oneDecimal(player.provisional.share)}%`
-                          : "—"}
-                      </TableCell>
-                    )}
-                    <TableCell data-label="Per war" className="text-muted-foreground text-right text-sm tabular-nums">
-                      {player.perWar === null ? "—" : oneDecimal(player.perWar)}
-                    </TableCell>
-                    <TableCell data-label="Rating" className="text-right font-semibold tabular-nums">
-                      {oneDecimal(player.rating)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <>
+            <Podium rows={podiumRows(rows)} />
+            <Leaderboard
+              rows={rows}
+              columns={columns}
+              ratingTop={topOf(rows.map((r) => r.rating.value))}
+              showClan={!only && played.length > 1}
+            />
+          </>
         )}
 
         <p className="text-muted-foreground text-xs">
@@ -329,6 +273,6 @@ export default async function WarRatingPage({
             ` In ${incomplete} the last attacks were not captured, so nobody lost marks for an unused attack there.`}
         </p>
       </Panel>
-    </Shell>
+    </RatingShell>
   );
 }

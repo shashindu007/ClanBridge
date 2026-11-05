@@ -381,6 +381,17 @@
   --trim: oklch(0.7 0.14 78);
   --trim-shade: var(--gold-shade);
   --foe: oklch(0.52 0.16 25);
+
+  /* ── The water bubble: the ONE hue every card wears (see "Every card in the
+     signed-in app"). A plate, a slot, the rank dock: all of them are this
+     aqua, so nothing on a page competes with the cards' own rim. Medal gold,
+     silver and bronze are the only other colours, and only on a rank. */
+  --bubble: oklch(0.72 0.13 215);
+  --bubble-rim: oklch(0.83 0.075 212);
+  --bubble-ring: oklch(0.86 0.09 210 / 0.45);
+  --bubble-fill: oklch(0.92 0.05 210 / 0.35);
+  --bubble-glow: oklch(0.72 0.13 215 / 0.45);
+  --bubble-ink: oklch(0.45 0.11 225);
 }
 
 .dark {
@@ -396,6 +407,13 @@
 
   --trim: oklch(0.84 0.155 85);
   --foe: oklch(0.6 0.17 25);
+
+  --bubble: oklch(0.75 0.13 212);
+  --bubble-rim: oklch(0.6 0.1 222 / 0.75);
+  --bubble-ring: oklch(0.72 0.12 215 / 0.35);
+  --bubble-fill: oklch(0.55 0.1 220 / 0.14);
+  --bubble-glow: oklch(0.68 0.14 215 / 0.55);
+  --bubble-ink: oklch(0.82 0.11 210);
 }
 
 @theme inline {
@@ -1288,64 +1306,47 @@
   /* ═════════════════════════════════════════════════════════════════════════
      THE PLATE, AND THE MOTION THAT GOES WITH IT
 
-     A plate is a headline number standing on a card, the way a game's HUD
-     sets a stat on a cut metal tag: corners chamfered top-left and
-     bottom-right, an edge lit in --plate-accent, a darker face inside it.
-     A well (.cb-sunken) is cut INTO the card; a plate stands ON it. Use a
-     plate for a hero card's few numbers, a well for a board of twenty.
+     A plate is a headline number in its own small bubble, standing on a
+     card: the card's aqua rim and top shine at a smaller size, so a hero
+     card's few numbers read as part of the same water rather than as tags
+     in a colour of their own. A well (.cb-sunken) is cut INTO the card; a
+     plate floats ON it. Use a plate for a hero card's few numbers, a well
+     for a board of twenty.
 
-     The edge is the element's own background, the face is ::before inset
-     1.5px, both clipped to the same polygon, so the outline follows the cut
-     corners (a border or box-shadow would follow the box instead).
-     ::after is left free for .cb-shine.
+     ONE HUE. Plates were each a colour once, and seven of them on a page
+     said seven things that were not true. ::after is left free for .cb-shine.
      ═════════════════════════════════════════════════════════════════════════ */
   .cb-plate {
-    --plate-accent: var(--primary);
-    --plate-cut: 0.875rem;
-    --plate-face: oklch(0.985 0.008 250 / 0.9);
     position: relative;
     isolation: isolate;
-    clip-path: polygon(
-      var(--plate-cut) 0,
-      100% 0,
-      100% calc(100% - var(--plate-cut)),
-      calc(100% - var(--plate-cut)) 100%,
-      0 100%,
-      0 var(--plate-cut)
-    );
-    background: linear-gradient(
-      150deg,
-      var(--plate-accent) 0%,
-      color-mix(in oklch, var(--plate-accent) 35%, transparent) 38%,
-      oklch(0.5 0.03 260 / 0.25) 100%
-    );
+    border-radius: var(--radius-tile);
+    background:
+      linear-gradient(180deg, var(--bubble-fill) 0%, transparent 70%),
+      oklch(1 0 0 / 0.55);
+    box-shadow:
+      inset 0 1.5px 0 oklch(1 0 0 / 0.9),
+      inset 0 0 0 1px var(--bubble-ring),
+      inset 0 0 14px oklch(0.85 0.1 210 / 0.25),
+      0 0 0 1px var(--bubble-rim),
+      0 6px 16px -12px var(--bubble-glow);
+    transition:
+      transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      box-shadow 200ms ease;
   }
 
   .dark .cb-plate {
-    --plate-face: oklch(0.2 0.045 262 / 0.82);
-  }
-
-  .cb-plate::before {
-    content: "";
-    position: absolute;
-    inset: 1.5px;
-    z-index: -1;
-    pointer-events: none;
-    clip-path: polygon(
-      calc(var(--plate-cut) - 0.6px) 0,
-      100% 0,
-      100% calc(100% - var(--plate-cut) + 0.6px),
-      calc(100% - var(--plate-cut) + 0.6px) 100%,
-      0 100%,
-      0 calc(var(--plate-cut) - 0.6px)
-    );
     background:
-      linear-gradient(180deg, color-mix(in oklch, var(--plate-accent) 18%, transparent) 0%, transparent 55%),
-      var(--plate-face);
-    transition: background-color 180ms ease;
+      linear-gradient(180deg, var(--bubble-fill) 0%, transparent 70%),
+      oklch(0.18 0.045 262 / 0.6);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.28),
+      inset 0 0 0 1px var(--bubble-ring),
+      inset 0 0 16px oklch(0.7 0.13 215 / 0.16),
+      0 0 0 1px var(--bubble-rim),
+      0 8px 20px -14px oklch(0 0 0 / 0.8);
   }
 
-  /* The icon on its badge: the accent, on a tint of itself. */
+  /* The icon on its badge: a drop of the same water. */
   .cb-plate-icon {
     display: inline-flex;
     flex-shrink: 0;
@@ -1353,27 +1354,49 @@
     justify-content: center;
     width: 1.75rem;
     height: 1.75rem;
-    border-radius: 0.5rem;
-    color: var(--plate-accent);
-    background: color-mix(in oklch, var(--plate-accent) 18%, transparent);
+    border-radius: 9999px;
+    color: var(--bubble-ink);
+    background:
+      radial-gradient(circle at 35% 28%, oklch(1 0 0 / 0.55), transparent 55%),
+      color-mix(in oklch, var(--bubble) 22%, transparent);
     box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.25),
-      inset 0 0 0 1px color-mix(in oklch, var(--plate-accent) 45%, transparent);
+      inset 0 0 0 1px color-mix(in oklch, var(--bubble) 50%, transparent),
+      0 0 10px -4px var(--bubble-glow);
     transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
-  /* Lift: rises and brightens under the pointer, or when focus is inside it.
-     filter, not box-shadow, for the glow: a clipped plate clips its own shadow. */
+  /* Lift: rises under the pointer, or when focus is inside it, and the
+     bubble's rim brightens and glows. */
   .cb-lift {
     transition:
       transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      box-shadow 200ms ease,
       filter 200ms ease;
   }
 
   .cb-lift:hover,
   .cb-lift:focus-within {
     transform: translateY(-3px);
-    filter: brightness(1.1) saturate(1.12);
+  }
+
+  .cb-plate.cb-lift:hover,
+  .cb-plate.cb-lift:focus-within {
+    box-shadow:
+      inset 0 1.5px 0 oklch(1 0 0 / 0.95),
+      inset 0 0 0 1px var(--bubble),
+      inset 0 0 18px oklch(0.85 0.1 210 / 0.35),
+      0 0 0 1px var(--bubble),
+      0 0 22px -4px var(--bubble-glow);
+  }
+
+  .dark .cb-plate.cb-lift:hover,
+  .dark .cb-plate.cb-lift:focus-within {
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.35),
+      inset 0 0 0 1px var(--bubble),
+      inset 0 0 20px oklch(0.7 0.13 215 / 0.25),
+      0 0 0 1px var(--bubble),
+      0 0 24px -4px var(--bubble-glow);
   }
 
   .cb-lift:hover .cb-plate-icon {
@@ -1510,7 +1533,7 @@
   /* ── A builder's hut slot (components/game/builder-hut-icon.tsx) ─────────
      Lit and working, or dashed and free. */
   .cb-builder-slot {
-    --slot: oklch(0.72 0.13 52);
+    --slot: var(--bubble);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1523,7 +1546,7 @@
   }
 
   .cb-builder-slot[data-busy] {
-    color: var(--slot);
+    color: var(--bubble-ink);
     border: 0;
     opacity: 1;
     background: color-mix(in oklch, var(--slot) 20%, transparent);
@@ -1637,6 +1660,16 @@
 
   .cb-rank[data-size="lg"] .cb-rank-badge::before {
     inset: 3px;
+  }
+
+  .cb-rank[data-size="sm"] .cb-rank-badge {
+    width: 1.625rem;
+    height: 1.8125rem;
+    font-size: 0.8125rem;
+  }
+
+  .cb-rank[data-size="sm"] .cb-rank-badge::before {
+    inset: 1.5px;
   }
 
   .cb-board-row:hover .cb-rank,
@@ -1829,9 +1862,111 @@
     }
   }
 
+  /* ── Your rank, pinned to the bottom (components/rank-dock.tsx) ─────────
+     A bubble of frosted water over the page: the cards' aqua rim and glow,
+     blurred glass behind it so the rows scrolling under it stay readable
+     as rows. Centred, so it clears the toaster in the bottom-right corner. */
+  .cb-dock-wrap {
+    position: fixed;
+    inset-inline: 0;
+    bottom: max(1rem, env(safe-area-inset-bottom));
+    z-index: 40;
+    display: flex;
+    justify-content: center;
+    padding-inline: 1rem;
+    pointer-events: none;
+  }
+
+  .cb-dock-wrap > * {
+    pointer-events: auto;
+  }
+
+  .cb-dock,
+  .cb-dock-pill {
+    background: color-mix(in oklch, var(--card) 74%, transparent);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    backdrop-filter: blur(14px) saturate(1.3);
+    box-shadow:
+      inset 0 1.5px 0 oklch(1 0 0 / 0.6),
+      inset 0 0 0 1px var(--bubble-ring),
+      inset 0 0 18px oklch(0.85 0.1 210 / 0.22),
+      0 0 0 1px var(--bubble-rim),
+      0 0 28px -6px var(--bubble-glow),
+      0 18px 40px -20px oklch(0 0 0 / 0.6);
+    animation: cb-dock-in 460ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  }
+
+  .cb-dock {
+    width: min(36rem, 100%);
+    padding: 0.625rem 0.875rem 0.375rem;
+    border-radius: var(--radius-hero);
+  }
+
+  .cb-dock-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0 1.125rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .cb-dock-pill:hover {
+    transform: translateY(-2px);
+  }
+
+  .cb-dock-pill > svg {
+    color: var(--bubble-ink);
+  }
+
+  .cb-dock-close {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 9999px;
+    color: var(--muted-foreground);
+    transition:
+      background-color 140ms ease,
+      color 140ms ease;
+  }
+
+  .cb-dock-close:hover {
+    background: color-mix(in oklch, var(--bubble) 18%, transparent);
+    color: var(--foreground);
+  }
+
+  .cb-dock-close:focus-visible,
+  .cb-dock-pill:focus-visible {
+    outline: 2px solid var(--bubble);
+    outline-offset: 2px;
+  }
+
+  @keyframes cb-dock-in {
+    from {
+      opacity: 0;
+      transform: translateY(24px) scale(0.96);
+    }
+  }
+
   /* Nobody asked the interface to move. The depth stays, since depth is not
      motion; only the travel goes. */
   @media (prefers-reduced-motion: reduce) {
+    .cb-dock-pill:hover {
+      transform: none;
+    }
+
+    .cb-dock,
+    .cb-dock-pill {
+      animation: none;
+    }
+
     .cb-panel-interactive,
     .cb-raised,
     .cb-lift,
@@ -2058,6 +2193,10 @@
   /* No textured backdrop, no app chrome: the sheet is the page. */
   body {
     background: white !important;
+  }
+
+  .cb-dock-wrap {
+    display: none !important;
   }
 
   .cb-backdrop {

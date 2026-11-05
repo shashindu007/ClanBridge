@@ -144,10 +144,9 @@ export function BaseDetails({ progress, village, path, switcher = true, banner =
         </div>
 
         {groups.length > 0 && (
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 [&>*:last-child:nth-child(odd)]:col-span-2 sm:[&>*:last-child:nth-child(odd)]:col-span-1">
             <StatTile
               variant="plate"
-              accent="oklch(0.74 0.15 150)"
               className="cb-rise"
               label="Maxed"
               icon={CheckCircle2}
@@ -156,7 +155,6 @@ export function BaseDetails({ progress, village, path, switcher = true, banner =
             />
             <StatTile
               variant="plate"
-              accent="oklch(0.8 0.16 70)"
               className="cb-rise"
               style={{ "--i": 1 } as React.CSSProperties}
               label="Behind"
@@ -166,7 +164,6 @@ export function BaseDetails({ progress, village, path, switcher = true, banner =
             />
             <StatTile
               variant="plate"
-              accent="oklch(0.74 0.14 230)"
               className="cb-rise"
               style={{ "--i": 2 } as React.CSSProperties}
               label="Upgraded"
@@ -273,7 +270,7 @@ export function VillageSwitch({
   bhLevel: number | null;
 }) {
   return (
-    <nav aria-label="Village" className="cb-sunken flex w-full gap-1 rounded-control p-1 sm:inline-flex sm:w-auto">
+    <nav aria-label="Village" className="cb-segment flex w-full gap-1 sm:inline-flex sm:w-auto">
       <VillageLink path={path} village="home" current={current}>
         <TownHall level={thLevel} size="xs" />
         <span>Home village</span>
@@ -303,10 +300,8 @@ function VillageLink({
     <Link
       href={village === "home" ? path : `${path}?village=builder`}
       aria-current={active ? "page" : undefined}
-      className={cn(
-        "flex min-h-10 flex-1 items-center justify-center gap-2 rounded-chip px-3.5 py-1.5 text-sm font-medium transition-colors sm:flex-none",
-        active ? "bg-tile text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-      )}
+      data-active={active || undefined}
+      className="cb-choice min-h-10 flex-1 justify-center sm:flex-none"
     >
       {children}
     </Link>

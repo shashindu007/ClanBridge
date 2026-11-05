@@ -16,29 +16,31 @@
 // returned, and every child read takes a season id from that read. RLS on the
 // raid tables is auth_clan_ids(), so a member of clan A reads nothing of clan B.
 
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Castle, ListChecks } from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { currentUserId } from "@/lib/auth";
 import { clanAccent } from "@/lib/clan-accent";
 import { visibleClans } from "@/lib/clans";
 import { formatDisplay } from "@/lib/display-time";
 import { loadRaidMonth } from "@/lib/raid-rating-data";
+import { rankAnchor, rankRows } from "@/lib/rating";
 import { seasonLabel } from "@/lib/roster-view";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { canSeeMemberStats } from "@/lib/visibility";
-import { PageHeader } from "@/components/page-header";
 import { Disclosure, EmptyState, Panel, SectionHeader } from "@/components/kit";
-import { RatingNav } from "@/components/rating-nav";
+import { RankDock } from "@/components/rank-dock";
+import {
+  Leaderboard,
+  Podium,
+  RatingToolbar,
+  podiumRows,
+  topOf,
+  type BoardColumn,
+  type BoardRow,
+} from "@/components/rating-board";
+import { RatingShell } from "@/components/rating-shell";
+import { basesForUser } from "@/repositories/account-bases";
 import { raidMonthsForClan } from "@/repositories/raids";
 import { oneDecimal } from "@/services/cwl-rating";
 import {
@@ -51,9 +53,6 @@ import {
 
 export const dynamic = "force-dynamic";
 
-/** Gold, silver, bronze for the top three, as on Player rating. */
-const MEDAL = ["#f5c542", "#c0c7d1", "#cd8a4b"];
-
 /** Short, for the folded line at phone width; the open section says why. */
 const STATUS: Record<RaidWeekendStatus, string> = {
   counted: "Counted",
@@ -61,51 +60,8 @@ const STATUS: Record<RaidWeekendStatus, string> = {
   notRated: "Not rated",
 };
 
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
-      <PageHeader
-        title="Raids rating"
-        back={{ href: "/rating", label: "Player rating" }}
-        description="Every player of your clans over a month of raid weekends, rated attack by attack."
-      />
-      <RatingNav current="raids" />
-      {children}
-    </main>
-  );
-}
-
-/** One filter button: a clan (with its colour), a month, or "All clans". */
-function Choice({
-  href,
-  active,
-  label,
-  count,
-  dot,
-}: {
-  href: string;
-  active: boolean;
-  label: string;
-  count?: number;
-  dot?: string;
-}) {
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "flex items-center gap-2 rounded-control px-3 py-1.5 text-sm font-medium",
-        active ? "bg-primary text-primary-foreground" : "hover:bg-accent border",
-      )}
-    >
-      {dot && <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: dot }} />}
-      {label}
-      {count !== undefined && (
-        <span className={cn("text-xs font-normal tabular-nums", !active && "text-muted-foreground")}>{count}</span>
-      )}
-    </Link>
-  );
-}
+const TITLE = "Raids rating";
+const DESCRIPTION = "Every player of your clans over a month of raid weekends, rated attack by attack.";
 
 /** "+0.38  Destroyed 38%" — one line of a sum. */
 function Line({ label, marks }: { label: string; marks: number }) {
@@ -222,7 +178,7 @@ export default async function RaidRatingPage({
   const clans = (await visibleClans(supabase, userId)).filter((c) => canSeeMemberStats(c.role));
   if (clans.length === 0) {
     return (
-      <Shell>
+      <RatingShell title={TITLE} description={DESCRIPTION}>
         <Panel>
           <EmptyState
             icon={Castle}
@@ -230,18 +186,21 @@ export default async function RaidRatingPage({
             body="There is nothing to rate until a leader adds you to a clan."
           />
         </Panel>
-      </Shell>
+      </RatingShell>
     );
   }
 
   // Every month any of these clans has a raid weekend in, newest first.
-  const monthLists = await Promise.all(clans.map((clan) => raidMonthsForClan(supabase, clan.id)));
+  const [monthLists, bases] = await Promise.all([
+    Promise.all(clans.map((clan) => raidMonthsForClan(supabase, clan.id))),
+    basesForUser(supabase, userId),
+  ]);
   const months = [...new Set(monthLists.flat())].sort().reverse();
   // An unknown or missing month is the latest one, never an error.
   const month = months.find((m) => m === monthParam) ?? months[0] ?? null;
   if (!month) {
     return (
-      <Shell>
+      <RatingShell title={TITLE} description={DESCRIPTION}>
         <Panel>
           <EmptyState
             icon={Castle}
@@ -250,7 +209,7 @@ export default async function RaidRatingPage({
           />
         </Panel>
         <Rules />
-      </Shell>
+      </RatingShell>
     );
   }
 
@@ -258,6 +217,7 @@ export default async function RaidRatingPage({
     clans.map(async (clan) => ({ clan, view: await loadRaidMonth(supabase, clan, month) })),
   );
   const played = loaded.filter(({ view }) => view.weekends.length > 0);
+  const ownIds = new Set(bases.map((b) => b.playerId));
 
   const only = played.find((p) => p.clan.tag === clanParam) ?? null;
   const shown = only ? [only] : played;
@@ -267,15 +227,14 @@ export default async function RaidRatingPage({
   const started = shown.some((p) => p.view.rating.started);
   const raiding = shown.some((p) => p.view.ratings.some((r) => r.status === "provisional"));
   const notRated = shown.reduce((t, p) => t + p.view.ratings.filter((r) => r.status === "notRated").length, 0);
-  const rows = shown
+  type Item = { clan: (typeof played)[number]["clan"]; player: ReturnType<typeof rankedOf>[number] };
+  const order = (a: Item, b: Item) =>
+    b.player.rating - a.player.rating ||
+    b.player.marks - a.player.marks ||
+    (b.player.provisional?.share ?? 0) - (a.player.provisional?.share ?? 0);
+  const sorted: Item[] = shown
     .flatMap((p) => rankedOf(p).map((player) => ({ clan: p.clan, player })))
-    .sort(
-      (a, b) =>
-        b.player.rating - a.player.rating ||
-        b.player.marks - a.player.marks ||
-        (b.player.provisional?.share ?? 0) - (a.player.provisional?.share ?? 0) ||
-        a.player.name.localeCompare(b.player.name),
-    );
+    .sort((a, b) => order(a, b) || a.player.name.localeCompare(b.player.name));
 
   const here = (next: { clan?: string | null; month?: string }) => {
     const query = new URLSearchParams();
@@ -289,8 +248,61 @@ export default async function RaidRatingPage({
   const playerHref = (clanTag: string, tag: string) =>
     `/${encodeURIComponent(clanTag)}/player/${encodeURIComponent(tag)}`;
 
+  const rows: BoardRow[] = rankRows(sorted, (a, b) => order(a, b) === 0).map(({ item: { clan, player }, rank, tied }) => ({
+    key: `${clan.id}:${player.playerId}`,
+    anchorId: player.tag ? rankAnchor(player.tag) : undefined,
+    rank,
+    tied,
+    medal: player.rating > 0,
+    name: player.name,
+    tag: player.tag,
+    href: player.tag ? playerHref(clan.tag, player.tag) : null,
+    you: ownIds.has(player.playerId),
+    clan: { id: clan.id, name: clan.name, href: here({ clan: clan.tag }) },
+    rating: { text: oneDecimal(player.rating), value: player.rating },
+    cells: {
+      weekends: player.weekendsCounted,
+      marks: <span className={cn(player.marks < 0 && "text-destructive")}>{signed2(player.marks)}</span>,
+      live: (
+        <span className="text-muted-foreground text-sm">
+          {player.provisional
+            ? `${signed2(player.provisional.marks)} · ${oneDecimal(player.provisional.share)}%`
+            : "—"}
+        </span>
+      ),
+      perWeekend: (
+        <span className="text-muted-foreground text-sm">
+          {player.perWeekend === null ? "—" : oneDecimal(player.perWeekend)}
+        </span>
+      ),
+    },
+  }));
+
+  const columns: BoardColumn[] = [
+    { key: "weekends", label: "Weekends" },
+    { key: "marks", label: "Marks" },
+    ...(raiding ? [{ key: "live", label: "This weekend so far" }] : []),
+    { key: "perWeekend", label: "Per weekend", title: "Rating divided by the finished weekends they raided" },
+  ];
+
+  const dock = rows
+    .filter((row) => row.you && row.anchorId)
+    .map((row) => ({
+      key: row.key,
+      name: row.name,
+      rank: row.rank,
+      medal: row.medal,
+      line: `#${row.rank} of ${rows.length}${row.tied ? ", tied" : ""} in ${only ? only.clan.name : "your clans"} · ${row.clan.name}`,
+      rating: row.rating.text,
+      href: `${here({})}#${row.anchorId}`,
+    }));
+
   return (
-    <Shell>
+    <RatingShell
+      title={TITLE}
+      description={DESCRIPTION}
+      dock={dock.length > 0 && <RankDock title={`Raids, ${seasonLabel(month)}`} entries={dock} />}
+    >
       <Panel aria-labelledby="raid-rating-title" className="space-y-4">
         <div className="space-y-1">
           <SectionHeader
@@ -309,31 +321,28 @@ export default async function RaidRatingPage({
           </p>
         </div>
 
-        <nav aria-label="Month" className="cb-scroll-x flex gap-2 [&>*]:shrink-0">
-          {months.slice(0, 12).map((m) => (
-            <Choice key={m} href={here({ month: m })} active={m === month} label={seasonLabel(m)} />
-          ))}
-        </nav>
-        {played.length > 0 && (
-          <nav aria-label="Clan" className="flex flex-wrap gap-2">
-            <Choice
-              href={here({ clan: null })}
-              active={!only}
-              label="All clans"
-              count={played.reduce((t, p) => t + rankedOf(p).length, 0)}
-            />
-            {played.map((p) => (
-              <Choice
-                key={p.clan.id}
-                href={here({ clan: p.clan.tag })}
-                active={only?.clan.id === p.clan.id}
-                label={p.clan.name}
-                count={rankedOf(p).length}
-                dot={clanAccent(p.clan.id).color}
-              />
-            ))}
-          </nav>
-        )}
+        <RatingToolbar
+          months={months.map((m) => ({ href: here({ month: m }), label: seasonLabel(m), active: m === month }))}
+          clans={
+            played.length > 1
+              ? [
+                  {
+                    href: here({ clan: null }),
+                    label: "All clans",
+                    active: !only,
+                    count: played.reduce((t, p) => t + rankedOf(p).length, 0),
+                  },
+                  ...played.map((p) => ({
+                    href: here({ clan: p.clan.tag }),
+                    label: p.clan.name,
+                    active: only?.clan.id === p.clan.id,
+                    count: rankedOf(p).length,
+                    dot: clanAccent(p.clan.id).color,
+                  })),
+                ]
+              : []
+          }
+        />
 
         {rows.length === 0 ? (
           <EmptyState
@@ -346,88 +355,15 @@ export default async function RaidRatingPage({
             }
           />
         ) : (
-          <div className="-mx-5 overflow-x-auto px-5">
-            <Table className="cb-stack">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12 text-right">#</TableHead>
-                  <TableHead>Member</TableHead>
-                  {!only && <TableHead>Clan</TableHead>}
-                  <TableHead className="text-right">Weekends</TableHead>
-                  <TableHead className="text-right">Marks</TableHead>
-                  {raiding && <TableHead className="text-right">This weekend so far</TableHead>}
-                  <TableHead className="text-right" title="Rating divided by the finished weekends they raided">
-                    Per weekend
-                  </TableHead>
-                  <TableHead className="text-right">Rating</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map(({ clan, player }, index) => (
-                  <TableRow key={`${clan.id}:${player.playerId}`}>
-                    <TableCell data-cell="corner" className="text-right">
-                      {index < 3 ? (
-                        <span
-                          className="inline-flex size-7 items-center justify-center rounded-full text-sm font-bold text-black"
-                          style={{ background: MEDAL[index] }}
-                        >
-                          {index + 1}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground text-sm tabular-nums">{index + 1}</span>
-                      )}
-                    </TableCell>
-                    <TableCell data-cell="title">
-                      {player.tag ? (
-                        <Link href={playerHref(clan.tag, player.tag)} className="font-medium hover:underline">
-                          {player.name}
-                        </Link>
-                      ) : (
-                        <span className="font-medium">{player.name}</span>
-                      )}
-                    </TableCell>
-                    {!only && (
-                      <TableCell data-label="Clan">
-                        <span className="flex items-center gap-2 text-sm">
-                          <span
-                            aria-hidden
-                            className="size-2 shrink-0 rounded-full"
-                            style={{ background: clanAccent(clan.id).color }}
-                          />
-                          <span className="text-muted-foreground">{clan.name}</span>
-                        </span>
-                      </TableCell>
-                    )}
-                    <TableCell data-label="Weekends" className="text-right tabular-nums">
-                      {player.weekendsCounted}
-                    </TableCell>
-                    <TableCell
-                      data-label="Marks"
-                      className={cn("text-right tabular-nums", player.marks < 0 && "text-destructive")}
-                    >
-                      {signed2(player.marks)}
-                    </TableCell>
-                    {raiding && (
-                      <TableCell
-                        data-label="This weekend so far"
-                        className="text-muted-foreground text-right text-sm tabular-nums"
-                      >
-                        {player.provisional
-                          ? `${signed2(player.provisional.marks)} · ${oneDecimal(player.provisional.share)}%`
-                          : "—"}
-                      </TableCell>
-                    )}
-                    <TableCell data-label="Per weekend" className="text-muted-foreground text-right text-sm tabular-nums">
-                      {player.perWeekend === null ? "—" : oneDecimal(player.perWeekend)}
-                    </TableCell>
-                    <TableCell data-label="Rating" className="text-right font-semibold tabular-nums">
-                      {oneDecimal(player.rating)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <>
+            <Podium rows={podiumRows(rows)} />
+            <Leaderboard
+              rows={rows}
+              columns={columns}
+              ratingTop={topOf(rows.map((r) => r.rating.value))}
+              showClan={!only && played.length > 1}
+            />
+          </>
         )}
 
         <p className="text-muted-foreground text-xs">
@@ -477,6 +413,6 @@ export default async function RaidRatingPage({
         })}
 
       <Rules />
-    </Shell>
+    </RatingShell>
   );
 }

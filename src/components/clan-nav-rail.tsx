@@ -35,7 +35,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Castle, Check, ChevronDown, House } from "lucide-react";
+import { Castle, Check, ChevronDown, House, Trophy } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { activeNav, CLAN_SECTIONS, currentClanTag, sectionHref } from "@/lib/clan-nav";
 import { useDetailsMenu } from "@/components/use-details-menu";
@@ -84,6 +84,27 @@ export function HomeLink() {
     >
       <House aria-hidden className="size-4" />
       <span className="hidden sm:inline">Home</span>
+    </Link>
+  );
+}
+
+/**
+ * Player rating on the rail, lit on any of its pages like Home is. It was a
+ * plain link that never showed where you were, the one link on the rail that
+ * did not. Client for the same reason as HomeLink.
+ */
+export function RatingLink() {
+  const pathname = usePathname() ?? "";
+  const active = pathname === "/rating" || pathname.startsWith("/rating/");
+  return (
+    <Link
+      href="/rating"
+      aria-current={active ? "page" : undefined}
+      title="Every player in the family, ranked"
+      className={`flex items-center gap-1.5 rounded-control px-2 py-1 transition-colors ${active ? ACTIVE : IDLE}`}
+    >
+      <Trophy aria-hidden className="size-4" />
+      Player rating
     </Link>
   );
 }
