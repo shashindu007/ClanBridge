@@ -143,6 +143,15 @@ describe("the middleware matcher", () => {
     expect(runsOn(path)).toBe(true);
   });
 
+  // Next's own folders, by their whole names. A bare `_next/image` prefix also
+  // skipped `/_next/imageX/...`, which is no file Next serves.
+  it.each(["/_next/staticX/war", "/_next/imagey", "/_next/image/war"])(
+    "runs on a path that only starts like a Next folder: %s",
+    (path) => {
+      expect(runsOn(path)).toBe(true);
+    },
+  );
+
   // A dot is not an extension. Skipping the middleware for any dotted path let
   // a crafted URL reach a page's Server Actions without it — and with it
   // skipped, a client-supplied forwarded user-id header was never overwritten.

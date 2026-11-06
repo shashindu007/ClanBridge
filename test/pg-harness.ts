@@ -9,6 +9,7 @@
 // privileges normally hand out. Where this file guesses, it is noted.
 
 import { PGlite } from "@electric-sql/pglite";
+import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -193,6 +194,9 @@ export const PHASE1_MIGRATIONS = [
   // A member's saved village export. Must follow 031, whose
   // auth_owned_player_ids() every one of its policies calls.
   "076_village_exports.sql",
+  // The HMAC proof link_verified_player() now requires, the owner check in
+  // claim_platform_ownership(), and no control characters in notification links.
+  "077_verify_link_proof.sql",
 ] as const;
 
 /**
@@ -227,6 +231,7 @@ export const LIVE_ONLY_MIGRATIONS = [
   "069_sync_heartbeat.sql",
   // Drops 029's policy letting any clan member replace any layout image.
   "070_layout_storage_no_overwrite.sql",
+  "078_layout_storage_active_accounts.sql",
 ] as const;
 
 /**
@@ -296,7 +301,34 @@ async function installSupabaseScaffolding(db: PGlite): Promise<void> {
 
     grant usage on schema public to anon, authenticated, service_role;
     grant usage on schema auth   to anon, authenticated, service_role;
+
+    -- Supabase installs extensions into their own schema; 077 calls
+    -- extensions.hmac() by that qualified name.
+    create schema if not exists extensions;
   `);
+}
+
+/** The HMAC key the harness stores as private.app_secrets 'verify_link' (077). */
+export const TEST_VERIFY_SECRET = "test-verify-link-secret";
+/** The address the harness stores as 'owner_email' (077). Every suite's OWNER uses it. */
+export const TEST_OWNER_EMAIL = "owner@example.com";
+
+/**
+ * The values a deployment puts in private.app_secrets by hand. Seeded only when
+ * the schema has the table, so a suite running a partial migration list still boots.
+ */
+async function seedAppSecrets(db: PGlite): Promise<void> {
+  await db.query(
+    `do $$
+     begin
+       if to_regclass('private.app_secrets') is not null then
+         insert into private.app_secrets (name, value) values
+           ('verify_link', '${TEST_VERIFY_SECRET}'),
+           ('owner_email', '${TEST_OWNER_EMAIL}')
+         on conflict (name) do update set value = excluded.value;
+       end if;
+     end $$;`,
+  );
 }
 
 // NOTE: table grants are deliberately NOT issued here. 006_rls.sql grants them
@@ -324,7 +356,7 @@ export interface Harness {
 export async function createHarness(
   migrations: readonly string[] | { sql: string[] } = PHASE1_MIGRATIONS,
 ): Promise<Harness> {
-  const db = new PGlite();
+  const db = new PGlite({ extensions: { pgcrypto } });
   await installSupabaseScaffolding(db);
 
   const statements = Array.isArray(migrations)
@@ -334,6 +366,7 @@ export async function createHarness(
   for (const sql of statements) {
     await db.exec(sql);
   }
+  await seedAppSecrets(db);
 
   return {
     db,

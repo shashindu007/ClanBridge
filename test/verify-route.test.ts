@@ -12,6 +12,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CocAuthError, CocServerError } from "@/integration/errors";
 import { resetSharedRateLimiters } from "@/lib/rate-limit";
+import { verifyLinkProof } from "@/lib/verify-proof";
 
 const verifyPlayerToken = vi.hoisted(() => vi.fn());
 const getUser = vi.hoisted(() => vi.fn());
@@ -27,6 +28,7 @@ const { POST } = await import("@/app/api/verify/route");
 const USER = "11111111-0000-4000-8000-0000000000a1";
 const TAG = "#2PP0JCCL";
 const TOKEN = "abc123token";
+const SECRET = "route-test-secret";
 
 function post(body: unknown): Request {
   return new Request("http://localhost/api/verify", {
@@ -48,6 +50,7 @@ describe("POST /api/verify", () => {
     vi.clearAllMocks();
     resetSharedRateLimiters();
     signedIn(USER);
+    vi.stubEnv("VERIFY_LINK_SECRET", SECRET);
     verifyPlayerToken.mockResolvedValue(true);
     rpc.mockResolvedValue({ data: { ok: true, clan_id: "c" }, error: null });
   });
@@ -144,9 +147,34 @@ describe("POST /api/verify", () => {
   });
 
   describe("linking", () => {
-    it("calls link_verified_player with the normalised tag", async () => {
+    it("calls link_verified_player with the normalised tag and a proof for this user", async () => {
       await POST(post({ playerTag: "2pp0jccl", token: TOKEN }));
-      expect(rpc).toHaveBeenCalledWith("link_verified_player", { p_tag: TAG });
+      expect(rpc).toHaveBeenCalledTimes(1);
+      const [name, args] = rpc.mock.calls[0]! as [string, { p_tag: string; p_issued_at: number; p_proof: string }];
+      expect(name).toBe("link_verified_player");
+      expect(args.p_tag).toBe(TAG);
+      // The same signature the database recomputes (077), for the same second.
+      const expected = verifyLinkProof(USER, TAG, SECRET, new Date(args.p_issued_at * 1000));
+      expect(args.p_proof).toBe(expected.p_proof);
+      expect(Math.abs(args.p_issued_at - Date.now() / 1000)).toBeLessThan(5);
+    });
+
+    it("503s without VERIFY_LINK_SECRET, before calling the game API", async () => {
+      vi.stubEnv("VERIFY_LINK_SECRET", "");
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const res = await POST(post({ playerTag: TAG, token: TOKEN }));
+      spy.mockRestore();
+      expect(res.status).toBe(503);
+      expect(verifyPlayerToken).not.toHaveBeenCalled();
+      expect(rpc).not.toHaveBeenCalled();
+    });
+
+    it("503s when the database refuses the proof, which is our fault and not the member's", async () => {
+      rpc.mockResolvedValue({ data: { ok: false, reason: "bad_proof" }, error: null });
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const res = await POST(post({ playerTag: TAG, token: TOKEN }));
+      spy.mockRestore();
+      expect(res.status).toBe(503);
     });
 
     it("404s a tag that is in none of the clans", async () => {

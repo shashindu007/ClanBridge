@@ -12,7 +12,8 @@
 // test/pglite-supabase.ts implements no .rpc().
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createHarness, type Harness } from "./pg-harness";
+import { createHarness, TEST_VERIFY_SECRET, type Harness } from "./pg-harness";
+import { verifyLinkProof } from "@/lib/verify-proof";
 
 const LEADER_A = "11111111-0000-4000-8000-0000000000aa";
 const MEMBER_A = "22222222-0000-4000-8000-0000000000aa";
@@ -33,10 +34,17 @@ async function count(h: Harness, table: string, where = "true"): Promise<number>
   return res.rows[0]!.n;
 }
 
+/** The RPC as /api/verify calls it: signed for whoever the session is (077). */
 async function link(h: Harness, tag: string) {
+  const who = await h.db.query<{ uid: string }>("select auth.uid()::text as uid");
+  const proof = verifyLinkProof(who.rows[0]!.uid, tag, TEST_VERIFY_SECRET);
+  return linkWith(h, tag, proof.p_issued_at, proof.p_proof);
+}
+
+async function linkWith(h: Harness, tag: string, issuedAt: number | null, proof: string | null) {
   const res = await h.db.query<{ link_verified_player: { ok: boolean; reason?: string } }>(
-    "select link_verified_player($1)",
-    [tag],
+    "select link_verified_player($1, $2, $3)",
+    [tag, issuedAt, proof],
   );
   return res.rows[0]!.link_verified_player;
 }
@@ -181,7 +189,85 @@ describe("016/017 — verification and approval", () => {
 
     it("refuses an anonymous caller", async () => {
       await h.asAnon();
+      await expect(
+        h.db.query("select link_verified_player($1, $2, $3)", [PLAYER_A, 0, "x"]),
+      ).rejects.toThrow();
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 077 — the token check must have happened. Before this, any session could
+  // call the RPC with a teammate's tag and own their village.
+  describe("077 — the proof", () => {
+    const now = () => Math.floor(Date.now() / 1000);
+
+    it("no longer has the one-argument form", async () => {
+      await h.asUser(STRANGER);
       await expect(h.db.query("select link_verified_player($1)", [PLAYER_A])).rejects.toThrow();
+    });
+
+    it("refuses a call with no proof, and links nothing", async () => {
+      await h.asUser(STRANGER);
+      expect(await linkWith(h, PLAYER_A, now(), null)).toMatchObject({ ok: false, reason: "bad_proof" });
+      expect(await linkWith(h, PLAYER_A, null, "00")).toMatchObject({ ok: false, reason: "bad_proof" });
+
+      await h.asSuperuser();
+      expect(await count(h, "players", `user_id is not null`)).toBe(0);
+    });
+
+    it("refuses a proof signed with the wrong secret", async () => {
+      await h.asUser(STRANGER);
+      const forged = verifyLinkProof(STRANGER, PLAYER_A, "guessed-secret");
+      expect(await linkWith(h, PLAYER_A, forged.p_issued_at, forged.p_proof)).toMatchObject({
+        ok: false,
+        reason: "bad_proof",
+      });
+    });
+
+    it("refuses another account's proof, because the proof names the caller", async () => {
+      const theirs = verifyLinkProof(MEMBER_A, PLAYER_A, TEST_VERIFY_SECRET);
+      await h.asUser(STRANGER);
+      expect(await linkWith(h, PLAYER_A, theirs.p_issued_at, theirs.p_proof)).toMatchObject({
+        ok: false,
+        reason: "bad_proof",
+      });
+    });
+
+    it("refuses a proof for a different tag", async () => {
+      const other = verifyLinkProof(STRANGER, PLAYER_B, TEST_VERIFY_SECRET);
+      await h.asUser(STRANGER);
+      expect(await linkWith(h, PLAYER_A, other.p_issued_at, other.p_proof)).toMatchObject({
+        ok: false,
+        reason: "bad_proof",
+      });
+    });
+
+    it("refuses a stale proof", async () => {
+      const old = verifyLinkProof(STRANGER, PLAYER_A, TEST_VERIFY_SECRET, new Date(Date.now() - 10 * 60_000));
+      await h.asUser(STRANGER);
+      expect(await linkWith(h, PLAYER_A, old.p_issued_at, old.p_proof)).toMatchObject({
+        ok: false,
+        reason: "bad_proof",
+      });
+    });
+
+    it("refuses everything when the deployment has no secret", async () => {
+      await h.asSuperuser();
+      await h.db.exec(`delete from private.app_secrets where name = 'verify_link'`);
+      try {
+        await h.asUser(MEMBER_A);
+        expect(await link(h, PLAYER_A)).toMatchObject({ ok: false, reason: "not_configured" });
+      } finally {
+        await h.asSuperuser();
+        await h.db.query(`insert into private.app_secrets (name, value) values ('verify_link', $1)`, [
+          TEST_VERIFY_SECRET,
+        ]);
+      }
+    });
+
+    it("keeps the secret out of a session's reach", async () => {
+      await h.asUser(MEMBER_A);
+      await expect(h.db.query("select value from private.app_secrets")).rejects.toThrow();
     });
   });
 

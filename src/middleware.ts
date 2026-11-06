@@ -65,6 +65,6 @@ export const config = {
   // down to the level the files live at, and nothing here may ever match a segment
   // under [clanTag]. test/public-paths.test.ts holds the list of those.
   matcher: [
-    "/((?!_next/static|_next/image|icons/[^/]+\\.png$|scenes/[^/]+\\.webp$|game/(?:builder-troops|equipment|heroes|leagues|pets|sieges|spells|townhall|troops)/|favicon\\.ico$|manifest\\.json$|offline\\.html$|sw\\.js$|robots\\.txt$|apple-touch-icon[^/]*\\.png$).*)",
+    "/((?!_next/static/|_next/image$|icons/[^/]+\\.png$|scenes/[^/]+\\.webp$|game/(?:builder-troops|equipment|heroes|leagues|pets|sieges|spells|townhall|troops)/|favicon\\.ico$|manifest\\.json$|offline\\.html$|sw\\.js$|robots\\.txt$|apple-touch-icon[^/]*\\.png$).*)",
   ],
 };
