@@ -71,6 +71,12 @@ const KINDS = [
     label: "Messages from leadership",
     hint: "A leader writes to you directly. The message is kept either way.",
   },
+  {
+    // 079. Only for timers you start on a base's Base details page.
+    column: "upgrade_reminders",
+    label: "Upgrade finished",
+    hint: "An upgrade timer you started on Base details ends. Can be up to 30 minutes late.",
+  },
 ] as const;
 
 type PrefRow = Record<string, boolean> & { id?: string };

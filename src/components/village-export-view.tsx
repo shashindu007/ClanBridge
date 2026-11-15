@@ -86,6 +86,11 @@ export interface VillageExportViewProps {
   /** Hide the buildings already at their cap. */
   notMaxedOnly?: boolean;
   onNotMaxedOnly?: (on: boolean) => void;
+  /**
+   * The upgrade tracker (079), shown after the banner in place of the static
+   * "Upgrading now" list: its workshop board shows the same timers, live.
+   */
+  tracker?: React.ReactNode;
 }
 
 /** "21 ×5 · 20 ×1", highest level first. */
@@ -125,6 +130,7 @@ export function VillageExportView({
   onFilter,
   notMaxedOnly = false,
   onNotMaxedOnly,
+  tracker,
 }: VillageExportViewProps) {
   const hall = which === "home" ? village.thLevel : village.bhLevel;
   const hallName = which === "home" ? "Town Hall" : "Builder Hall";
@@ -162,6 +168,14 @@ export function VillageExportView({
                 <span title={formatDisplay(village.exportedAt, "datetime")}>
                   {exportedWhen(ageDays)}
                 </span>
+                {(village.appliedSince ?? 0) > 0 && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <span>
+                      {village.appliedSince} upgrade{village.appliedSince === 1 ? "" : "s"} finished since
+                    </span>
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -225,7 +239,8 @@ export function VillageExportView({
         </p>
       </section>
 
-      {/* ── Upgrading now ─────────────────────────────────────────────── */}
+      {/* ── Upgrading now, or the live tracker in its place ──────────── */}
+      {tracker ?? (
       <section className="cb-panel space-y-3 rounded-panel border p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="flex items-center gap-2 text-lg font-semibold">
@@ -263,6 +278,7 @@ export function VillageExportView({
           Time left is counted from when you exported. Anything started since needs a fresh export.
         </p>
       </section>
+      )}
 
       {/* ── Buildings ─────────────────────────────────────────────────── */}
       <BuildingsSection
@@ -317,7 +333,7 @@ function WorkshopRow({ states }: { states: WorkshopState[] }) {
   );
 }
 
-function SubjectIcon({
+export function SubjectIcon({
   name,
   subject,
   which,

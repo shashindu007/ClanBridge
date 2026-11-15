@@ -456,6 +456,11 @@ Every table carrying clan data gets an equivalent policy. Sync jobs use the serv
 - It is never merged into `player_progress`, so a pasted export can't pass for a sync reading. The UI always says "from your game export" and how old it is.
 - The server parses the raw text again, and only the mapped village (counts per level, units, timers) is kept. Base coordinates never reach storage, and leaders cannot read the row.
 
+**The upgrade tracker (079).** Built on the saved export, the way clash.ninja's tracker works: a member taps Start on an upgrade they began in the game, Base details counts it down, and the level goes up when it ends. Three pieces keep it correct and small:
+- **Prices are game data, not database rows.** Every cost, duration, per-hall count and merge is generated into `src/data/game/upgrade-costs.json` and `buildings.json`, read only on the server.
+- **An overlay, not a background writer.** `tracked_upgrades` (owner-only, same policies as `village_exports`; the sync may stamp only `notified_at`) holds the running timers. Pages apply finished timers at read time (`services/village-overlay.ts`), and the owner's next write folds them into the export through `apply_tracked_upgrades()`: one transaction, guarded by `village_exports.revision`, so a building can never be levelled twice.
+- **Bounded.** At most 16 live rows per base (a trigger, so it holds against direct PostgREST calls), and rows done more than 30 days ago are hard-deleted by `prune_tracked_upgrades()`, a deliberate R4 exception like 058's purge. The "upgrade finished" push rides the half-hourly clan sync and writes no feed row.
+
 **The picture is per ACCOUNT; the label is per VILLAGE.** A member with three villages is still one person, and a face repeated three times down a list carries no information. So `users.avatar_path` is singular, and it holds a path inside a private bucket rather than a URL — the bucket serves nothing without a signed URL minted per request, and the object path leads with the owner's id so the storage policy can check it the way the layouts bucket checks a clan id.
 
 **`players` has two SELECT policies, and the second one is filtered by owner rather than by clan.**

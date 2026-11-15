@@ -42,6 +42,14 @@ vi.mock("@/app/(app)/account/bases/actions", () => ({
   uploadVillageExport: vi.fn(),
   removeVillageExport: vi.fn(),
 }));
+// 079. The tracker beside it is imported, and never rendered without `tracker`.
+vi.mock("@/app/(app)/account/bases/tracker-actions", () => ({
+  startUpgrade: vi.fn(),
+  finishUpgradeNow: vi.fn(),
+  cancelUpgrade: vi.fn(),
+  markAlreadyUpgraded: vi.fn(),
+}));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 function view(which: Village = "home", now: Date = NOW, extra: Partial<VillageExportViewProps> = {}): string {
   return renderToStaticMarkup(createElement(VillageExportView, { village, which, now, ...extra }));
