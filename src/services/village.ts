@@ -298,6 +298,14 @@ export interface ExportSummary {
   finishedSince: number;
   /** Home village builders busy at `now`, of how many. Null when the export has no huts. */
   builders: { busy: number; total: number } | null;
+  /**
+   * When every builder is busy: the upgrade that frees one first. Null while
+   * any builder is free, or when there are no huts. Home says "next builder
+   * free in 2h 13m" from this.
+   */
+  nextBuilderFree: { name: string; secondsLeft: number; finishesAt: string } | null;
+  /** The home Laboratory: null when there is none, else when it is free. */
+  lab: { busy: boolean; secondsLeft: number; name: string | null } | null;
 }
 
 export function exportSummary(village: ExportedVillage, now: Date): ExportSummary {
@@ -330,7 +338,21 @@ export function exportSummary(village: ExportedVillage, now: Date): ExportSummar
     finishesAt: u.finishesAt,
     subject: upgradeSubject(village, u),
   }));
-  const builders = workshops(village, "home", now).find((w) => w.key === "builders");
+  const states = workshops(village, "home", now);
+  const builders = states.find((w) => w.key === "builders");
+  const lab = states.find((w) => w.key === "lab");
+
+  // Running home upgrades, soonest first, by who does them. A tracked timer
+  // says so itself; an exported one is looked up.
+  const running = timed
+    .filter((u) => u.village === "home" && u.secondsLeft > 0)
+    .map((u) => {
+      const own = village.upgrades.find((x) => x.name === u.name && x.village === u.village && x.finishesAt === u.finishesAt);
+      return { ...u, workshop: own?.workshop ?? workshopOf(u.subject) };
+    })
+    .sort((a, b) => a.secondsLeft - b.secondsLeft);
+  const firstBuilder = running.find((u) => u.workshop === "builders");
+  const firstLab = running.find((u) => u.workshop === "lab");
 
   return {
     exportedAt: village.exportedAt,
@@ -342,5 +364,12 @@ export function exportSummary(village: ExportedVillage, now: Date): ExportSummar
     running: timed.filter((u) => u.secondsLeft > 0).sort((a, b) => a.secondsLeft - b.secondsLeft),
     finishedSince: (village.appliedSince ?? 0) + timed.filter((u) => u.secondsLeft === 0).length,
     builders: builders ? { busy: builders.busy, total: builders.total } : null,
+    nextBuilderFree:
+      builders && builders.busy >= builders.total && firstBuilder
+        ? { name: firstBuilder.name, secondsLeft: firstBuilder.secondsLeft, finishesAt: firstBuilder.finishesAt }
+        : null,
+    lab: lab
+      ? { busy: lab.busy > 0, secondsLeft: firstLab?.secondsLeft ?? 0, name: firstLab?.name ?? null }
+      : null,
   };
 }
