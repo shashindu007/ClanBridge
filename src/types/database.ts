@@ -2,7 +2,7 @@
 // DO NOT EDIT. Regenerate after every migration — a stale file type-checks
 // against a schema that no longer exists, which is worse than having none.
 //
-// 52 tables, generated 2026-10-31.
+// 54 tables, generated 2026-11-15.
 
 export type Json =
   | string
@@ -1100,6 +1100,7 @@ export interface Database {
           updated_at: string | null;
           deleted_at: string | null;
           direct_messages: boolean;
+          upgrade_reminders: boolean;
         };
         Insert: {
           id?: string;
@@ -1113,6 +1114,7 @@ export interface Database {
           updated_at?: string | null;
           deleted_at?: string | null;
           direct_messages?: boolean;
+          upgrade_reminders?: boolean;
         };
         Update: {
           id?: string;
@@ -1126,6 +1128,7 @@ export interface Database {
           updated_at?: string | null;
           deleted_at?: string | null;
           direct_messages?: boolean;
+          upgrade_reminders?: boolean;
         };
       };
       notifications: {
@@ -1821,6 +1824,62 @@ export interface Database {
           deleted_at?: string | null;
         };
       };
+      tracked_upgrades: {
+        Row: {
+          id: string;
+          player_id: string;
+          created_by: string;
+          village: string;
+          subject_type: string;
+          subject: string;
+          from_level: number;
+          workshop: string;
+          boost_pct: number;
+          started_at: string;
+          ends_at: string;
+          notified_at: string | null;
+          folded_at: string | null;
+          created_at: string;
+          updated_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          player_id: string;
+          created_by: string;
+          village: string;
+          subject_type: string;
+          subject: string;
+          from_level: number;
+          workshop: string;
+          boost_pct?: number;
+          started_at?: string;
+          ends_at: string;
+          notified_at?: string | null;
+          folded_at?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          player_id?: string;
+          created_by?: string;
+          village?: string;
+          subject_type?: string;
+          subject?: string;
+          from_level?: number;
+          workshop?: string;
+          boost_pct?: number;
+          started_at?: string;
+          ends_at?: string;
+          notified_at?: string | null;
+          folded_at?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
       users: {
         Row: {
           id: string;
@@ -1886,6 +1945,7 @@ export interface Database {
           created_at: string;
           updated_at: string | null;
           deleted_at: string | null;
+          revision: number;
         };
         Insert: {
           id?: string;
@@ -1898,6 +1958,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string | null;
           deleted_at?: string | null;
+          revision?: number;
         };
         Update: {
           id?: string;
@@ -1910,6 +1971,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string | null;
           deleted_at?: string | null;
+          revision?: number;
         };
       };
       war_attacks: {
@@ -2285,7 +2347,9 @@ export type RaidOpponentsRow = Database["public"]["Tables"]["raid_opponents"]["R
 export type RaidParticipantsRow = Database["public"]["Tables"]["raid_participants"]["Row"];
 export type RaidSeasonsRow = Database["public"]["Tables"]["raid_seasons"]["Row"];
 export type SyncLogRow = Database["public"]["Tables"]["sync_log"]["Row"];
+export type TrackedUpgradesRow = Database["public"]["Tables"]["tracked_upgrades"]["Row"];
 export type UsersRow = Database["public"]["Tables"]["users"]["Row"];
+export type VillageExportsRow = Database["public"]["Tables"]["village_exports"]["Row"];
 export type WarAttacksRow = Database["public"]["Tables"]["war_attacks"]["Row"];
 export type WarLineupMembersRow = Database["public"]["Tables"]["war_lineup_members"]["Row"];
 export type WarLineupsRow = Database["public"]["Tables"]["war_lineups"]["Row"];
