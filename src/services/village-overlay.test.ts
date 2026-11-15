@@ -161,3 +161,71 @@ describe("markUpgraded — instant upgrades and ones done without a timer", () =
     ).toBeNull();
   });
 });
+
+describe("applyTracked — the API confirms a unit upgrade early (Phase E)", () => {
+  const king = (over: Partial<TrackedUpgrade> = {}) =>
+    tracked({ subjectType: "unit", subject: "Barbarian King", fromLevel: 90, endsAt: hours(5).toISOString(), ...over });
+  const reading = (level: number, capturedAt = hours(0.5)) => ({
+    capturedAt: capturedAt.toISOString(),
+    units: [{ name: "Barbarian King", village: "home" as const, level }],
+  });
+
+  it("finishes a running timer when the reading shows the next level", () => {
+    const t = king();
+    const o = applyTracked(village(), [t], hours(1), reading(91));
+    expect(o.stored.units.find((u) => u.name === "Barbarian King")?.level).toBe(91);
+    expect(o.levelledUp).toContainEqual({ name: "Barbarian King", village: "home", toLevel: 91, source: "api" });
+    expect(o.foldIds).toEqual([t.id]);
+    expect(o.village.upgrades.some((u) => u.source === "tracked")).toBe(false);
+  });
+
+  it("leaves the timer running without a reading, or while the reading is still the old level", () => {
+    const t = king();
+    expect(applyTracked(village(), [t], hours(1)).foldIds).toEqual([]);
+    expect(applyTracked(village(), [t], hours(1), reading(90)).foldIds).toEqual([]);
+    expect(applyTracked(village(), [t], hours(1), null).village.upgrades.some((u) => u.source === "tracked")).toBe(true);
+  });
+
+  it("ignores a reading taken before the timer started", () => {
+    // The sync read level 91 an hour before this upgrade began: that was an earlier one.
+    const t = king({ startedAt: hours(1).toISOString() });
+    expect(applyTracked(village(), [t], hours(2), reading(91, hours(0.5))).foldIds).toEqual([]);
+  });
+
+  it("does not use the API for buildings, which it cannot see", () => {
+    const t = tracked({ endsAt: hours(5).toISOString() });
+    const o = applyTracked(village(), [t], hours(1), {
+      capturedAt: hours(0.5).toISOString(),
+      units: [{ name: "Cannon", village: "home", level: 20 }],
+    });
+    expect(o.foldIds).toEqual([]);
+  });
+});
+
+describe("exportSummary — what Home says about builders and the lab", () => {
+  it("names the upgrade that frees the next builder when all of them are busy", () => {
+    const busy = village({
+      buildings: [
+        { data: 1000001, lvl: 17 },
+        { data: 1000015, lvl: 1, cnt: 2 },
+        { data: 1000007, lvl: 14 },
+        { data: 1000008, lvl: 19, timer: 7_200 },
+        { data: 1000009, lvl: 20, timer: 3_600 },
+      ],
+    });
+    const s = exportSummary(busy, hours(0.5));
+    expect(s.builders).toEqual({ busy: 2, total: 2 });
+    expect(s.nextBuilderFree).toMatchObject({ name: "Archer Tower", secondsLeft: 1_800 });
+  });
+
+  it("says nothing about the next builder while one is free", () => {
+    expect(exportSummary(village(), hours(0.5)).nextBuilderFree).toBeNull();
+  });
+
+  it("reports the lab as free, or busy with what and for how long", () => {
+    expect(exportSummary(village(), hours(0.5)).lab).toEqual({ busy: false, secondsLeft: 0, name: null });
+
+    const brewing = village({ units: [{ data: 4000000, lvl: 11, timer: 5_400 }] });
+    expect(exportSummary(brewing, hours(0.5)).lab).toEqual({ busy: true, secondsLeft: 3_600, name: "Barbarian" });
+  });
+});

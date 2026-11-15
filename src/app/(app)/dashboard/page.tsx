@@ -319,9 +319,10 @@ function withTracked(
   saved: SavedExport | undefined,
   tracked: TrackedUpgrade[] | undefined,
   now: Date,
+  reading: ProgressReading | null,
 ): SavedExport | null {
   if (!saved) return null;
-  return { ...saved, village: applyTracked(saved.village, tracked ?? [], now).village };
+  return { ...saved, village: applyTracked(saved.village, tracked ?? [], now, reading).village };
 }
 
 function survivable<T>(what: string, fallback: T) {
@@ -438,7 +439,7 @@ export default async function DashboardPage({
         history: histories === null ? null : (histories.get(b.playerId) ?? []),
         career: careers.get(b.playerId) ?? null,
         trophies: trophies[i] ?? null,
-        saved: withTracked(exports.get(b.playerId), tracked.get(b.playerId), now),
+        saved: withTracked(exports.get(b.playerId), tracked.get(b.playerId), now, readings.get(b.playerId) ?? null),
       },
       now,
     ),

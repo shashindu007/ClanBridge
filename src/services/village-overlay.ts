@@ -46,7 +46,32 @@ export interface LevelUp {
   name: string;
   village: Village;
   toLevel: number;
-  source: "export" | "tracked";
+  /** "api": a tracked timer the game's own data showed finished before its time. */
+  source: "export" | "tracked" | "api";
+}
+
+/**
+ * What the daily player sync last read (player_progress), for Phase E. Only the
+ * fields the overlay needs, so it takes a ProgressReading as it stands.
+ */
+export interface ApiReading {
+  capturedAt: string;
+  units: ReadonlyArray<{ name: string; village: Village; level: number }>;
+}
+
+/**
+ * Whether the API has already seen this tracked unit upgrade through. The
+ * reading must be taken AFTER the timer started — an older one still shows the
+ * level being left — and show the unit above the level it was upgrading from.
+ *
+ * Units only: the API lists heroes, troops, spells, pets and equipment, and has
+ * no buildings (README: the whole reason the export exists).
+ */
+function confirmedByApi(t: TrackedUpgrade, reading: ApiReading | null | undefined): boolean {
+  if (!reading || t.subjectType !== "unit") return false;
+  if (Date.parse(reading.capturedAt) < Date.parse(t.startedAt)) return false;
+  const unit = reading.units.find((u) => u.name === t.subject && u.village === t.village);
+  return unit !== undefined && unit.level > t.fromLevel;
 }
 
 export interface Overlay {
@@ -164,6 +189,7 @@ export function applyTracked(
   village: ExportedVillage,
   tracked: readonly TrackedUpgrade[],
   now: Date,
+  reading?: ApiReading | null,
 ): Overlay {
   const stored = structuredClone(village);
   const levelledUp: LevelUp[] = [];
@@ -198,7 +224,8 @@ export function applyTracked(
   const ordered = [...tracked].sort((a, b) => Date.parse(a.endsAt) - Date.parse(b.endsAt));
   const running: TrackedUpgrade[] = [];
   for (const t of ordered) {
-    const done = Date.parse(t.endsAt) <= now.getTime();
+    const early = Date.parse(t.endsAt) > now.getTime() && confirmedByApi(t, reading);
+    const done = early || Date.parse(t.endsAt) <= now.getTime();
     if (!done) {
       running.push(t);
       continue;
@@ -209,7 +236,12 @@ export function applyTracked(
       continue;
     }
     levelUp(stored, t);
-    levelledUp.push({ name: t.subject, village: t.village, toLevel: t.fromLevel + 1, source: "tracked" });
+    levelledUp.push({
+      name: t.subject,
+      village: t.village,
+      toLevel: t.fromLevel + 1,
+      source: early ? "api" : "tracked",
+    });
     applied++;
   }
   stored.appliedSince = (village.appliedSince ?? 0) + applied;

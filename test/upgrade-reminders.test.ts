@@ -118,6 +118,18 @@ describe("remindFinishedUpgrades", () => {
     expect(sendPush).not.toHaveBeenCalled();
   });
 
+  it("does not remind about an upgrade the member or the API has already folded", async () => {
+    await h.asSuperuser();
+    await h.db.exec(`
+      update tracked_upgrades set folded_at = now() where subject = 'Cannon' and player_id = '${MAIN}';
+    `);
+    await h.asServiceRole();
+
+    // MAIN's Cannon is folded; the day-old Mortar is still stamped and dropped.
+    expect(await remindFinishedUpgrades(client)).toMatchObject({ due: 2, sent: 0 });
+    expect(sendPush).not.toHaveBeenCalled();
+  });
+
   it("never throws, even when the database refuses", async () => {
     const broken = {
       from: () => {

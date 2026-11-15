@@ -75,6 +75,8 @@ export async function remindFinishedUpgrades(supabase: SupabaseClient, now: Date
       .select("id, player_id, subject, from_level, ends_at")
       .is("notified_at", null)
       .is("deleted_at", null)
+      // Folded means the member (or the API) already saw it finish: no reminder.
+      .is("folded_at", null)
       .lte("ends_at", now.toISOString())
       .order("ends_at")
       .limit(BATCH);
