@@ -163,14 +163,19 @@ export function upgradeSubject(
 }
 
 /** Who does an upgrade in the game: a builder, the lab, or the pet house. */
-type Workshop = "builders" | "lab" | "pets";
+export type Workshop = "builders" | "lab" | "pets";
 
-function workshopOf(subject: UpgradeSubject): Workshop | null {
+/**
+ * Null for what holds no slot: equipment is upgraded at the Blacksmith
+ * instantly, and super troops have no levels of their own.
+ */
+export function workshopOf(subject: UpgradeSubject): Workshop | null {
   if (!subject) return null;
   if (subject.type === "building") return "builders";
   switch (subject.group) {
     case "hero":
     case "builderHero":
+    case "guardian":
       return "builders";
     case "pet":
       return "pets";
@@ -221,7 +226,8 @@ export function workshops(village: ExportedVillage, which: Village, now: Date): 
   const busy: Record<Workshop, number> = { builders: 0, lab: 0, pets: 0 };
   for (const u of village.upgrades) {
     if (u.village !== which || secondsLeft(u, now) === 0) continue;
-    const w = workshopOf(upgradeSubject(village, u));
+    // A tracked upgrade says who is doing it; an exported one is looked up.
+    const w = u.workshop ?? workshopOf(upgradeSubject(village, u));
     if (w) busy[w] += 1;
   }
 
@@ -334,7 +340,7 @@ export function exportSummary(village: ExportedVillage, now: Date): ExportSummar
     buildingsPct: buildingTally(buildingGroups(village, "home").flatMap((g) => g.buildings)).pct,
     walls,
     running: timed.filter((u) => u.secondsLeft > 0).sort((a, b) => a.secondsLeft - b.secondsLeft),
-    finishedSince: timed.filter((u) => u.secondsLeft === 0).length,
+    finishedSince: (village.appliedSince ?? 0) + timed.filter((u) => u.secondsLeft === 0).length,
     builders: builders ? { busy: builders.busy, total: builders.total } : null,
   };
 }

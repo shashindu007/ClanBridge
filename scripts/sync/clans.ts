@@ -25,6 +25,7 @@ import { clanSchema } from "@/integration/coc-schemas";
 import { mapClan, mapClanMembers, mapSnapshot } from "@/integration/mappers";
 import type { Player } from "@/types/domain";
 import { activeClans, main, type JobContext } from "./shared";
+import { remindFinishedUpgrades } from "./upgrade-reminders";
 
 interface ClanRow {
   id: string;
@@ -291,6 +292,11 @@ export async function syncClans(ctx: JobContext): Promise<void> {
       problems.push(`${clan.tag}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+
+  // 079. The clan sync is the one that runs every half hour, so it carries the
+  // "upgrade finished" reminders. Before any throw: one clan's bad hour must not
+  // cost a member their reminder. Never throws (upgrade-reminders.ts).
+  await remindFinishedUpgrades(supabase);
 
   // Departures need the COMPLETE picture. With one clan's member list missing,
   // everyone in it would look as if they had left all three clans. Skipped this
