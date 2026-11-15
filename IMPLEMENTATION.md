@@ -2912,6 +2912,27 @@ per base and pruned 30 days after a row is done.
 
 - [x] **T11D.8 — Tests and docs** — `test/tracked-upgrades.test.ts`, `test/upgrade-reminders.test.ts`, `src/data/game/costs.test.ts`, `src/services/upgrades.test.ts`, `src/services/village-overlay.test.ts`, `src/components/upgrade-tracker-view.test.ts`
 
+- [x] **T11D.9 — The API confirms what it can see (Phase E)** — `src/services/village-overlay.ts`, `src/app/(app)/account/bases/tracker-actions.ts`, `scripts/sync/upgrade-reminders.ts`
+  `applyTracked()` takes the newest `player_progress` reading. A tracked **unit**
+  timer (hero, troop, spell, pet, equipment) whose unit the reading shows ABOVE the
+  level it was leaving — in a reading taken AFTER the timer started, since an older
+  one still shows the level being left — finishes early, as source `"api"`. Buildings
+  are never confirmed: the API has none, which is why the export exists. R11 holds:
+  the reading only decides WHEN the member's own timer ends; nothing from it is
+  written into the export as if the member had said it. A folded row is no longer
+  reminded about, since the member or the API had already seen it finish.
+
+- [x] **T11D.10 — Home says who is free** — `src/services/village.ts`, `src/components/main-base-card.tsx`
+  `exportSummary()` gains `nextBuilderFree` (set only while every builder is busy,
+  naming the upgrade that frees one first) and `lab`. The card shows "Next free in
+  2h 13m" under the builders, and "Lab is free" or "Lab busy with X, free in …".
+
+- [x] **T11D.11 — The actions, end to end** — `test/tracker-actions.test.ts`
+  The real Start, Finished early, Cancel and Already upgraded actions against the
+  real schema: the finish time comes from the game data, a full set of builders
+  refuses a start, a rate limit refuses a write, and a finished timer folds into the
+  export.
+
 **Outstanding after Phase 11D:**
 
 - **Apply 079** (`npm run migrations:apply`, then `npm run types:db`). Until then the
@@ -2920,8 +2941,9 @@ per base and pruned 30 days after a row is done.
 - **Check the TH weapon field on a real export.** The parser reads an optional
   `weapon` on the Town Hall row; if a real TH17 export names it differently, the
   weapon line simply does not appear.
-- **Phase E of the plan** — letting the daily API reading confirm a tracked hero or
-  lab upgrade — is not built.
+- **Phase E depends on the daily player sync.** `scripts/sync/players.ts` reads once
+  a day, so an upgrade the API confirms early is confirmed up to a day after it
+  finished; the timer's own end time usually gets there first.
 
 ---
 

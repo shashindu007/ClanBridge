@@ -27,6 +27,7 @@ import {
   insertTracked,
   trackedUpgradesFor,
 } from "@/repositories/tracked-upgrades";
+import { latestReadings } from "@/repositories/player-progress";
 import { villageExportsFor, type SavedExport } from "@/repositories/village-exports";
 import type { Village } from "@/types/domain";
 import { ownBase, refresh, withinWriteLimit, type Owned } from "./own-base";
@@ -72,14 +73,17 @@ interface Settled {
  */
 async function settle(owned: Owned, now: Date): Promise<Settled | { error: string }> {
   const { supabase, base } = owned;
-  const [exports, tracked] = await Promise.all([
+  const [exports, tracked, readings] = await Promise.all([
     villageExportsFor(supabase, [base.playerId]),
     trackedUpgradesFor(supabase, [base.playerId]),
+    // Phase E. Losing it only costs the early finish, never the write.
+    latestReadings(supabase, [base.playerId]).catch(() => new Map()),
   ]);
   const saved = exports.get(base.playerId);
   if (!saved) return { error: "Upload your village export first — the tracker counts from it." };
+  const reading = readings.get(base.playerId) ?? null;
 
-  let overlay = applyTracked(saved.village, tracked.get(base.playerId) ?? [], now);
+  let overlay = applyTracked(saved.village, tracked.get(base.playerId) ?? [], now, reading);
   if (overlay.changed) {
     const folded = await foldTracked(supabase, base.playerId, saved.revision, overlay.stored, overlay.foldIds);
     if (folded.error) return { error: safeMessage("tracker fold", folded.error, "Could not update your base.") };
@@ -90,7 +94,7 @@ async function settle(owned: Owned, now: Date): Promise<Settled | { error: strin
     const fresh = (await villageExportsFor(supabase, [base.playerId])).get(base.playerId);
     if (!fresh) return { error: "Upload your village export first — the tracker counts from it." };
     const live = (await trackedUpgradesFor(supabase, [base.playerId])).get(base.playerId) ?? [];
-    overlay = applyTracked(fresh.village, live, now);
+    overlay = applyTracked(fresh.village, live, now, reading);
     return { saved: fresh, overlay };
   }
   return { saved, overlay };
@@ -134,6 +138,7 @@ export async function startUpgrade(
   const item = findItem(settled, ref, now);
   if (!item || !item.workshop) return { error: "That upgrade is not available any more. Refresh the page." };
   if (item.locked) return { error: `Unlock ${item.name} in the game first.` };
+  if (item.blocked) return { error: `${item.blocked} first.` };
   if (item.idle < 1) return { error: `Every ${item.name} at level ${item.fromLevel} is already upgrading.` };
 
   const slot = workshops(settled.overlay.village, ref.village, now).find((w) => w.key === item.workshop);
@@ -217,6 +222,7 @@ export async function markAlreadyUpgraded(
 
   const item = findItem(settled, ref, now);
   if (!item || item.locked) return { error: "That upgrade is not available any more. Refresh the page." };
+  if (item.blocked) return { error: `${item.blocked} first.` };
   if (count > item.idle) return { error: `Only ${item.idle} can be upgraded from level ${item.fromLevel}.` };
 
   // The STORED village, so no running timer is written into the export.

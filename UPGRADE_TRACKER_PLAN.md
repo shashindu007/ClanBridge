@@ -16,7 +16,7 @@ its own, so you can stop after any phase and still have something good.
 | B — "Upgrades left" with totals | **Done** | `src/services/upgrades.ts`, `upgrade-time.ts` |
 | C — Start / track upgrades | **Done** | migration 079, `tracker-actions.ts` |
 | D — push when an upgrade finishes | **Done** | `scripts/sync/upgrade-reminders.ts` |
-| E — API confirms hero / lab levels | Not built | — |
+| E — API confirms hero / lab levels | **Done** | `confirmedByApi()` in `src/services/village-overlay.ts` |
 
 IMPLEMENTATION.md, Phase 11D, has the task list. What changed from the plan below
 while building it:

@@ -140,7 +140,20 @@ export function remainingUpgrades(village: ExportedVillage, which: Village, now:
     const missing = expected - (have.get(data.name) ?? 0) - consumed(data.name);
     if (missing <= 0) continue;
     const busy = Math.min(missing, busyAt(data.name, 0));
-    items.push(missingItem(data, which, cap, missing - busy, busy));
+    const item = missingItem(data, which, cap, missing - busy, busy);
+
+    // A merge needs its sources AT the merge level, as the game does: two
+    // Cannons at 21 for a Ricochet Cannon. Merges already running have not
+    // consumed theirs yet (that happens when they finish), so they are set aside.
+    if (data.merge) {
+      const ready = Math.min(
+        ...data.merge.map((m) => Math.floor(readyAt(village, which, m.name, m.level, now) / m.n)),
+      );
+      if (ready - busy < 1) {
+        item.blocked = `Needs ${data.merge.map((m) => `${m.n} × ${m.name} at level ${m.level}`).join(" and ")}`;
+      }
+    }
+    items.push(item);
   }
 
   // ── The Town Hall weapon ──────────────────────────────────────────────────
@@ -196,6 +209,17 @@ export function remainingUpgrades(village: ExportedVillage, which: Village, now:
   }
 
   return items;
+}
+
+/** Instances of a building at `level` or above that are not upgrading right now. */
+function readyAt(village: ExportedVillage, which: Village, name: string, level: number, now: Date): number {
+  const b = village.buildings.find((x) => x.name === name && x.village === which);
+  if (!b) return 0;
+  const atLevel = Object.entries(b.levels).reduce((n, [l, c]) => (Number(l) >= level ? n + c : n), 0);
+  const upgrading = village.upgrades.filter(
+    (u) => u.name === name && u.village === which && u.fromLevel >= level && secondsLeft(u, now) > 0,
+  ).length;
+  return Math.max(0, atLevel - upgrading);
 }
 
 function missingItem(data: GameBuilding, which: Village, cap: number, idle: number, busy: number): RemainingItem {

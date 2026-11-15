@@ -122,6 +122,7 @@ export function UpgradeTracker({ tag, village, which, now, items, running }: Upg
   );
 
   function startBlocked(item: RemainingItem): string | null {
+    if (item.blocked) return item.blocked;
     if (!item.workshop) return null;
     const slot = slots.find((s) => s.key === item.workshop);
     if (!slot) return item.workshop === "builders" ? "No builders in the export" : null;

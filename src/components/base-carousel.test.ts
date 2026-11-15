@@ -63,6 +63,8 @@ const SAVED: ExportSummary = {
   ],
   finishedSince: 1,
   builders: { busy: 3, total: 6 },
+  nextBuilderFree: null,
+  lab: { busy: false, secondsLeft: 0, name: null },
 };
 
 const render = (bases: MainBaseView[]) => renderToStaticMarkup(createElement(BaseCarousel, { bases }));

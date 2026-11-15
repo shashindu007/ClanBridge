@@ -29,6 +29,7 @@ import {
   ChevronRight,
   Coins,
   FileJson,
+  FlaskConical,
   Link2,
   ScrollText,
   ShieldCheck,
@@ -486,6 +487,14 @@ function ExportBlock({ base, onUpload }: { base: MainBaseView; onUpload: () => v
                   ? "all working"
                   : `${saved.builders.total - saved.builders.busy} free`}
               </p>
+              {saved.nextBuilderFree && (
+                <p className="text-muted-foreground text-xs">
+                  Next free in{" "}
+                  <span className="text-foreground font-medium tabular-nums">
+                    {formatDuration(saved.nextBuilderFree.secondsLeft)}
+                  </span>
+                </p>
+              )}
             </>
           ) : (
             <p className="text-muted-foreground text-sm">—</p>
@@ -502,6 +511,14 @@ function ExportBlock({ base, onUpload }: { base: MainBaseView; onUpload: () => v
             <span className="text-success-ink"> · {saved.finishedSince} finished since the export</span>
           )}
         </p>
+        {saved.lab && (
+          <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+            <FlaskConical aria-hidden className="size-3.5" />
+            {saved.lab.busy
+              ? `Lab busy${saved.lab.name ? ` with ${saved.lab.name}` : ""}, free in ${formatDuration(saved.lab.secondsLeft)}`
+              : "Lab is free"}
+          </p>
+        )}
         {shown.length > 0 && (
           <ul className="space-y-1.5 text-sm">
             {shown.map((u, i) => (

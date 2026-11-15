@@ -96,7 +96,7 @@ export default async function OwnBaseDetailsPage({
   const which = villageParam(query.village);
 
   const now = new Date();
-  const current = saved ? applyTracked(saved.village, tracked.get(base.playerId) ?? [], now).village : null;
+  const current = saved ? applyTracked(saved.village, tracked.get(base.playerId) ?? [], now, progress.latest).village : null;
   const tracker = current
     ? { items: remainingUpgrades(current, which, now), running: runningLoads(current, which, now) }
     : undefined;
