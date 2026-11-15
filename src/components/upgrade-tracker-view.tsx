@@ -563,7 +563,13 @@ export function UpgradeItemRow({
           variant="gold"
           onClick={() => onStart(item)}
           disabled={blocked !== null}
-          aria-label={`${item.action === "upgrade" ? "Start" : titleOf(item)}: ${item.name}`}
+          aria-label={
+            item.action === "upgrade"
+              ? `Start ${item.name} level ${item.fromLevel + 1}`
+              : item.action === "merge"
+                ? `Merge into ${item.name}`
+                : `Build ${item.name}`
+          }
         >
           <Play aria-hidden />
           {item.action === "build" ? "Build" : item.action === "merge" ? "Merge" : "Start"}

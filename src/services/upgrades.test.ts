@@ -71,6 +71,31 @@ describe("remainingUpgrades", () => {
     });
   });
 
+  it("will not offer a merge until its sources are at the merge level", () => {
+    // The Cannons here are at 19 and 20; a Ricochet Cannon needs two at 21.
+    expect(find(items, "Ricochet Cannon", 0)?.blocked).toBe("Needs 2 × Cannon at level 21");
+
+    const ready = remainingUpgrades(village([{ data: 1000008, lvl: 21, cnt: 2 }]), "home", NOW);
+    expect(find(ready, "Ricochet Cannon", 0)?.blocked).toBeUndefined();
+  });
+
+  it("does not count a source that is upgrading as ready to merge", () => {
+    const one = remainingUpgrades(
+      // Still running at NOW, an hour after the export.
+      village([{ data: 1000008, lvl: 21 }, { data: 1000008, lvl: 21, timer: 7_200 }]),
+      "home",
+      NOW,
+    );
+    expect(find(one, "Ricochet Cannon", 0)?.blocked).toMatch(/Needs 2/);
+  });
+
+  it("sorts a blocked merge after what can be started", () => {
+    const sorted = sortItems(items.filter((i) => i.tab === "builders"), "quickest", 0);
+    const blocked = sorted.findIndex((i) => i.blocked);
+    const lastStartable = sorted.map((i) => i.idle > 0 && !i.locked && !i.blocked).lastIndexOf(true);
+    expect(blocked).toBeGreaterThan(lastStartable);
+  });
+
   it("sends heroes to the builders and troops to the lab", () => {
     expect(find(items, "Barbarian King")).toMatchObject({ tab: "builders", workshop: "builders", cap: 100 });
     expect(find(items, "Barbarian")).toMatchObject({ tab: "lab", workshop: "lab" });

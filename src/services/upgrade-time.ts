@@ -48,6 +48,8 @@ export interface RemainingItem {
   locked?: boolean;
   /** A merge: what it consumes. */
   merge?: Array<{ name: string; n: number; level: number }>;
+  /** Why it cannot be started yet, e.g. a merge whose sources are not at the merge level. */
+  blocked?: string;
   /** fromLevel + 1 up to cap. null where the data has no price for that level. */
   steps: Array<PricedStep | null>;
 }
@@ -179,7 +181,8 @@ export function remainingTotals(
 
 /** "950", "12.5K", "3.4M", "1.25B" — the way the game's shop rounds. */
 export function formatAmount(n: number): string {
-  const trim = (x: number, d: number) => x.toFixed(d).replace(/\.?0+$/, "");
+  // Number() drops trailing zeros: 3.40 → "3.4", 12.0 → "12".
+  const trim = (x: number, d: number) => String(Number(x.toFixed(d)));
   if (n >= 1e9) return `${trim(n / 1e9, 2)}B`;
   if (n >= 1e6) return `${trim(n / 1e6, n >= 1e8 ? 0 : 1)}M`;
   if (n >= 1e4) return `${trim(n / 1e3, n >= 1e5 ? 0 : 1)}K`;
@@ -210,7 +213,7 @@ function nextAmount(item: RemainingItem): number {
  * locked unit is not a choice right now — then by the next step.
  */
 export function sortItems(items: readonly RemainingItem[], by: SortKey, boostPct: number): RemainingItem[] {
-  const startable = (i: RemainingItem) => (i.idle > 0 && !i.locked ? 0 : 1);
+  const startable = (i: RemainingItem) => (i.idle > 0 && !i.locked && !i.blocked ? 0 : 1);
   const time = (i: RemainingItem) => {
     const s = nextStep(i);
     return s ? stepSeconds(i, s, boostPct) : Number.POSITIVE_INFINITY;

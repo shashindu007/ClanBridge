@@ -138,6 +138,7 @@ export async function startUpgrade(
   const item = findItem(settled, ref, now);
   if (!item || !item.workshop) return { error: "That upgrade is not available any more. Refresh the page." };
   if (item.locked) return { error: `Unlock ${item.name} in the game first.` };
+  if (item.blocked) return { error: `${item.blocked} first.` };
   if (item.idle < 1) return { error: `Every ${item.name} at level ${item.fromLevel} is already upgrading.` };
 
   const slot = workshops(settled.overlay.village, ref.village, now).find((w) => w.key === item.workshop);
@@ -221,6 +222,7 @@ export async function markAlreadyUpgraded(
 
   const item = findItem(settled, ref, now);
   if (!item || item.locked) return { error: "That upgrade is not available any more. Refresh the page." };
+  if (item.blocked) return { error: `${item.blocked} first.` };
   if (count > item.idle) return { error: `Only ${item.idle} can be upgraded from level ${item.fromLevel}.` };
 
   // The STORED village, so no running timer is written into the export.

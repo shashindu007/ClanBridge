@@ -158,6 +158,20 @@ describe("079 — tracker actions", () => {
     expect(await live()).toHaveLength(0);
   });
 
+  it("refuses a merge before its sources reach the merge level, as the game does", async () => {
+    const merge = { village: "home", subjectType: "building", name: "Ricochet Cannon", fromLevel: 0 } as const;
+    const started = await startUpgrade(TAG, merge, { boostPct: 0, secondsLeft: null });
+    expect(started.error).toBe("Needs 2 × Cannon at level 21 first.");
+
+    const marked = await markAlreadyUpgraded(TAG, merge, 1);
+    expect(marked.error).toBe("Needs 2 × Cannon at level 21 first.");
+    expect(await live()).toHaveLength(0);
+
+    // Nothing was taken from the Cannons.
+    const village = (await villageExportsFor(client, [MAIN])).get(MAIN)!.village;
+    expect(village.buildings.find((b) => b.name === "Cannon")?.levels).toEqual({ 19: 3 });
+  });
+
   it("refuses to write when the rate limit says no", async () => {
     holder.limited = "Too many changes in a row. Wait a minute and try again.";
     const result = await startUpgrade(TAG, cannon, { boostPct: 0, secondsLeft: null });
