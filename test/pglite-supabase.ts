@@ -137,7 +137,20 @@ export function createPgliteSupabase(db: PGlite): SupabaseClient {
 
     insert(values: Row) {
       const keys = Object.keys(values);
+      const sql = () =>
+        `insert into ${table} (${keys.join(", ")}) values (${keys.map((k) => literal(values[k])).join(", ")})`;
       return {
+        // 079 — awaited directly, as supabase-js allows: tracked-upgrades.ts
+        // needs only the error, not the row back.
+        then(resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) {
+          return db
+            .exec(sql())
+            .then(
+              () => ({ error: null }),
+              (error: unknown) => ({ error: { message: String(error) } }),
+            )
+            .then(resolve, reject);
+        },
         select() {
           return {
             async single() {
@@ -199,6 +212,11 @@ export function createPgliteSupabase(db: PGlite): SupabaseClient {
           filters.push(
             values.length ? `${column} in (${values.map(literal).join(", ")})` : "false",
           );
+          return builder;
+        },
+        // 079 — a fresh export retires the timers started before it.
+        lt(column: string, value: unknown) {
+          filters.push(`${column} < ${literal(value)}`);
           return builder;
         },
         then(resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) {

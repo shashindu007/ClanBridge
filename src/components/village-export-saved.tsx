@@ -11,11 +11,13 @@
 import { useState, useTransition } from "react";
 import { RefreshCw, Trash2 } from "lucide-react";
 import { removeVillageExport } from "@/app/(app)/account/bases/actions";
+import { UpgradeTracker } from "@/components/upgrade-tracker";
 import { VillageExportForm } from "@/components/village-export-upload";
 import { VillageExportView, type BuildingFilter } from "@/components/village-export-view";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { encodeTag } from "@/lib/tags";
+import type { RemainingItem, Running } from "@/services/upgrade-time";
 import type { Village } from "@/types/domain";
 import type { ExportedVillage } from "@/types/village";
 
@@ -30,9 +32,14 @@ export interface SavedVillageExportProps {
   now: string;
   /** Which village the page is showing: its `?village=` switch decides. */
   which?: Village;
+  /**
+   * The upgrade tracker (079): what is left, with prices, and what is running.
+   * Worked out on the server, after the overlay. Absent shows the export alone.
+   */
+  tracker?: { items: RemainingItem[]; running: Running };
 }
 
-export function SavedVillageExport({ tag, label, village, now, which = "home" }: SavedVillageExportProps) {
+export function SavedVillageExport({ tag, label, village, now, which = "home", tracker }: SavedVillageExportProps) {
   const [filter, setFilter] = useState<BuildingFilter>("all");
   const [notMaxedOnly, setNotMaxedOnly] = useState(false);
   const [replacing, setReplacing] = useState(false);
@@ -110,6 +117,18 @@ export function SavedVillageExport({ tag, label, village, now, which = "home" }:
         onFilter={setFilter}
         notMaxedOnly={notMaxedOnly}
         onNotMaxedOnly={setNotMaxedOnly}
+        tracker={
+          tracker && (
+            <UpgradeTracker
+              tag={tag}
+              village={village}
+              which={which}
+              now={now}
+              items={tracker.items}
+              running={tracker.running}
+            />
+          )
+        }
       />
     </div>
   );

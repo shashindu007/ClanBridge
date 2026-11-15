@@ -197,6 +197,10 @@ export const PHASE1_MIGRATIONS = [
   // The HMAC proof link_verified_player() now requires, the owner check in
   // claim_platform_ownership(), and no control characters in notification links.
   "077_verify_link_proof.sql",
+  // The upgrade tracker: timers a member starts on Base details, the fold into
+  // their export, and the 30-day prune. Must follow 076 (village_exports) and
+  // 023 (notification_preferences).
+  "079_tracked_upgrades.sql",
 ] as const;
 
 /**
@@ -448,6 +452,7 @@ export const PHASE1_TABLES = [
   "raid_participants",
   "raid_seasons",
   "sync_log",
+  "tracked_upgrades",
   "users",
   "village_exports",
   "war_attacks",

@@ -8,6 +8,33 @@ it **without filling the free Supabase database (500 MB limit, no Pro plan)**.
 Read it top to bottom once. Then build phase by phase. Each phase is useful on
 its own, so you can stop after any phase and still have something good.
 
+## Status (2026-11-15)
+
+| Phase | State | Where |
+|---|---|---|
+| A — cost and time data | **Done** | `src/data/game/upgrade-costs.json`, `costs.ts` |
+| B — "Upgrades left" with totals | **Done** | `src/services/upgrades.ts`, `upgrade-time.ts` |
+| C — Start / track upgrades | **Done** | migration 079, `tracker-actions.ts` |
+| D — push when an upgrade finishes | **Done** | `scripts/sync/upgrade-reminders.ts` |
+| E — API confirms hero / lab levels | Not built | — |
+
+IMPLEMENTATION.md, Phase 11D, has the task list. What changed from the plan below
+while building it:
+
+- **Subjects are stored by name, and `to_level` is not stored** (it is always
+  `from_level + 1`). A saved export keeps names, not ids, so names are the key
+  that matches it.
+- **Finished upgrades are applied when the page is read**, by a pure overlay
+  (`services/village-overlay.ts`), and folded into the export on the member's
+  next write — in one database transaction, guarded by a revision number so two
+  open tabs cannot level a building twice. No background job writes the export.
+- **Walls and equipment get "Mark upgraded"**, not a timer: they are instant in
+  the game and never hold a builder.
+- **Merges and missing buildings come from the game data itself**
+  (`merge_requirement`, the halls' `unlocks`), not a hand-kept list.
+- **The push writes no notification-feed row**, so the feed cannot grow by one
+  row per upgrade per member.
+
 ---
 
 ## 1. How Clash Ninja works (the idea we are copying)

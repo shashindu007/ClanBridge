@@ -37,6 +37,18 @@ export interface ExportedUpgrade {
   /** Seconds left as of when the export was parsed, clamped at 0. Use services/village secondsLeft() to read it later. */
   remainingSeconds: number;
   finishesAt: string;
+  /**
+   * Where the timer came from. Absent on rows saved before the tracker (079),
+   * which were all from the export. "tracked" rows exist only after the
+   * overlay (services/village-overlay.ts) and are never stored in the export.
+   */
+  source?: "export" | "tracked";
+  /** The tracked_upgrades row, for Finished early and Cancel. */
+  trackedId?: string;
+  /** When a tracked upgrade began, for its progress bar. */
+  startedAt?: string;
+  /** Who is doing it. Set on tracked rows, whose subject the export may not name (a TH weapon). */
+  workshop?: "builders" | "lab" | "pets";
 }
 
 export interface ExportedVillage {
@@ -49,4 +61,13 @@ export interface ExportedVillage {
   upgrades: ExportedUpgrade[];
   /** Ids the pinned game data does not know — newer than the data. */
   unknownIds: number;
+  /** The Town Hall weapon's level (TH17's Inferno Artillery), when the export carries it. */
+  thWeapon?: number | null;
+  /**
+   * Upgrades that have finished since the game took the export and been
+   * applied here — by the overlay at read time, or folded in by 079. The
+   * export's own "as of" date stays the game's; this says how far past it the
+   * page has moved.
+   */
+  appliedSince?: number;
 }

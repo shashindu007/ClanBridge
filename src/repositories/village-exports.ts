@@ -25,6 +25,8 @@ export interface SavedExport {
   exportedAt: string;
   /** When the member last saved it here. */
   savedAt: string;
+  /** 079's optimistic lock: a fold writes only if this has not moved. */
+  revision: number;
 }
 
 const iso = (value: unknown): string =>
@@ -48,6 +50,8 @@ function toVillage(value: unknown): ExportedVillage | null {
     units: Array.isArray(v.units) ? v.units : [],
     upgrades: Array.isArray(v.upgrades) ? v.upgrades : [],
     unknownIds: typeof v.unknownIds === "number" ? v.unknownIds : 0,
+    thWeapon: typeof v.thWeapon === "number" ? v.thWeapon : null,
+    appliedSince: typeof v.appliedSince === "number" ? v.appliedSince : 0,
   };
 }
 
@@ -62,7 +66,7 @@ export async function villageExportsFor(
 
   const { data, error } = await supabase
     .from("village_exports")
-    .select("player_id, exported_at, village, created_at, updated_at")
+    .select("player_id, exported_at, village, created_at, updated_at, revision")
     .in("player_id", ids) // the mechanism; 076's owner policy is the net
     .is("deleted_at", null);
 
@@ -75,6 +79,7 @@ export async function villageExportsFor(
       village,
       exportedAt: iso(row.exported_at),
       savedAt: iso(row.updated_at ?? row.created_at),
+      revision: typeof row.revision === "number" ? row.revision : 0,
     });
   }
   return out;

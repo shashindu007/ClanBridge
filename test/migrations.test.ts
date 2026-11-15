@@ -72,6 +72,11 @@ async function seedFixtures(h: Harness) {
       ('${PLAYER_A}', '${USER_A}', '2026-07-01T00:00:00Z', '{"tag": "#PY0LQGRJ"}'),
       ('${PLAYER_B}', '${USER_B}', '2026-07-01T00:00:00Z', '{"tag": "#C2V89UGL"}');
 
+    -- 079. Owner-only, like the exports above.
+    insert into tracked_upgrades (player_id, created_by, village, subject_type, subject, from_level, workshop, ends_at) values
+      ('${PLAYER_A}', '${USER_A}', 'home', 'building', 'Cannon', 19, 'builders', now() + interval '1 day'),
+      ('${PLAYER_B}', '${USER_B}', 'home', 'unit', 'Archer Queen', 90, 'builders', now() + interval '2 days');
+
     insert into cwl_seasons (id, clan_id, season, league) values
       ('11111111-0000-4000-8000-000000000001', '${CLAN_A}', '2026-07', 'Crystal I'),
       ('22222222-0000-4000-8000-000000000001', '${CLAN_B}', '2026-07', 'Gold II');
@@ -391,8 +396,9 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
     //   base_layouts                 028, any member uploads a layout (T8.3)
     //   player_nicknames             033, a member labels their own base (T11.3)
     //   village_exports              076, a member saves their own game export
+    //   tracked_upgrades             079, a member starts their own upgrade timer
     //
-    // The two from 023 and the ones from 033 and 076 are the only entries here whose
+    // The two from 023 and the ones from 033, 076 and 079 are the only entries here whose
     // subject and actor are the same person, which is why they are plain policies
     // rather than the audited definer functions 021 and 022 argued for: no such
     // row affects anyone else, and none has a clan_id to record an audit entry
@@ -433,6 +439,7 @@ describe("T1.4-T1.9 — migrations apply to a real Postgres", () => {
       "poll_responses",
       "polls",
       "push_subscriptions",
+      "tracked_upgrades",
       "users",
       "village_exports",
       "war_lineup_members",
@@ -1126,6 +1133,11 @@ const DELETE_EXCEPTIONS: readonly string[] = [
   "059_purge_other_clans_only.sql",
   // 061 — narrowed again: the enemy lineups of our own wars are kept.
   "061_purge_keeps_our_wars.sql",
+  // 079 — prune_tracked_upgrades(): a member's own upgrade timers, already
+  // folded into their export or cancelled, removed 30 days later so the table
+  // stays bounded on the free tier. test/tracked-upgrades.test.ts pins that
+  // nothing live or recent is touched.
+  "079_tracked_upgrades.sql",
 ];
 
 describe("the migration files themselves", () => {

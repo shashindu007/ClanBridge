@@ -43,6 +43,10 @@ export interface GameBuilding {
   kind: string;
   caps: number[];
   weaponCaps?: number[];
+  /** How many of it each hall allows, index 0 = hall 1. Absent for traps. */
+  counts?: number[];
+  /** A merged building: what one of it consumes, e.g. Ricochet Cannon = 2 × Cannon at 21. */
+  merge?: Array<{ name: string; n: number; level: number }>;
 }
 
 export const GAME_DATA_SOURCE = unitsFile.source;
@@ -58,6 +62,25 @@ const unitKey = (name: string, village: Village) => `${village}:${name}`;
 const unitsByName = new Map(UNITS.map((u) => [unitKey(u.name, u.village), u]));
 const unitsByExportId = new Map(UNITS.map((u) => [u.exportId, u]));
 const buildingsByExportId = new Map(BUILDINGS.map((b) => [b.exportId, b]));
+const buildingsByName = new Map(BUILDINGS.map((b) => [unitKey(b.name, b.village), b]));
+
+/**
+ * By name, because a SAVED export (076) keeps names, not ids. Name + village,
+ * because the Builder Base has its own Cannon.
+ */
+export function buildingByName(name: string, village: Village): GameBuilding | undefined {
+  return buildingsByName.get(unitKey(name, village));
+}
+
+/** Every building of one village, for "what does this hall allow that is not built". */
+export function buildingsOf(village: Village): GameBuilding[] {
+  return BUILDINGS.filter((b) => b.village === village);
+}
+
+/** How many of a building a hall allows, or undefined when the data has no count. */
+export function countAt(building: GameBuilding, hall: number | undefined): number | undefined {
+  return building.counts ? capAt(building.counts, hall) : undefined;
+}
 
 export function findUnit(name: string, village: Village): GameUnit | undefined {
   return unitsByName.get(unitKey(name, village));

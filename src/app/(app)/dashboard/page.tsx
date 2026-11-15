@@ -75,7 +75,9 @@ import { latestReadings, type ProgressReading } from "@/repositories/player-prog
 import type { RatingMonth } from "@/repositories/player-ratings";
 import { ownCareers, type PlayerCareer } from "@/repositories/profiles";
 import { villageExportsFor, type SavedExport } from "@/repositories/village-exports";
+import { trackedUpgradesFor } from "@/repositories/tracked-upgrades";
 import { exportSummary } from "@/services/village";
+import { applyTracked, type TrackedUpgrade } from "@/services/village-overlay";
 import { baseLabel } from "@/lib/nickname";
 import { safeMessage } from "@/lib/errors";
 import { HOME_RANK_MONTHS, rankHistories } from "@/lib/player-rank-data";
@@ -312,6 +314,16 @@ function toBaseView(
 }
 
 /** A read Home can live without: on failure, logged and empty. */
+/** The export as it stands now: finished timers applied, tracked ones running. */
+function withTracked(
+  saved: SavedExport | undefined,
+  tracked: TrackedUpgrade[] | undefined,
+  now: Date,
+): SavedExport | null {
+  if (!saved) return null;
+  return { ...saved, village: applyTracked(saved.village, tracked ?? [], now).village };
+}
+
 function survivable<T>(what: string, fallback: T) {
   return (error: unknown): T => {
     safeMessage(what, { message: String(error) }, "");
@@ -392,7 +404,7 @@ export default async function DashboardPage({
   const shownBases = basesInOrder(bases, main);
   const shownIds = shownBases.map((b) => b.playerId);
 
-  const [loaded, accounts, readings, histories, careers, exports, trophies] = await Promise.all([
+  const [loaded, accounts, readings, histories, careers, exports, trophies, tracked] = await Promise.all([
     Promise.all(clans.map((clan) => loadClan(supabase, clan, now, phase === "wars"))),
     // Scoped by admin_accounts() to accounts THIS caller may approve.
     admin || leads ? adminAccounts(supabase) : Promise.resolve([]),
@@ -412,6 +424,8 @@ export default async function DashboardPage({
           : null,
       ),
     ),
+    // 079. The timers started on Base details, so the card's builders agree with it.
+    trackedUpgradesFor(supabase, shownIds).catch(survivable("home-tracked", new Map<string, TrackedUpgrade[]>())),
   ]);
 
   const baseViews = shownBases.map((b, i) =>
@@ -424,7 +438,7 @@ export default async function DashboardPage({
         history: histories === null ? null : (histories.get(b.playerId) ?? []),
         career: careers.get(b.playerId) ?? null,
         trophies: trophies[i] ?? null,
-        saved: exports.get(b.playerId) ?? null,
+        saved: withTracked(exports.get(b.playerId), tracked.get(b.playerId), now),
       },
       now,
     ),

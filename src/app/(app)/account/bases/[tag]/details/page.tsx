@@ -17,6 +17,12 @@
 // what is kept and why. Not on the leader's page: it is the member's own game
 // data, and no leader can read it.
 //
+// 079 — the upgrade tracker. The timers a member started here are read beside
+// the export and laid over it (services/village-overlay.ts), so a level that
+// finished a minute ago shows as done without anything being written. What is
+// left, with prices, is worked out HERE from the server-only price table, and
+// only the handful of rows this village needs reach the browser.
+//
 // R1 — every read is PostgreSQL.
 
 import Link from "next/link";
@@ -34,7 +40,10 @@ import { decodeTag, encodeTag, InvalidTagError } from "@/lib/tags";
 import { basesForUser } from "@/repositories/account-bases";
 import { baseProgress } from "@/repositories/player-progress";
 import { villageExportsFor, type SavedExport } from "@/repositories/village-exports";
+import { trackedUpgradesFor } from "@/repositories/tracked-upgrades";
 import { safeMessage } from "@/lib/errors";
+import { remainingUpgrades, runningLoads } from "@/services/upgrades";
+import { applyTracked, type TrackedUpgrade } from "@/services/village-overlay";
 
 export const dynamic = "force-dynamic";
 
@@ -65,12 +74,17 @@ export default async function OwnBaseDetailsPage({
   if (!base) notFound();
 
   // "owner" scope: every reading of this village, whichever clan it was in.
-  const [progress, exports] = await Promise.all([
+  const [progress, exports, tracked] = await Promise.all([
     baseProgress(supabase, "owner", base.playerId),
     // Losing it shows the upload form, not an error page.
     villageExportsFor(supabase, [base.playerId]).catch((error: unknown) => {
       safeMessage("base-details-export", { message: String(error) }, "");
       return new Map<string, SavedExport>();
+    }),
+    // Losing the timers shows the export as the game took it, not an error page.
+    trackedUpgradesFor(supabase, [base.playerId]).catch((error: unknown) => {
+      safeMessage("base-details-tracked", { message: String(error) }, "");
+      return new Map<string, TrackedUpgrade[]>();
     }),
   ]);
   const saved = exports.get(base.playerId) ?? null;
@@ -80,6 +94,12 @@ export default async function OwnBaseDetailsPage({
   const encoded = encodeTag(base.tag);
   const path = `/account/bases/${encoded}/details`;
   const which = villageParam(query.village);
+
+  const now = new Date();
+  const current = saved ? applyTracked(saved.village, tracked.get(base.playerId) ?? [], now).village : null;
+  const tracker = current
+    ? { items: remainingUpgrades(current, which, now), running: runningLoads(current, which, now) }
+    : undefined;
 
   return (
     <main className="mx-auto max-w-page space-y-6 p-4 sm:p-6">
@@ -116,9 +136,10 @@ export default async function OwnBaseDetailsPage({
       <SavedVillageExport
         tag={base.tag}
         label={label}
-        village={saved?.village ?? null}
-        now={new Date().toISOString()}
+        village={current}
+        now={now.toISOString()}
         which={which}
+        tracker={tracker}
       />
 
       <BaseDetails progress={progress} village={which} path={path} switcher={false} banner={!saved} />

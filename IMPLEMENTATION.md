@@ -776,10 +776,18 @@ clanbridge/
     │   ├── village-export-saved.tsx   076  Base details: the saved export,
     │   │                            Upload newer and Remove
     │   ├── village-export-view.tsx   T11B.12  what an export shows
+    │   ├── upgrade-tracker-view.tsx  T11D.7  workshop board, totals, upgrades
+    │   │                            left — presentational (+ .test.ts)
+    │   ├── upgrade-tracker.tsx       T11D.7  "use client" tab, sort, boost, dialog
+    │   ├── start-upgrade-dialog.tsx  T11D.7  Start a timer / mark upgraded
+    │   ├── game/resource-icon.tsx    T11D.7  gold, elixir, dark, ores
     │   └── ui/              shadcn copies land here
     │
     ├── data/game/           T11B.3  GENERATED game data — see its README.md
-    │   ├── units.json  buildings.json   caps at every hall level, export ids
+    │   ├── units.json  buildings.json   caps at every hall level, export ids,
+    │   │                    per-hall counts and merges (T11D.1)
+    │   ├── upgrade-costs.json  T11D.1 the price of REACHING every level
+    │   ├── costs.ts         T11D.1 upgradeStep() — SERVER ONLY, 66 KB
     │   └── index.ts         resolveUnit(), lockedUnits() — browser-safe
     │
     ├── integration/         R7 — raw API shapes stop here
@@ -807,10 +815,14 @@ clanbridge/
     ├── repositories/        T4.3 onward — every query filters by clan (R3)
     │   ├── account-bases.ts    T11.6  filtered by owner, not clan
     │   ├── player-report.ts    T11.11 the seven reads behind a village's report
-    │   └── player-progress.ts  T11B.8 scope is { clanId } or "owner", REQUIRED
+    │   ├── player-progress.ts  T11B.8 scope is { clanId } or "owner", REQUIRED
+    │   └── tracked-upgrades.ts T11D.4 owner-only timers, and the atomic fold
     ├── services/            derived values: missed attacks, donation deltas
     │   ├── progress.ts      T11B.7 levels against caps; "behind", never "rushed"
-    │   └── village.ts       T11B.11 buildings, walls and timers from an export
+    │   ├── village.ts       T11B.11 buildings, walls and timers from an export
+    │   ├── village-overlay.ts T11D.3 export + tracked timers, as it stands NOW
+    │   ├── upgrades.ts      T11D.2 "upgrades left", priced — server only
+    │   └── upgrade-time.ts  T11D.2 totals, time to max, boost — browser-safe
     └── types/
         ├── database.ts      generated from Supabase
         ├── domain.ts        internal types (R7)
@@ -2833,6 +2845,83 @@ deliberate R3 exception**, and it is made as narrowly as it can be.
   under DH CWL ONLY, 14 wars and 13 attacks in all.
 - **Clan movement and the other five report panels are unchanged** — still confined
   to clans the reader holds a role in. Only CWL was asked for.
+
+---
+
+# Phase 11D — The upgrade tracker
+
+*Paste the export once; the page then keeps up with the base, the way clash.ninja does.*
+
+076 saved the export, but it was a snapshot: the timers it carried ran out and the
+page went quiet until the next paste, and nothing said what an upgrade cost or how
+far the base was from max. The plan and the reasoning are in
+`UPGRADE_TRACKER_PLAN.md`; this is what was built.
+
+**Storage, on the free 500 MB tier, is the design constraint.** Game facts — every
+price, duration, per-hall count and merge — are generated JSON in the repository
+(0 bytes of database). The database gains one small table, capped at 16 live rows
+per base and pruned 30 days after a row is done.
+
+- [x] **T11D.1 — Prices, counts and merges, as generated data** — `scripts/game-data.ts`, `src/data/game/upgrade-costs.json`, `src/data/game/costs.ts`, `src/data/game/index.ts`
+  One rule for every row: `levels[L - 1]` is the price of **reaching** level L. coc.py
+  prices buildings that way and units as the cost of *leaving* a level, so the
+  generator shifts units by one. raw.json wins for home units (newer: Barbarian King
+  110 vs 105), coc.py for buildings, guardians and the Builder Base. An unknown
+  resource string stops the run. Per-hall counts come from the halls' `unlocks`;
+  merges (Ricochet Cannon, Multi-Archer Tower, Multi-Gear Tower, Super Wizard Tower,
+  and Eagle Artillery into the TH17 Town Hall) come from `merge_requirement`, not a
+  list kept here. `costs.ts` is server-only, so the 66 KB table never ships.
+
+- [x] **T11D.2 — "Upgrades left" and its totals** — `src/services/upgrades.ts`, `src/services/upgrade-time.ts`
+  One line per subject and level, priced to this hall's cap; buildings not built
+  yet, after merges; merges still to do; locked units; the TH weapon when the export
+  says its level. Totals schedule each instance's chain longest-first over the
+  builders the base has, starting from what is running. Gold Pass boost on builders
+  and lab, not pets. A level with no price is counted as such, never guessed.
+
+- [x] **T11D.3 — The overlay** — `src/services/village-overlay.ts`
+  Export + tracked timers → the village as it stands now. Finished timers (the
+  export's own and tracked ones) level up at read time; running tracked timers show
+  as busy builders. Returns `village` (to show) and `stored` (to fold — never holds a
+  tracked timer). A timer the export contradicts is dropped, not forced.
+
+- [x] **T11D.4 — `tracked_upgrades`** — `supabase/migrations/079_tracked_upgrades.sql`, `src/repositories/tracked-upgrades.ts`
+  Owner-only, 076's policies. The sync may stamp `notified_at` and nothing else
+  (R11). `apply_tracked_upgrades()` folds finished rows into the export in one
+  transaction, guarded by the new `village_exports.revision`, so two tabs cannot
+  level a building twice. **R4 exception:** `prune_tracked_upgrades()` hard-deletes
+  rows done more than 30 days ago, as 058's purge does, so the table stays bounded.
+
+- [x] **T11D.5 — The Server Actions** — `(app)/account/bases/tracker-actions.ts`, `(app)/account/bases/own-base.ts`, `(app)/account/bases/actions.ts`
+  Start, Finished early, Cancel, Already upgraded. The browser names WHICH upgrade;
+  the price and finish time are worked out here from the game data. Every write
+  settles (folds) first. A fresh export retires every timer started before it.
+
+- [x] **T11D.6 — "Upgrade finished" push** — `scripts/sync/upgrade-reminders.ts`, `scripts/sync/clans.ts`, `src/lib/push.ts`, `settings/notifications/page.tsx`
+  Run at the end of each clan sync (every half hour, 069), so up to ~30 minutes late,
+  and the UI says so. Owner-only and clan-less, so sent directly as alerts.ts does,
+  filtered by the new `upgrade_reminders` preference. A reminder more than 6 hours
+  late is stamped, not sent. **No feed row** — Base details already shows every
+  finished upgrade, and a row per upgrade would grow without bound.
+
+- [x] **T11D.7 — The page** — `upgrade-tracker-view.tsx`, `upgrade-tracker.tsx`, `start-upgrade-dialog.tsx`, `game/resource-icon.tsx`, `village-export-view.tsx`, `village-export-saved.tsx`, `account/bases/[tag]/details/page.tsx`, `dashboard/page.tsx`
+  In the order a player asks: the workshop board (a live card per builder, lab and
+  pet house; a free one says "Pick an upgrade"), then the time to max and resources,
+  then the list in tabs (Builder · Lab · Pets · Walls · Equipment), sorted quickest
+  first. Home's card reads the same overlay, so its builders agree with the page.
+
+- [x] **T11D.8 — Tests and docs** — `test/tracked-upgrades.test.ts`, `test/upgrade-reminders.test.ts`, `src/data/game/costs.test.ts`, `src/services/upgrades.test.ts`, `src/services/village-overlay.test.ts`, `src/components/upgrade-tracker-view.test.ts`
+
+**Outstanding after Phase 11D:**
+
+- **Apply 079** (`npm run migrations:apply`, then `npm run types:db`). Until then the
+  tracked-upgrades read fails soft: Base details and Home show the export as the
+  game took it, and Start returns an error.
+- **Check the TH weapon field on a real export.** The parser reads an optional
+  `weapon` on the Town Hall row; if a real TH17 export names it differently, the
+  weapon line simply does not appear.
+- **Phase E of the plan** — letting the daily API reading confirm a tracked hero or
+  lab upgrade — is not built.
 
 ---
 

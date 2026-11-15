@@ -70,6 +70,8 @@ const rowSchema = z.looseObject({
   timer: z.number().optional(),
   gear_up: z.union([z.boolean(), z.number()]).optional(),
   supercharge: z.number().optional(),
+  /** Town Hall row only: the weapon's level. */
+  weapon: z.number().optional(),
 });
 
 const rows = z.array(rowSchema).optional();
@@ -162,7 +164,8 @@ const SECTION_GROUP: Record<string, UnitGroup> = {
 
 export function mapVillageExport(raw: RawExport, now: Date = new Date()): ExportedVillage {
   const exportedAt = raw.timestamp ?? now.getTime() / 1000;
-  const thLevel = raw.buildings?.find((b) => b.data === TOWN_HALL_ID)?.lvl;
+  const townHall = raw.buildings?.find((b) => b.data === TOWN_HALL_ID);
+  const thLevel = townHall?.lvl;
   const bhLevel = raw.buildings2?.find((b) => b.data === BUILDER_HALL_ID)?.lvl;
   const hallFor = (village: Village) => (village === "home" ? thLevel : bhLevel);
 
@@ -265,6 +268,7 @@ export function mapVillageExport(raw: RawExport, now: Date = new Date()): Export
     exportedAt: new Date(exportedAt * 1000).toISOString(),
     thLevel: thLevel ?? null,
     bhLevel: bhLevel ?? null,
+    thWeapon: townHall?.weapon ?? null,
     buildings: [...buildings.values()],
     units,
     upgrades: upgrades.sort((a, b) => a.remainingSeconds - b.remainingSeconds),

@@ -1,0 +1,232 @@
+// "Upgrades left" — every upgrade a base still has for its hall, with prices.
+//
+// SERVER ONLY: it reads the price table (src/data/game/costs.ts). Base details
+// calls it after the overlay, so a level that finished a minute ago is already
+// gone from the list, and hands the browser plain items.
+//
+// WHAT COUNTS AS "LEFT", AND WHAT DOES NOT
+//
+//   - Every instance below this hall's cap, one line per subject and level:
+//     "Cannon 19 → 20 ×3" and "Cannon 20 → 21 ×4" are two lines, because they
+//     are two different jobs with different prices.
+//   - Buildings this hall allows that are not built yet, from the per-hall
+//     counts in buildings.json, after merges: two Cannons that became a
+//     Ricochet Cannon are not "missing".
+//   - Merges still to do ("Merge 2 × Archer Tower"), and units the hall allows
+//     that are not unlocked yet.
+//   - The Town Hall weapon, when the export says what level it is.
+//
+//   NOT the halls themselves (the yardstick everything else is measured
+//   against), super troops (their level is the base troop's), traps that are
+//   not built (the data has no trap counts), and anything above the data's cap,
+//   which can only mean the data is behind the game.
+
+import {
+  buildingByName,
+  buildingsOf,
+  capAt,
+  countAt,
+  lockedUnits,
+  townHallWeaponCap,
+  type GameBuilding,
+} from "@/data/game";
+import { upgradeStep, weaponAt, type SubjectType } from "@/data/game/costs";
+import {
+  highestLevel,
+  secondsLeft,
+  upgradeSubject,
+  workshopOf,
+  type Workshop,
+} from "@/services/village";
+import type { PricedStep, RemainingItem, Running, UpgradeTab } from "@/services/upgrade-time";
+import type { Village } from "@/types/domain";
+import type { ExportedVillage } from "@/types/village";
+
+/** Never measured against a hall: they ARE the hall. */
+const HALL_KINDS = new Set(["Town Hall", "Town Hall2"]);
+/** Bought with gems or given, never "missing" from a base. */
+const NOT_COUNTED_KINDS = new Set(["Worker", "Worker2", "Helper", "trap"]);
+
+function steps(type: SubjectType, name: string, village: Village, from: number, cap: number): Array<PricedStep | null> {
+  const out: Array<PricedStep | null> = [];
+  // A unit's level 1 comes with the building that unlocks it, so its first
+  // priced step is level 2 even when the unit is not unlocked yet.
+  const first = type === "unit" ? Math.max(from, 1) + 1 : from + 1;
+  for (let level = first; level <= cap; level++) out.push(upgradeStep(type, name, village, level));
+  // Builder Base troops unlocked late START at a high level (a Hog Glider is
+  // level 15 when it arrives), so the levels below that are not steps at all.
+  if (type === "unit" && from <= 1) {
+    const start = out.findIndex((s) => s !== null);
+    return start > 0 ? out.slice(start) : out;
+  }
+  return out;
+}
+
+const keyOf = (type: SubjectType, village: Village, name: string, from: number) =>
+  `${type}:${village}:${name}:${from}`;
+
+/** How many timers are running at `now`, by subject and from-level. */
+function runningAt(village: ExportedVillage, which: Village, now: Date): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const u of village.upgrades) {
+    if (u.village !== which || secondsLeft(u, now) === 0) continue;
+    const k = `${u.name}:${u.fromLevel}`;
+    out.set(k, (out.get(k) ?? 0) + 1);
+  }
+  return out;
+}
+
+function unitTab(workshop: Workshop | null, group: string): UpgradeTab {
+  if (group === "equipment") return "equipment";
+  return workshop ?? "lab";
+}
+
+export function remainingUpgrades(village: ExportedVillage, which: Village, now: Date): RemainingItem[] {
+  const hall = (which === "home" ? village.thLevel : village.bhLevel) ?? undefined;
+  if (!hall) return [];
+
+  const items: RemainingItem[] = [];
+  const running = runningAt(village, which, now);
+  const busyAt = (name: string, level: number) => running.get(`${name}:${level}`) ?? 0;
+
+  // ── Buildings the base has ───────────────────────────────────────────────
+  const have = new Map<string, number>();
+  for (const b of village.buildings) {
+    if (b.village !== which) continue;
+    have.set(b.name, (have.get(b.name) ?? 0) + b.count);
+    if (HALL_KINDS.has(b.kind)) continue;
+
+    const data = buildingByName(b.name, which);
+    const cap = (data && capAt(data.caps, hall)) || b.cap;
+    if (!cap || highestLevel(b) > cap) continue;
+    const wall = b.kind === "Wall";
+
+    for (const [lvl, n] of Object.entries(b.levels)) {
+      const level = Number(lvl);
+      if (level >= cap || n <= 0) continue;
+      const busy = Math.min(n, busyAt(b.name, level));
+      items.push({
+        key: keyOf("building", which, b.name, level),
+        subjectType: "building",
+        name: b.name,
+        village: which,
+        kind: b.kind,
+        tab: wall ? "walls" : "builders",
+        workshop: wall ? null : "builders",
+        fromLevel: level,
+        cap,
+        idle: n - busy,
+        busy,
+        action: "upgrade",
+        steps: steps("building", b.name, which, level, cap),
+      });
+    }
+  }
+
+  // ── Buildings this hall allows that are not built, after merges ──────────
+  const all = buildingsOf(which);
+  const merged = all.filter((m) => m.merge);
+  const consumed = (name: string) =>
+    merged.reduce(
+      (n, m) => n + (have.get(m.name) ?? 0) * (m.merge!.find((x) => x.name === name)?.n ?? 0),
+      0,
+    );
+  for (const data of all) {
+    if (HALL_KINDS.has(data.kind) || NOT_COUNTED_KINDS.has(data.kind)) continue;
+    const expected = countAt(data, hall) ?? 0;
+    const cap = capAt(data.caps, hall) ?? 0;
+    if (expected <= 0 || cap <= 0) continue;
+
+    const missing = expected - (have.get(data.name) ?? 0) - consumed(data.name);
+    if (missing <= 0) continue;
+    const busy = Math.min(missing, busyAt(data.name, 0));
+    items.push(missingItem(data, which, cap, missing - busy, busy));
+  }
+
+  // ── The Town Hall weapon ──────────────────────────────────────────────────
+  const weaponCap = which === "home" ? townHallWeaponCap(hall) : null;
+  const weapon = which === "home" ? weaponAt(hall) : null;
+  const weaponLevel = village.thWeapon;
+  if (weaponCap && weapon && typeof weaponLevel === "number" && weaponLevel < weaponCap) {
+    const busy = Math.min(1, busyAt(weapon, weaponLevel));
+    items.push({
+      key: keyOf("weapon", which, weapon, weaponLevel),
+      subjectType: "weapon",
+      name: weapon,
+      village: which,
+      kind: "Town Hall",
+      tab: "builders",
+      workshop: "builders",
+      fromLevel: weaponLevel,
+      cap: weaponCap,
+      idle: 1 - busy,
+      busy,
+      action: "upgrade",
+      steps: steps("weapon", weapon, which, weaponLevel, weaponCap),
+    });
+  }
+
+  // ── Units: heroes, troops, spells, pets, equipment ───────────────────────
+  const present = village.units.filter((u) => u.village === which);
+  const locked = lockedUnits(present, village.thLevel ?? undefined, village.bhLevel ?? undefined).filter(
+    (u) => u.village === which,
+  );
+  for (const u of [...present, ...locked]) {
+    if (u.group === "superTroop" || !u.capKnown || u.level >= u.cap) continue;
+    const workshop = workshopOf({ type: "unit", group: u.group });
+    const isLocked = u.level === 0;
+    const busy = isLocked ? 0 : Math.min(1, busyAt(u.name, u.level));
+    items.push({
+      key: keyOf("unit", which, u.name, u.level),
+      subjectType: "unit",
+      name: u.name,
+      village: which,
+      group: u.group,
+      ...(u.hero ? { hero: u.hero } : {}),
+      tab: unitTab(workshop, u.group),
+      workshop,
+      fromLevel: u.level,
+      cap: u.cap,
+      idle: 1 - busy,
+      busy,
+      action: "upgrade",
+      ...(isLocked ? { locked: true } : {}),
+      steps: steps("unit", u.name, which, u.level, u.cap),
+    });
+  }
+
+  return items;
+}
+
+function missingItem(data: GameBuilding, which: Village, cap: number, idle: number, busy: number): RemainingItem {
+  const wall = data.kind === "Wall";
+  return {
+    key: keyOf("building", which, data.name, 0),
+    subjectType: "building",
+    name: data.name,
+    village: which,
+    kind: data.kind,
+    tab: wall ? "walls" : "builders",
+    workshop: wall ? null : "builders",
+    fromLevel: 0,
+    cap,
+    idle,
+    busy,
+    action: data.merge ? "merge" : "build",
+    ...(data.merge ? { merge: data.merge } : {}),
+    steps: steps("building", data.name, which, 0, cap),
+  };
+}
+
+/** Seconds left on every running timer, per workshop — the scheduler's starting load. */
+export function runningLoads(village: ExportedVillage, which: Village, now: Date): Running {
+  const out: Running = { builders: [], lab: [], pets: [] };
+  for (const u of village.upgrades) {
+    if (u.village !== which) continue;
+    const left = secondsLeft(u, now);
+    if (left === 0) continue;
+    const w = u.workshop ?? workshopOf(upgradeSubject(village, u));
+    if (w) out[w].push(left);
+  }
+  return out;
+}

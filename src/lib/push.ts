@@ -44,7 +44,11 @@ export type NotificationKind =
   // T12.2 — a message from leadership to one account. Its own kind rather than
   // riding on 'announcements', so muting clan notices cannot silently suppress
   // the one notification that is about the member personally (039).
-  | "direct_messages";
+  | "direct_messages"
+  // 079 — an upgrade timer the member started on Base details has ended. Owner
+  // only and clan-less, so scripts/sync/upgrade-reminders.ts sends it directly
+  // rather than through push_targets().
+  | "upgrade_reminders";
 
 /**
  * What the service worker receives.
