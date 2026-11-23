@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import costsFile from "./upgrade-costs.json";
-import { buildingByName, countAt, findUnit, GROUP_ORDER } from "@/data/game";
+import { buildingByName, countAt, findUnit, GROUP_ORDER, maxCap } from "@/data/game";
 import { upgradeStep, weaponAt } from "@/data/game/costs";
 import buildingsFile from "./buildings.json";
 import unitsFile from "./units.json";
@@ -69,7 +69,7 @@ describe("coverage — every level the caps allow has a price", () => {
   it("prices every building and trap level up to its highest cap", () => {
     const missing: string[] = [];
     for (const b of buildingsFile.buildings) {
-      const max = Math.max(...b.caps);
+      const max = maxCap(b.caps);
       if (max < 1 || b.kind.startsWith("Town Hall")) continue;
       const row = byKey.get(`building:${b.village}:${b.name}`);
       for (let L = 1; L <= max; L++) if (!row?.levels[L - 1]) missing.push(`${b.name} ${L}`);
@@ -80,7 +80,7 @@ describe("coverage — every level the caps allow has a price", () => {
   it("prices every unit level above the first one it can have", () => {
     const missing: string[] = [];
     for (const u of unitsFile.units) {
-      const max = Math.max(...u.caps);
+      const max = maxCap(u.caps);
       if (u.group === "superTroop" || max < 2) continue;
       const row = byKey.get(`unit:${u.village}:${u.name}`);
       if (!row) {

@@ -160,6 +160,58 @@ describe("matchArtKey — buildings and traps", () => {
   });
 });
 
+// The 2026-11 asset zips (TH19): renders named by hand, with no "Building" and
+// with words run together. Each was checked against its picture.
+describe("matchArtKey — the 2026-11 asset zips", () => {
+  it("files a building whose name has no 'Building' in it", () => {
+    expect(key("X-Bow_lvl14.png")).toBe("building-x-bow");
+    expect(key("Hidden_Tesla_lvl18.png")).toBe("building-hidden-tesla");
+    expect(key("pet_house_level_12.png")).toBe("building-pet-house");
+    expect(key("hero_hall_lvl_11.png")).toBe("building-hero-hall");
+    expect(key("squad_barracks_lvl12.png")).toBe("building-squad-barracks");
+    expect(key("Giga_Bomb_HV_02_nograss.png")).toBe("trap-giga-bomb");
+    expect(key("firespitter_lvl2.png")).toBe("building-firespitter");
+  });
+
+  it("splits a level word glued to the name", () => {
+    expect(words("Building_HV_elixir_Collectorlevel_18.png")).toEqual(["building", "hv", "elixir", "collector", "level", "18"]);
+    expect(key("Building_HV_elixir_Collectorlevel_18.png")).toBe("building-elixir-collector");
+  });
+
+  it("reads the kit's own names for buildings", () => {
+    expect(key("BuilderHut_lvl9.png")).toBe("building-builders-hut");
+    expect(key("Building_HV_Builder_Hut_Level_7.png")).toBe("building-builders-hut");
+    expect(key("CAT_cannon_multi_gear_lvl4.png")).toBe("building-multi-gear-tower");
+    expect(key("CAT_archer_lvl2_2k.png")).toBe("building-multi-gear-tower");
+    expect(key("Building_HV_Merged_Wizard_Tower_lvl2.png")).toBe("building-super-wizard-tower");
+  });
+
+  it("reads run-together unit names, squads and the kit's 'Equipement'", () => {
+    expect(key("hogrider_lvl_16.png")).toBe("troop-hog-rider");
+    expect(key("meteorgolem_lvl04.png")).toBe("troop-meteor-golem");
+    expect(key("icon_barcher_squad.png")).toBe("troop-barch-squad");
+    expect(key("info_squad_giant_wizard.png")).toBe("troop-giant-wizard-squad");
+    expect(key("Hero_Equipement_portal_pendant.png")).toBe("equipment-portal-pendant");
+  });
+
+  it("leaves a plain troop file to the troop, and an unknown building unused", () => {
+    expect(key("witch_lvl_9.png")).toBe("troop-witch");
+    // Not in the game data yet: no id, so no key — never a near miss.
+    expect(key("Spiky_Tower_lvl2.png")).toBeNull();
+    expect(key("guardian_shrine_lvl1_4k.png")).toBeNull();
+    expect(key("B.O.T.O_hut.png")).toBeNull();
+    expect(key("Building_HV_Altar_Barbarian_King_sleeping.png")).toBeNull();
+  });
+
+  it("takes the plain TH19 render over the one with a wizard posed on it", () => {
+    expect(key("TH19_Wizard_Render_Ingame.png")).toBe("th-19");
+    expect(key("TH19_building_base_003.png")).toBe("th-19");
+    expect(
+      comparePreference(preference("TH19_building_base_003.png"), preference("TH19_Wizard_Render_Ingame.png")),
+    ).toBeGreaterThan(0);
+  });
+});
+
 describe("folderFor", () => {
   it("files every family under its own folder", () => {
     expect(folderFor("th-17")).toBe("townhall");

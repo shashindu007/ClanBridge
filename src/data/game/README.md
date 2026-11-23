@@ -13,8 +13,8 @@ and this folder is where it is kept.
 
 | File | Holds | From |
 |---|---|---|
-| `units.json` | Heroes, equipment, pets, troops, super troops, sieges, spells, guardians, Builder Base units. Each has its group, its export id, and its cap at every hall level. | clashofclans.js `raw.json`; guardians from coc.py |
-| `buildings.json` | Buildings and traps: export id, type, cap at every hall level, Town Hall weapon levels, how many each hall allows (`counts`), and what a merged building consumes (`merge`) | coc.py `static_data.json` |
+| `units.json` | Heroes, equipment, pets, troops, super troops, squads, sieges, spells, guardians, Builder Base units. Each has its group, its export id, and its cap at every hall level. | clashofclans.js 5.x `units.json`; Builder Base units from clashofclans.js 4.0.5 `raw.json`; guardians from coc.py |
+| `buildings.json` | Buildings and traps: export id, type, cap at every hall level, Town Hall weapon levels, how many each hall allows (`counts`), and what a merged building consumes (`merge`) | coc.py `static_data.json`; the army buildings (Barracks, Hero Hall, Squad Barracks …) from clashofclans.js 5.x `buildings.json` |
 | `upgrade-costs.json` | The price and duration of reaching every level of every building, trap, unit, piece of equipment and the TH weapon | both (see below) |
 | `index.ts` | Typed lookups and `resolveUnit()` — browser-safe | — |
 | `costs.ts` | `upgradeStep()` over `upgrade-costs.json` — **server only**, so the 66 KB table never ships to the browser | — |
@@ -28,10 +28,10 @@ that is settled, so no caller has to know.
 
 | What | Source | Note |
 |---|---|---|
-| Buildings, traps, walls, TH weapon | coc.py `build_cost` / `build_time` | Walls carry `alt` / `altFrom`: payable in elixir from level 5 |
-| Home troops, spells, sieges, heroes, pets | clashofclans.js `upgrade.cost` / `time` | Newer (Barbarian King to 110); coc.py fills a gap |
+| Buildings, traps, walls, TH weapon | coc.py `build_cost` / `build_time`; clashofclans.js for the army buildings and the Town Hall (TH19's price) | Walls carry `alt` / `altFrom`: payable in elixir from level 5 |
+| Home troops, squads, spells, sieges, heroes, pets | clashofclans.js 5.x `upgrade_cost` / `upgrade_time` | Priced as the cost of REACHING a level, like buildings |
 | Builder Base troops and heroes, guardians | coc.py `upgrade_cost` / `upgrade_time` | Indexed by troop level. A late troop STARTS high (Hog Glider at 15), so its lower levels have no price, correctly |
-| Equipment | clashofclans.js `upgrade.resources` | Ores (shiny, glowy, starry); instant |
+| Equipment | clashofclans.js 5.x `upgrade_cost` ores | Ores (shiny, glowy, starry); instant |
 | Super troops | — | Their level follows the base troop |
 
 A unit's level 1 is never priced: the building that unlocks it gives it. A new
@@ -61,16 +61,54 @@ contains artwork.
 The script refuses to write anything if the two sources disagree about any
 unit's export id.
 
+## Which source wins, and where they disagree
+
+clashofclans.js is the newer source and decides how many halls there are
+(`homeHalls`). Where it has a building or unit, its caps and prices are used.
+Two exceptions, both kept on purpose:
+
+- **When a building unlocks.** clashofclans.js 5.1.19 gives the Hero Hall
+  level 1 at TH4; the game, and coc.py, unlock it at TH7. Where coc.py says a
+  building does not exist yet at a hall it covers, it stays 0. Unlock halls
+  are stable across updates; it is the level caps that move.
+- **The Builder Base.** clashofclans.js 5.x lost the Builder Base 2.0 rule
+  that a late troop starts high (Bomber at 5 on BH3), so Builder Base units
+  still come from 4.0.5's `raw.json`. TH19 did not change the Builder Base.
+
+Seasonal event units (`is_seasonal`) are left out: they are never upgraded,
+and two of them share a name with a real unit (Meteor Golem).
+
+The run prints every army building whose caps differ from coc.py's, which is
+the list of what a game update changed.
+
 ## When the data is behind the game
 
-Nothing breaks. `resolveUnit()` falls back to the API's game maximum and sets
+A **new Town Hall** reaches the game before coc.py has every building's cap for
+it. Those caps are `null` in `buildings.json`: "the game has this hall, the
+data does not know the cap yet". They are never copied forward from the hall
+below. `capAt()` returns that null, `hallFullyKnown()` says whether a hall is
+fully covered (`BUILDING_HALLS` is the last one that is), and:
+
+- the export marks such a building `capPending` and leaves it out of every
+  percentage; a base with nothing else to measure shows "—", not 100%
+- the upgrade tracker leaves it out of "Upgrades left" and says how many
+  items it cannot list yet — "Not known yet", never "Maxed"
+
+A **saved export** is re-read against the current data every time it is
+loaded (`refreshVillage()` in `src/integration/village-export.ts`, called by
+the repository): an "Unknown #id" the data has since learned gets its name,
+and every cap is worked out again. Nobody has to upload again after a refresh.
+
+For units, `resolveUnit()` falls back to the API's game maximum and sets
 `capKnown: false` in three cases:
 
 - the unit is newer than the data
 - the hall level is unknown
 - the player is **above** the data's cap, which can only mean the data is stale
 
-The page marks those units instead of showing a percentage it cannot stand behind.
+The page marks those units instead of showing a percentage it cannot stand
+behind, never draws them as maxed, and leaves a unit at or above such a
+stand-in cap out of the totals.
 
 Stored snapshots (`player_progress`, migration 036) keep the cap that was applied
 **at capture time**, so refreshing this data never re-scores history.

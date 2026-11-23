@@ -58,7 +58,10 @@ export function averageTh(levels: ReadonlyArray<number | null | undefined>): num
 /** The enemy lineup's weight. An unknown lineup counts as an easy one: 1.00. */
 export function thWeight(average: number | null, maxTh: number = HOME_HALLS): number {
   if (average === null) return TH_FLOOR;
-  return round2(Math.max(TH_FLOOR, TH_TOP - TH_STEP * (maxTh - average)));
+  // A lineup above the data's top hall (a new Town Hall the data has not
+  // caught up with) is the top hall, never more than TH_TOP.
+  const capped = Math.min(average, maxTh);
+  return round2(Math.max(TH_FLOOR, TH_TOP - TH_STEP * (maxTh - capped)));
 }
 
 /** A CWL day: the league's weight times the day's enemy lineup's. */

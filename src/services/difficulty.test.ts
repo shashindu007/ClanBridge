@@ -45,6 +45,9 @@ describe("thWeight", () => {
   it("counts an unknown lineup as an easy one, and moves with a new top hall", () => {
     expect(thWeight(null)).toBe(1);
     expect(thWeight(18, 19)).toBe(1.7);
+    // Above the top hall the data knows: the top, never more.
+    expect(thWeight(19, 18)).toBe(1.85);
+    expect(thWeight(20, 19)).toBe(1.85);
   });
 });
 
@@ -58,17 +61,19 @@ describe("averageTh", () => {
 
 describe("a war's and a day's weight", () => {
   it("is the enemy Town Hall for a war", () => {
-    expect(warWeight([18, 18, 17])).toBe(1.8);
+    // TH19 is the top hall since the TH19 update: an 17.67 average is 1.33 below it.
+    expect(warWeight([18, 18, 17])).toBe(1.65);
+    expect(warWeight([19, 19])).toBe(1.85);
     expect(warWeight([])).toBe(1);
   });
 
   it("is the league times the enemy Town Hall for a CWL day", () => {
-    expect(dayWeight("Champion League I", [17, 17])).toBe(3.06);
+    expect(dayWeight("Champion League I", [17, 17])).toBe(2.79);
     expect(dayWeight("Silver League II", [12, 12])).toBe(0.5);
-    // Half a hall up still counts a little: 12.5 is 1.03, so 0.515.
-    expect(dayWeight("Silver League II", [12, 13])).toBe(0.52);
+    // Just above the floor still counts a little: 13.75 is 1.06 (top TH19), so 0.53.
+    expect(dayWeight("Silver League II", [13, 14, 14, 14])).toBe(0.53);
     // No league recorded: neither help nor harm.
-    expect(dayWeight(null, [18])).toBe(1.85);
+    expect(dayWeight(null, [18])).toBe(1.7);
   });
 });
 
@@ -100,7 +105,7 @@ describe("weightedMonth", () => {
     const minnow = weightedMonth([unit(10, 7)], [dayWeight("Silver League II", [12])], [true]);
     const max = weightedMonth([unit(10, 7)], [dayWeight("Champion League I", [17])], [true]);
     expect(minnow.rating).toBe(5);
-    expect(max.rating).toBe(30.6);
+    expect(max.rating).toBe(27.9);
   });
 });
 

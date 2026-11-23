@@ -18,8 +18,14 @@ export interface ExportedBuilding {
   village: Village;
   /** "Defense", "Resource", "Army", "Wall", "Worker", "trap", … */
   kind: string;
-  /** Max level at this village's hall, or null when the data does not know the building. */
+  /** Max level at this village's hall, or null when there is nothing to measure against. */
   cap: number | null;
+  /**
+   * True when the cap is still to come: the building is newer than the game
+   * data, or its cap at this hall is not known yet (TH19 while the data stops
+   * at TH18). Such a building is "not known yet", never maxed.
+   */
+  capPending?: boolean;
   count: number;
   /** Instances at each level, e.g. walls { 16: 120, 17: 205 }. */
   levels: Record<number, number>;

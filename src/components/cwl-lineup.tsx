@@ -29,7 +29,7 @@ export function HeroLevels({ heroes, compact = false }: { heroes: HeroLevel[]; c
   return (
     <span className="flex flex-wrap gap-1" aria-label="Hero levels">
       {heroes.map((h) => {
-        const maxed = h.level >= h.cap;
+        const maxed = h.capKnown !== false && h.level >= h.cap;
         return (
           <span
             key={h.short}

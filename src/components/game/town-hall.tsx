@@ -30,8 +30,9 @@ const NUMBER_TEXT: Record<Size, string> = {
 
 /**
  * A hint of each hall's material, as a stripe on the chip — stone for the
- * early halls, then lava, white-and-gold, blue, ice, green, violet, orange and
- * red as the game has painted them. DECORATION: the number carries the meaning,
+ * early halls, then lava, white-and-gold, blue, ice, green, violet, orange,
+ * teal (TH17), blue-violet (TH18) and black (TH19) as the game has painted
+ * them. DECORATION: the number carries the meaning,
  * and the stripe only makes a column of them easier to scan.
  */
 export function townHallTone(level: number): string {
@@ -45,6 +46,9 @@ export function townHallTone(level: number): string {
   if (level === 14) return "oklch(0.62 0.15 150)";
   if (level === 15) return "oklch(0.52 0.18 300)";
   if (level === 16) return "oklch(0.7 0.14 60)";
+  if (level === 17) return "oklch(0.48 0.07 195)";
+  if (level === 18) return "oklch(0.6 0.14 280)";
+  if (level === 19) return "oklch(0.32 0.02 70)";
   return "oklch(0.55 0.2 25)";
 }
 

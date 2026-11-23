@@ -20,6 +20,7 @@ import {
   PawPrint,
   Shield,
   Swords,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,7 @@ const GROUP_TONE: Record<UnitGroup, string> = {
   elixirTroop: "oklch(0.56 0.18 340)",
   darkTroop: "oklch(0.42 0.12 300)",
   superTroop: "oklch(0.6 0.17 45)",
+  squad: "oklch(0.52 0.14 20)",
   siege: "oklch(0.48 0.05 80)",
   elixirSpell: "oklch(0.56 0.16 260)",
   darkSpell: "oklch(0.4 0.12 285)",
@@ -58,6 +60,7 @@ const GROUP_GLYPH: Record<UnitGroup, LucideIcon> = {
   elixirTroop: Swords,
   darkTroop: Swords,
   superTroop: Flame,
+  squad: Users,
   siege: Hammer,
   elixirSpell: FlaskConical,
   darkSpell: FlaskConical,

@@ -29,6 +29,7 @@ import { dayLabel } from "@/components/player-report-sections";
 import type { BaseProgress } from "@/repositories/player-progress";
 import { UPGRADE_WINDOW_DAYS } from "@/repositories/player-progress";
 import {
+  atCap,
   behindPreviousHall,
   counts,
   groupProgress,
@@ -59,9 +60,12 @@ export function villageParam(value: string | string[] | undefined): Village {
   return value === "builder" ? "builder" : "home";
 }
 
-/** At the cap for this hall. A unit with no cap here has nothing to reach. */
+/**
+ * At the cap for this hall. A unit with no cap here has nothing to reach, and a
+ * unit whose cap is not known (the data is behind the game) is never maxed.
+ */
 export function isMaxed(unit: StoredUnit): boolean {
-  return unit.cap > 0 && unit.level >= unit.cap;
+  return atCap(unit);
 }
 
 export function BaseDetails({ progress, village, path, switcher = true, banner = true }: BaseDetailsProps) {
@@ -193,7 +197,9 @@ export function BaseDetails({ progress, village, path, switcher = true, banner =
                   <span className="text-sm leading-tight">
                     <span className="block font-medium">{u.name}</span>
                     <span className="text-muted-foreground text-xs tabular-nums">
-                      {u.level === 0 ? "locked" : `level ${u.level} of ${u.cap}`}
+                      {u.level === 0
+                        ? "locked"
+                        : `level ${u.level} of ${!u.capKnown && u.level >= u.cap ? "?" : u.cap}`}
                     </span>
                   </span>
                 </li>
@@ -375,7 +381,7 @@ function UnitCard({ unit, showBar }: { unit: StoredUnit; showBar: boolean }) {
           maxed ? "text-foreground font-semibold" : "text-muted-foreground",
         )}
       >
-        {locked ? "locked" : `${unit.level} / ${unit.cap}`}
+        {locked ? "locked" : `${unit.level} / ${!unit.capKnown && unit.level >= unit.cap ? "?" : unit.cap}`}
         {maxed && <span className="sr-only"> — maxed</span>}
       </p>
       {showBar && !locked && (

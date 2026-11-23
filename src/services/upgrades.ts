@@ -96,8 +96,12 @@ export function remainingUpgrades(village: ExportedVillage, which: Village, now:
     have.set(b.name, (have.get(b.name) ?? 0) + b.count);
     if (HALL_KINDS.has(b.kind)) continue;
 
+    // The data's cap, not the one saved with the export, which may be from
+    // older data. null/undefined from the data is "not known yet" (TH19 before
+    // coc.py has it): left out here, and counted by pendingCount() instead —
+    // never the saved cap, and never treated as maxed.
     const data = buildingByName(b.name, which);
-    const cap = (data && capAt(data.caps, hall)) || b.cap;
+    const cap = data ? capAt(data.caps, hall) : b.capPending ? null : b.cap;
     if (!cap || highestLevel(b) > cap) continue;
     const wall = b.kind === "Wall";
 
@@ -126,11 +130,25 @@ export function remainingUpgrades(village: ExportedVillage, which: Village, now:
   // ── Buildings this hall allows that are not built, after merges ──────────
   const all = buildingsOf(which);
   const merged = all.filter((m) => m.merge);
-  const consumed = (name: string) =>
-    merged.reduce(
-      (n, m) => n + (have.get(m.name) ?? 0) * (m.merge!.find((x) => x.name === name)?.n ?? 0),
-      0,
-    );
+  // How many of `name` the merged buildings this base has were made from —
+  // all the way down, so a merge of a merge still accounts for the Cannons
+  // its parts were made of.
+  const consumed = (name: string, seen: ReadonlySet<string> = new Set()): number =>
+    merged.reduce((n, m) => {
+      const per = m.merge!.find((x) => x.name === name)?.n ?? 0;
+      if (per === 0 || seen.has(m.name)) return n;
+      const made = (have.get(m.name) ?? 0) + consumed(m.name, new Set([...seen, name]));
+      return n + made * per;
+    }, 0);
+  // Sources at their merge level, shared by every merge on the list: two
+  // merges that both take level-21 Cannons (Ricochet Cannon, Multi-Gear Tower)
+  // cannot both be offered the same Cannons.
+  const pool = new Map<string, number>();
+  const poolOf = (name: string, level: number) => {
+    const key = `${name}:${level}`;
+    if (!pool.has(key)) pool.set(key, readyAt(village, which, name, level, now));
+    return key;
+  };
   for (const data of all) {
     if (HALL_KINDS.has(data.kind) || NOT_COUNTED_KINDS.has(data.kind)) continue;
     const expected = countAt(data, hall) ?? 0;
@@ -146,10 +164,21 @@ export function remainingUpgrades(village: ExportedVillage, which: Village, now:
     // Cannons at 21 for a Ricochet Cannon. Merges already running have not
     // consumed theirs yet (that happens when they finish), so they are set aside.
     if (data.merge) {
+      // Merges already running have not consumed their sources yet.
+      for (const m of data.merge) {
+        const key = poolOf(m.name, m.level);
+        pool.set(key, Math.max(0, pool.get(key)! - busy * m.n));
+      }
       const ready = Math.min(
-        ...data.merge.map((m) => Math.floor(readyAt(village, which, m.name, m.level, now) / m.n)),
+        missing - busy,
+        ...data.merge.map((m) => Math.floor(pool.get(poolOf(m.name, m.level))! / m.n)),
       );
-      if (ready - busy < 1) {
+      for (const m of data.merge) {
+        const key = poolOf(m.name, m.level);
+        pool.set(key, pool.get(key)! - ready * m.n);
+      }
+      item.ready = Math.max(0, ready);
+      if (ready < 1) {
         item.blocked = `Needs ${data.merge.map((m) => `${m.n} × ${m.name} at level ${m.level}`).join(" and ")}`;
       }
     }
@@ -240,6 +269,25 @@ function missingItem(data: GameBuilding, which: Village, cap: number, idle: numb
     ...(data.merge ? { merge: data.merge } : {}),
     steps: steps("building", data.name, which, 0, cap),
   };
+}
+
+/**
+ * How many things in this village the tracker cannot list because the game
+ * data has not caught up: buildings whose cap at this hall is unknown (TH19
+ * while coc.py stops at TH18) and units newer than, or above, the data. When
+ * this is above zero, an empty list does NOT mean the base is maxed.
+ *
+ * Base details works it out on the server beside remainingUpgrades() and
+ * hands the number to the tracker.
+ */
+export function pendingCount(village: ExportedVillage, which: Village): number {
+  const buildings = village.buildings.filter(
+    (b) => b.village === which && b.capPending && !HALL_KINDS.has(b.kind),
+  ).length;
+  const units = village.units.filter(
+    (u) => u.village === which && u.group !== "superTroop" && !u.capKnown && u.level > 0,
+  ).length;
+  return buildings + units;
 }
 
 /** Seconds left on every running timer, per workshop — the scheduler's starting load. */

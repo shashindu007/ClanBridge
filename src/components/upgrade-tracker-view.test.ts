@@ -89,6 +89,11 @@ describe("WorkshopBoard", () => {
   it("shows the lab as a slot of its own", () => {
     expect(html).toContain("Laboratory is free");
   });
+
+  it("draws the free builder and the lab as their Fan Kit buildings", () => {
+    expect(html).toContain("/game/buildings/building-builders-hut.webp");
+    expect(html).toContain("/game/buildings/building-laboratory.webp");
+  });
 });
 
 describe("TotalsHeader", () => {
@@ -116,6 +121,24 @@ describe("TotalsHeader", () => {
       }),
     );
     expect(html).toContain("Maxed");
+  });
+
+  // TH19 before the data has every cap: nothing listed is not "maxed".
+  it("says Not known yet, never Maxed, while caps are still to come", () => {
+    const html = render(
+      createElement(TotalsHeader, {
+        totals: remainingTotals([], { builders: 3, boostPct: 0, running }),
+        pending: 4,
+        hallLabel: "Town Hall 19",
+        builders: 3,
+        boost: 0,
+        has: ["builders"],
+      }),
+    );
+    expect(html).toContain("Not known yet");
+    expect(html).not.toContain("Maxed");
+    expect(html).toContain("not in the");
+    expect(html).toContain("They are not maxed");
   });
 });
 
@@ -163,6 +186,23 @@ describe("UpgradesPanel and its rows", () => {
     expect(html).toContain("Upgrades left");
     expect(html).toContain("Walls");
     expect(html).toContain("Nothing left here for Town Hall 17");
+  });
+
+  it("does not call an empty list done while caps are still to come", () => {
+    const html = render(
+      createElement(UpgradesPanel, {
+        items: [],
+        tabs: [],
+        tab: "builders",
+        sort: "quickest",
+        boost: 0,
+        hallLabel: "Town Hall 19",
+        pending: 4,
+        totals: null,
+      }),
+    );
+    expect(html).not.toContain("Nothing left here");
+    expect(html).toContain("this is not maxed");
   });
 });
 

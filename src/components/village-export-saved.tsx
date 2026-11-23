@@ -36,7 +36,7 @@ export interface SavedVillageExportProps {
    * The upgrade tracker (079): what is left, with prices, and what is running.
    * Worked out on the server, after the overlay. Absent shows the export alone.
    */
-  tracker?: { items: RemainingItem[]; running: Running };
+  tracker?: { items: RemainingItem[]; running: Running; pending?: number };
 }
 
 export function SavedVillageExport({ tag, label, village, now, which = "home", tracker }: SavedVillageExportProps) {
@@ -126,6 +126,7 @@ export function SavedVillageExport({ tag, label, village, now, which = "home", t
               now={now}
               items={tracker.items}
               running={tracker.running}
+              pending={tracker.pending ?? 0}
             />
           )
         }

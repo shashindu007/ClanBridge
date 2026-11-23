@@ -57,6 +57,11 @@ export interface UpgradeTrackerProps {
   now: string;
   items: RemainingItem[];
   running: Running;
+  /**
+   * Things the tracker cannot list because the game data is behind the game
+   * (services/upgrades.ts pendingCount). Above zero, an empty list is not "maxed".
+   */
+  pending?: number;
 }
 
 function readBoost(): number {
@@ -80,7 +85,7 @@ function refOf(item: RemainingItem): UpgradeRef {
   return { village: item.village, subjectType: item.subjectType, name: item.name, fromLevel: item.fromLevel };
 }
 
-export function UpgradeTracker({ tag, village, which, now, items, running }: UpgradeTrackerProps) {
+export function UpgradeTracker({ tag, village, which, now, items, running, pending: dataPending = 0 }: UpgradeTrackerProps) {
   const router = useRouter();
   const clock = useMemo(() => new Date(now), [now]);
   const slots = useMemo(() => workshops(village, which, clock), [village, which, clock]);
@@ -220,9 +225,11 @@ export function UpgradeTracker({ tag, village, which, now, items, running }: Upg
         onStart={(item) => open(item, "start")}
         onMark={(item) => open(item, "mark")}
         hallLabel={hallLabel}
+        pending={dataPending}
         totals={
           <TotalsHeader
             totals={totals}
+            pending={dataPending}
             hallLabel={hallLabel}
             builders={builders}
             boost={boost}

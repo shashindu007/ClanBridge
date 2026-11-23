@@ -45,7 +45,14 @@ const GROUP_ORDER: BuildingGroupKey[] = ["defenses", "traps", "walls", "resource
 export interface BuildingTally {
   done: number;
   total: number;
-  pct: number;
+  /**
+   * Done of total, to one decimal. Null when nothing could be counted because
+   * the data has not caught up with the game (a TH19 base while the data stops
+   * at TH18) — never 100, which would call an unmeasured base finished.
+   */
+  pct: number | null;
+  /** Building types whose cap is still to come (ExportedBuilding.capPending). */
+  pending: number;
 }
 
 export interface BuildingGroup extends BuildingTally {
@@ -69,21 +76,24 @@ export function capTrusted(building: ExportedBuilding): building is ExportedBuil
   return building.cap !== null && highestLevel(building) <= building.cap;
 }
 
-function pct(done: number, total: number): number {
-  return total <= 0 ? 100 : Math.floor((done / total) * 1000) / 10;
+function pct(done: number, total: number, pending: number): number | null {
+  if (total <= 0) return pending > 0 ? null : 100;
+  return Math.floor((done / total) * 1000) / 10;
 }
 
 export function buildingTally(buildings: ExportedBuilding[]): BuildingTally {
   let done = 0;
   let total = 0;
+  let pending = 0;
   for (const b of buildings) {
+    if (b.capPending) pending++;
     if (!capTrusted(b)) continue;
     for (const [level, count] of Object.entries(b.levels)) {
       done += Math.min(Number(level), b.cap) * count;
       total += b.cap * count;
     }
   }
-  return { done, total, pct: pct(done, total) };
+  return { done, total, pct: pct(done, total, pending), pending };
 }
 
 export function buildingGroups(village: ExportedVillage, which: Village): BuildingGroup[] {
@@ -288,8 +298,13 @@ export interface ExportSummary {
   /** Whole days since the game took the export. */
   ageDays: number;
   stale: boolean;
-  /** Home village buildings against this Town Hall's caps. */
-  buildingsPct: number;
+  /**
+   * Home village buildings against this Town Hall's caps. Null when the game
+   * data cannot measure this hall yet (see buildingsPending).
+   */
+  buildingsPct: number | null;
+  /** Home building types whose cap the data does not know yet: TH19 before coc.py has it. */
+  buildingsPending: number;
   /** The highest wall level and how many walls are at it, of all walls. */
   walls: { level: number; atLevel: number; total: number } | null;
   /** Still running at `now`, soonest first. */
@@ -359,7 +374,9 @@ export function exportSummary(village: ExportedVillage, now: Date): ExportSummar
     ageDays,
     stale: ageDays >= STALE_EXPORT_DAYS,
     // The same buildings, and so the same %, as Base details' headline figure.
-    buildingsPct: buildingTally(buildingGroups(village, "home").flatMap((g) => g.buildings)).pct,
+    ...(({ pct, pending }) => ({ buildingsPct: pct, buildingsPending: pending }))(
+      buildingTally(buildingGroups(village, "home").flatMap((g) => g.buildings)),
+    ),
     walls,
     running: timed.filter((u) => u.secondsLeft > 0).sort((a, b) => a.secondsLeft - b.secondsLeft),
     finishedSince: (village.appliedSince ?? 0) + timed.filter((u) => u.secondsLeft === 0).length,

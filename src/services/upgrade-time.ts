@@ -50,6 +50,11 @@ export interface RemainingItem {
   merge?: Array<{ name: string; n: number; level: number }>;
   /** Why it cannot be started yet, e.g. a merge whose sources are not at the merge level. */
   blocked?: string;
+  /**
+   * A merge: how many could start now, from sources at the merge level that no
+   * running upgrade or earlier merge on this list has a claim on.
+   */
+  ready?: number;
   /** fromLevel + 1 up to cap. null where the data has no price for that level. */
   steps: Array<PricedStep | null>;
 }
