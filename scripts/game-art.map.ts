@@ -67,6 +67,24 @@ const KIT_NAMES: Record<string, string[][]> = {
   "Rocket Backpack": [["rocket", "back", "pack"]], // HG_DD_Rocket_BackPack
   "Stick Horse": [["stick", "fire", "horse"]], // HeroGear_BK_StickFireHorse
   "Stun Blaster": [["stun", "blast"]], // HG_DD_StunBlast
+  // Fan Kit 2026-11 (TH19) spells these as one word.
+  "Hog Rider": [["hogrider"]], // hogrider_lvl_16
+  "Lava Hound": [["lavahound"]], // lavahound_lvl_9
+  "Root Rider": [["rootrider"]], // rootrider_lvl_5
+  "Meteor Golem": [["meteorgolem"]], // meteorgolem_lvl04
+  "Barch Squad": [["barcher", "squad"]], // icon_barcher_squad
+  "Giant Wizard Squad": [["squad", "giant", "wizard"]], // info_squad_giant_wizard
+};
+
+/**
+ * The same, for buildings. Checked against the picture like KIT_NAMES: the
+ * kit's "CAT" is the Multi-Gear Tower (a Cannon and an Archer Tower), and its
+ * "Merged Wizard Tower" the Super Wizard Tower.
+ */
+const KIT_BUILDING_NAMES: Record<string, string[][]> = {
+  "Builder's Hut": [["builder", "hut"], ["builderhut"]], // BuilderHut_lvl9, Building_HV_Builder_Hut_Level_7
+  "Multi-Gear Tower": [["cat", "cannon"], ["cat", "archer"]], // CAT_cannon_multi_gear_lvl4, CAT_archer_lvl2_2k
+  "Super Wizard Tower": [["merged", "wizard", "tower"]], // Building_HV_Merged_Wizard_Tower_lvl2
 };
 
 /** Words that decorate a Fan Kit filename without naming anything. */
@@ -111,6 +129,13 @@ const SCENE = new Set([
 ]);
 
 /**
+ * Words that mark a picture as staged rather than the plain object: a Town Hall
+ * with a wizard posed on it, a defense mid-pose. They lose to the plain render
+ * of the same thing.
+ */
+const STAGED = new Set(["wizard", "posing", "empty", "background", "nograss", "sleeping"]);
+
+/**
  * Whether a file is the kit's square icon ("Icon_HV_Hog_Rider") rather than
  * a render. Icons are what a 128px square wants, so they win over a larger
  * full-body picture of the same unit.
@@ -138,11 +163,15 @@ export function isIconFile(relativePath: string): boolean {
 export function preference(relativePath: string): number[] {
   const fileWords = words(relativePath.replace(/\\/g, "/").split("/").pop() ?? "");
   const capital = fileWords.includes("cc") || words(relativePath).includes("capital");
+  // A Town Hall's file name says only "TH19"; what it shows is the rest of it.
+  // "Wizard" there is the hall with a wizard posed in front, not a wizard.
+  const staged = fileWords.some((w) => STAGED.has(w));
   return [
     fileWords.includes("cwl") ? 1 : 0,
     capital ? 0 : 1,
     isIconFile(relativePath) ? 1 : 0,
     fileWords.includes("old") ? 0 : 1,
+    staged ? 0 : 1,
     renderLevel(fileWords),
   ];
 }
@@ -171,7 +200,9 @@ export function words(path: string): string[] {
   const base = path
     .replace(/\\/g, "/")
     .replace(/\.[a-z0-9]+$/i, "")
-    .replace(/([a-z])([A-Z])/g, "$1 $2");
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    // "Collectorlevel_18": a level word glued to the name.
+    .replace(/([a-z])(level|lvl)(?=[\s_\-.]*\d)/gi, "$1 $2");
   return artSlug(base.replace(/\//g, " "))
     .split("-")
     .filter((w) => w && !NOISE.has(w));
@@ -239,8 +270,11 @@ export function matchArtKey(
 
   // The kit prefixes files "Icon_BB_…" (Builder Base) and "Icon_HV_…" (home
   // village); a folder name is the other place the village is said.
+  // "Builder Hut" is the home village's Builder's Hut, not the Builder Base.
   const builder =
-    containsRun(w, ["builder", "base"]) || w.includes("builder") || fileWords.includes("bb");
+    containsRun(w, ["builder", "base"]) ||
+    (w.includes("builder") && !containsRun(w, ["builder", "hut"])) ||
+    fileWords.includes("bb");
 
   // Buildings and traps: "Building_HV_Cannon_level_21", "Building_BB_Roaster",
   // or anything in a Buildings / Traps / Defenses folder. A file that SAYS
@@ -248,15 +282,8 @@ export function matchArtKey(
   // the Archer — while one that is only in such a folder may still be a unit.
   const saysBuilding = fileWords.includes("building") || fileWords.includes("trap");
   const inBuildingFolder = ["buildings", "traps", "defenses", "defense"].some((f) => w.includes(f));
+  const found = bestBuilding(w, buildings, builder);
   if (saysBuilding || inBuildingFolder) {
-    let found: { building: KnownBuilding; length: number } | null = null;
-    for (const b of buildings) {
-      const needle = artSlug(b.name).split("-");
-      if (!containsRun(w, needle)) continue;
-      const onRightSide = b.village === "home" ? !builder : builder;
-      const length = needle.length + (onRightSide ? 100 : 0);
-      if (!found || length > found.length) found = { building: b, length };
-    }
     const key = found && artKeyForBuilding(found.building.name, found.building.village, found.building.kind);
     if (key) return key;
     if (saysBuilding) return null;
@@ -269,8 +296,12 @@ export function matchArtKey(
   // "icon_gear_…", "HG_DD_…". Such a file is only ever a piece of equipment —
   // "HeroGear_RoyalChampion_RocketSpear" names its hero as well as itself, and
   // "Hero_Equipment_RC_Hog_Rider_Doll" names a troop.
+  // "Equipement" is how the 2026-11 kit spells it.
   const gear =
-    fileWords.includes("equipment") || fileWords.includes("gear") || fileWords[0] === "hg";
+    fileWords.includes("equipment") ||
+    fileWords.includes("equipement") ||
+    (fileWords.includes("gear") && !fileWords.includes("multi")) ||
+    fileWords[0] === "hg";
   let best: { unit: KnownUnit; length: number } | null = null;
   for (const unit of units) {
     // A file that says "super" is a super troop's. "Icon_CC_Troop_Super_P.E.K.K.A"
@@ -296,5 +327,33 @@ export function matchArtKey(
     const length = needle.length + (onRightSide ? 100 : 0);
     if (!best || length > best.length) best = { unit, length };
   }
+  // A file that names neither "building" nor a folder for them ("X-Bow_lvl14",
+  // "pet_house_level_12") is still a building when a building's whole name is
+  // the longer match. Ties go to the unit: "Witch" is the troop.
+  if (found && !saysBuilding && !inBuildingFolder) {
+    const unitLength = best ? best.length % 100 : 0;
+    const onRight = (found.building.village === "home") !== builder;
+    if (onRight && found.words > unitLength) {
+      return artKeyForBuilding(found.building.name, found.building.village, found.building.kind);
+    }
+  }
   return best ? artKeyForUnit(best.unit.name, best.unit.group) : null;
+}
+
+/** The building whose whole name (or kit name) is the longest run in `w`, preferring the right village. */
+function bestBuilding(
+  w: string[],
+  buildings: readonly KnownBuilding[],
+  builder: boolean,
+): { building: KnownBuilding; length: number; words: number } | null {
+  let found: { building: KnownBuilding; length: number; words: number } | null = null;
+  for (const b of buildings) {
+    const needles = [artSlug(b.name).split("-"), ...(KIT_BUILDING_NAMES[b.name] ?? [])];
+    const needle = needles.filter((n) => containsRun(w, n)).sort((x, y) => y.length - x.length)[0];
+    if (!needle) continue;
+    const onRightSide = b.village === "home" ? !builder : builder;
+    const length = needle.length + (onRightSide ? 100 : 0);
+    if (!found || length > found.length) found = { building: b, length, words: needle.length };
+  }
+  return found;
 }

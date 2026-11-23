@@ -1,9 +1,14 @@
 {
   "source": {
-    "fanKit": "coc-fankit",
-    "generatedAt": "2026-09-28"
+    "fanKit": "coc-fankit + fankit-2026-11",
+    "generatedAt": "2026-11-23"
   },
   "files": {
+    "builder-building-clock-tower": {
+      "src": "/game/builder-buildings/builder-building-clock-tower.webp",
+      "width": 104,
+      "height": 104
+    },
     "builder-troop-baby-dragon": {
       "src": "/game/builder-troops/builder-troop-baby-dragon.webp",
       "width": 104,
@@ -51,6 +56,176 @@
     },
     "builder-troop-sneaky-archer": {
       "src": "/game/builder-troops/builder-troop-sneaky-archer.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-air-defense": {
+      "src": "/game/buildings/building-air-defense.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-archer-tower": {
+      "src": "/game/buildings/building-archer-tower.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-army-camp": {
+      "src": "/game/buildings/building-army-camp.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-barracks": {
+      "src": "/game/buildings/building-barracks.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-bomb-tower": {
+      "src": "/game/buildings/building-bomb-tower.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-builders-hut": {
+      "src": "/game/buildings/building-builders-hut.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-clan-castle": {
+      "src": "/game/buildings/building-clan-castle.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-dark-barracks": {
+      "src": "/game/buildings/building-dark-barracks.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-dark-elixir-drill": {
+      "src": "/game/buildings/building-dark-elixir-drill.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-dark-elixir-storage": {
+      "src": "/game/buildings/building-dark-elixir-storage.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-elixir-collector": {
+      "src": "/game/buildings/building-elixir-collector.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-elixir-storage": {
+      "src": "/game/buildings/building-elixir-storage.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-firespitter": {
+      "src": "/game/buildings/building-firespitter.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-gold-mine": {
+      "src": "/game/buildings/building-gold-mine.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-gold-storage": {
+      "src": "/game/buildings/building-gold-storage.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-helper-hut": {
+      "src": "/game/buildings/building-helper-hut.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-hero-hall": {
+      "src": "/game/buildings/building-hero-hall.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-hidden-tesla": {
+      "src": "/game/buildings/building-hidden-tesla.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-inferno-tower": {
+      "src": "/game/buildings/building-inferno-tower.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-laboratory": {
+      "src": "/game/buildings/building-laboratory.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-monolith": {
+      "src": "/game/buildings/building-monolith.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-mortar": {
+      "src": "/game/buildings/building-mortar.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-multi-archer-tower": {
+      "src": "/game/buildings/building-multi-archer-tower.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-multi-gear-tower": {
+      "src": "/game/buildings/building-multi-gear-tower.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-pet-house": {
+      "src": "/game/buildings/building-pet-house.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-revenge-tower": {
+      "src": "/game/buildings/building-revenge-tower.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-ricochet-cannon": {
+      "src": "/game/buildings/building-ricochet-cannon.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-spell-factory": {
+      "src": "/game/buildings/building-spell-factory.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-squad-barracks": {
+      "src": "/game/buildings/building-squad-barracks.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-super-wizard-tower": {
+      "src": "/game/buildings/building-super-wizard-tower.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-wall": {
+      "src": "/game/buildings/building-wall.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-wizard-tower": {
+      "src": "/game/buildings/building-wizard-tower.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-workshop": {
+      "src": "/game/buildings/building-workshop.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-x-bow": {
+      "src": "/game/buildings/building-x-bow.webp",
       "width": 104,
       "height": 104
     },
@@ -186,6 +361,11 @@
     },
     "equipment-monolith-arrow": {
       "src": "/game/equipment/equipment-monolith-arrow.webp",
+      "width": 104,
+      "height": 104
+    },
+    "equipment-portal-pendant": {
+      "src": "/game/equipment/equipment-portal-pendant.webp",
       "width": 104,
       "height": 104
     },
@@ -614,6 +794,26 @@
       "width": 144,
       "height": 144
     },
+    "th-19": {
+      "src": "/game/townhall/th-19.webp",
+      "width": 144,
+      "height": 144
+    },
+    "trap-air-bomb": {
+      "src": "/game/traps/trap-air-bomb.webp",
+      "width": 104,
+      "height": 104
+    },
+    "trap-giga-bomb": {
+      "src": "/game/traps/trap-giga-bomb.webp",
+      "width": 104,
+      "height": 104
+    },
+    "trap-spring-trap": {
+      "src": "/game/traps/trap-spring-trap.webp",
+      "width": 104,
+      "height": 104
+    },
     "troop-apprentice-warden": {
       "src": "/game/troops/troop-apprentice-warden.webp",
       "width": 104,
@@ -636,6 +836,11 @@
     },
     "troop-barbarian": {
       "src": "/game/troops/troop-barbarian.webp",
+      "width": 104,
+      "height": 104
+    },
+    "troop-barch-squad": {
+      "src": "/game/troops/troop-barch-squad.webp",
       "width": 104,
       "height": 104
     },
@@ -666,6 +871,11 @@
     },
     "troop-giant": {
       "src": "/game/troops/troop-giant.webp",
+      "width": 104,
+      "height": 104
+    },
+    "troop-giant-wizard-squad": {
+      "src": "/game/troops/troop-giant-wizard-squad.webp",
       "width": 104,
       "height": 104
     },
@@ -706,6 +916,11 @@
     },
     "troop-lava-hound": {
       "src": "/game/troops/troop-lava-hound.webp",
+      "width": 104,
+      "height": 104
+    },
+    "troop-meteor-golem": {
+      "src": "/game/troops/troop-meteor-golem.webp",
       "width": 104,
       "height": 104
     },
@@ -791,6 +1006,11 @@
     },
     "troop-super-wizard": {
       "src": "/game/troops/troop-super-wizard.webp",
+      "width": 104,
+      "height": 104
+    },
+    "troop-thrower": {
+      "src": "/game/troops/troop-thrower.webp",
       "width": 104,
       "height": 104
     },

@@ -2,6 +2,12 @@
 //
 //   npm run game-art -- "C:/Downloads/Clash of Clans Fan Kit" --dry-run
 //   npm run game-art -- "C:/Downloads/Clash of Clans Fan Kit"
+//   npm run game-art -- "C:/Downloads/Assets 2026-11-23" --add
+//
+// --add is for a PARTIAL kit — the handful of new renders Supercell posts with
+// an update. It keeps every file and manifest entry already here and writes
+// only keys the manifest does not have yet. Without it the run starts clean,
+// which on a partial kit would delete every picture it does not contain.
 //
 // Run it on a developer machine after downloading the kit from
 // https://fankit.supercell.com/ — never in CI or a page. The output is
@@ -34,11 +40,11 @@
 // Next's own optional dependency, and writing a webp encoder by hand, as
 // make-icons.ts does for PNG, is not a good use of anyone's time.
 
-import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import buildingsFile from "../src/data/game/buildings.json";
 import unitsFile from "../src/data/game/units.json";
-import { artKeyForUnit, type ArtManifest } from "../src/lib/game-art";
+import { artKeyForBuilding, artKeyForUnit, type ArtManifest } from "../src/lib/game-art";
 import {
   comparePreference,
   folderFor,
@@ -52,6 +58,8 @@ const OUT_DIR = join(process.cwd(), "public", "game");
 const MANIFEST = join(process.cwd(), "src", "data", "game", "art-manifest.json");
 const IMAGE = /\.(png|webp|jpe?g)$/i;
 const LOGO = /\blogo|wordmark|font/i;
+/** Wider than tall (or taller than wide) by more than this: a sheet, not one picture. */
+const SHEET_RATIO = 1.8;
 
 /**
  * The square each family is written at: twice the largest it is drawn.
@@ -73,7 +81,7 @@ function sizeFor(key: string): number {
 const WEBP = { quality: 72, alphaQuality: 80, effort: 6 } as const;
 
 /** The keys the product actually asks for. Reported when the kit lacks one. */
-function wantedKeys(units: readonly KnownUnit[], homeHalls: number): string[] {
+function wantedKeys(units: readonly KnownUnit[], buildings: readonly KnownBuilding[], homeHalls: number): string[] {
   const halls = Array.from({ length: homeHalls }, (_, i) => `th-${i + 1}`);
   const heroes = units
     .filter((u) => u.group === "hero" || u.group === "pet")
@@ -81,7 +89,12 @@ function wantedKeys(units: readonly KnownUnit[], homeHalls: number): string[] {
   const leagues = ["bronze", "silver", "gold", "crystal", "master", "champion", "titan"].flatMap(
     (tier) => [1, 2, 3].map((d) => `league-${tier}-${d}`),
   );
-  return [...halls, ...heroes, ...leagues, "league-legend"];
+  // Home-village buildings and traps: what a base's tiles and the tracker show.
+  const homeBuildings = buildings
+    .filter((b) => b.village === "home")
+    .map((b) => artKeyForBuilding(b.name, b.village, b.kind))
+    .filter((k): k is string => k !== null);
+  return [...halls, ...heroes, ...leagues, "league-legend", ...homeBuildings];
 }
 
 async function walk(dir: string): Promise<string[]> {
@@ -97,9 +110,10 @@ async function walk(dir: string): Promise<string[]> {
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes("--dry-run");
+  const add = args.includes("--add");
   const kit = args.find((a) => !a.startsWith("--"));
   if (!kit) {
-    console.error('Usage: npm run game-art -- "<unzipped fan kit folder>" [--dry-run]');
+    console.error('Usage: npm run game-art -- "<unzipped fan kit folder>" [--add] [--dry-run]');
     process.exit(1);
   }
 
@@ -116,6 +130,8 @@ async function main() {
   }));
 
   const files = await walk(kit);
+  const { default: sharp } = await import("sharp");
+  const sheets: string[] = [];
   const chosen = new Map<string, { path: string; bytes: number; rank: number[] }>();
   const unused: string[] = [];
 
@@ -130,6 +146,14 @@ async function main() {
       unused.push(rel);
       continue;
     }
+    // A file much wider than tall (or the reverse) is a SHEET — two states of
+    // a building side by side. Fitted into a square without cropping (which the
+    // rules forbid) it is two specks, so it is left for a file that shows one.
+    const { width = 1, height = 1 } = await sharp(path, { limitInputPixels: false }).metadata();
+    if (Math.max(width, height) / Math.max(1, Math.min(width, height)) > SHEET_RATIO) {
+      sheets.push(`${rel} (${width}×${height})`);
+      continue;
+    }
     const { size: bytes } = await stat(path);
     const rank = preference(rel);
     const current = chosen.get(key);
@@ -140,17 +164,29 @@ async function main() {
     if (better) chosen.set(key, { path, bytes, rank });
   }
 
-  const keys = [...chosen.keys()].sort();
-  console.log(`${files.length} images in the kit, ${keys.length} matched a key.\n`);
+  // --add: what the manifest already has stays as it is, file and entry.
+  const existingManifest: ArtManifest | null = add
+    ? (JSON.parse(await readFile(MANIFEST, "utf8")) as ArtManifest)
+    : null;
+  const kept = new Set(Object.keys(existingManifest?.files ?? {}));
+  const keys = [...chosen.keys()].filter((k) => !kept.has(k)).sort();
+  const skipped = [...chosen.keys()].filter((k) => kept.has(k)).sort();
+  console.log(`${files.length} images in the kit, ${chosen.size} matched a key${add ? `, ${keys.length} of them new` : ""}.\n`);
   for (const key of keys) {
     console.log(`  ${key.padEnd(34)} ← ${relative(kit, chosen.get(key)!.path)}`);
   }
 
-  const missing = wantedKeys(units, unitsFile.source.homeHalls).filter((k) => !chosen.has(k));
+  if (skipped.length) {
+    console.log(`\nAlready in the manifest, kept as they are (--add):\n  ${skipped.join(", ")}`);
+  }
+
+  const have = new Set([...keys, ...kept]);
+  const missing = wantedKeys(units, buildings, unitsFile.source.homeHalls).filter((k) => !have.has(k));
   if (missing.length) {
     console.log(`\nNot found in this kit (these keep their drawn fallback):`);
     console.log(`  ${missing.join(", ")}`);
   }
+  if (sheets.length) console.log(`\nSheets of several pictures, not used:\n  ${sheets.join("\n  ")}`);
   console.log(`\n${unused.length} images unused.`);
 
   if (dryRun) {
@@ -158,27 +194,36 @@ async function main() {
     return;
   }
 
-  const { default: sharp } = await import("sharp");
 
   // Start clean, so a key the new kit no longer has does not linger as a file
   // the manifest has stopped listing. Only the art folders: README.md stays.
-  const existing = await readdir(OUT_DIR, { withFileTypes: true }).catch(() => []);
-  for (const entry of existing) {
-    if (entry.isDirectory()) await rm(join(OUT_DIR, entry.name), { recursive: true, force: true });
+  // Never with --add, whose kit is a handful of files, not the whole set.
+  if (!add) {
+    const existing = await readdir(OUT_DIR, { withFileTypes: true }).catch(() => []);
+    for (const entry of existing) {
+      if (entry.isDirectory()) await rm(join(OUT_DIR, entry.name), { recursive: true, force: true });
+    }
   }
 
   const kitName = kit.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? kit;
-  const manifest: ArtManifest = {
-    source: { fanKit: kitName, generatedAt: new Date().toISOString().slice(0, 10) },
-    files: {},
-  };
+  const today = new Date().toISOString().slice(0, 10);
+  const manifest: ArtManifest = existingManifest
+    ? {
+        source: {
+          fanKit: existingManifest.source ? `${existingManifest.source.fanKit} + ${kitName}` : kitName,
+          generatedAt: today,
+        },
+        files: { ...existingManifest.files },
+      }
+    : { source: { fanKit: kitName, generatedAt: today }, files: {} };
 
   for (const key of keys) {
     const size = sizeFor(key);
     const folder = folderFor(key);
     await mkdir(join(OUT_DIR, folder), { recursive: true });
     const out = join(OUT_DIR, folder, `${key}.webp`);
-    await sharp(chosen.get(key)!.path)
+    // Some kit renders are 100 MB+ (8k squares); sharp refuses those by default.
+    await sharp(chosen.get(key)!.path, { limitInputPixels: false })
       .trim()
       .resize(size, size, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .webp(WEBP)
@@ -186,6 +231,8 @@ async function main() {
     manifest.files[key] = { src: `/game/${folder}/${key}.webp`, width: size, height: size };
   }
 
+  // Sorted, so an --add run diffs as the lines it added.
+  manifest.files = Object.fromEntries(Object.entries(manifest.files).sort(([a], [b]) => a.localeCompare(b)));
   await writeFile(MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`);
   console.log(`\nWrote ${keys.length} files to public/game/ and the manifest.`);
 }
