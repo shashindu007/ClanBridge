@@ -29,7 +29,6 @@ import {
   ChevronRight,
   Coins,
   FileJson,
-  FlaskConical,
   Link2,
   ScrollText,
   ShieldCheck,
@@ -43,6 +42,7 @@ import { StatTile, Tile } from "@/components/kit";
 import { HomeRank } from "@/components/player-rank";
 import { VillageExportDialog } from "@/components/village-export-upload";
 import { BuilderHutIcon, BuilderSlots, type Glyph } from "@/components/game/builder-hut-icon";
+import { BuilderHutArt, LaboratoryArt } from "@/components/game/workshop-icon";
 import { BuildingIcon } from "@/components/game/building-icon";
 import { TownHall } from "@/components/game/town-hall";
 import { UnitIcon } from "@/components/game/unit-icon";
@@ -365,7 +365,7 @@ function ProgressBlock({ base }: { base: MainBaseView }) {
                 group={h.group}
                 size={48}
                 level={h.level}
-                maxed={h.cap > 0 && h.level >= h.cap}
+                maxed={h.capKnown !== false && h.cap > 0 && h.level >= h.cap}
                 locked={h.level === 0}
               />
               <span className="sr-only">
@@ -452,8 +452,19 @@ function ExportBlock({ base, onUpload }: { base: MainBaseView; onUpload: () => v
             <Castle aria-hidden className="size-3.5" />
             Buildings
           </p>
-          <p className="cb-title cb-pop text-2xl leading-none tabular-nums">{saved.buildingsPct}%</p>
-          <Progress value={saved.buildingsPct} label="Buildings progress" className="h-1.5" />
+          {saved.buildingsPct === null ? (
+            <>
+              <p className="cb-title text-2xl leading-none" title="This Town Hall's caps are not in the site's game data yet">
+                —
+              </p>
+              <p className="text-muted-foreground text-xs">Caps not known yet</p>
+            </>
+          ) : (
+            <>
+              <p className="cb-title cb-pop text-2xl leading-none tabular-nums">{saved.buildingsPct}%</p>
+              <Progress value={saved.buildingsPct} label="Buildings progress" className="h-1.5" />
+            </>
+          )}
         </div>
         <div className="min-w-0 space-y-1">
           <p className="text-muted-foreground flex items-center gap-1 text-xs">
@@ -473,7 +484,7 @@ function ExportBlock({ base, onUpload }: { base: MainBaseView; onUpload: () => v
         </div>
         <div className="min-w-0 space-y-1">
           <p className="text-muted-foreground flex items-center gap-1 text-xs">
-            <BuilderHutIcon aria-hidden className="size-3.5" />
+            <BuilderHutArt className="size-4" />
             Builders busy
           </p>
           {saved.builders ? (
@@ -513,7 +524,7 @@ function ExportBlock({ base, onUpload }: { base: MainBaseView; onUpload: () => v
         </p>
         {saved.lab && (
           <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
-            <FlaskConical aria-hidden className="size-3.5" />
+            <LaboratoryArt className="size-4" />
             {saved.lab.busy
               ? `Lab busy${saved.lab.name ? ` with ${saved.lab.name}` : ""}, free in ${formatDuration(saved.lab.secondsLeft)}`
               : "Lab is free"}

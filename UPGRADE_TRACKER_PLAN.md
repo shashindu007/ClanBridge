@@ -315,4 +315,6 @@ heavy data in the repo, not in Postgres.
   members ever want that, it is a separate decision, not part of this plan.
 - **Game updates need a data refresh.** After a Supercell update, run
   `npm run game-data` (same routine the README already describes). Until
-  then, new levels show without prices — never wrong prices.
+  then, new levels show without prices — never wrong prices. A new Town Hall
+  whose building caps the data does not have yet shows those buildings as
+  "not known yet" (null caps, `capPending`) — never as maxed.

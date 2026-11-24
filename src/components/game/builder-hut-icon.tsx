@@ -1,7 +1,8 @@
-// A builder's hut, drawn here because the Fan Kit has no building art at all:
-// not the kit in Downloads, not the asset zips. Until one does, every hut in
-// the app (the Builder Base tile, "Builders busy", a Worker in the export
-// grid) is this one glyph, so a builder never reads as a generic hammer.
+// A builder's hut, drawn. The 2026-11 Fan Kit assets brought the home
+// village's Builder's Hut as art, which BuilderSlots and WorkshopIcon now show;
+// this glyph is what stands in wherever the art is not there — the Builder
+// Base's huts, and anything that has to be a line icon beside lucide ones (the
+// Builder Base switch and tile), so a builder never reads as a generic hammer.
 //
 // An original line icon in lucide's grid (24px, 2px stroke, round joins) so
 // it sits beside lucide icons without looking borrowed: a hut with an arched
@@ -9,7 +10,12 @@
 //
 // Server-safe: no hooks.
 
+import { GameArt } from "@/components/game/game-art";
+import { artKeyForBuilding } from "@/lib/game-art";
 import { cn } from "@/lib/utils";
+
+/** The home village's Builder's Hut, as art. */
+const HUT_ART = artKeyForBuilding("Builder's Hut", "home", "Worker");
 
 /** The props this file's glyphs share with a lucide icon, so either fits a slot. */
 export type GlyphProps = {
@@ -49,9 +55,11 @@ export function BuilderHutIcon({ className, style, ...rest }: GlyphProps) {
 }
 
 /**
- * The village's builders as a row of huts: lit while working, dashed while
- * free. Says the count in words for a screen reader; the "3/6" beside it is for
- * everyone else.
+ * The village's builders as a row of huts: lit while working, dashed and dimmed
+ * while free. Each hut is the Fan Kit's Builder's Hut where the art is there —
+ * dimmed by opacity only, never recoloured (public/game/README.md) — and the
+ * drawn hut where it is not. Says the count in words for a screen reader; the
+ * "3/6" beside it is for everyone else.
  */
 export function BuilderSlots({
   busy,
@@ -78,7 +86,12 @@ export function BuilderSlots({
           data-busy={i < busy || undefined}
           style={{ "--i": i } as React.CSSProperties}
         >
-          <BuilderHutIcon aria-hidden className="size-3.5" />
+          <GameArt
+            art={HUT_ART}
+            size={18}
+            alt=""
+            fallback={<BuilderHutIcon aria-hidden className="size-3.5" />}
+          />
         </span>
       ))}
     </span>

@@ -113,10 +113,32 @@ describe("BaseDetails", () => {
   });
 
   it("marks units whose cap is not known yet, and explains the mark", () => {
-    const html = render({ latest, baseline: null });
-    // Ruin Witch and Angry Spell are newer than the pinned game data.
-    expect(html).toContain("Ruin Witch");
+    // A unit newer than the game data, as the sync job stores one: the API's
+    // game maximum stands in for the cap, flagged as not known.
+    const future = {
+      name: "Some Future Troop",
+      level: 3,
+      apiMax: 9,
+      village: "home" as const,
+      group: "elixirTroop" as const,
+      cap: 9,
+      capKnown: false,
+    };
+    const html = render({ latest: { ...latest, units: [...latest.units, future] }, baseline: null });
+    expect(html).toContain("Some Future Troop");
     expect(html).toContain("not known yet");
+  });
+
+  it("never shows a unit above a cap it does not know as maxed", () => {
+    // TH19 before the data had it: level 112 against a stand-in cap of 110.
+    const king = latest.units.find((u) => u.name === "Barbarian King")!;
+    const above = { ...king, level: 112, cap: 110, apiMax: 115, capKnown: false };
+    const html = render({
+      latest: { ...latest, units: latest.units.map((u) => (u === king ? above : u)) },
+      baseline: null,
+    });
+    expect(html).toContain("level 112 of ?");
+    expect(html).not.toContain("112 / 110");
   });
 
   it("says there is nothing to compare before a second reading exists", () => {

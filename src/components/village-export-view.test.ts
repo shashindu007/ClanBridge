@@ -108,7 +108,7 @@ describe("VillageExportView", () => {
     expect(html).toContain("×6");
     expect(html).toContain("21 ×5 · 20");
     expect(html).toContain("Traps");
-    // No Fan Kit building art in a test: each kind's token stands in.
+    // The Fan Kit has no Cannon or Bomb render yet: each kind's token stands in.
     expect(html).toContain('data-kind="Defense"');
     expect(html).toContain('data-kind="trap"');
     expect(html).not.toContain("<table");
@@ -159,5 +159,36 @@ describe("VillageExportView", () => {
     expect(html).toContain("Builder Hall 10");
     expect(html).not.toContain("17 ×300");
     expect(html).toContain("Nothing was upgrading");
+  });
+});
+
+describe("VillageExportView — a new Town Hall the data does not fully know", () => {
+  const th19 = parseVillageExport(
+    JSON.stringify({
+      tag: "#PY0LQGRJ",
+      timestamp: EXPORTED_AT,
+      buildings: [
+        { data: 1000001, lvl: 19 },
+        { data: 1000015, lvl: 1, cnt: 6 },
+        { data: 1000008, lvl: 21, cnt: 7 },
+        { data: 1000009, lvl: 21, cnt: 8 },
+      ],
+    }),
+    NOW,
+  );
+  if (!th19.ok) throw new Error(th19.error);
+  const html = renderToStaticMarkup(createElement(VillageExportView, { village: th19.village, which: "home", now: NOW }));
+
+  it("shows a dash, not 100%, and says why", () => {
+    expect(html).toContain("caps not known yet");
+    // Nothing in this export can be measured: no unit sections, and the
+    // buildings' TH19 caps are unknown. Neither tile may claim 100%.
+    expect(html).not.toContain(">100%<");
+    expect(html).toContain("not in the site&#x27;s game data yet");
+  });
+
+  it("draws a building with Fan Kit art as its picture", () => {
+    expect(html).toContain("/game/buildings/building-archer-tower.webp");
+    expect(html).toContain("/game/buildings/building-builders-hut.webp");
   });
 });

@@ -249,14 +249,15 @@ describe("the war rating, from database rows to marks", () => {
 
   it("weighs each war by its enemy lineup, for ranking clans together", async () => {
     const view = await load();
-    // Both wars' enemies are TH18, 18 and 17: an average of 17.67, so 1.85 − 0.15 × 0.33.
+    // Both wars' enemies are TH18, 18 and 17: an average of 17.67, and TH19 is
+    // the top hall since the TH19 update, so 1.85 − 0.15 × 1.33.
     expect(view.boards[0]!.enemyThs).toEqual([18, 18, 17]);
-    expect(warWeights(view)).toEqual([1.8, 1.8]);
+    expect(warWeights(view)).toEqual([1.65, 1.65]);
 
     const two = weightedWarMonth(view).get(view.rating.players.find((p) => p.name === "Two")!.playerId)!;
-    // The minus share is left alone; the plus one counts 1.8 times.
-    expect(two.rating).toBeCloseTo((-2 / 14.3) * 100 + (31.5 / 47) * 100 * 1.8, 0);
-    expect(two.averageWeight).toBe(1.8);
+    // The minus share is left alone; the plus one counts 1.65 times.
+    expect(two.rating).toBeCloseTo((-2 / 14.3) * 100 + (31.5 / 47) * 100 * 1.65, 0);
+    expect(two.averageWeight).toBe(1.65);
   });
 
   it("has nothing for a month with no war", async () => {

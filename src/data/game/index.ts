@@ -18,6 +18,7 @@ export type UnitGroup =
   | "elixirTroop"
   | "darkTroop"
   | "superTroop"
+  | "squad"
   | "siege"
   | "elixirSpell"
   | "darkSpell"
@@ -31,9 +32,15 @@ export interface GameUnit {
   group: UnitGroup;
   hero?: string;
   exportId: number;
-  /** Max level at each hall level, index 0 = hall 1. 0 = not unlocked yet. */
-  caps: number[];
+  /**
+   * Max level at each hall level, index 0 = hall 1. 0 = not unlocked yet;
+   * null = the game has this hall but the data does not know the cap yet.
+   */
+  caps: Caps;
 }
+
+/** A value per hall level, index 0 = hall 1; null where the data does not know it yet. */
+export type Caps = ReadonlyArray<number | null>;
 
 export interface GameBuilding {
   exportId: number;
@@ -41,10 +48,10 @@ export interface GameBuilding {
   village: Village;
   /** coc.py's building type — "Defense", "Resource", "Army", "Wall" … — or "trap". */
   kind: string;
-  caps: number[];
-  weaponCaps?: number[];
+  caps: Caps;
+  weaponCaps?: Caps;
   /** How many of it each hall allows, index 0 = hall 1. Absent for traps. */
-  counts?: number[];
+  counts?: Caps;
   /** A merged building: what one of it consumes, e.g. Ricochet Cannon = 2 × Cannon at 21. */
   merge?: Array<{ name: string; n: number; level: number }>;
 }
@@ -52,6 +59,18 @@ export interface GameBuilding {
 export const GAME_DATA_SOURCE = unitsFile.source;
 export const HOME_HALLS: number = unitsFile.source.homeHalls;
 export const BUILDER_HALLS: number = unitsFile.source.builderHalls;
+/**
+ * The last Town Hall every building's cap is known for. Above it (TH19 while
+ * coc.py stops at TH18) some buildings are null: "not known yet", never maxed.
+ */
+export const BUILDING_HALLS: number = buildingsFile.source.buildingHalls ?? HOME_HALLS;
+
+/** The highest level a row of caps reaches anywhere, ignoring unknown halls. */
+export function maxCap(caps: Caps): number {
+  let max = 0;
+  for (const c of caps) if (c !== null && c > max) max = c;
+  return max;
+}
 
 const UNITS = unitsFile.units as GameUnit[];
 const BUILDINGS = buildingsFile.buildings as GameBuilding[];
@@ -77,9 +96,18 @@ export function buildingsOf(village: Village): GameBuilding[] {
   return BUILDINGS.filter((b) => b.village === village);
 }
 
-/** How many of a building a hall allows, or undefined when the data has no count. */
-export function countAt(building: GameBuilding, hall: number | undefined): number | undefined {
+/**
+ * How many of a building a hall allows: undefined when the data has no count
+ * (traps) or does not reach that hall, null when the hall exists but its count
+ * is not known yet.
+ */
+export function countAt(building: GameBuilding, hall: number | undefined): number | null | undefined {
   return building.counts ? capAt(building.counts, hall) : undefined;
+}
+
+/** Every home-village hero the data has, in the data's order. */
+export function homeHeroNames(): string[] {
+  return UNITS.filter((u) => u.group === "hero" && u.village === "home").map((u) => u.name);
 }
 
 export function findUnit(name: string, village: Village): GameUnit | undefined {
@@ -104,10 +132,24 @@ export function townHallWeaponCap(thLevel: number | null | undefined): number | 
   return cap && cap > 0 ? cap : null;
 }
 
-/** The cap at a hall level, or undefined when the data does not reach that level. */
-export function capAt(caps: number[], hall: number | undefined): number | undefined {
+/**
+ * The cap at a hall level.
+ *
+ *   number     the cap (0 = not unlocked at this hall)
+ *   null       the game has this hall but the data does not know the cap yet
+ *   undefined  no hall given, or a hall beyond every hall the data lists
+ *
+ * Callers must not read null or undefined as "maxed": a base whose caps are
+ * unknown is not finished, the data is behind. See README.md.
+ */
+export function capAt(caps: Caps, hall: number | null | undefined): number | null | undefined {
   if (!hall || hall < 1) return undefined;
   return caps[hall - 1];
+}
+
+/** Whether every cap at this Town Hall is known — false for TH19 while coc.py stops at TH18. */
+export function hallFullyKnown(hall: number | null | undefined): boolean {
+  return !!hall && hall >= 1 && hall <= BUILDING_HALLS;
 }
 
 /** Display order and labels, shared by the sync-free page and the paste view. */
@@ -122,6 +164,7 @@ export const GROUP_ORDER: UnitGroup[] = [
   "darkSpell",
   "guardian",
   "superTroop",
+  "squad",
   "builderHero",
   "builderTroop",
 ];
@@ -133,6 +176,7 @@ export const GROUP_LABELS: Record<UnitGroup, string> = {
   elixirTroop: "Elixir troops",
   darkTroop: "Dark troops",
   superTroop: "Super troops",
+  squad: "Squads",
   siege: "Siege machines",
   elixirSpell: "Elixir spells",
   darkSpell: "Dark spells",
@@ -180,7 +224,9 @@ function fallbackGroup(source: UnitSource, village: Village): UnitGroup {
  * NOT equipment: epic and event pieces are acquired, not unlocked by a
  * building, so an absent one is not "behind". NOT super troops: their level
  * mirrors the base troop. NOT guardians: the player endpoint does not report
- * them at all, so absence proves nothing.
+ * them at all, so absence proves nothing. NOT squads (TH19): new enough that
+ * whether the player endpoint lists them is unconfirmed, so absence proves
+ * nothing either until a real capture shows them.
  */
 const EXPECTED_GROUPS = new Set<UnitGroup>([
   "hero",
@@ -218,7 +264,7 @@ export function lockedUnits(
     locked.push({
       name: unit.name,
       level: 0,
-      apiMax: Math.max(...unit.caps),
+      apiMax: maxCap(unit.caps),
       village: unit.village,
       group: unit.group,
       cap,
@@ -250,13 +296,13 @@ export function resolveUnit(
   }
 
   const cap = capAt(data.caps, hall);
-  const trusted = cap !== undefined && unit.level <= cap;
+  const trusted = typeof cap === "number" && unit.level <= cap;
 
   return {
     ...unit,
     group: data.group,
     ...(data.hero ? { hero: data.hero } : {}),
-    cap: trusted ? cap : unit.apiMax,
+    cap: trusted ? cap! : unit.apiMax,
     capKnown: trusted,
   };
 }

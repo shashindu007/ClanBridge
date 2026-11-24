@@ -42,7 +42,7 @@ import { baseProgress } from "@/repositories/player-progress";
 import { villageExportsFor, type SavedExport } from "@/repositories/village-exports";
 import { trackedUpgradesFor } from "@/repositories/tracked-upgrades";
 import { safeMessage } from "@/lib/errors";
-import { remainingUpgrades, runningLoads } from "@/services/upgrades";
+import { pendingCount, remainingUpgrades, runningLoads } from "@/services/upgrades";
 import { applyTracked, type TrackedUpgrade } from "@/services/village-overlay";
 
 export const dynamic = "force-dynamic";
@@ -98,7 +98,11 @@ export default async function OwnBaseDetailsPage({
   const now = new Date();
   const current = saved ? applyTracked(saved.village, tracked.get(base.playerId) ?? [], now, progress.latest).village : null;
   const tracker = current
-    ? { items: remainingUpgrades(current, which, now), running: runningLoads(current, which, now) }
+    ? {
+        items: remainingUpgrades(current, which, now),
+        running: runningLoads(current, which, now),
+        pending: pendingCount(current, which),
+      }
     : undefined;
 
   return (

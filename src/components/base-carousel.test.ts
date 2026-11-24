@@ -54,6 +54,7 @@ const SAVED: ExportSummary = {
   ageDays: 2,
   stale: false,
   buildingsPct: 87.4,
+  buildingsPending: 0,
   walls: { level: 17, atLevel: 200, total: 325 },
   running: [
     { name: "Cannon", village: "home", fromLevel: 20, secondsLeft: 3_600, finishesAt: "2026-11-03T13:00:00Z", subject: { type: "building", kind: "Defense" } },

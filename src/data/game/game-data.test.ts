@@ -11,6 +11,10 @@ import { playerSchema } from "@/integration/coc-schemas";
 import { mapPlayerProgress } from "@/integration/mappers";
 import {
   BUILDER_HALLS,
+  BUILDING_HALLS,
+  buildingByName,
+  countAt,
+  hallFullyKnown,
   HOME_HALLS,
   buildingByExportId,
   capAt,
@@ -77,6 +81,38 @@ describe("game data (T11B.3)", () => {
   it("caps a TH17 Barbarian King at 100 and a BH10 Raged Barbarian at 20", () => {
     expect(capAt(findUnit("Barbarian King", "home")!.caps, 17)).toBe(100);
     expect(capAt(findUnit("Raged Barbarian", "builder")!.caps, 10)).toBe(20);
+  });
+
+  // TH19 (clashofclans.js 5.1.19). coc.py stops at TH18, so a building only it
+  // knows has an UNKNOWN cap at TH19 — null, never the TH18 cap copied forward.
+  it("knows TH19, and says which caps it does not know yet", () => {
+    expect(HOME_HALLS).toBe(19);
+    expect(BUILDING_HALLS).toBe(18);
+    expect(hallFullyKnown(18)).toBe(true);
+    expect(hallFullyKnown(19)).toBe(false);
+    expect(capAt(buildingByName("Cannon", "home")!.caps, 19)).toBeNull();
+    expect(capAt(buildingByName("Cannon", "home")!.caps, 18)).toBeGreaterThan(0);
+    expect(capAt(buildingByName("Town Hall", "home")!.caps, 18)).toBe(19);
+    expect(capAt(buildingByName("Squad Barracks", "home")!.caps, 19)).toBe(12);
+    expect(countAt(buildingByName("Squad Barracks", "home")!, 19)).toBe(1);
+    expect(capAt(findUnit("Barbarian King", "home")!.caps, 19)).toBe(115);
+    expect(capAt(findUnit("Archer Queen", "home")!.caps, 19)).toBe(115);
+    expect(findUnit("Barch Squad", "home")!.group).toBe("squad");
+  });
+
+  it("keeps unlock halls where the newer source is loose about them", () => {
+    // clashofclans.js puts Hero Hall 1 at TH4; the game unlocks heroes at TH7.
+    expect(capAt(findUnit("Barbarian King", "home")!.caps, 6)).toBe(0);
+    expect(capAt(findUnit("Barbarian King", "home")!.caps, 7)).toBeGreaterThan(0);
+    // Builder Base 2.0: a late troop starts high, at its first Builder Hall.
+    expect(capAt(findUnit("Bomber", "builder")!.caps, 3)).toBe(5);
+    expect(capAt(findUnit("Hog Glider", "builder")!.caps, 7)).toBe(15);
+  });
+
+  it("leaves seasonal event units out", () => {
+    const names = unitsFile.units.map((u) => `${u.village}:${u.name}`);
+    expect(new Set(names).size).toBe(names.length);
+    expect(findUnit("Santa's Surprise", "home")).toBeUndefined();
   });
 
   it("tells pets, siege machines and super troops apart from troops", () => {
@@ -149,7 +185,10 @@ describe("lockedUnits", () => {
 
   it("adds nothing a real TH17 account is missing except what it could not have", () => {
     const present = everyUnit.flatMap(([, units]) => units);
-    // The fixture has every hero, pet, troop, siege and spell TH17 allows.
-    expect(lockedUnits(present, progress.thLevel, progress.bhLevel)).toEqual([]);
+    // The fixture had every hero, pet, troop, siege and spell TH17 allowed when
+    // it was captured. The TH19 update added the Heroic Spell at TH17, so the
+    // same account is now honestly missing that one, and only that one.
+    const missing = lockedUnits(present, progress.thLevel, progress.bhLevel).map((u) => u.name);
+    expect(missing).toEqual(["Heroic Spell"]);
   });
 });

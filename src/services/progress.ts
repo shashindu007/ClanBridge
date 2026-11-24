@@ -29,6 +29,7 @@ import {
   GROUP_ORDER,
   capAt,
   findUnit,
+  homeHeroNames,
   type ResolvedUnit,
   type UnitGroup,
 } from "@/data/game";
@@ -69,11 +70,24 @@ function floorPct(done: number, total: number): number {
   return Math.floor((done / total) * 1000) / 10;
 }
 
+/**
+ * At the cap that applies, for real. A unit whose cap is NOT known (newer than
+ * the game data, or above it) is never maxed, however its level compares with
+ * the stand-in cap — that comparison proves only that the data is behind.
+ */
+export function atCap(unit: StoredUnit): boolean {
+  return unit.capKnown !== false && unit.cap > 0 && unit.level >= unit.cap;
+}
+
 export function tally(units: StoredUnit[]): Tally {
   let done = 0;
   let total = 0;
   for (const unit of units) {
     if (!counts(unit)) continue;
+    // A unit at or above a cap that is not known cannot be measured: counting it
+    // would add a 100% nobody can stand behind. One below it still counts,
+    // against the game maximum the API (or the data) gave.
+    if (!unit.capKnown && unit.level >= unit.cap) continue;
     // Clamped: a level above its cap (stale game data) must not push a group
     // past 100%, and resolveUnit() already fell back to the game maximum there.
     done += Math.min(unit.level, unit.cap);
@@ -104,7 +118,7 @@ export function groupProgress(units: StoredUnit[], village: Village): GroupProgr
       label: GROUP_LABELS[group],
       units: members,
       ...tally(members),
-      maxed: members.filter((u) => counts(u) && u.level >= u.cap).length,
+      maxed: members.filter((u) => counts(u) && atCap(u)).length,
       capUnknown: members.filter((u) => counts(u) && !u.capKnown).length,
     });
   }
@@ -131,6 +145,8 @@ export interface HeroLevel {
   name: string;
   level: number;
   cap: number;
+  /** False when `cap` is a stand-in (the data is behind): never shown as maxed. Absent on old rows. */
+  capKnown?: boolean;
 }
 
 export interface VillageScore {
@@ -170,6 +186,26 @@ export const HERO_ORDER: ReadonlyArray<readonly [string, string]> = [
   ["Dragon Duke", "DD"],
 ];
 
+/**
+ * HERO_ORDER, then any home hero the game data has that it does not name, so
+ * a hero a game update adds is shown rather than silently left out. Its short
+ * name is its initials until someone gives it a better one above.
+ */
+export const HEROES: ReadonlyArray<readonly [string, string]> = [
+  ...HERO_ORDER,
+  ...homeHeroNames()
+    .filter((name) => !HERO_ORDER.some(([n]) => n === name))
+    .map((name) => [name, initials(name)] as const),
+];
+
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("")
+    .slice(0, 3);
+}
+
 // Null, not tally()'s 100, when there is nothing to count: an empty or
 // malformed reading, or a Town Hall below the first hero, is "unknown", and
 // 100% in green would read as a maxed village.
@@ -181,9 +217,11 @@ function nullIfEmpty(t: Tally): number | null {
 export function villageSnapshot(units: StoredUnit[]): VillageScore {
   const home = units.filter((u) => u.village === "home");
   const heroUnits = home.filter((u) => u.group === "hero");
-  const heroes = HERO_ORDER.flatMap(([name, short]) => {
+  const heroes = HEROES.flatMap(([name, short]) => {
     const unit = heroUnits.find((u) => u.name === name);
-    return unit && unit.cap > 0 ? [{ short, name, level: unit.level, cap: unit.cap }] : [];
+    return unit && unit.cap > 0
+      ? [{ short, name, level: unit.level, cap: unit.cap, ...(unit.capKnown ? {} : { capKnown: false }) }]
+      : [];
   });
   return {
     heroes,

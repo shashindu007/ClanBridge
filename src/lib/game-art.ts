@@ -74,6 +74,7 @@ const GROUP_PREFIX: Record<UnitGroup, string> = {
   elixirTroop: "troop",
   darkTroop: "troop",
   superTroop: "troop",
+  squad: "troop",
   siege: "siege",
   elixirSpell: "spell",
   darkSpell: "spell",

@@ -1556,7 +1556,8 @@
       0 0 10px -3px var(--slot);
   }
 
-  .cb-builder-slot[data-busy] > svg {
+  .cb-builder-slot[data-busy] > svg,
+  .cb-builder-slot[data-busy] > img {
     animation: cb-work 1.8s ease-in-out infinite;
     animation-delay: calc(var(--i, 0) * 150ms);
   }
@@ -1996,7 +1997,8 @@
     .cb-crown,
     .cb-hall:hover > *,
     .cb-shine:hover::after,
-    .cb-builder-slot[data-busy] > svg {
+    .cb-builder-slot[data-busy] > svg,
+    .cb-builder-slot[data-busy] > img {
       animation: none;
     }
   }

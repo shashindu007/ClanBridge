@@ -47,8 +47,13 @@
 import { z } from "zod";
 import {
   buildingByExportId,
+  buildingByName,
   capAt,
+  findUnit,
+  maxCap,
   unitByExportId,
+  type GameBuilding,
+  type GameUnit,
   type ResolvedUnit,
   type UnitGroup,
 } from "@/data/game";
@@ -88,6 +93,8 @@ export const villageExportSchema = z.looseObject({
   spells: rows,
   siege_machines: rows,
   equipment: rows,
+  /** TH19's squads, if the game lists them apart from `units`. Unconfirmed. */
+  squads: rows,
   buildings2: rows,
   traps2: rows,
   units2: rows,
@@ -158,6 +165,7 @@ const SECTION_GROUP: Record<string, UnitGroup> = {
   spells: "elixirSpell",
   siege_machines: "siege",
   equipment: "equipment",
+  squads: "squad",
   units2: "builderTroop",
   heroes2: "builderHero",
 };
@@ -203,9 +211,7 @@ export function mapVillageExport(raw: RawExport, now: Date = new Date()): Export
         name,
         village,
         kind,
-        // 0 means the data has no level requirements for it at this hall (a
-        // Helper Hut, a Crafting Station) — nothing to measure against, so null.
-        cap: (data && capAt(data.caps, hallFor(village))) || null,
+        ...buildingCap(data, hallFor(village)),
         count: 0,
         levels: {},
         upgrading: 0,
@@ -239,25 +245,13 @@ export function mapVillageExport(raw: RawExport, now: Date = new Date()): Export
 
       const name = data?.name ?? `Unknown #${row.data}`;
       const level = row.lvl ?? 0;
-      const apiMax = data ? Math.max(...data.caps) : level;
-      const cap = data ? capAt(data.caps, hallFor(village)) : undefined;
-      const capKnown = cap !== undefined && cap > 0 && level <= cap;
-
-      units.push({
-        name,
-        level,
-        apiMax,
-        village,
-        group: data?.group ?? SECTION_GROUP[section]!,
-        ...(data?.hero ? { hero: data.hero } : {}),
-        cap: capKnown ? cap! : apiMax,
-        capKnown,
-      });
+      const group = data?.group ?? SECTION_GROUP[section]!;
+      units.push(unitCap(data, { name, level, village, group }, hallFor(village)));
       noteUpgrade(name, village, level, row);
     }
   };
 
-  for (const section of ["heroes", "pets", "guardians", "units", "spells", "siege_machines", "equipment"] as const) {
+  for (const section of ["heroes", "pets", "guardians", "units", "squads", "spells", "siege_machines", "equipment"] as const) {
     addUnits(section, "home");
   }
   addUnits("units2", "builder");
@@ -274,4 +268,108 @@ export function mapVillageExport(raw: RawExport, now: Date = new Date()): Export
     upgrades: upgrades.sort((a, b) => a.remainingSeconds - b.remainingSeconds),
     unknownIds,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CAPS, AT PARSE TIME AND AGAIN AT READ TIME
+//
+// A saved export (076) is read for weeks. The game data is regenerated in that
+// time — TH19 arrived — so the caps an export was saved with go stale, and a
+// building the data did not know was saved as "Unknown #1000106". refreshVillage()
+// re-applies the CURRENT data on every read, through the same two functions the
+// parser uses, so nobody has to upload again after `npm run game-data`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A building's cap at its hall, and whether that cap is still to come.
+ *
+ *   cap         the level to measure against, or null for nothing to measure
+ *   capPending  the data has not caught up: the building is newer than it, or
+ *               its cap at this hall is unknown (TH19 while coc.py stops at 18).
+ *               Never "maxed" — the page says the data is behind.
+ *
+ * A cap of 0 is a building with no levels at this hall (a Helper Hut, a
+ * Crafting Station): nothing to measure, and nothing pending either.
+ */
+export function buildingCap(
+  data: GameBuilding | undefined,
+  hall: number | null | undefined,
+): Pick<ExportedBuilding, "cap" | "capPending"> {
+  if (!data) return { cap: null, capPending: true };
+  if (!hall) return { cap: null };
+  const cap = capAt(data.caps, hall);
+  if (cap === null || cap === undefined) return { cap: null, capPending: true };
+  return cap > 0 ? { cap } : { cap: null };
+}
+
+/**
+ * A unit at its hall's cap. When the cap is unknown — the unit is newer than the
+ * data, the hall is above it, or the unit is above its cap (the data is stale) —
+ * `capKnown` is false and `cap` is the highest level the data knows, never less
+ * than the unit's own. Pages must not read such a unit as maxed.
+ */
+function unitCap(
+  data: GameUnit | undefined,
+  unit: { name: string; level: number; village: Village; group: UnitGroup },
+  hall: number | null | undefined,
+): ResolvedUnit {
+  const apiMax = Math.max(data ? maxCap(data.caps) : 0, unit.level);
+  const cap = data && hall ? capAt(data.caps, hall) : undefined;
+  const capKnown = typeof cap === "number" && cap > 0 && unit.level <= cap;
+  return {
+    ...unit,
+    apiMax,
+    ...(data?.hero ? { hero: data.hero } : {}),
+    cap: capKnown ? cap : apiMax,
+    capKnown,
+  };
+}
+
+const UNKNOWN = /^Unknown #(\d+)$/;
+
+/**
+ * A saved export, re-read against the current game data. Pure and idempotent.
+ *
+ *   - "Unknown #id" names the data has since learned become real names, on the
+ *     buildings, the units and the running upgrades alike.
+ *   - Every cap is worked out again for the village's hall.
+ *   - `unknownIds` counts what is still unknown.
+ *
+ * Counts, levels and timers are the member's and are never touched.
+ */
+export function refreshVillage(v: ExportedVillage): ExportedVillage {
+  const hallFor = (village: Village) => (village === "home" ? v.thLevel : v.bhLevel);
+  const renamed = new Map<string, string>();
+  let unknown = 0;
+
+  const buildings = v.buildings.map((b): ExportedBuilding => {
+    const id = UNKNOWN.exec(b.name)?.[1];
+    const data = id ? buildingByExportId(Number(id)) : buildingByName(b.name, b.village);
+    if (id && data) renamed.set(`${b.village}:${b.name}`, data.name);
+    if (!data) unknown++;
+    // An unknown building's kind was guessed at parse time; the data's is better.
+    const { capPending: _stale, ...rest } = b;
+    void _stale;
+    return {
+      ...rest,
+      ...(data ? { name: data.name, kind: data.kind } : {}),
+      ...buildingCap(data, hallFor(b.village)),
+    };
+  });
+
+  const units = v.units.map((u) => {
+    const id = UNKNOWN.exec(u.name)?.[1];
+    const data = id ? unitByExportId(Number(id)) : findUnit(u.name, u.village);
+    if (id && data) renamed.set(`${u.village}:${u.name}`, data.name);
+    if (!data) unknown++;
+    const unit = { name: data?.name ?? u.name, level: u.level, village: u.village, group: data?.group ?? u.group };
+    return unitCap(data, unit, hallFor(u.village));
+  });
+
+  const upgrades = v.upgrades.map((u) => {
+    const name = renamed.get(`${u.village}:${u.name}`);
+    return name ? { ...u, name } : u;
+  });
+
+  return { ...v, buildings, units, upgrades, unknownIds: unknown };
 }

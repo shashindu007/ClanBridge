@@ -16,6 +16,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertRead } from "@/lib/errors";
+import { refreshVillage } from "@/integration/village-export";
 import type { WriteResult } from "@/repositories/account-bases";
 import type { ExportedVillage } from "@/types/village";
 
@@ -41,7 +42,9 @@ function toVillage(value: unknown): ExportedVillage | null {
   if (!value || typeof value !== "object") return null;
   const v = value as Partial<ExportedVillage>;
   if (typeof v.tag !== "string" || typeof v.exportedAt !== "string") return null;
-  return {
+  // Read against TODAY's game data, not the data it was saved with: a game
+  // update (TH19) must not need every member to upload again.
+  return refreshVillage({
     tag: v.tag,
     exportedAt: v.exportedAt,
     thLevel: typeof v.thLevel === "number" ? v.thLevel : null,
@@ -52,7 +55,7 @@ function toVillage(value: unknown): ExportedVillage | null {
     unknownIds: typeof v.unknownIds === "number" ? v.unknownIds : 0,
     thWeapon: typeof v.thWeapon === "number" ? v.thWeapon : null,
     appliedSince: typeof v.appliedSince === "number" ? v.appliedSince : 0,
-  };
+  });
 }
 
 /** Each village's saved export, in one read however many there are. */

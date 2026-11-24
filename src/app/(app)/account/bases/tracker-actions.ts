@@ -224,6 +224,10 @@ export async function markAlreadyUpgraded(
   if (!item || item.locked) return { error: "That upgrade is not available any more. Refresh the page." };
   if (item.blocked) return { error: `${item.blocked} first.` };
   if (count > item.idle) return { error: `Only ${item.idle} can be upgraded from level ${item.fromLevel}.` };
+  // A merge is limited by its sources at the merge level, not by how many are missing.
+  if (item.ready !== undefined && count > item.ready) {
+    return { error: `Only ${item.ready} can be merged with what is at the merge level now.` };
+  }
 
   // The STORED village, so no running timer is written into the export.
   const next = markUpgraded(settled.overlay.stored, { ...ref, subject: ref.name }, count);

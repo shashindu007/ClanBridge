@@ -27,12 +27,11 @@ import {
   CheckCircle2,
   ChevronDown,
   FileJson,
-  FlaskConical,
   Hourglass,
-  PawPrint,
   Swords,
 } from "lucide-react";
-import { BuilderHutIcon, BuilderSlots, type Glyph } from "@/components/game/builder-hut-icon";
+import { BuilderSlots, type Glyph } from "@/components/game/builder-hut-icon";
+import { BuilderHutArt, WORKSHOP_ART } from "@/components/game/workshop-icon";
 import { BuildingIcon } from "@/components/game/building-icon";
 import { TownHall } from "@/components/game/town-hall";
 import { UnitIcon } from "@/components/game/unit-icon";
@@ -188,10 +187,14 @@ export function VillageExportView({
             className="cb-rise"
             label="Buildings"
             icon={Castle}
-            value={`${buildingsOverall.pct}%`}
-            sub={`against the ${hallName} ${hall ?? "?"} caps`}
+            value={pctText(buildingsOverall.pct)}
+            sub={
+              buildingsOverall.pct === null
+                ? `${hallName} ${hall ?? "?"} caps not known yet`
+                : `against the ${hallName} ${hall ?? "?"} caps`
+            }
           >
-            <Progress value={buildingsOverall.pct} label="Buildings progress" className="mt-1.5 h-1.5" />
+            <Progress value={buildingsOverall.pct ?? 0} label="Buildings progress" className="mt-1.5 h-1.5" />
           </StatTile>
           <StatTile
             variant="plate"
@@ -207,7 +210,7 @@ export function VillageExportView({
             className="cb-rise"
             style={{ "--i": 2 } as React.CSSProperties}
             label="Builders busy"
-            icon={BuilderHutIcon}
+            icon={BuilderHutArt}
             value={builders ? `${builders.busy}/${builders.total}` : "—"}
             sub={buildersLine(builders)}
           >
@@ -219,10 +222,10 @@ export function VillageExportView({
             style={{ "--i": 3 } as React.CSSProperties}
             label="Heroes and army"
             icon={Swords}
-            value={`${unitsOverall.pct}%`}
-            sub="heroes, troops, spells"
+            value={unitsOverall.total > 0 ? `${unitsOverall.pct}%` : "—"}
+            sub={unitsOverall.total > 0 ? "heroes, troops, spells" : "none in the export"}
           >
-            <Progress value={unitsOverall.pct} label="Heroes and army progress" className="mt-1.5 h-1.5" />
+            <Progress value={unitsOverall.total > 0 ? unitsOverall.pct : 0} label="Heroes and army progress" className="mt-1.5 h-1.5" />
           </StatTile>
         </div>
 
@@ -293,6 +296,12 @@ export function VillageExportView({
 
       {walls && <WallsCard walls={walls} which={which} />}
 
+      {buildingsOverall.pending > 0 && (
+        <p className="text-muted-foreground text-xs" role="note">
+          {PENDING_NOTE}
+        </p>
+      )}
+
       {village.unknownIds > 0 && (
         <p className="text-muted-foreground text-xs">
           {village.unknownIds} item{village.unknownIds === 1 ? " is" : "s are"} newer than
@@ -303,11 +312,7 @@ export function VillageExportView({
   );
 }
 
-const WORKSHOP_ICON: Record<WorkshopState["key"], Glyph> = {
-  builders: BuilderHutIcon,
-  lab: FlaskConical,
-  pets: PawPrint,
-};
+const WORKSHOP_ICON: Record<WorkshopState["key"], Glyph> = WORKSHOP_ART;
 
 function WorkshopRow({ states }: { states: WorkshopState[] }) {
   return (
@@ -394,7 +399,7 @@ function BuildingsSection({
   which,
 }: {
   groups: BuildingGroup[];
-  pct: number;
+  pct: number | null;
   filter: BuildingFilter;
   onFilter?: (filter: BuildingFilter) => void;
   notMaxedOnly: boolean;
@@ -418,7 +423,7 @@ function BuildingsSection({
           <h2 id="buildings-title" className="text-lg font-semibold">
             Buildings and traps
           </h2>
-          <span className="text-muted-foreground text-sm tabular-nums">{pct}%</span>
+          <span className="text-muted-foreground text-sm tabular-nums">{pctText(pct)}</span>
         </div>
         {(onFilter || onNotMaxedOnly) && (
           <div className="flex flex-wrap items-center gap-2">
@@ -475,21 +480,27 @@ function BuildingGroupGrid({ group, which }: { group: BuildingGroup; which: Vill
       <div className="space-y-1.5">
         <div className="flex items-baseline justify-between gap-2">
           <h3 className="text-sm font-semibold">{group.label}</h3>
-          <span className="text-muted-foreground text-xs tabular-nums">{group.pct}%</span>
+          <span className="text-muted-foreground text-xs tabular-nums">{pctText(group.pct)}</span>
         </div>
-        <Progress value={group.pct} label={`${group.label} progress`} className="h-1.5" />
+        <Progress value={group.pct ?? 0} label={`${group.label} progress`} className="h-1.5" />
       </div>
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-2.5">
         {group.buildings.map((b) => (
           <BuildingTile key={`${b.village}:${b.name}`} building={b} which={which} />
         ))}
       </ul>
-      {group.uncounted > 0 && (
+      {group.pending > 0 ? (
+        <p className="text-muted-foreground text-xs">
+          A dash for the cap means the game has gone past this site&apos;s data: the cap for that
+          building at this hall is not known yet, so it is not counted. It will be once the data
+          catches up with the game — it is not maxed.
+        </p>
+      ) : group.uncounted > 0 ? (
         <p className="text-muted-foreground text-xs">
           A dash for the cap means there is no level cap on record for that building at this
           hall, so it is not counted in the percentage.
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -532,7 +543,7 @@ function BuildingTile({ building: b, which }: { building: ExportedBuilding; whic
         </div>
       )}
       {trusted && (
-        <Progress value={tally.pct} label={`${b.name} ${tally.pct}%`} className="mt-auto h-1" />
+        <Progress value={tally.pct ?? 0} label={`${b.name} ${pctText(tally.pct)}`} className="mt-auto h-1" />
       )}
     </li>
   );
@@ -592,3 +603,12 @@ function WallsCard({ walls, which }: { walls: WallBreakdown; which: Village }) {
     </section>
   );
 }
+
+/** "87.4%", or a dash when the data cannot measure this hall yet. */
+function pctText(pct: number | null): string {
+  return pct === null ? "—" : `${pct}%`;
+}
+
+const PENDING_NOTE =
+  "This Town Hall's building caps are not in the site's game data yet (a new Town Hall arrives in the game before the open game data has it). " +
+  "Those buildings show a dash and are left out of the percentages until it does — they are not maxed.";

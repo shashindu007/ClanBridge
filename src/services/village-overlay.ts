@@ -22,7 +22,8 @@
 // already moved it, so applying it would invent a level. Those rows come back in
 // `ignored`, and the next fold retires them.
 
-import { buildingByName, capAt } from "@/data/game";
+import { buildingByName, type GameBuilding } from "@/data/game";
+import { buildingCap, refreshVillage } from "@/integration/village-export";
 import { secondsLeft, upgradeSubject, type Workshop } from "@/services/village";
 import type { Village } from "@/types/domain";
 import type { ExportedBuilding, ExportedUpgrade, ExportedVillage } from "@/types/village";
@@ -92,7 +93,7 @@ function newBuilding(name: string, village: Village, hall: number | null): Expor
     name,
     village,
     kind: data.kind,
-    cap: capAt(data.caps, hall ?? undefined) || null,
+    ...buildingCap(data, hall),
     count: 0,
     levels: {},
     upgrading: 0,
@@ -117,9 +118,49 @@ function hasInstance(v: ExportedVillage, t: Pick<TrackedUpgrade, "village" | "su
   if (t.subjectType === "unit") {
     return v.units.some((u) => u.name === t.subject && u.village === t.village && u.level === t.fromLevel);
   }
-  if (t.fromLevel === 0) return true; // building a new one
+  if (t.fromLevel === 0) {
+    // Building a new one — but a merge needs its sources there, at the merge
+    // level, or it has nothing to be made of.
+    const merge = buildingByName(t.subject, t.village)?.merge ?? [];
+    return merge.every((m) => atOrAbove(v, t.village, m.name, m.level) >= m.n);
+  }
   const b = v.buildings.find((x) => x.name === t.subject && x.village === t.village);
   return (b?.levels[t.fromLevel] ?? 0) > 0;
+}
+
+/** Instances of a building at `level` or higher. */
+function atOrAbove(v: ExportedVillage, village: Village, name: string, level: number): number {
+  const b = v.buildings.find((x) => x.name === name && x.village === village);
+  if (!b) return 0;
+  return Object.entries(b.levels).reduce((n, [l, c]) => (Number(l) >= level ? n + c : n), 0);
+}
+
+/** Consume what one merged building is made of: the highest instances at or above each merge level. */
+function consumeSources(v: ExportedVillage, village: Village, merge: NonNullable<GameBuilding["merge"]>): void {
+  for (const m of merge) {
+    const source = v.buildings.find((x) => x.name === m.name && x.village === village);
+    if (!source) continue;
+    for (let i = 0; i < m.n; i++) {
+      const top = Math.max(-1, ...Object.keys(source.levels).map(Number));
+      if (top < m.level) break; // hasInstance() checked; never eat one below the merge level
+      take(source, top);
+      source.count = Math.max(0, source.count - 1);
+      source.upgrading = Math.min(source.upgrading, source.count);
+    }
+  }
+}
+
+/**
+ * A hall that has gone up a level moves the yardstick: every cap in the village
+ * is re-read for the new hall, as a fresh export at that hall would have them.
+ */
+function hallUp(v: ExportedVillage, b: ExportedBuilding, toLevel: number): void {
+  if (b.village === "home" && b.kind === "Town Hall") v.thLevel = Math.max(v.thLevel ?? 0, toLevel);
+  else if (b.village === "builder" && b.name === "Builder Hall") v.bhLevel = Math.max(v.bhLevel ?? 0, toLevel);
+  else return;
+  const fresh = refreshVillage(v);
+  v.buildings = fresh.buildings;
+  v.units = fresh.units;
 }
 
 /**
@@ -149,20 +190,12 @@ function levelUp(v: ExportedVillage, t: Pick<TrackedUpgrade, "village" | "subjec
 
   if (t.fromLevel === 0) {
     b.count += 1;
-    for (const m of buildingByName(t.subject, t.village)?.merge ?? []) {
-      const source = v.buildings.find((x) => x.name === m.name && x.village === t.village);
-      if (!source) continue;
-      for (let i = 0; i < m.n; i++) {
-        const top = Math.max(-1, ...Object.keys(source.levels).map(Number));
-        if (top < 0) break;
-        take(source, top);
-        source.count = Math.max(0, source.count - 1);
-      }
-    }
+    consumeSources(v, t.village, buildingByName(t.subject, t.village)?.merge ?? []);
   } else {
     take(b, t.fromLevel);
   }
   give(b, t.fromLevel + 1);
+  hallUp(v, b, t.fromLevel + 1);
 }
 
 /**

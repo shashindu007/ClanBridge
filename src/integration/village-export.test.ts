@@ -154,7 +154,7 @@ describe("services/village", () => {
   it("sums levels per instance against the cap", () => {
     const cannon = village.buildings.find((b) => b.name === "Cannon" && b.village === "home")!;
     // 5 × 21 + 1 × 20 of 6 × 21.
-    expect(buildingTally([cannon])).toEqual({ done: 125, total: 126, pct: 99.2 });
+    expect(buildingTally([cannon])).toEqual({ done: 125, total: 126, pct: 99.2, pending: 0 });
   });
 
   it("groups by kind, leaves the halls out, and counts what it cannot measure", () => {
@@ -168,7 +168,7 @@ describe("services/village", () => {
   it("does not trust a cap an instance is above", () => {
     const stale = { ...village.buildings[0]!, cap: 10, levels: { 12: 1 } };
     expect(capTrusted(stale)).toBe(false);
-    expect(buildingTally([stale])).toEqual({ done: 0, total: 0, pct: 100 });
+    expect(buildingTally([stale])).toEqual({ done: 0, total: 0, pct: 100, pending: 0 });
   });
 
   it.each([

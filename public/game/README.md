@@ -1,7 +1,9 @@
 # Game art
 
-Pictures of Town Halls, heroes, pets, troops, spells and leagues. The product
-shows them on tiles, the war board and base details. **Every one is optional.**
+Pictures of Town Halls, heroes, pets, troops, spells, leagues, and (since the
+2026-11 asset zips) buildings and traps: defences, resources, army buildings,
+walls, the Builder's Hut, Laboratory and Pet House. The product shows them on
+tiles, the war board, base details, the upgrade tracker and the builder slots. **Every one is optional.**
 Without them, each place draws its own fallback (a "TH 17" chip, a tinted
 shield), and a fresh clone has none.
 
@@ -49,6 +51,31 @@ allows this for a free, non-commercial fan tool. The notice in
 4. Commit the webp files and the manifest together. The build needs nothing
    else: no kit, no network, no script.
 
+### A partial kit: `--add`
+
+Supercell also posts a handful of new renders with an update (the
+`Assets 2026-11-23.zip` kind) rather than a whole kit. Run those with `--add`:
+
+```
+npm run game-art -- "C:/path/to/unzipped assets" --add --dry-run
+npm run game-art -- "C:/path/to/unzipped assets" --add
+```
+
+`--add` keeps every file and manifest entry already here and writes only keys
+the manifest does not have. Without it the run starts clean, which on a partial
+kit would delete every picture the zip does not contain. **Look at each new
+picture before committing** — the dry run names the file each key will use.
+
+The script leaves out, and says so:
+
+- a **sheet** — a file more than 1.8 times wider than tall (or the reverse),
+  such as two states of a building side by side. Fitted into a square without
+  cropping it is two specks, and cropping is not allowed.
+- a building the game data does not have yet (TH19's Spiky Tower, Firecracker
+  Tower and Guardian Shrine until coc.py adds them). Run `--add` again on the
+  same files after `npm run game-data` brings them in.
+- anything whose name it cannot tie to one item (`B.O.T.O_hut`): never a guess.
+
 ## When a file matches the wrong thing, or nothing
 
 The Fan Kit's filenames change between releases. The patterns that read them
@@ -62,7 +89,7 @@ the script writes it.
 The blurred pictures behind the landing hero, the sign-in screen and Home's
 welcome banner (`components/game/scene-backdrop.tsx`). They live outside
 `public/game/` because `npm run game-art` empties the art folders on every
-run. Same rules: Fan Kit art, resized and re-encoded to webp and nothing else.
+run without `--add`. Same rules: Fan Kit art, resized and re-encoded to webp and nothing else.
 The blur and the dimming are CSS, applied when the page is drawn.
 
 - `skeleton-kingdom.webp` — the kit's `SkeletonKingdom_withCharacters.jpg`

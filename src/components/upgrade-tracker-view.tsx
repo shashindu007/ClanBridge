@@ -15,15 +15,13 @@ import {
   CheckCircle2,
   ChevronDown,
   Clock,
-  FlaskConical,
   Hammer,
   Hourglass,
   Lock,
-  PawPrint,
   Play,
   Sparkles,
 } from "lucide-react";
-import { BuilderHutIcon, type Glyph } from "@/components/game/builder-hut-icon";
+import { WorkshopIcon } from "@/components/game/workshop-icon";
 import { BuildingIcon } from "@/components/game/building-icon";
 import { ResourceIcon, resourceLabel } from "@/components/game/resource-icon";
 import { UnitIcon } from "@/components/game/unit-icon";
@@ -73,11 +71,6 @@ const SORTS: Array<{ key: SortKey; label: string }> = [
   { key: "name", label: "A–Z" },
 ];
 
-const WORKSHOP_GLYPH: Record<Workshop, Glyph> = {
-  builders: BuilderHutIcon,
-  lab: FlaskConical,
-  pets: PawPrint,
-};
 
 /** Resources in the order the game's shop lists them. */
 const RESOURCE_ORDER: Resource[] = [
@@ -275,10 +268,9 @@ function FreeSlot({
   label: string;
   onPick?: (workshop: Workshop) => void;
 }) {
-  const Icon = WORKSHOP_GLYPH[workshop];
   return (
     <li className="border-success/40 bg-success-tint/40 flex min-h-[9.5rem] min-w-[15.5rem] snap-start flex-col items-center justify-center gap-2 rounded-control border-2 border-dashed p-3 text-center sm:min-w-0">
-      <Icon aria-hidden className="text-success-ink size-7" />
+      <WorkshopIcon workshop={workshop} size={44} className="text-success-ink" />
       <p className="text-sm font-semibold">{label}</p>
       {onPick && (
         <Button type="button" size="sm" variant="gold" onClick={() => onPick(workshop)}>
@@ -296,6 +288,8 @@ function FreeSlot({
 
 export interface TotalsHeaderProps {
   totals: Totals;
+  /** Items the game data cannot measure yet. Above zero, no steps is not "Maxed". */
+  pending?: number;
   hallLabel: string;
   builders: number;
   boost: number;
@@ -304,9 +298,10 @@ export interface TotalsHeaderProps {
   has: Workshop[];
 }
 
-export function TotalsHeader({ totals, hallLabel, builders, boost, onBoost, has }: TotalsHeaderProps) {
+export function TotalsHeader({ totals, pending = 0, hallLabel, builders, boost, onBoost, has }: TotalsHeaderProps) {
   const resources = RESOURCE_ORDER.filter((r) => (totals.cost[r] ?? 0) > 0);
-  const maxed = totals.steps === 0;
+  const nothingListed = totals.steps === 0;
+  const maxed = nothingListed && pending === 0;
 
   return (
     <div className="cb-sunken space-y-4 rounded-control p-4">
@@ -316,25 +311,25 @@ export function TotalsHeader({ totals, hallLabel, builders, boost, onBoost, has 
             Time to max {hallLabel}
           </p>
           <p className="cb-title text-3xl leading-none tabular-nums">
-            {maxed ? "Maxed" : `≈ ${formatLong(totals.overall)}`}
+            {maxed ? "Maxed" : nothingListed ? "Not known yet" : `≈ ${formatLong(totals.overall)}`}
           </p>
-          {!maxed && (
+          {pending > 0 && <DataPendingNote pending={pending} hallLabel={hallLabel} />}
+          {!nothingListed && (
             <p className="text-muted-foreground text-xs">
               With {builders} builder{builders === 1 ? "" : "s"}
               {boost > 0 ? ` and a ${boost}% Gold Pass boost` : ""}, never idle.
             </p>
           )}
         </div>
-        {!maxed && (
+        {!nothingListed && (
           <dl className="grid grid-cols-3 gap-2 text-center">
             {(["builders", "lab", "pets"] as const)
               .filter((w) => has.includes(w))
               .map((w) => {
-                const Icon = WORKSHOP_GLYPH[w];
                 return (
                   <div key={w} className="bg-background/50 min-w-[5.5rem] rounded-control px-2 py-1.5">
                     <dt className="text-muted-foreground flex items-center justify-center gap-1 text-[0.6875rem]">
-                      <Icon aria-hidden className="size-3.5" />
+                      <WorkshopIcon workshop={w} size={16} />
                       {TAB_LABELS[w]}
                     </dt>
                     <dd className="text-sm font-semibold tabular-nums">{formatLong(totals.finish[w])}</dd>
@@ -406,6 +401,8 @@ export interface UpgradesPanelProps {
   onStart?: (item: RemainingItem) => void;
   onMark?: (item: RemainingItem) => void;
   hallLabel: string;
+  /** Items the game data cannot measure yet; an empty list is then not "nothing left". */
+  pending?: number;
   totals: React.ReactNode;
 }
 
@@ -421,6 +418,7 @@ export function UpgradesPanel({
   onStart,
   onMark,
   hallLabel,
+  pending = 0,
   totals,
 }: UpgradesPanelProps) {
   return (
@@ -471,7 +469,12 @@ export function UpgradesPanel({
         )}
       </div>
 
-      {items.length === 0 ? (
+      {items.length === 0 && pending > 0 ? (
+        <p className="text-muted-foreground py-2 text-sm">
+          Nothing the site can list here yet. The caps for {hallLabel} are not all in its game data,
+          so this is not maxed — the rest appears once the data catches up with the game.
+        </p>
+      ) : items.length === 0 ? (
         <p className="text-muted-foreground flex items-center gap-2 py-2 text-sm">
           <CheckCircle2 aria-hidden className="text-success-ink size-4" />
           Nothing left here for {hallLabel}.
@@ -641,4 +644,18 @@ export function UpgradeItemRow({
 
 function toPrices(cost: Partial<Record<Resource, number>>): Price[] {
   return RESOURCE_ORDER.filter((r) => (cost[r] ?? 0) > 0).map((r) => ({ resource: r, amount: cost[r]! }));
+}
+
+/**
+ * Said wherever the totals or the list would otherwise read as finished: a new
+ * Town Hall reaches the game before the open game data has every cap for it.
+ */
+function DataPendingNote({ pending, hallLabel }: { pending: number; hallLabel: string }) {
+  return (
+    <p role="note" className="text-muted-foreground max-w-prose text-xs">
+      {pending} item{pending === 1 ? "'s" : "s'"} cap{pending === 1 ? " is" : "s are"} not in the
+      site&apos;s game data for {hallLabel} yet, so {pending === 1 ? "it is" : "they are"} left out of
+      these totals. They are not maxed.
+    </p>
+  );
 }
