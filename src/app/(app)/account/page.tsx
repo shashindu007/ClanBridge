@@ -300,7 +300,7 @@ export default async function AccountPage() {
               title="No village linked yet"
               body="Linking one is how a leader knows who you are in game. It takes the API token from the game's settings, and about a minute."
               action={
-                <Button asChild variant="gold">
+                <Button asChild variant="bubble">
                   <Link href="/verify?next=%2Faccount">
                     <Plus aria-hidden className="size-4" />
                     Link a village

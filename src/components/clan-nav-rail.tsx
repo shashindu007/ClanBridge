@@ -48,7 +48,7 @@ export interface RailClan {
   role: string;
 }
 
-// The current tab is a lit plate on the night rail with a gold line under it;
+// The current tab is a lit plate on the night rail with a water-bubble line under it;
 // everything else is dim ink. Written in the RAIL's own terms (white washes,
 // rail inks) rather than the page's --accent, because the rail is the same
 // night-blue in both themes and --accent is not: in light mode it is a pale
@@ -58,7 +58,7 @@ export interface RailClan {
 // clan menu and the section tabs — so "you are here" looks the same wherever
 // it is said.
 const ACTIVE =
-  "bg-white/12 text-rail-ink font-medium shadow-[inset_0_-2px_0_var(--gold)]";
+  "bg-white/12 text-rail-ink font-medium shadow-[inset_0_-2px_0_var(--bubble)]";
 const IDLE = "text-rail-ink-dim hover:bg-white/8 hover:text-rail-ink";
 
 /**
@@ -283,7 +283,7 @@ export function ClanSectionTabs({ clans }: { clans: RailClan[] }) {
                   className={
                     "shrink-0 rounded-sm px-1 py-0.5 text-[0.8125rem] transition-colors max-sm:py-1.5 " +
                     (active
-                      ? "text-rail-ink font-medium underline decoration-gold decoration-2 underline-offset-4"
+                      ? "text-rail-ink font-medium underline decoration-bubble decoration-2 underline-offset-4"
                       : "text-rail-ink-dim hover:text-rail-ink")
                   }
                 >

@@ -145,7 +145,7 @@ export default async function CwlSeasonListPage({
             <MedalHint perFull={running.medals.fullPayout} bonus={running.medals.bonusCount} />
           )}
 
-          <Button asChild variant="gold" size="cta">
+          <Button asChild variant="bubble" size="cta">
             <Link href={hrefFor(running.season.season)}>Open the war days</Link>
           </Button>
         </Tile>

@@ -556,7 +556,7 @@ export default async function RosterBuilderPage({
             <PickerDialog
               key={selected.id}
               defaultOpen={current.pick}
-              triggerVariant={slotsLeft === 0 ? "outline" : "gold"}
+              triggerVariant={slotsLeft === 0 ? "outline" : "bubble"}
               title={`Add players to ${selectedClan.name}`}
               description={
                 <span className="flex flex-wrap items-center gap-x-3 gap-y-1">

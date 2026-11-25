@@ -28,8 +28,8 @@
 // controls inside carry `relative z-10` to rise above that one link, the same
 // pattern as Tile in kit.tsx.
 //
-// GOLD AT MOST ONCE. The page decides which single row, if any, gets the gold
-// "Attack" — the first clan where you still have one — and says so with `gold`.
+// ONE CALL TO ACTION AT MOST. The page decides which single row, if any, gets the
+// bubble "Attack" — the first clan where you still have one — and says so with `cta`.
 
 import Link from "next/link";
 import {
@@ -88,7 +88,7 @@ export function ClanStatusTile({
   memberCount,
   warLeague,
   fresh,
-  gold,
+  cta,
   clanLeft,
   notice = null,
   now = new Date(),
@@ -98,8 +98,8 @@ export function ClanStatusTile({
   memberCount: number;
   warLeague: string | null;
   fresh: Freshness;
-  /** This tile carries the page's one gold call to action. */
-  gold: boolean;
+  /** This tile carries the page's one bubble call to action. */
+  cta: boolean;
   /** Everyone's unused attacks in the live war — only passed for clans the caller helps run. */
   clanLeft: number | null;
   /** Shown only when there is one. */
@@ -171,7 +171,7 @@ export function ClanStatusTile({
             {status.label}
           </Ribbon>
           <div className="min-w-0 flex-1">
-            <Action status={status} gold={gold} clanLeft={clanLeft} />
+            <Action status={status} cta={cta} clanLeft={clanLeft} />
           </div>
         </div>
 
@@ -206,11 +206,11 @@ export function ClanStatusTile({
  */
 function Action({
   status,
-  gold,
+  cta,
   clanLeft,
 }: {
   status: ClanStatus;
-  gold: boolean;
+  cta: boolean;
   clanLeft: number | null;
 }) {
   const battle = status.kind === "war" || status.kind === "cwl";
@@ -225,7 +225,7 @@ function Action({
             {mine.left === 1 ? "attack" : "attacks"} left
           </span>
         </p>
-        <Button asChild variant={gold ? "gold" : "outline"} size="sm" className="relative z-10">
+        <Button asChild variant={cta ? "bubble" : "outline"} size="sm" className="relative z-10">
           <Link href={status.href}>
             <Swords aria-hidden />
             Attack

@@ -66,7 +66,7 @@ export function Panel({
  *
  * WHEN IT IS A LINK, THE WHOLE TILE IS THE TARGET, WITHOUT NESTING. `href`
  * renders one real <a>, named by `label`, stretched over the tile. The content
- * sits under it; anything inside that is its own control (the gold "Attack"
+ * sits under it; anything inside that is its own control (the bubble "Attack"
  * button) must carry `relative z-10` to rise above the stretched link. That
  * keeps one link per tile for a screen reader and no <a> inside an <a>.
  */
@@ -268,7 +268,7 @@ export function Disclosure({
  * One action because a row with three buttons is a row nobody can act on at a
  * glance. The action is a real link-button, so it is a separate tab stop with
  * its own name ("Answer", "Attack") rather than a whole row that silently
- * navigates somewhere. `primary` makes it the gold call to action — at most
+ * navigates somewhere. `primary` makes it the bubble call to action — at most
  * one per view.
  */
 export function ListRow({
@@ -302,7 +302,7 @@ export function ListRow({
         {meta && <p className="text-muted-foreground text-xs">{meta}</p>}
       </div>
       {action && (
-        <Button asChild size="sm" variant={action.primary ? "gold" : "outline"} className="shrink-0">
+        <Button asChild size="sm" variant={action.primary ? "bubble" : "outline"} className="shrink-0">
           <Link href={action.href}>{action.label}</Link>
         </Button>
       )}

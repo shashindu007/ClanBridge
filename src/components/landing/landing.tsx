@@ -265,7 +265,7 @@ export function Landing({
             {/* One call to action. "I already have an account" beside it was
                 the rail's Sign in again, a few centimetres lower. */}
             <div className="flex flex-wrap gap-3">
-              <Button asChild variant="gold" size="cta">
+              <Button asChild variant="bubble" size="cta">
                 <Link href={JOIN_HREF}>Join your clan</Link>
               </Button>
             </div>
@@ -421,7 +421,7 @@ export function Landing({
             Create your account, link your village, and your leader does the rest.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Button asChild variant="gold" size="cta">
+            <Button asChild variant="bubble" size="cta">
               <Link href={JOIN_HREF}>Join your clan</Link>
             </Button>
           </div>

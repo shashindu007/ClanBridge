@@ -97,7 +97,7 @@ export default async function PublishedRosterPage({
             body="The lineup appears here once your leader publishes it. If they are still deciding, it is deliberately not visible yet."
             action={
               isLeadership(clan.role) ? (
-                <Button asChild variant="gold">
+                <Button asChild variant="bubble">
                   <Link href={`/roster/${encodeURIComponent(season)}`}>Build the lineup</Link>
                 </Button>
               ) : undefined

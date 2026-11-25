@@ -28,7 +28,7 @@
 //                   First, because it is what the page is about.
 //   your attacks    attacks left, how each one went (base, stars, %), and what
 //                   YOU should do next, with free bases as buttons — the first
-//                   one gold, the page's one call to action
+//                   one the bubble, the page's one call to action
 //   still to attack split into "not at all" and "one left"
 //   the lineup      plan beside result
 //   their bases     a board of cards, one per base: free / assigned (named) /
@@ -277,7 +277,7 @@ export default async function WarBoardPage({
             action={
               // Leadership only: for anyone else this opens a read-only page.
               isLeadership(clan.role) ? (
-                <Button asChild variant="gold">
+                <Button asChild variant="bubble">
                   <Link href={`${base}/war/lineup`}>Plan the next lineup</Link>
                 </Button>
               ) : undefined
@@ -326,10 +326,10 @@ export default async function WarBoardPage({
     const b = baseByPosition.get(position);
     return `Base ${position}${b?.thLevel ? ` · TH ${b.thLevel}` : ""}`;
   };
-  // The page's ONE gold button: the first free base you could claim, on the
+  // The page's ONE bubble button: the first free base you could claim, on the
   // first of your villages that still has an attack without a base.
   const claimsOpen = !ended && !leadership && freeBases.length > 0;
-  const goldFor = claimsOpen ? myRecord.find((m) => m.targetSlotsLeft > 0)?.playerId ?? null : null;
+  const ctaFor = claimsOpen ? myRecord.find((m) => m.targetSlotsLeft > 0)?.playerId ?? null : null;
   const hidden = { clanTag: clan.tag, warId: war.id };
 
   // The war's state as a coloured chip, in the same vocabulary the CWL day
@@ -603,7 +603,7 @@ export default async function WarBoardPage({
                       >
                         <SubmitButton
                           size="sm"
-                          variant={goldFor === m.playerId && i === 0 ? "gold" : "outline"}
+                          variant={ctaFor === m.playerId && i === 0 ? "bubble" : "outline"}
                           pendingLabel="Claiming"
                           aria-label={`Claim base ${b.position}${b.name ? `, ${b.name}` : ""}`}
                         >

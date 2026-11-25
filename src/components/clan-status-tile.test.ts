@@ -1,5 +1,5 @@
 // A clan tile on Home, rendered. It must answer "what is happening" and "what
-// do I owe" in words in every state, carry gold only when told to, and be one
+// do I owe" in words in every state, carry the bubble call to action only when told to, and be one
 // link to the clan with the action button beside it rather than inside it.
 
 import { createElement } from "react";
@@ -27,7 +27,7 @@ const clan = {
 
 const fresh = { level: "fresh", label: "just now" } as never;
 
-function render(status: ClanStatus, over: { gold?: boolean; clanLeft?: number | null } = {}) {
+function render(status: ClanStatus, over: { cta?: boolean; clanLeft?: number | null } = {}) {
   return renderToStaticMarkup(
     createElement(ClanStatusTile, {
       clan,
@@ -35,7 +35,7 @@ function render(status: ClanStatus, over: { gold?: boolean; clanLeft?: number | 
       memberCount: 48,
       warLeague: "Master League III",
       fresh,
-      gold: over.gold ?? false,
+      cta: over.cta ?? false,
       clanLeft: over.clanLeft ?? null,
     }),
   );
@@ -51,17 +51,17 @@ const war = (mine: ClanStatus["mine"]): ClanStatus => ({
 
 describe("ClanStatusTile", () => {
   it("leads with the ribbon's words and the attacks you owe", () => {
-    const out = render(war({ left: 2, allowed: 2 }), { gold: true });
+    const out = render(war({ left: 2, allowed: 2 }), { cta: true });
     expect(out).toContain("WAR · 12h");
     expect(out).toContain("attacks left</span>");
     expect(out).toContain(">2</span>");
-    expect(out).toContain('data-variant="gold"');
+    expect(out).toContain('data-variant="bubble"');
     expect(out).toContain('href="/%232PP0JCCL/war"');
   });
 
-  it("is outline, not gold, when another tile has the gold", () => {
-    const out = render(war({ left: 1, allowed: 2 }), { gold: false });
-    expect(out).not.toContain('data-variant="gold"');
+  it("is outline, not the bubble, when another tile has the call to action", () => {
+    const out = render(war({ left: 1, allowed: 2 }), { cta: false });
+    expect(out).not.toContain('data-variant="bubble"');
     expect(out).toContain('data-variant="outline"');
   });
 
@@ -96,7 +96,7 @@ describe("ClanStatusTile", () => {
         memberCount: 48,
         warLeague: null,
         fresh,
-        gold: false,
+        cta: false,
         clanLeft: null,
         notice: { title: "War at 8pm", pinned: true, createdAt: "2026-09-27T09:00:00Z" },
         now: new Date("2026-09-27T12:00:00Z"),

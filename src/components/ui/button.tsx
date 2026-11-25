@@ -15,16 +15,19 @@ import { cn } from "@/lib/utils"
 // six pixels while the `sm` beside it sank three would read as two different
 // controls.
 //
-// GOLD IS THE CALL TO ACTION, AND THERE IS ONE PER VIEW. `variant="gold"` is
-// "the thing to do next" — Attack, Answer — the store's buy button, in this
-// product's terms. Two gold buttons on a screen is two things claiming to be
-// the one; every other action is `outline`. globals.css says why gold no
-// longer collides with the amber warning.
+// THE BUBBLE IS THE CALL TO ACTION, AND THERE IS ONE PER VIEW.
+// `variant="bubble"` is "the thing to do next" — Attack, Answer, Pick an
+// upgrade — a drop of water in the product's water-bubble theme. Two of them
+// on a screen is two things claiming to be the one. An action that repeats
+// down a list (Start on every upgrade row) is `bubble-soft`: the same aqua,
+// without the solid body. Gold is never a button: it means "maxed" and
+// rewards (globals.css).
 //
 // WHICH VARIANT AND SIZE, so the same action looks the same on every page:
 //
-//   gold     the page's single main action (Add players, Open the war days)
-//   default  the confirming action inside a dialog or panel (Assign, Add selected)
+//   bubble       the page's single main action (Add players, Open the war days)
+//   bubble-soft  the main action of each row in a list (Start, Build, Merge)
+//   default      the confirming action inside a dialog or panel (Assign, Add selected)
 //   outline  secondary actions (Move, Change, Publish, Export, Search)
 //   ghost    dismissive or undo actions (Remove, Give back, Clear)
 //
@@ -54,8 +57,11 @@ const buttonVariants = cva(
         // through the face of the button, which looks like a rendering bug.
         default:
           "cb-raised [--raise-shade:var(--primary-shade)] bg-primary text-primary-foreground hover:brightness-110",
-        gold:
-          "cb-raised [--raise-shade:var(--gold-shade)] bg-gold text-gold-ink font-semibold hover:brightness-105",
+        bubble: "cb-raised cb-bubble-cta font-semibold",
+        // .cb-bubble: a faint aqua fill, an aqua ring and a top shine — the
+        // card rim's water drop, sized for a row. No plinth: it is the quiet
+        // version, and twenty raised drops down a list would all shout.
+        "bubble-soft": "cb-bubble text-bubble-ink font-semibold",
         destructive:
           "cb-raised [--raise-shade:var(--destructive-shade)] bg-destructive text-white hover:brightness-110 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
         outline:

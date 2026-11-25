@@ -90,6 +90,12 @@ describe("WorkshopBoard", () => {
     expect(html).toContain("Laboratory is free");
   });
 
+  it("gives only the first free slot the solid bubble; the rest are soft", () => {
+    expect(html.match(/data-variant="bubble"/g)).toHaveLength(1);
+    expect(html.match(/data-variant="bubble-soft"/g)?.length).toBeGreaterThan(0);
+    expect(html.indexOf('data-variant="bubble"')).toBeLessThan(html.indexOf('data-variant="bubble-soft"'));
+  });
+
   it("draws the free builder and the lab as their Fan Kit buildings", () => {
     expect(html).toContain("/game/buildings/building-builders-hut.webp");
     expect(html).toContain("/game/buildings/building-laboratory.webp");

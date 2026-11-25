@@ -54,3 +54,32 @@ export function GameArt({
     />
   );
 }
+
+/**
+ * The picture on a water-bubble plate: an aqua well with a rim and a shine,
+ * the art inset so it never touches the edge. Fan Kit portraits are opaque
+ * squares and buildings are cutouts; on the plate both read as the same kind
+ * of game piece. Gold rim when maxed. No art → the caller's fallback, bare —
+ * the stand-in token is already a filled tile of the same shape.
+ */
+export function PlatedArt({
+  art,
+  size,
+  fallback = null,
+  maxed = false,
+  manifest,
+}: {
+  art: string | null;
+  /** The plate, in px. The art is drawn at 80% of it. */
+  size: number;
+  fallback?: React.ReactNode;
+  maxed?: boolean;
+  manifest?: ArtManifest;
+}) {
+  if (!resolveArt(art, manifest)) return <>{fallback}</>;
+  return (
+    <span className="cb-icon-plate" data-maxed={maxed || undefined} style={{ width: size, height: size }}>
+      <GameArt art={art} size={Math.round(size * 0.8)} alt="" manifest={manifest} />
+    </span>
+  );
+}

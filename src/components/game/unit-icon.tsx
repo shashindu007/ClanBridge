@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { artKeyForUnit, type ArtManifest } from "@/lib/game-art";
-import { GameArt } from "@/components/game/game-art";
+import { GameArt, PlatedArt } from "@/components/game/game-art";
 import type { UnitGroup } from "@/data/game";
 
 /** Each group's token colour. Same in both themes: white ink on a mid tone. */
@@ -75,6 +75,7 @@ export function UnitIcon({
   level,
   maxed = false,
   locked = false,
+  plate = false,
   className,
   manifest,
 }: {
@@ -88,6 +89,8 @@ export function UnitIcon({
   maxed?: boolean;
   /** Not unlocked yet: greyed, and no plate. */
   locked?: boolean;
+  /** On a water-bubble plate (PlatedArt): for tiles and rows, 28px and up. */
+  plate?: boolean;
   className?: string;
   /** For tests. Pages use the committed manifest. */
   manifest?: ArtManifest;
@@ -114,13 +117,17 @@ export function UnitIcon({
       className={cn("relative inline-flex shrink-0", locked && "opacity-45 grayscale", className)}
       style={{ width: size, height: size }}
     >
-      <GameArt
-        art={artKeyForUnit(name, group)}
-        size={size}
-        alt=""
-        fallback={token}
-        manifest={manifest}
-      />
+      {plate ? (
+        <PlatedArt
+          art={artKeyForUnit(name, group)}
+          size={size}
+          fallback={token}
+          maxed={maxed && !locked}
+          manifest={manifest}
+        />
+      ) : (
+        <GameArt art={artKeyForUnit(name, group)} size={size} alt="" fallback={token} manifest={manifest} />
+      )}
       {level !== undefined && !locked && (
         <span
           aria-hidden

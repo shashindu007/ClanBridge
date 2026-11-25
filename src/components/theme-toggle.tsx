@@ -103,7 +103,7 @@ export function ThemeToggle({ compact = false }: { compact?: boolean } = {}) {
                 "flex flex-1 items-center justify-center gap-1.5 rounded-chip px-2 py-1.5 text-xs font-medium transition-colors " +
                 (compact
                   ? active
-                    ? "bg-white/15 text-rail-ink shadow-[inset_0_-2px_0_var(--gold)]"
+                    ? "bg-white/15 text-rail-ink shadow-[inset_0_-2px_0_var(--bubble)]"
                     : "text-rail-ink-dim hover:text-rail-ink"
                   : active
                     ? "bg-tile text-foreground shadow-xs"

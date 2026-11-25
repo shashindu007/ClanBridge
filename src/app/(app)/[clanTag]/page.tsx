@@ -29,7 +29,7 @@
 //
 // WHAT THE COLOUR IS FOR: the status colours are the reserved set in
 // globals.css and mean exactly what they mean everywhere else. Ribbons are
-// game state, in words; gold is the one thing to do next, at most once.
+// game state, in words; the bubble is the one thing to do next, at most once.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import Link from "next/link";
@@ -507,7 +507,7 @@ export default async function ClanDashboardPage({
                 </div>
                 <Button
                   asChild
-                  variant={warIsTheAction ? "gold" : "outline"}
+                  variant={warIsTheAction ? "bubble" : "outline"}
                   size={warIsTheAction ? "cta" : "default"}
                 >
                   <Link href={`${href}/war`}>
