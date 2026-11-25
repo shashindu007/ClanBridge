@@ -245,7 +245,7 @@ export default async function LayoutsPage({
         title="Base layouts"
         description="Shared by members, ranked by votes. Open one straight into the game."
         actions={
-          <Button asChild variant="gold">
+          <Button asChild variant="bubble">
             <Link href={`${base}/upload`}>Share a layout</Link>
           </Button>
         }

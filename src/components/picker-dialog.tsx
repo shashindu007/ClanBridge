@@ -38,7 +38,7 @@ function setPickFlag(open: boolean) {
 export function PickerDialog({
   defaultOpen,
   triggerLabel = "Add players",
-  triggerVariant = "gold",
+  triggerVariant = "bubble",
   title,
   description,
   toolbar,
@@ -47,7 +47,7 @@ export function PickerDialog({
 }: {
   defaultOpen: boolean;
   triggerLabel?: string;
-  triggerVariant?: "gold" | "outline";
+  triggerVariant?: "bubble" | "outline";
   title: string;
   description?: React.ReactNode;
   /** Filters and search — stays put while the list scrolls. */

@@ -27,6 +27,9 @@ const badgeVariants = cva(
         success: "bg-success-tint text-success-ink border-success/25",
         warning: "bg-warning-tint text-warning-ink border-warning/35",
         info: "bg-info-tint text-info-ink border-info/25",
+        // The theme's own hue, not a status: "in progress" on the base
+        // tracker, where info-blue beside the aqua cards read as a mismatch.
+        bubble: "bg-bubble-tint text-bubble-ink border-bubble/35",
       },
     },
     defaultVariants: {

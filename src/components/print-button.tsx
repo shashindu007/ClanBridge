@@ -15,7 +15,7 @@ export function PrintButton({
   size?: "sm" | "default";
 }) {
   return (
-    <Button type="button" variant="gold" size={size} onClick={() => window.print()} className="print:hidden">
+    <Button type="button" variant="bubble" size={size} onClick={() => window.print()} className="print:hidden">
       <Printer aria-hidden />
       {label}
     </Button>

@@ -212,6 +212,34 @@ describe("matchArtKey — the 2026-11 asset zips", () => {
   });
 });
 
+// The 2026-11-24 asset zips: two-level trap renders, an Air Sweeper, and the
+// kit's run-together "spelltower". Each was checked against its picture.
+describe("matchArtKey — the 2026-11-24 asset zips", () => {
+  it("reads two-level trap renders", () => {
+    expect(key("Building_HV_Bomb_level_9&10.png")).toBe("trap-bomb");
+    expect(key("Building_HV_Giant_Bomb_level_11&12.png")).toBe("trap-giant-bomb");
+    expect(key("Building_HV_Skeleton_Trap_level_3&4.png")).toBe("trap-skeleton-trap");
+    expect(key("Giga_Bomb_HV_01.png")).toBe("trap-giga-bomb");
+  });
+
+  it("files buildings by village", () => {
+    expect(key("Building_HV_Air_Sweeper_level_7.png")).toBe("building-air-sweeper");
+    expect(key("Building_HV_Blacksmith_level_1&2.png")).toBe("building-blacksmith");
+    expect(key("Building_BB_Air_Bombs_level_3.png")).toBe("builder-building-air-bombs");
+    expect(key("Scattershot_lvl7.png")).toBe("building-scattershot");
+    expect(key("Icon_BB_Bomber.png")).toBe("builder-troop-bomber");
+    expect(key("Building_CC_Bomb_Tower_level_5.png")).toBe("building-bomb-tower");
+  });
+
+  it("reads the kit's run-together Spell Tower", () => {
+    expect(key("spelltower_lvl4_marketing.png")).toBe("building-spell-tower");
+  });
+
+  it("leaves a file it cannot tie to one item unused", () => {
+    expect(key("crafted defence  (1).png")).toBeNull();
+  });
+});
+
 describe("folderFor", () => {
   it("files every family under its own folder", () => {
     expect(folderFor("th-17")).toBe("townhall");
@@ -254,6 +282,12 @@ describe("preference", () => {
 
   it("takes a building's highest level render", () => {
     expect(better("Building_HV_Cannon_level_21.png", "Building_HV_Cannon_level_9.png")).toBe(true);
+    expect(better("Building_HV_Air_Sweeper_level_7.png", "Building_HV_Air_Sweeper_level_6.png")).toBe(true);
+    expect(better("Building_HV_Giant_Bomb_level_11&12.png", "Building_HV_Giant_Bomb_level_5&6.png")).toBe(true);
+  });
+
+  it("takes the home village's building over Clan Capital's", () => {
+    expect(better("Building_HV_Bomb_Tower_level_5.png", "Building_CC_Bomb_Tower_level_5.png")).toBe(true);
   });
 
   it("calls two files of the same kind even, for the file size to decide", () => {

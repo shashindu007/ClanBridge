@@ -85,6 +85,7 @@ const KIT_BUILDING_NAMES: Record<string, string[][]> = {
   "Builder's Hut": [["builder", "hut"], ["builderhut"]], // BuilderHut_lvl9, Building_HV_Builder_Hut_Level_7
   "Multi-Gear Tower": [["cat", "cannon"], ["cat", "archer"]], // CAT_cannon_multi_gear_lvl4, CAT_archer_lvl2_2k
   "Super Wizard Tower": [["merged", "wizard", "tower"]], // Building_HV_Merged_Wizard_Tower_lvl2
+  "Spell Tower": [["spelltower"]], // spelltower_lvl4_marketing
 };
 
 /** Words that decorate a Fan Kit filename without naming anything. */

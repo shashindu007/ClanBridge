@@ -247,7 +247,7 @@ function LoginForm() {
           </Alert>
         )}
 
-        <Button type="submit" variant="gold" className="w-full" disabled={busy}>
+        <Button type="submit" variant="bubble" className="w-full" disabled={busy}>
           {mode === "signin"
             ? busy
               ? "Signing in…"

@@ -74,7 +74,7 @@ export function BaseCarousel({
   return (
     <Tile
       as="section"
-      accent="var(--trim)"
+      accent="var(--bubble)"
       banner
       className={cn("overflow-hidden sm:p-6", many && "pb-4 sm:px-16")}
     >
@@ -139,7 +139,7 @@ export function BaseCarousel({
                   aria-current={i === index ? "true" : undefined}
                   className={cn(
                     "focus-visible:ring-ring/50 relative h-2 rounded-full transition-all outline-none after:absolute after:-inset-x-1 after:-inset-y-5 focus-visible:ring-[3px]",
-                    i === index ? "bg-primary w-6" : "bg-muted-foreground/35 hover:bg-muted-foreground/60 w-2",
+                    i === index ? "bg-bubble w-6" : "bg-muted-foreground/35 hover:bg-muted-foreground/60 w-2",
                   )}
                 />
               ))}
@@ -219,7 +219,7 @@ function SmallArrow({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="hover:bg-accent focus-visible:ring-ring/50 inline-flex size-8 items-center justify-center rounded-full border outline-none focus-visible:ring-[3px] sm:hidden"
+      className="hover:bg-accent focus-visible:ring-ring/50 inline-flex size-10 items-center justify-center rounded-full border outline-none focus-visible:ring-[3px] sm:hidden"
     >
       <Icon aria-hidden className="size-4" />
     </button>

@@ -20,7 +20,7 @@
 
 import Link from "next/link";
 import { ArrowUpRight, CheckCircle2, Hourglass, TrendingUp } from "lucide-react";
-import { BuilderHutIcon } from "@/components/game/builder-hut-icon";
+import { BuilderHutArt } from "@/components/game/workshop-icon";
 import { Progress } from "@/components/ui/progress";
 import { StatTile } from "@/components/kit";
 import { TownHall } from "@/components/game/town-hall";
@@ -140,7 +140,7 @@ export function BaseDetails({ progress, village, path, switcher = true, banner =
             </div>
             <p className="cb-title text-4xl tabular-nums">{overall.pct}%</p>
           </div>
-          <Progress value={overall.pct} label={`${hallName} progress`} className="h-2.5" />
+          <Progress value={overall.pct} label={`${hallName} progress`} tone="maxed" className="h-2.5" />
           <p className="text-muted-foreground text-xs">
             Levels against the cap for this {hallName}, across every group below
             except super troops.
@@ -185,8 +185,9 @@ export function BaseDetails({ progress, village, path, switcher = true, banner =
             </h3>
             <ul className="flex flex-wrap gap-x-5 gap-y-3">
               {heroes.units.map((u) => (
-                <li key={u.name} className="flex items-center gap-2.5">
+                <li key={u.name} className="flex items-center gap-3.5">
                   <UnitIcon
+                    plate
                     name={u.name}
                     group={u.group}
                     size={40}
@@ -221,7 +222,7 @@ export function BaseDetails({ progress, village, path, switcher = true, banner =
                   </span>
                 </div>
                 {g.group !== "superTroop" && (
-                  <Progress value={g.pct} label={`${g.label} progress`} className="h-1.5" />
+                  <Progress value={g.pct} label={`${g.label} progress`} tone="maxed" className="h-1.5" />
                 )}
               </li>
             ))}
@@ -282,7 +283,7 @@ export function VillageSwitch({
         <span>Home village</span>
       </VillageLink>
       <VillageLink path={path} village="builder" current={current}>
-        <BuilderHutIcon aria-hidden className="size-4" />
+        <BuilderHutArt className="size-5.5" />
         <span>Builder Base</span>
         {bhLevel ? <span className="text-muted-foreground text-xs tabular-nums">BH {bhLevel}</span> : null}
       </VillageLink>
@@ -337,7 +338,7 @@ function GroupPanel({ group }: { group: GroupProgress }) {
         )}
       </div>
 
-      <ul className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-2.5">
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-2.5">
         {group.units.map((u) => (
           <UnitCard key={`${u.village}:${u.name}`} unit={u} showBar={!isSuper} />
         ))}
@@ -359,6 +360,7 @@ function UnitCard({ unit, showBar }: { unit: StoredUnit; showBar: boolean }) {
       )}
     >
       <UnitIcon
+        plate
         name={unit.name}
         group={unit.group}
         size={52}
@@ -388,6 +390,7 @@ function UnitCard({ unit, showBar }: { unit: StoredUnit; showBar: boolean }) {
         <Progress
           value={pct}
           label={`${unit.name} ${unit.level} of ${unit.cap}`}
+          tone="maxed"
           className="mt-auto h-1"
         />
       )}
@@ -421,7 +424,7 @@ function BehindPanel({
       </div>
       {total === 0 ? (
         <p className="text-muted-foreground flex items-center gap-2 text-sm">
-          <CheckCircle2 aria-hidden className="text-success-ink size-4" />
+          <CheckCircle2 aria-hidden className="text-bubble-ink size-4" />
           Everything is at least at the level {hallName} {hall - 1} allows.
         </p>
       ) : (
@@ -436,7 +439,7 @@ function BehindPanel({
                 <dt className="text-sm font-medium">{g.label}</dt>
                 {g.units.map((u) => (
                   <dd key={u.name} className="flex items-center gap-2.5 text-sm">
-                    <UnitIcon name={u.name} group={g.group} size={28} locked={u.level === 0} />
+                    <UnitIcon name={u.name} group={g.group} size={28} locked={u.level === 0} plate />
                     <span className="min-w-0 flex-1 truncate">{u.name}</span>
                     <span className="text-muted-foreground tabular-nums">
                       {u.level === 0 ? "locked" : u.level} / {u.previousCap}
@@ -476,10 +479,10 @@ function UpgradesPanel({
         <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
           {upgrades.map((u) => (
             <li key={`${u.village}:${u.name}`} className="flex items-center gap-2.5 text-sm">
-              <UnitIcon name={u.name} group={u.group} size={28} />
+              <UnitIcon name={u.name} group={u.group} size={28} plate />
               <span className="min-w-0 flex-1 truncate">{u.name}</span>
               <span className="text-muted-foreground inline-flex items-center gap-1 tabular-nums">
-                <ArrowUpRight aria-hidden className="text-success-ink size-3.5" />
+                <ArrowUpRight aria-hidden className="text-bubble-ink size-3.5" />
                 {u.from === 0 ? "unlocked" : u.from} → {u.to}
               </span>
             </li>

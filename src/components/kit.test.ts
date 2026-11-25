@@ -123,7 +123,7 @@ describe("ListRow", () => {
     const plain = html(
       createElement(ListRow, { icon: Swords, title: "See", action: { href: "/w", label: "See" } }),
     );
-    expect(primary).toContain('data-variant="gold"');
+    expect(primary).toContain('data-variant="bubble"');
     expect(plain).toContain('data-variant="outline"');
   });
 });

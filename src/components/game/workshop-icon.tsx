@@ -10,7 +10,7 @@
 
 import { FlaskConical, PawPrint } from "lucide-react";
 import { BuilderHutIcon, type Glyph, type GlyphProps } from "@/components/game/builder-hut-icon";
-import { GameArt } from "@/components/game/game-art";
+import { GameArt, PlatedArt } from "@/components/game/game-art";
 import { artKeyForBuilding, type ArtManifest } from "@/lib/game-art";
 import type { Workshop } from "@/services/village";
 import type { Village } from "@/types/domain";
@@ -37,6 +37,7 @@ export function WorkshopIcon({
   workshop,
   village = "home",
   size,
+  plate = false,
   className,
   manifest,
 }: {
@@ -44,11 +45,23 @@ export function WorkshopIcon({
   village?: Village;
   /** The square, in px. */
   size: number;
+  /** On a water-bubble plate (PlatedArt), as in the tracker's slot cards. */
+  plate?: boolean;
   className?: string;
   /** For tests. Pages use the committed manifest. */
   manifest?: ArtManifest;
 }) {
   const Fallback = FALLBACK[workshop];
+  if (plate) {
+    return (
+      <PlatedArt
+        art={workshopArtKey(workshop, village)}
+        size={size}
+        manifest={manifest}
+        fallback={<Fallback aria-hidden className={className} style={{ width: size, height: size }} />}
+      />
+    );
+  }
   return (
     <GameArt
       art={workshopArtKey(workshop, village)}

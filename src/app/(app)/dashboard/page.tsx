@@ -476,10 +476,10 @@ export default async function DashboardPage({
   // on its tile; if there is none, the first "Needs you" row does. Never both.
   const needsAttack = (s: (typeof statuses)[number]) =>
     (s.kind === "war" || s.kind === "cwl") && (s.mine?.left ?? 0) > 0;
-  const goldTile = statuses.findIndex(needsAttack);
+  const ctaTile = statuses.findIndex(needsAttack);
 
   // Clans with an attack waiting first (stable, so the rest keep their order):
-  // the one gold Attack must never be folded behind "Show more".
+  // the one bubble Attack must never be folded behind "Show more".
   const clanOrder = loaded
     .map((_, i) => i)
     .sort((a, b) => Number(needsAttack(statuses[b]!)) - Number(needsAttack(statuses[a]!)));
@@ -514,7 +514,7 @@ export default async function DashboardPage({
         memberCount={l.memberCount}
         warLeague={l.warLeague}
         fresh={l.fresh}
-        gold={i === goldTile}
+        cta={i === ctaTile}
         clanLeft={
           isLeadership(l.clan.role)
             ? (statuses[i]!.kind === "cwl" ? (l.cwl?.record ?? []) : l.record).reduce(
@@ -538,7 +538,7 @@ export default async function DashboardPage({
         context={item.clans.length > 0 ? <ClanChips clans={item.clans} /> : undefined}
         title={item.title}
         meta={item.meta ?? undefined}
-        action={{ href: item.href, label: item.actionLabel, primary: i === 0 && goldTile === -1 }}
+        action={{ href: item.href, label: item.actionLabel, primary: i === 0 && ctaTile === -1 }}
       />
     );
   };
@@ -563,7 +563,7 @@ export default async function DashboardPage({
             }
             action={
               admin ? (
-                <Button asChild variant="gold">
+                <Button asChild variant="bubble">
                   <Link href="/admin">
                     <Plus aria-hidden />
                     Add your first clan

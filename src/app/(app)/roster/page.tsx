@@ -102,7 +102,7 @@ export default async function RosterSeasonsPage() {
   const now = new Date();
   // The season being worked on: this month's until its CWL is over, then next
   // month's (lineupFocusSeason). It was the calendar month, so on 27 September
-  // the finished September CWL led the page with the gold button.
+  // the finished September CWL led the page with the bubble button.
   const focus = lineupFocusSeason(now);
   const running = cwlWindow(now).season === focus && now >= cwlWindow(now).signupOpens;
   const byName = (a: Roster, b: Roster) =>
@@ -219,7 +219,7 @@ export default async function RosterSeasonsPage() {
 
             {leads.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
-                <Button asChild variant={i === 0 ? "gold" : "outline"} size={i === 0 ? "cta" : "default"}>
+                <Button asChild variant={i === 0 ? "bubble" : "outline"} size={i === 0 ? "cta" : "default"}>
                   <Link href={`/roster/${season}`}>
                     Continue picking
                     <ArrowRight aria-hidden />

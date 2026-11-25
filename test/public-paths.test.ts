@@ -120,6 +120,11 @@ describe("the middleware matcher", () => {
     "/sw.js",
     "/icons/icon-192.png",
     "/game/heroes/hero-archer-queen.webp",
+    // Added with the 2026-11 building and trap art. Left out, each one was a
+    // Supabase round trip when signed in and a /login redirect when not.
+    "/game/buildings/building-cannon.webp",
+    "/game/builder-buildings/builder-building-clock-tower.webp",
+    "/game/traps/trap-bomb.webp",
     "/scenes/crystal-cave.webp",
     "/apple-touch-icon-precomposed.png",
     "/_next/static/chunk.js",

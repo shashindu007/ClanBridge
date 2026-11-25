@@ -194,7 +194,7 @@ export function VillageExportView({
                 : `against the ${hallName} ${hall ?? "?"} caps`
             }
           >
-            <Progress value={buildingsOverall.pct ?? 0} label="Buildings progress" className="mt-1.5 h-1.5" />
+            <Progress value={buildingsOverall.pct ?? 0} label="Buildings progress" tone="maxed" className="mt-1.5 h-1.5" />
           </StatTile>
           <StatTile
             variant="plate"
@@ -225,7 +225,7 @@ export function VillageExportView({
             value={unitsOverall.total > 0 ? `${unitsOverall.pct}%` : "—"}
             sub={unitsOverall.total > 0 ? "heroes, troops, spells" : "none in the export"}
           >
-            <Progress value={unitsOverall.total > 0 ? unitsOverall.pct : 0} label="Heroes and army progress" className="mt-1.5 h-1.5" />
+            <Progress value={unitsOverall.total > 0 ? unitsOverall.pct : 0} label="Heroes and army progress" tone="maxed" className="mt-1.5 h-1.5" />
           </StatTile>
         </div>
 
@@ -325,7 +325,7 @@ function WorkshopRow({ states }: { states: WorkshopState[] }) {
             key={w.key}
             className={cn(
               "flex items-center gap-1.5 rounded-chip border px-2.5 py-1 text-xs font-medium",
-              working ? "bg-info-tint text-info-ink border-transparent" : "text-muted-foreground",
+              working ? "bg-bubble-tint text-bubble-ink border-bubble/35" : "text-muted-foreground",
             )}
           >
             <Icon aria-hidden className="size-3.5" />
@@ -349,8 +349,8 @@ export function SubjectIcon({
   which: Village;
   size: number;
 }) {
-  if (subject?.type === "unit") return <UnitIcon name={name} group={subject.group} size={size} />;
-  return <BuildingIcon name={name} village={which} kind={subject?.kind ?? "Other"} size={size} />;
+  if (subject?.type === "unit") return <UnitIcon name={name} group={subject.group} size={size} plate />;
+  return <BuildingIcon name={name} village={which} kind={subject?.kind ?? "Other"} size={size} plate />;
 }
 
 function UpgradeRow({
@@ -362,7 +362,7 @@ function UpgradeRow({
 }) {
   const done = u.left === 0;
   return (
-    <li className="cb-sunken flex items-center gap-3 rounded-control p-2.5">
+    <li className="cb-sunken flex items-center gap-4 rounded-control p-2.5">
       <SubjectIcon name={u.name} subject={u.subject} which={which} size={40} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{u.name}</p>
@@ -372,7 +372,7 @@ function UpgradeRow({
       </div>
       <div className="shrink-0 text-right">
         {done ? (
-          <Badge variant="success">
+          <Badge variant="bubble">
             <CheckCircle2 aria-hidden />
             done
           </Badge>
@@ -464,7 +464,7 @@ function BuildingsSection({
 
       {shown.length === 0 ? (
         <p className="text-muted-foreground flex items-center gap-2 text-sm">
-          <CheckCircle2 aria-hidden className="text-success-ink size-4" />
+          <CheckCircle2 aria-hidden className="text-bubble-ink size-4" />
           Everything here is at its cap for this hall.
         </p>
       ) : (
@@ -482,9 +482,9 @@ function BuildingGroupGrid({ group, which }: { group: BuildingGroup; which: Vill
           <h3 className="text-sm font-semibold">{group.label}</h3>
           <span className="text-muted-foreground text-xs tabular-nums">{pctText(group.pct)}</span>
         </div>
-        <Progress value={group.pct ?? 0} label={`${group.label} progress`} className="h-1.5" />
+        <Progress value={group.pct ?? 0} label={`${group.label} progress`} tone="maxed" className="h-1.5" />
       </div>
-      <ul className="grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-2.5">
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-2.5">
         {group.buildings.map((b) => (
           <BuildingTile key={`${b.village}:${b.name}`} building={b} which={which} />
         ))}
@@ -523,7 +523,7 @@ function BuildingTile({ building: b, which }: { building: ExportedBuilding; whic
           ×{b.count}
         </span>
       )}
-      <BuildingIcon name={b.name} village={which} kind={b.kind} size={52} level={top} maxed={maxed} />
+      <BuildingIcon name={b.name} village={which} kind={b.kind} size={52} level={top} maxed={maxed} plate />
       <p className="mt-1 line-clamp-2 w-full text-xs leading-tight font-medium">{b.name}</p>
       <p className={cn("text-xs tabular-nums", maxed ? "text-foreground font-semibold" : "text-muted-foreground")}>
         {levelSummary(b)}
@@ -533,7 +533,7 @@ function BuildingTile({ building: b, which }: { building: ExportedBuilding; whic
       {(b.upgrading > 0 || b.geared > 0 || b.supercharged > 0) && (
         <div className="flex flex-wrap justify-center gap-1">
           {b.upgrading > 0 && (
-            <Badge variant="info" title={`${b.upgrading} upgrading`}>
+            <Badge variant="bubble" title={`${b.upgrading} upgrading`}>
               <Hourglass aria-hidden />
               {b.upgrading}
             </Badge>
@@ -543,7 +543,7 @@ function BuildingTile({ building: b, which }: { building: ExportedBuilding; whic
         </div>
       )}
       {trusted && (
-        <Progress value={tally.pct ?? 0} label={`${b.name} ${pctText(tally.pct)}`} className="mt-auto h-1" />
+        <Progress value={tally.pct ?? 0} label={`${b.name} ${pctText(tally.pct)}`} tone="maxed" className="mt-auto h-1" />
       )}
     </li>
   );
@@ -558,7 +558,7 @@ function WallsCard({ walls, which }: { walls: WallBreakdown; which: Village }) {
     <section aria-labelledby="walls-title" className="cb-panel space-y-4 rounded-panel border p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <BuildingIcon name="Wall" village={which} kind="Wall" size={40} level={top} maxed={toCap === 0} />
+          <BuildingIcon name="Wall" village={which} kind="Wall" size={40} level={top} maxed={toCap === 0} plate />
           <div>
             <h2 id="walls-title" className="text-lg font-semibold">
               Walls
@@ -569,7 +569,7 @@ function WallsCard({ walls, which }: { walls: WallBreakdown; which: Village }) {
           </div>
         </div>
         {toCap !== null && (
-          <span className={cn("text-sm font-medium tabular-nums", toCap === 0 ? "text-success-ink" : "text-muted-foreground")}>
+          <span className={cn("text-sm font-medium tabular-nums", toCap === 0 ? "text-foreground font-semibold" : "text-muted-foreground")}>
             {toCap === 0 ? "All at the cap" : `${toCap} to the cap`}
           </span>
         )}
@@ -583,7 +583,7 @@ function WallsCard({ walls, which }: { walls: WallBreakdown; which: Village }) {
         {walls.levels.map((l, i) => (
           <span
             key={l.level}
-            className={cn("h-full", walls.cap !== null && l.level >= walls.cap ? "bg-gold" : "bg-primary")}
+            className={cn("h-full", walls.cap !== null && l.level >= walls.cap ? "bg-gold" : "bg-bubble")}
             style={{
               width: `${(l.count / walls.total) * 100}%`,
               opacity: walls.cap !== null && l.level >= walls.cap ? 1 : Math.max(0.3, 1 - i * 0.2),

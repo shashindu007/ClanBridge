@@ -19,7 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { artKeyForBuilding, artKeyForTownHall, type ArtManifest } from "@/lib/game-art";
 import { BuilderHutIcon, type Glyph } from "@/components/game/builder-hut-icon";
-import { GameArt } from "@/components/game/game-art";
+import { GameArt, PlatedArt } from "@/components/game/game-art";
 import type { Village } from "@/types/domain";
 
 interface KindStyle {
@@ -56,6 +56,7 @@ export function BuildingIcon({
   level,
   maxed = false,
   hallLevel,
+  plate = false,
   className,
   manifest,
 }: {
@@ -71,6 +72,8 @@ export function BuildingIcon({
   maxed?: boolean;
   /** For the Town Hall itself, whose picture changes with its level. */
   hallLevel?: number | null;
+  /** On a water-bubble plate (PlatedArt): for tiles and rows, 28px and up. */
+  plate?: boolean;
   className?: string;
   /** For tests. Pages use the committed manifest. */
   manifest?: ArtManifest;
@@ -90,7 +93,11 @@ export function BuildingIcon({
 
   return (
     <span className={cn("relative inline-flex shrink-0", className)} style={{ width: size, height: size }}>
-      <GameArt art={art} size={size} alt="" fallback={token} manifest={manifest} />
+      {plate ? (
+        <PlatedArt art={art} size={size} fallback={token} maxed={maxed} manifest={manifest} />
+      ) : (
+        <GameArt art={art} size={size} alt="" fallback={token} manifest={manifest} />
+      )}
       {level !== undefined && level > 0 && (
         <span
           aria-hidden

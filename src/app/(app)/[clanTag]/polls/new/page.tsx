@@ -286,7 +286,7 @@ export default async function CreatePollPage({
         {/* No Cancel beside it: "All polls" at the top of the page is the same
             link, and two ways out of one form is one too many. */}
         <div className="flex flex-wrap gap-3 border-t pt-5">
-          <SubmitButton variant="gold" pendingLabel="Opening">
+          <SubmitButton variant="bubble" pendingLabel="Opening">
             Open the poll
           </SubmitButton>
         </div>

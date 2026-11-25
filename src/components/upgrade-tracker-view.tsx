@@ -115,15 +115,17 @@ export function PriceList({ prices, times = 1, alt }: { prices: Price[]; times?:
 function ItemIcon({ item, size }: { item: RemainingItem; size: number }) {
   const level = item.fromLevel > 0 ? item.fromLevel : undefined;
   if (item.subjectType === "unit" && item.group) {
-    return <UnitIcon name={item.name} group={item.group} size={size} level={level} locked={item.locked} />;
+    return <UnitIcon name={item.name} group={item.group} size={size} level={level} locked={item.locked} plate />;
   }
-  return <BuildingIcon name={item.name} village={item.village} kind={item.kind ?? "Other"} size={size} level={level} />;
+  return (
+    <BuildingIcon name={item.name} village={item.village} kind={item.kind ?? "Other"} size={size} level={level} plate />
+  );
 }
 
 function UpgradeIcon({ village, upgrade, which }: { village: ExportedVillage; upgrade: ExportedUpgrade; which: Village }) {
   const subject = upgradeSubject(village, upgrade);
-  if (subject?.type === "unit") return <UnitIcon name={upgrade.name} group={subject.group} size={44} />;
-  return <BuildingIcon name={upgrade.name} village={which} kind={subject?.kind ?? "Town Hall"} size={44} />;
+  if (subject?.type === "unit") return <UnitIcon name={upgrade.name} group={subject.group} size={44} plate />;
+  return <BuildingIcon name={upgrade.name} village={which} kind={subject?.kind ?? "Town Hall"} size={44} plate />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -147,6 +149,11 @@ export function WorkshopBoard({ village, which, now, onPick, slotActions }: Work
     .map((u) => ({ u, w: u.workshop ?? workshopOf(upgradeSubject(village, u)) }))
     .sort((a, b) => Date.parse(a.u.finishesAt) - Date.parse(b.u.finishesAt));
 
+  // The first workshop with an idle slot: its first free card carries the one
+  // solid bubble, the rest are soft, so four idle huts are not four calls to
+  // action.
+  const firstFree = states.find((s) => running.filter((r) => r.w === s.key).length < s.total)?.key;
+
   const builders = states.find((s) => s.key === "builders");
   const free = builders ? Math.max(0, builders.total - builders.busy) : 0;
   const nextBuilder = running.find((r) => r.w === "builders");
@@ -164,7 +171,7 @@ export function WorkshopBoard({ village, which, now, onPick, slotActions }: Work
           <Hourglass aria-hidden className="text-muted-foreground size-4.5" />
           Upgrading now
         </h2>
-        <p className={cn("text-sm font-medium", free > 0 ? "text-success-ink" : "text-muted-foreground")}>
+        <p className={cn("text-sm font-medium", free > 0 ? "text-bubble-ink" : "text-muted-foreground")}>
           {headline}
         </p>
       </div>
@@ -192,6 +199,7 @@ export function WorkshopBoard({ village, which, now, onPick, slotActions }: Work
                   key={`${state.key}-free-${i}`}
                   workshop={state.key}
                   label={state.key === "builders" ? "Free builder" : `${state.label} is free`}
+                  primary={state.key === firstFree && i === mine.length}
                   onPick={onPick}
                 />,
               );
@@ -230,7 +238,7 @@ function BusySlot({
 
   return (
     <li className="cb-sunken flex min-w-[15.5rem] snap-start flex-col gap-2.5 rounded-control p-3 sm:min-w-0">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         <UpgradeIcon village={village} upgrade={u} which={which} />
         <div className="min-w-0 flex-1">
           <p className="text-muted-foreground flex items-center gap-1.5 text-[0.6875rem] font-semibold tracking-wide uppercase">
@@ -253,7 +261,9 @@ function BusySlot({
           <LocalTime iso={u.finishesAt} style="datetime" />
         </span>
       </div>
-      {pct !== null && <Progress value={pct} label={`${u.name} ${Math.round(pct)}% done`} className="h-1.5" />}
+      {pct !== null && (
+        <Progress value={pct} label={`${u.name} ${Math.round(pct)}% done`} tone="maxed" className="h-1.5" />
+      )}
       {actions && <div className="flex flex-wrap gap-1.5">{actions}</div>}
     </li>
   );
@@ -262,18 +272,20 @@ function BusySlot({
 function FreeSlot({
   workshop,
   label,
+  primary,
   onPick,
 }: {
   workshop: Workshop;
   label: string;
+  primary: boolean;
   onPick?: (workshop: Workshop) => void;
 }) {
   return (
-    <li className="border-success/40 bg-success-tint/40 flex min-h-[9.5rem] min-w-[15.5rem] snap-start flex-col items-center justify-center gap-2 rounded-control border-2 border-dashed p-3 text-center sm:min-w-0">
-      <WorkshopIcon workshop={workshop} size={44} className="text-success-ink" />
+    <li className="border-bubble/50 bg-bubble-tint/50 flex min-h-[9.5rem] min-w-[15.5rem] snap-start flex-col items-center justify-center gap-2 rounded-control border-2 border-dashed p-3 text-center sm:min-w-0">
+      <WorkshopIcon workshop={workshop} size={44} plate className="text-bubble-ink" />
       <p className="text-sm font-semibold">{label}</p>
       {onPick && (
-        <Button type="button" size="sm" variant="gold" onClick={() => onPick(workshop)}>
+        <Button type="button" size="sm" variant={primary ? "bubble" : "bubble-soft"} onClick={() => onPick(workshop)}>
           <Sparkles aria-hidden />
           Pick an upgrade
         </Button>
@@ -452,7 +464,7 @@ export function UpgradesPanel({
           ))}
         </nav>
         {onSort && (
-          <div role="group" aria-label="Sort" className="flex gap-1.5 sm:ml-auto">
+          <div role="group" aria-label="Sort" className="cb-segment flex gap-1 sm:ml-auto">
             {SORTS.map((s) => (
               <button
                 key={s.key}
@@ -476,7 +488,7 @@ export function UpgradesPanel({
         </p>
       ) : items.length === 0 ? (
         <p className="text-muted-foreground flex items-center gap-2 py-2 text-sm">
-          <CheckCircle2 aria-hidden className="text-success-ink size-4" />
+          <CheckCircle2 aria-hidden className="text-bubble-ink size-4" />
           Nothing left here for {hallLabel}.
         </p>
       ) : (
@@ -545,7 +557,7 @@ export function UpgradeItemRow({
     );
   } else if (allBusy) {
     action = (
-      <Badge variant="info">
+      <Badge variant="bubble">
         <Hourglass aria-hidden />
         Upgrading
       </Badge>
@@ -563,7 +575,7 @@ export function UpgradeItemRow({
         <Button
           type="button"
           size="sm"
-          variant="gold"
+          variant="bubble-soft"
           onClick={() => onStart(item)}
           disabled={blocked !== null}
           aria-label={
@@ -584,7 +596,7 @@ export function UpgradeItemRow({
 
   return (
     <li className="cb-sunken rounded-control">
-      <div className="flex items-center gap-3 p-2.5 sm:p-3">
+      <div className="flex items-center gap-4 p-2.5 sm:p-3">
         <ItemIcon item={item} size={44} />
         <div className="min-w-0 flex-1 space-y-0.5">
           <p className="truncate text-sm font-medium">{titleOf(item)}</p>

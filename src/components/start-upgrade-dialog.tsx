@@ -156,7 +156,7 @@ function DialogInner({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
             Not now
           </Button>
-          <Button type="button" variant="gold" onClick={() => onMark(count)} disabled={pending}>
+          <Button type="button" variant="bubble" onClick={() => onMark(count)} disabled={pending}>
             <CheckCircle2 aria-hidden />
             {pending ? "Saving…" : count > 1 ? `Mark ${count} upgraded` : "Mark upgraded"}
           </Button>
@@ -210,7 +210,7 @@ function DialogInner({
           <label className="flex items-center gap-2 text-sm font-medium">
             <input
               type="checkbox"
-              className="size-4 accent-[var(--primary)]"
+              className="size-4 accent-[var(--bubble)]"
               checked={earlier}
               disabled={step === null}
               onChange={(e) => setEarlier(e.target.checked)}
@@ -272,7 +272,7 @@ function DialogInner({
         </Button>
         <Button
           type="button"
-          variant="gold"
+          variant="bubble"
           onClick={() => onStart({ boostPct: boosts ? boost : 0, secondsLeft: earlier ? typed : null })}
           disabled={pending || seconds === null || (earlier && typed === 0)}
         >

@@ -52,4 +52,19 @@ describe("UnitIcon", () => {
     expect(locked).not.toContain("cb-unit-level");
     expect(locked).toContain("grayscale");
   });
+
+  it("sets the picture on a water-bubble plate, gold-rimmed when maxed", () => {
+    const plated = render({ name: "Barbarian King", group: "hero", plate: true, manifest: WITH_KING });
+    expect(plated).toContain('class="cb-icon-plate"');
+    expect(plated).toContain('style="width:48px;height:48px"');
+    expect(plated).not.toContain("data-maxed");
+
+    const maxed = render({ name: "Barbarian King", group: "hero", plate: true, level: 100, maxed: true, manifest: WITH_KING });
+    expect(maxed).toMatch(/class="cb-icon-plate" data-maxed="true"/);
+
+    // No art: the token is already a filled tile, so it draws bare.
+    const noArt = render({ name: "Hog Rider", group: "elixirTroop", plate: true, manifest: EMPTY });
+    expect(noArt).not.toContain("cb-icon-plate");
+    expect(noArt).toContain("cb-unit-token");
+  });
 });

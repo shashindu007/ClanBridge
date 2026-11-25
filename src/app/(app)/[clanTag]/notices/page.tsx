@@ -217,7 +217,7 @@ export default async function NoticesPage({
             Pin to the top
           </label>
 
-          <SubmitButton variant="gold">Post</SubmitButton>
+          <SubmitButton variant="bubble">Post</SubmitButton>
         </ActionForm>
         </Disclosure>
       )}

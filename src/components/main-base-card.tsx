@@ -107,7 +107,7 @@ const count = (value: number) => value.toLocaleString("en-GB");
 /** Shown when the member has linked no village yet. */
 export function NoBaseCard() {
   return (
-    <Tile as="section" accent="var(--trim)" banner className="flex flex-wrap items-center gap-4">
+    <Tile as="section" accent="var(--bubble)" banner className="flex flex-wrap items-center gap-4">
       <span
         className="cb-emblem size-11 shrink-0 rounded-control"
         style={{ "--emblem": "var(--primary)" } as React.CSSProperties}
@@ -350,17 +350,18 @@ function ProgressBlock({ base }: { base: MainBaseView }) {
           </h3>
           <span className="cb-title cb-pop text-3xl tabular-nums">{progress.pct}%</span>
         </div>
-        <Progress value={progress.pct} label={`${base.label} progress`} />
+        <Progress value={progress.pct} label={`${base.label} progress`} tone="maxed" />
         <p className="text-muted-foreground text-xs">
           {progress.maxed} of {progress.counted} units maxed · read {formatDisplay(progress.capturedAt, "date")}
         </p>
       </div>
 
       {progress.heroes.length > 0 && (
-        <ul aria-label="Heroes" className="flex flex-wrap gap-3">
+        <ul aria-label="Heroes" className="flex flex-wrap gap-4">
           {progress.heroes.map((h) => (
             <li key={h.name} className="cb-hop" title={`${h.name} — ${h.level === 0 ? "locked" : `level ${h.level} of ${h.cap}`}`}>
               <UnitIcon
+                plate
                 name={h.name}
                 group={h.group}
                 size={48}
@@ -384,7 +385,7 @@ function ProgressBlock({ base }: { base: MainBaseView }) {
                 <span className="truncate">{g.label}</span>
                 <span className="text-muted-foreground tabular-nums">{g.pct}%</span>
               </div>
-              <Progress value={g.pct} label={`${g.label} progress`} className="h-1.5" />
+              <Progress value={g.pct} label={`${g.label} progress`} tone="maxed" className="h-1.5" />
             </li>
           ))}
         </ul>
@@ -462,7 +463,7 @@ function ExportBlock({ base, onUpload }: { base: MainBaseView; onUpload: () => v
           ) : (
             <>
               <p className="cb-title cb-pop text-2xl leading-none tabular-nums">{saved.buildingsPct}%</p>
-              <Progress value={saved.buildingsPct} label="Buildings progress" className="h-1.5" />
+              <Progress value={saved.buildingsPct} label="Buildings progress" tone="maxed" className="h-1.5" />
             </>
           )}
         </div>
@@ -519,7 +520,7 @@ function ExportBlock({ base, onUpload }: { base: MainBaseView; onUpload: () => v
             ? "Nothing upgrading"
             : `${saved.running.length} ${saved.running.length === 1 ? "upgrade" : "upgrades"} running`}
           {saved.finishedSince > 0 && (
-            <span className="text-success-ink"> · {saved.finishedSince} finished since the export</span>
+            <span className="text-bubble-ink"> · {saved.finishedSince} finished since the export</span>
           )}
         </p>
         {saved.lab && (

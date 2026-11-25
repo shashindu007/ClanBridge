@@ -725,7 +725,7 @@ function AnswerForm({
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <SubmitButton variant="gold" pendingLabel="Saving">
+        <SubmitButton variant="bubble" pendingLabel="Saving">
           {existing ? "Update answer" : "Save answer"}
         </SubmitButton>
         <p className="text-muted-foreground text-xs">
