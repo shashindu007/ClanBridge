@@ -1,9 +1,14 @@
 {
   "source": {
-    "fanKit": "coc-fankit + fankit-2026-11",
-    "generatedAt": "2026-11-23"
+    "fanKit": "coc-fankit + fankit-2026-11 + art-stage",
+    "generatedAt": "2026-11-25"
   },
   "files": {
+    "builder-building-air-bombs": {
+      "src": "/game/builder-buildings/builder-building-air-bombs.webp",
+      "width": 104,
+      "height": 104
+    },
     "builder-building-clock-tower": {
       "src": "/game/builder-buildings/builder-building-clock-tower.webp",
       "width": 104,
@@ -64,6 +69,11 @@
       "width": 104,
       "height": 104
     },
+    "building-air-sweeper": {
+      "src": "/game/buildings/building-air-sweeper.webp",
+      "width": 104,
+      "height": 104
+    },
     "building-archer-tower": {
       "src": "/game/buildings/building-archer-tower.webp",
       "width": 104,
@@ -76,6 +86,11 @@
     },
     "building-barracks": {
       "src": "/game/buildings/building-barracks.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-blacksmith": {
+      "src": "/game/buildings/building-blacksmith.webp",
       "width": 104,
       "height": 104
     },
@@ -194,8 +209,18 @@
       "width": 104,
       "height": 104
     },
+    "building-scattershot": {
+      "src": "/game/buildings/building-scattershot.webp",
+      "width": 104,
+      "height": 104
+    },
     "building-spell-factory": {
       "src": "/game/buildings/building-spell-factory.webp",
+      "width": 104,
+      "height": 104
+    },
+    "building-spell-tower": {
+      "src": "/game/buildings/building-spell-tower.webp",
       "width": 104,
       "height": 104
     },
@@ -804,8 +829,23 @@
       "width": 104,
       "height": 104
     },
+    "trap-bomb": {
+      "src": "/game/traps/trap-bomb.webp",
+      "width": 104,
+      "height": 104
+    },
+    "trap-giant-bomb": {
+      "src": "/game/traps/trap-giant-bomb.webp",
+      "width": 104,
+      "height": 104
+    },
     "trap-giga-bomb": {
       "src": "/game/traps/trap-giga-bomb.webp",
+      "width": 104,
+      "height": 104
+    },
+    "trap-skeleton-trap": {
+      "src": "/game/traps/trap-skeleton-trap.webp",
       "width": 104,
       "height": 104
     },

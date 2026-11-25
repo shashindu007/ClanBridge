@@ -76,6 +76,12 @@ The script leaves out, and says so:
   same files after `npm run game-data` brings them in.
 - anything whose name it cannot tie to one item (`B.O.T.O_hut`): never a guess.
 
+The 2026-11-24 zips added the Bomb, Giant Bomb, Skeleton Trap, Air Sweeper,
+Scattershot, Spell Tower (the kit spells it `spelltower`), Blacksmith and the
+Builder Base Air Bombs. A web screenshot of the Crafting Station
+(`crafted defence.png`) was left out: it is not Fan Kit art, and its white
+background would have to be cropped.
+
 ## When a file matches the wrong thing, or nothing
 
 The Fan Kit's filenames change between releases. The patterns that read them

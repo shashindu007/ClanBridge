@@ -108,9 +108,10 @@ describe("VillageExportView", () => {
     expect(html).toContain("×6");
     expect(html).toContain("21 ×5 · 20");
     expect(html).toContain("Traps");
-    // The Fan Kit has no Cannon or Bomb render yet: each kind's token stands in.
+    // The Fan Kit has no Cannon render yet, so its kind's token stands in;
+    // the Bomb has one (2026-11-24 zip).
     expect(html).toContain('data-kind="Defense"');
-    expect(html).toContain('data-kind="trap"');
+    expect(html).toContain("/game/traps/trap-bomb.webp");
     expect(html).not.toContain("<table");
   });
 
